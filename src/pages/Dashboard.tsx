@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { ClipboardList, HandCoins, PieChart, Shirt, TrendingUp, Settings } from 'lucide-react';
+import { ClipboardList, HandCoins, PieChart, Shirt, TrendingUp, Settings, Landmark } from 'lucide-react';
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -52,12 +52,12 @@ const Dashboard = () => {
           <span className="card-title">Finanzas</span>
         </button>
 
-        {/* Configuraciones */}
-        <button className="dashboard-hero-card hover-color-blue" onClick={() => navigate('/configuraciones')}>
+        {/* Cajas y Bancos */}
+        <button className="dashboard-hero-card hover-color-blue" onClick={() => navigate('/cajas-bancos')}>
           <div className="card-icon">
-            <Settings size={100} strokeWidth={1.2} />
+            <Landmark size={100} strokeWidth={1.2} />
           </div>
-          <span className="card-title">Configuraciones</span>
+          <span className="card-title">Cajas y Bancos</span>
         </button>
       </div>
     </main>

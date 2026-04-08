@@ -23,8 +23,19 @@ interface Proveedor {
   telefono: string | null;
   direccion: string | null;
   contacto: string | null;
+  /** Categoría única del proveedor */
+  categoria: string;
   activo: boolean;
 }
+
+/** Etiquetas de categorías de proveedor */
+const CATEGORIAS_PROVEEDOR = [
+  { value: 'uniforme',          label: 'Proveedor de Uniformes' },
+  { value: 'trabajador',        label: 'Trabajadores' },
+  { value: 'servicios_basicos', label: 'Servicios Básicos' },
+  { value: 'alquiler',          label: 'Alquileres' },
+  { value: 'otro',              label: 'Otros' },
+];
 
 interface Personal {
   id: string;
@@ -81,7 +92,7 @@ const AdminEntidadesCxP: React.FC<Props> = ({ onVolver }) => {
     setCargando(true);
     if (tab === 'proveedores') {
       const { data } = await supabase.from('proveedores')
-        .select('id, nombre, nit_ci, telefono, direccion, contacto, activo')
+        .select('id, nombre, nit_ci, telefono, direccion, contacto, categoria, activo')
         .eq('escuela_id', escuelaId).order('nombre');
       setProveedores(data ?? []);
     } else {
@@ -99,7 +110,7 @@ const AdminEntidadesCxP: React.FC<Props> = ({ onVolver }) => {
     if (item === 'nuevo') {
       setEditandoId('nuevo');
       tab === 'proveedores'
-        ? setFormProv({ nombre: '', activo: true })
+        ? setFormProv({ nombre: '', categoria: 'otro', activo: true })
         : setFormPers({ nombres: '', apellidos: '', activo: true });
     } else if (tab === 'proveedores') {
       setEditandoId((item as Proveedor).id);
@@ -122,6 +133,7 @@ const AdminEntidadesCxP: React.FC<Props> = ({ onVolver }) => {
       telefono: formProv.telefono?.trim() || null,
       direccion: formProv.direccion?.trim() || null,
       contacto: formProv.contacto?.trim() || null,
+      categoria: formProv.categoria || 'otro',
       activo: formProv.activo ?? true,
     };
 
@@ -181,25 +193,19 @@ const AdminEntidadesCxP: React.FC<Props> = ({ onVolver }) => {
 
   return (
     <main className="main-content">
-      {/* Header */}
-      <div className="pc-header">
-        <div className="pc-header-izq">
+      {/* ─── Header ─── */}
+      <div className="cxc-header-bar">
+        <div className="cxc-header-izq">
           <button className="btn-volver" onClick={onVolver} title="Volver">
             <ChevronLeft size={20} />
           </button>
           <div>
-            <h1 className="pc-titulo" style={{ color: '#8b5cf6' }}>
-              ⚙️ Administrar Proveedores y Personal
-            </h1>
-            <p className="pc-subtitulo">
-              Gestiona los datos básicos de tus proveedores y trabajadores
-            </p>
+            <h1 className="cxc-titulo-principal">Administrar Proveedores y Personal</h1>
           </div>
         </div>
-        <div className="pc-header-acciones">
+        <div className="cxc-header-acciones">
           <button
             className="btn-nueva-cuenta"
-            style={{ background: '#8b5cf6' }}
             onClick={() => abrirEditar('nuevo')}
           >
             <Plus size={18} /> {tab === 'proveedores' ? 'Nuevo Proveedor' : 'Nuevo Trabajador'}
@@ -231,13 +237,13 @@ const AdminEntidadesCxP: React.FC<Props> = ({ onVolver }) => {
       {/* Formulario de creación/edición (inline) */}
       {editandoId !== null && (
         <div style={{
-          background: 'rgba(139,92,246,0.08)', border: '1px solid rgba(139,92,246,0.3)',
+          background: 'rgba(59,130,246,0.05)', border: '1px solid rgba(59,130,246,0.25)',
           borderRadius: '12px', padding: '1.25rem', marginBottom: '1.5rem'
         }}>
-          <h3 style={{ fontSize: '0.95rem', fontWeight: 600, marginBottom: '1rem', color: '#a78bfa' }}>
+          <h3 style={{ fontSize: '0.95rem', fontWeight: 600, marginBottom: '1rem', color: 'var(--text-primary)' }}>
             {editandoId === 'nuevo'
-              ? (tab === 'proveedores' ? '🏭 Nuevo Proveedor' : '👤 Nuevo Trabajador')
-              : '✏️ Editar'
+              ? (tab === 'proveedores' ? 'Nuevo Proveedor' : 'Nuevo Trabajador')
+              : 'Editar'
             }
           </h3>
 
@@ -246,6 +252,18 @@ const AdminEntidadesCxP: React.FC<Props> = ({ onVolver }) => {
               <div className="form-campo">
                 <label>Nombre *</label>
                 <input type="text" value={formProv.nombre || ''} onChange={e => setFormProv(p => ({ ...p, nombre: e.target.value }))} placeholder="Nombre del proveedor" disabled={guardando} />
+              </div>
+              <div className="form-campo">
+                <label>Categoría *</label>
+                <select
+                  value={formProv.categoria || 'otro'}
+                  onChange={e => setFormProv(p => ({ ...p, categoria: e.target.value }))}
+                  disabled={guardando}
+                >
+                  {CATEGORIAS_PROVEEDOR.map(c => (
+                    <option key={c.value} value={c.value}>{c.label}</option>
+                  ))}
+                </select>
               </div>
               <div className="form-campo">
                 <label>NIT / CI</label>
@@ -334,9 +352,9 @@ const AdminEntidadesCxP: React.FC<Props> = ({ onVolver }) => {
           <div className="cxc-lista">
             <div className="cxc-alumno-row cxc-alumno-row--header">
               <span>Nombre</span>
+              <span>Categoría</span>
               <span>Contacto</span>
               <span>Teléfono</span>
-              <span>Dirección</span>
               <span className="cxc-col-center">Estado</span>
               <span></span>
             </div>
@@ -345,9 +363,11 @@ const AdminEntidadesCxP: React.FC<Props> = ({ onVolver }) => {
                 <span className="cxc-alumno-nombre" style={{ opacity: p.activo ? 1 : 0.45 }}>
                   <Truck size={13} /> {p.nombre}
                 </span>
+                <span className="cxc-alumno-meta" style={{ fontSize: '0.8rem' }}>
+                  {CATEGORIAS_PROVEEDOR.find(c => c.value === p.categoria)?.label ?? 'Otro'}
+                </span>
                 <span className="cxc-alumno-meta">{p.contacto || '—'}</span>
                 <span className="cxc-alumno-meta">{p.telefono || '—'}</span>
-                <span className="cxc-alumno-meta" style={{ fontSize: '0.8rem', color: '#64748b' }}>{p.direccion || '—'}</span>
                 <span className="cxc-col-center">
                   <button
                     onClick={() => toggleActivo(p.id, p.activo)}

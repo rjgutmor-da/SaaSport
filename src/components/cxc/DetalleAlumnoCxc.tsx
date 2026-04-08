@@ -92,7 +92,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
 
       let qCuentas = supabase.from('plan_cuentas').select('*')
         .eq('es_transaccional', true)
-        .or('codigo.like.1.1.1%,codigo.like.1.1.2%');
+        .like('codigo', '1.1.1%');
       
       // Filtrar por sucursal si no es admin global
       if (!esAdmin && userSucursal) {

@@ -17,6 +17,7 @@ import CuentasPagar from './pages/cxp/CuentasPagar';
 import Inventarios from './pages/inventarios/Inventarios';
 import Configuraciones from './pages/config/Configuraciones';
 import AuditLog from './pages/config/AuditLog';
+import CajasBancos from './pages/cajas-bancos/CajasBancos';
 
 
 /** Barra de navegación superior */
@@ -78,6 +79,7 @@ const AppRouter = ({ onLogout }: { onLogout: () => void }) => {
           <Route path="/cxc" element={<CuentasCobrar />} />
           <Route path="/cxp" element={<CuentasPagar />} />
           <Route path="/inventarios" element={<Inventarios />} />
+          <Route path="/cajas-bancos" element={<CajasBancos />} />
           <Route path="/configuraciones" element={<Configuraciones />} />
           <Route path="/configuraciones/auditoria" element={<AuditLog />} />
         </Routes>
