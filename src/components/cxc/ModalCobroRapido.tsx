@@ -66,7 +66,7 @@ const ModalCobroRapido: React.FC<Props> = ({ alumnoInicial, visible, onCerrar, o
       // Cargar cuentas contables disponibles
       let q = supabase.from('plan_cuentas').select('*')
         .eq('es_transaccional', true)
-        .or('codigo.like.1.1.1%,codigo.like.1.1.2%');
+        .like('codigo', '1.1.1%');
       if (!esAdmin && usr.sucursal_id) {
         q = q.or(`sucursal_id.eq.${usr.sucursal_id},sucursal_id.is.null`);
       }

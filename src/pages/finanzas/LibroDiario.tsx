@@ -133,7 +133,7 @@ const LibroDiario: React.FC = () => {
     const { data } = await supabase
       .from('plan_cuentas')
       .select('*')
-      .eq('escuela_id', escuelaId)
+      .or(`escuela_id.eq.${escuelaId},escuela_id.is.null`)
       .eq('es_transaccional', true)
       .order('codigo', { ascending: true });
     setCuentas(data ?? []);

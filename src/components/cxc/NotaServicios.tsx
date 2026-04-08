@@ -94,7 +94,7 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
 
       let qCuentas = supabase.from('plan_cuentas').select('id, codigo, nombre')
         .eq('es_transaccional', true)
-        .or('codigo.like.1.1.1%,codigo.like.1.1.2%');
+        .like('codigo', '1.1.1%');
       
       if (!esAdmin && userSucursal) {
         qCuentas = qCuentas.or(`sucursal_id.eq.${userSucursal},sucursal_id.is.null`);

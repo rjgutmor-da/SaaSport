@@ -86,7 +86,7 @@ const PlanCuentas: React.FC = () => {
     const { data, error: err } = await supabase
       .from('plan_cuentas')
       .select('*')
-      .eq('escuela_id', escuelaId)
+      .or(`escuela_id.eq.${escuelaId},escuela_id.is.null`)
       .order('codigo', { ascending: true });
 
     if (err) {

@@ -55,6 +55,8 @@ export interface MovimientoContable {
   cuenta_contable_id: string;
   debe: number;
   haber: number;
+  es_conciliado?: boolean; // Note: using conciliado since we added the column
+  conciliado: boolean;
   created_at: string;
   // Relación expandida (join)
   cuenta?: CuentaContable;
