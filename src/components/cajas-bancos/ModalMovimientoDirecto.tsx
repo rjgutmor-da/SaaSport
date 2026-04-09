@@ -9,9 +9,11 @@ interface Props {
   cajas: CuentaContable[];
   onCerrar: () => void;
   onCreado: () => void;
+  setFormDirty: (dirty: boolean) => void;
+  isDirty: boolean;
 }
 
-const ModalMovimientoDirecto: React.FC<Props> = ({ visible, tipo, cajas, onCerrar, onCreado }) => {
+const ModalMovimientoDirecto: React.FC<Props> = ({ visible, tipo, cajas, onCerrar, onCreado, setFormDirty, isDirty }) => {
   const isIngreso = tipo === 'ingreso';
 
   const [cajaId, setCajaId] = useState('');
@@ -34,8 +36,14 @@ const ModalMovimientoDirecto: React.FC<Props> = ({ visible, tipo, cajas, onCerra
       setDescripcion('');
       setContraCuentaId('');
       setCajaId('');
+      setFormDirty(false);
     }
-  }, [visible]);
+  }, [visible, setFormDirty]);
+
+  const handleInputChange = (setter: any, value: any) => {
+    setter(value);
+    setFormDirty(true);
+  };
 
   const cargarContraCuentas = async () => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -43,13 +51,20 @@ const ModalMovimientoDirecto: React.FC<Props> = ({ visible, tipo, cajas, onCerra
     const { data: perfil } = await supabase.from('usuarios').select('escuela_id').eq('id', user.id).single();
     if (!perfil?.escuela_id) return;
 
-    // Cargar TODAS las cuentas transaccionales que NO sean necesariamente las cajas
-    const { data } = await supabase
+    // Filtrar cuentas: Ingreso -> tipo 'ingreso', Salida -> tipo 'gasto'
+    let query = supabase
       .from('plan_cuentas')
       .select('id, codigo, nombre, tipo')
       .or(`escuela_id.eq.${perfil.escuela_id},escuela_id.is.null`)
-      .eq('es_transaccional', true)
-      .order('codigo');
+      .eq('es_transaccional', true);
+    
+    if (isIngreso) {
+      query = query.eq('tipo', 'ingreso');
+    } else {
+      query = query.eq('tipo', 'gasto');
+    }
+
+    const { data } = await query.order('codigo');
 
     if (data) setTodasLasCuentas(data as CuentaContable[]);
   };
@@ -114,6 +129,7 @@ const ModalMovimientoDirecto: React.FC<Props> = ({ visible, tipo, cajas, onCerra
       const { error: errMovs } = await supabase.from('movimientos_contables').insert([cajaMov, contraMov]);
       if (errMovs) throw new Error('Error al registrar los movimientos: ' + errMovs.message);
 
+      setFormDirty(false);
       onCreado();
     } catch (err: any) {
       setError(err.message);
@@ -126,8 +142,8 @@ const ModalMovimientoDirecto: React.FC<Props> = ({ visible, tipo, cajas, onCerra
     <div className="modal-overlay">
       <div className="modal-content" style={{ maxWidth: '500px' }}>
         <div className="modal-header">
-          <h2 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: isIngreso ? 'var(--success-color)' : 'var(--danger-color)' }}>
-            {isIngreso ? <ArrowDownRight size={20} /> : <ArrowUpRight size={20} />}
+          <h2 style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', color: isIngreso ? '#00D26A' : '#0A84FF', fontSize: '1.4rem', fontWeight: 700 }}>
+            {isIngreso ? <ArrowDownRight size={26} /> : <ArrowUpRight size={26} />}
             {isIngreso ? 'Nuevo Ingreso de Dinero' : 'Nueva Salida / Gasto'}
           </h2>
           <button className="btn-close" onClick={onCerrar} disabled={guardando}>
@@ -135,83 +151,91 @@ const ModalMovimientoDirecto: React.FC<Props> = ({ visible, tipo, cajas, onCerra
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="modal-body form-grid">
+        <form onSubmit={handleSubmit} className="modal-body form-grid" style={{ gap: '1.2rem' }}>
           {error && <div className="form-msg form-msg--error">{error}</div>}
 
           {/* Selector de Caja / Banco */}
-          <div className="form-campo">
-            <label><Building2 size={16}/> {isIngreso ? 'Ingresa a (Caja/Banco)' : 'Sale de (Caja/Banco)'}</label>
-            <select value={cajaId} onChange={e => setCajaId(e.target.value)} required disabled={guardando}>
+          <div className="form-campo" style={{ marginBottom: '0.5rem' }}>
+            <label style={{ color: 'var(--text-secondary)', fontWeight: 600, fontSize: '0.8rem', marginBottom: '0px' }}>Caja o Banco</label>
+            <select value={cajaId} onChange={e => handleInputChange(setCajaId, e.target.value)} required disabled={guardando} style={{ padding: '0.7rem' }}>
               <option value="">Seleccione cuenta...</option>
               {cajas.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
             </select>
           </div>
 
           {/* Selector de Contra Cuenta */}
-          <div className="form-campo">
-            <label><Tag size={16}/> {isIngreso ? 'Concepto de Ingreso' : 'Concepto de Gasto/Salida'}</label>
-            <select value={contraCuentaId} onChange={e => setContraCuentaId(e.target.value)} required disabled={guardando}>
+          <div className="form-campo" style={{ marginBottom: '0.5rem' }}>
+            <label style={{ color: 'var(--text-secondary)', fontWeight: 600, fontSize: '0.8rem', marginBottom: '0px' }}>Concepto de {isIngreso ? 'Ingreso' : 'Salida'}</label>
+            <select value={contraCuentaId} onChange={e => handleInputChange(setContraCuentaId, e.target.value)} required disabled={guardando} style={{ padding: '0.7rem' }}>
               <option value="">Seleccione concepto...</option>
               {todasLasCuentas.map(c => (
-                <option key={c.id} value={c.id}>{c.codigo} - {c.nombre}</option>
+                <option key={c.id} value={c.id}>{c.nombre}</option>
               ))}
             </select>
           </div>
 
-          <div className="form-campo">
-            <label><DollarSign size={16}/> Monto (Bs)</label>
+          <div className="form-campo" style={{ marginBottom: '0.5rem' }}>
+            <label style={{ color: 'var(--text-secondary)', fontWeight: 600, fontSize: '0.8rem', marginBottom: '0px' }}>Monto (Bs)</label>
             <input 
               type="number" 
               step="0.01" 
               min="0.01"
               value={monto} 
-              onChange={e => setMonto(e.target.value)} 
+              onChange={e => handleInputChange(setMonto, e.target.value)} 
               required 
               disabled={guardando} 
               placeholder="0.00"
+              style={{ padding: '0.7rem' }}
             />
           </div>
 
-          <div className="form-campo">
-            <label><Calendar size={16}/> Fecha</label>
+          <div className="form-campo" style={{ marginBottom: '0.5rem' }}>
+            <label style={{ color: 'var(--text-secondary)', fontWeight: 600, fontSize: '0.8rem', marginBottom: '0px' }}>Fecha</label>
             <input 
               type="date" 
               value={fecha} 
-              onChange={e => setFecha(e.target.value)} 
+              onChange={e => handleInputChange(setFecha, e.target.value)} 
               required 
               disabled={guardando} 
+              style={{ padding: '0.7rem' }}
             />
           </div>
 
-          <div className="form-campo" style={{ gridColumn: '1 / -1' }}>
-            <label><CreditCard size={16}/> Método de {isIngreso ? 'Cobro' : 'Pago'}</label>
-            <select value={metodo} onChange={e => setMetodo(e.target.value)} disabled={guardando}>
+          <div className="form-campo" style={{ gridColumn: '1 / -1', marginBottom: '0.5rem' }}>
+            <label style={{ color: 'var(--text-secondary)', fontWeight: 600, fontSize: '0.8rem', marginBottom: '0px' }}>Método de {isIngreso ? 'Cobro' : 'Pago'}</label>
+            <select value={metodo} onChange={e => handleInputChange(setMetodo, e.target.value)} disabled={guardando} style={{ padding: '0.7rem' }}>
               <option value="efectivo">Efectivo</option>
-              <option value="transferencia">Transferencia / Cheque</option>
-              <option value="qr">Código QR / Billetera</option>
+              <option value="qr">QR</option>
+              <option value="transferencia">Transferencia</option>
             </select>
           </div>
 
-          <div className="form-campo" style={{ gridColumn: '1 / -1' }}>
-            <label><AlignLeft size={16}/> Descripción o Referencia</label>
-            <input 
-              type="text" 
+          <div className="form-campo" style={{ gridColumn: '1 / -1', marginBottom: '0.5rem' }}>
+            <label style={{ color: 'var(--text-secondary)', fontWeight: 600, fontSize: '0.8rem', marginBottom: '0px' }}>Observaciones</label>
+            <textarea 
               value={descripcion} 
-              onChange={e => setDescripcion(e.target.value)} 
+              onChange={e => handleInputChange(setDescripcion, e.target.value)} 
               required 
               disabled={guardando} 
-              placeholder="Ej: Pago servicio de internet"
+              placeholder=""
+              style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', border: '1px solid var(--border)', minHeight: '80px', resize: 'vertical', fontSize: '0.9rem' }}
               maxLength={255}
             />
           </div>
 
-          <div className="modal-footer" style={{ gridColumn: '1 / -1', marginTop: '1rem' }}>
-            <button type="button" className="btn-cancelar" onClick={onCerrar} disabled={guardando}>Cancelar</button>
+          <div className="modal-footer" style={{ gridColumn: '1 / -1', marginTop: '1.5rem', borderTop: '1px solid var(--border-light)', paddingTop: '1.5rem', display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
+            <button type="button" className="btn-cancelar" onClick={onCerrar} disabled={guardando} style={{ padding: '0.75rem 1.5rem' }}>Cancelar</button>
             <button 
                 type="submit" 
                 className="btn-guardar-cuenta" 
                 disabled={guardando}
-                style={{ background: isIngreso ? 'var(--success-color)' : 'var(--danger-color)', borderColor: isIngreso ? 'var(--success-color)' : 'var(--danger-color)' }}
+                style={{ 
+                  background: isIngreso ? '#00D26A' : '#0A84FF', 
+                  borderColor: isIngreso ? '#00D26A' : '#0A84FF',
+                  padding: '0.75rem 2rem',
+                  fontWeight: 600,
+                  boxShadow: `0 4px 12px ${isIngreso ? 'rgba(0,210,106,0.3)' : 'rgba(10,132,255,0.3)'}`
+                }}
               >
               {guardando ? 'Registrando...' : (isIngreso ? 'Confirmar Ingreso' : 'Confirmar Salida')}
             </button>

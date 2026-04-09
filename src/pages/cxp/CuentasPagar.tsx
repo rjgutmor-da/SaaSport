@@ -403,7 +403,7 @@ const CuentasPagar: React.FC = () => {
                 const tieneDeuda  = entidad.saldo_pendiente > 0;
                 const dias        = calcularDias(entidad.fecha_mas_antigua);
                 const labelCat    = CATEGORIAS_PROVEEDOR.find(c => c.value === entidad.categoria)?.label ?? 'Otro';
-                const colorDias   = dias > 45 ? '#f87171' : dias > 30 ? '#facc15' : '#94a3b8';
+                const colorDias   = dias > 45 ? 'var(--danger)' : dias > 30 ? 'var(--primary)' : 'var(--text-tertiary)';
 
                 return (
                   <tr
@@ -434,8 +434,8 @@ const CuentasPagar: React.FC = () => {
                     <td className="cxc-td cxc-td-meta">
                       <span style={{
                         fontSize: '0.8rem',
-                        background: 'rgba(99,102,241,0.12)',
-                        color: '#a5b4fc',
+                        background: 'var(--secondary-glow)',
+                        color: 'var(--secondary)',
                         borderRadius: '12px',
                         padding: '2px 8px',
                         whiteSpace: 'nowrap',

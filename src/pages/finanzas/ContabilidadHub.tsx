@@ -1,13 +1,13 @@
 /**
- * FinanzasHub.tsx
- * Pantalla principal del módulo de Finanzas.
- * Actúa como hub de navegación hacia los sub-módulos: Plan de Cuentas y Libro Diario.
+ * ContabilidadHub.tsx
+ * Pantalla principal del módulo de Contabilidad y Estadísticas.
+ * Sustituye al antiguo FinanzasHub.
  */
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { TreePine, BookOpen, ChevronLeft } from 'lucide-react';
+import { TreePine, BookOpen, ChevronLeft, BarChart3, Activity } from 'lucide-react';
 
-const FinanzasHub: React.FC = () => {
+const ContabilidadHub: React.FC = () => {
   const navigate = useNavigate();
 
   const modulos: Array<{
@@ -24,7 +24,7 @@ const FinanzasHub: React.FC = () => {
       titulo: 'Plan de Cuentas',
       descripcion: 'Árbol contable jerárquico con todas las cuentas organizadas por tipo.',
       icono: <TreePine size={60} strokeWidth={1.5} />,
-      ruta: '/finanzas/plan-cuentas',
+      ruta: '/contabilidad/plan-cuentas',
       hoverClass: 'hover-color-green',
     },
     {
@@ -32,22 +32,39 @@ const FinanzasHub: React.FC = () => {
       titulo: 'Libro Diario',
       descripcion: 'Registro inmutable de asientos contables con partida doble.',
       icono: <BookOpen size={60} strokeWidth={1.5} />,
-      ruta: '/finanzas/libro-diario',
+      ruta: '/contabilidad/libro-diario',
       hoverClass: 'hover-color-blue',
+    },
+    {
+      id: 'estadisticas',
+      titulo: 'Estadísticas',
+      descripcion: 'Reportes financieros, gráficos de ingresos y gastos dinámicos.',
+      icono: <BarChart3 size={60} strokeWidth={1.5} />,
+      ruta: '/contabilidad/estadisticas',
+      hoverClass: 'hover-color-orange',
+      proximamente: true,
+    },
+    {
+      id: 'registro-actividad',
+      titulo: 'Registro de Actividad',
+      descripcion: 'Auditoría de cambios y registros realizados en el sistema contable.',
+      icono: <Activity size={60} strokeWidth={1.5} />,
+      ruta: '/contabilidad/auditoria',
+      hoverClass: 'hover-color-blue',
+      proximamente: true,
     },
   ];
 
   return (
-    <main className="main-content">
-      {/* Encabezado */}
-      <div className="pc-header">
-        <div className="pc-header-izq">
+    <main className="main-content cxc-main">
+      {/* Encabezado - Mismo estilo que otros módulos */}
+      <div className="cxc-header-bar">
+        <div className="cxc-header-izq">
           <button className="btn-volver" onClick={() => navigate('/')} title="Volver al Dashboard">
             <ChevronLeft size={20} />
           </button>
           <div>
-            <h1 className="pc-titulo">Finanzas</h1>
-            <p className="pc-subtitulo">Core contable de tu escuela deportiva</p>
+            <h1 className="cxc-titulo-principal">Contabilidad y Estadísticas</h1>
           </div>
         </div>
       </div>
@@ -76,4 +93,4 @@ const FinanzasHub: React.FC = () => {
   );
 };
 
-export default FinanzasHub;
+export default ContabilidadHub;

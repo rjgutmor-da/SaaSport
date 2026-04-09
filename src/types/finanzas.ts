@@ -66,11 +66,11 @@ export interface MovimientoContable {
 // Colores por tipo de cuenta (UI)
 // ==========================================
 export const COLORES_TIPO: Record<TipoCuenta, { bg: string; texto: string; borde: string }> = {
-  activo:     { bg: '#0d3b26', texto: '#4ade80', borde: '#16a34a' },
-  pasivo:     { bg: '#3b1c0d', texto: '#fb923c', borde: '#ea580c' },
-  patrimonio: { bg: '#1c1c3b', texto: '#a78bfa', borde: '#7c3aed' },
-  ingreso:    { bg: '#0d2d3b', texto: '#38bdf8', borde: '#0284c7' },
-  gasto:      { bg: '#3b0d1c', texto: '#f472b6', borde: '#db2777' },
+  activo:     { bg: 'rgba(0, 210, 106, 0.1)', texto: '#00D26A', borde: '#00D26A' },
+  pasivo:     { bg: 'rgba(255, 107, 53, 0.1)', texto: '#FF6B35', borde: '#FF6B35' },
+  patrimonio: { bg: 'rgba(10, 132, 255, 0.1)', texto: '#0A84FF', borde: '#0A84FF' },
+  ingreso:    { bg: 'rgba(0, 210, 106, 0.1)', texto: '#00D26A', borde: '#00D26A' },
+  gasto:      { bg: 'rgba(255, 107, 53, 0.1)', texto: '#FF6B35', borde: '#FF6B35' },
 };
 
 // ==========================================

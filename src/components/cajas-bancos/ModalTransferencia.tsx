@@ -8,9 +8,10 @@ interface Props {
   cajas: CuentaContable[];
   onCerrar: () => void;
   onCreado: () => void;
+  setFormDirty: (dirty: boolean) => void;
 }
 
-const ModalTransferencia: React.FC<Props> = ({ visible, cajas, onCerrar, onCreado }) => {
+const ModalTransferencia: React.FC<Props> = ({ visible, cajas, onCerrar, onCreado, setFormDirty }) => {
   const [origenId, setOrigenId] = useState('');
   const [destinoId, setDestinoId] = useState('');
   const [monto, setMonto] = useState('');
@@ -20,6 +21,21 @@ const ModalTransferencia: React.FC<Props> = ({ visible, cajas, onCerrar, onCread
   
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const handleInputChange = (setter: any, value: any) => {
+    setter(value);
+    setFormDirty(true);
+  };
+
+  React.useEffect(() => {
+    if (visible) {
+      setOrigenId('');
+      setDestinoId('');
+      setMonto('');
+      setDescripcion('Transferencia interna');
+      setFormDirty(false);
+    }
+  }, [visible, setFormDirty]);
 
   if (!visible) return null;
 
@@ -78,6 +94,7 @@ const ModalTransferencia: React.FC<Props> = ({ visible, cajas, onCerrar, onCread
 
       if (errMovs) throw new Error('Error al registrar los movimientos: ' + errMovs.message);
 
+      setFormDirty(false);
       onCreado();
     } catch (err: any) {
       setError(err.message);
@@ -90,8 +107,8 @@ const ModalTransferencia: React.FC<Props> = ({ visible, cajas, onCerrar, onCread
     <div className="modal-overlay">
       <div className="modal-content" style={{ maxWidth: '500px' }}>
         <div className="modal-header">
-          <h2 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <ArrowRightLeft size={20} className="text-brand" />
+          <h2 style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', color: '#0A84FF', fontSize: '1.4rem', fontWeight: 700 }}>
+            <ArrowRightLeft size={26} />
             Transferencia entre Cuentas
           </h2>
           <button className="btn-close" onClick={onCerrar} disabled={guardando}>
@@ -99,74 +116,87 @@ const ModalTransferencia: React.FC<Props> = ({ visible, cajas, onCerrar, onCread
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="modal-body form-grid">
+        <form onSubmit={handleSubmit} className="modal-body form-grid" style={{ gap: '1.2rem' }}>
           {error && <div className="form-msg form-msg--error">{error}</div>}
 
-          <div className="form-campo">
-            <label><Building2 size={16}/> Cuenta Origen (Sale)</label>
-            <select value={origenId} onChange={e => setOrigenId(e.target.value)} required disabled={guardando}>
+          <div className="form-campo" style={{ marginBottom: '0.5rem' }}>
+            <label style={{ color: 'var(--text-secondary)', fontWeight: 600, fontSize: '0.8rem', marginBottom: '0px' }}>Cuenta Origen</label>
+            <select value={origenId} onChange={e => handleInputChange(setOrigenId, e.target.value)} required disabled={guardando} style={{ padding: '0.7rem' }}>
               <option value="">Seleccione origen...</option>
               {cajas.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
             </select>
           </div>
 
-          <div className="form-campo">
-            <label><Building2 size={16}/> Cuenta Destino (Entra)</label>
-            <select value={destinoId} onChange={e => setDestinoId(e.target.value)} required disabled={guardando}>
+          <div className="form-campo" style={{ marginBottom: '0.5rem' }}>
+            <label style={{ color: 'var(--text-secondary)', fontWeight: 600, fontSize: '0.8rem', marginBottom: '0px' }}>Cuenta Destino</label>
+            <select value={destinoId} onChange={e => handleInputChange(setDestinoId, e.target.value)} required disabled={guardando} style={{ padding: '0.7rem' }}>
               <option value="">Seleccione destino...</option>
               {cajas.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
             </select>
           </div>
 
-          <div className="form-campo">
-            <label><DollarSign size={16}/> Monto a Transferir (Bs)</label>
+          <div className="form-campo" style={{ marginBottom: '0.5rem' }}>
+            <label style={{ color: 'var(--text-secondary)', fontWeight: 600, fontSize: '0.8rem', marginBottom: '0px' }}>Monto a Transferir (Bs)</label>
             <input 
               type="number" 
               step="0.01" 
               min="0.01"
               value={monto} 
-              onChange={e => setMonto(e.target.value)} 
+              onChange={e => handleInputChange(setMonto, e.target.value)} 
               required 
               disabled={guardando} 
               placeholder="0.00"
+              style={{ padding: '0.7rem' }}
             />
           </div>
 
-          <div className="form-campo">
-            <label><Calendar size={16}/> Fecha</label>
+          <div className="form-campo" style={{ marginBottom: '0.5rem' }}>
+            <label style={{ color: 'var(--text-secondary)', fontWeight: 600, fontSize: '0.8rem', marginBottom: '0px' }}>Fecha</label>
             <input 
               type="date" 
               value={fecha} 
-              onChange={e => setFecha(e.target.value)} 
+              onChange={e => handleInputChange(setFecha, e.target.value)} 
               required 
               disabled={guardando} 
+              style={{ padding: '0.7rem' }}
             />
           </div>
 
-          <div className="form-campo" style={{ gridColumn: '1 / -1' }}>
-            <label><CreditCard size={16}/> Método de Transferencia</label>
-            <select value={metodo} onChange={e => setMetodo(e.target.value)} disabled={guardando}>
+          <div className="form-campo" style={{ gridColumn: '1 / -1', marginBottom: '0.5rem' }}>
+            <label style={{ color: 'var(--text-secondary)', fontWeight: 600, fontSize: '0.8rem', marginBottom: '0px' }}>Método de Transferencia</label>
+            <select value={metodo} onChange={e => handleInputChange(setMetodo, e.target.value)} disabled={guardando} style={{ padding: '0.7rem' }}>
               <option value="transferencia">Transferencia Bancaria</option>
               <option value="efectivo">Efectivo</option>
               <option value="qr">Código QR</option>
             </select>
           </div>
 
-          <div className="form-campo" style={{ gridColumn: '1 / -1' }}>
-            <label><AlignLeft size={16}/> Descripción / Glosa</label>
-            <input 
-              type="text" 
+          <div className="form-campo" style={{ gridColumn: '1 / -1', marginBottom: '0.5rem' }}>
+            <label style={{ color: 'var(--text-secondary)', fontWeight: 600, fontSize: '0.8rem', marginBottom: '0px' }}>Observaciones</label>
+            <textarea 
               value={descripcion} 
-              onChange={e => setDescripcion(e.target.value)} 
+              onChange={e => handleInputChange(setDescripcion, e.target.value)} 
               required 
               disabled={guardando} 
-              placeholder="Ej: Traspaso para caja chica"
+              placeholder=""
+              style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', border: '1px solid var(--border)', minHeight: '80px', resize: 'vertical', fontSize: '0.9rem' }}
             />
           </div>
 
-          <div className="modal-footer" style={{ gridColumn: '1 / -1', marginTop: '1rem' }}>
-            <button type="button" className="btn-cancelar" onClick={onCerrar} disabled={guardando}>Cancelar</button>
-            <button type="submit" className="btn-guardar-cuenta" disabled={guardando}>
+          <div className="modal-footer" style={{ gridColumn: '1 / -1', marginTop: '1.5rem', borderTop: '1px solid var(--border-light)', paddingTop: '1.5rem', display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
+            <button type="button" className="btn-cancelar" onClick={onCerrar} disabled={guardando} style={{ padding: '0.75rem 1.5rem' }}>Cancelar</button>
+            <button 
+              type="submit" 
+              className="btn-guardar-cuenta" 
+              disabled={guardando}
+              style={{ 
+                background: '#0A84FF', 
+                borderColor: '#0A84FF',
+                padding: '0.75rem 2rem',
+                fontWeight: 600,
+                boxShadow: '0 4px 12px rgba(10,132,255,0.3)'
+              }}
+            >
               {guardando ? 'Transfiriendo...' : 'Confirmar Transferencia'}
             </button>
           </div>
