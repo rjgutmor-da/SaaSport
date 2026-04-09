@@ -371,7 +371,7 @@ const Inventarios: React.FC = () => {
               <button
                 onClick={agregarItem}
                 disabled={guardandoItems}
-                style={{ alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--primary)', fontWeight: 600, padding: '0.5rem', marginTop: '0.5rem' }}
+                style={{ alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--primary)', fontWeight: 600, padding: '0.5rem', marginTop: '0.5rem', cursor: 'pointer', background: 'none' }}
               >
                 <Plus size={16} /> Agregar ítem
               </button>
@@ -416,8 +416,8 @@ const Inventarios: React.FC = () => {
                           fontSize: '0.78rem',
                           padding: '0.2rem 0.5rem',
                           borderRadius: '12px',
-                          background: item.tipo === 'producto' ? 'rgba(56,189,248,0.1)' : 'rgba(167,139,250,0.1)',
-                          color: item.tipo === 'producto' ? '#0ea5e9' : '#8b5cf6',
+                          background: item.tipo === 'producto' ? 'rgba(10, 132, 255, 0.1)' : 'rgba(0, 210, 106, 0.1)',
+                          color: item.tipo === 'producto' ? 'var(--secondary)' : 'var(--success)',
                           whiteSpace: 'nowrap'
                         }}>
                           {item.tipo.toUpperCase()}
@@ -448,7 +448,7 @@ const Inventarios: React.FC = () => {
                           <>
                             <button
                               className="cxc-accion-btn"
-                              style={{ color: '#10b981', background: 'rgba(16,185,129,0.1)' }}
+                              style={{ color: 'var(--success)', background: 'var(--success-bg)' }}
                               onClick={() => { setMovItemId(item.id); setMovTipo('entrada'); }}
                               title="Registrar Entrada"
                             >
@@ -456,7 +456,7 @@ const Inventarios: React.FC = () => {
                             </button>
                             <button
                               className="cxc-accion-btn"
-                              style={{ color: '#ef4444', background: 'rgba(239,68,68,0.1)' }}
+                              style={{ color: 'var(--danger)', background: 'var(--danger-bg)' }}
                               onClick={() => { setMovItemId(item.id); setMovTipo('salida'); }}
                               title="Registrar Salida"
                             >

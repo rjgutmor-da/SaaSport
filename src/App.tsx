@@ -9,7 +9,7 @@ import { supabase } from './lib/supabaseClient';
 import type { Session } from '@supabase/supabase-js';
 import Dashboard from './pages/Dashboard';
 import Login from './pages/Login';
-import FinanzasHub from './pages/finanzas/FinanzasHub';
+import ContabilidadHub from './pages/finanzas/ContabilidadHub';
 import PlanCuentas from './pages/finanzas/PlanCuentas';
 import LibroDiario from './pages/finanzas/LibroDiario';
 import CuentasCobrar from './pages/cxc/CuentasCobrar';
@@ -30,16 +30,19 @@ const Navbar = ({ onLogout }: { onLogout: () => void }) => {
           <NavLink to="/" className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')} end>Inicio</NavLink>
         </li>
         <li>
-          <NavLink to="/cxc" className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}>Cuentas x Cobrar</NavLink>
+          <NavLink to="/cxc" className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}>CxC</NavLink>
         </li>
         <li>
-          <NavLink to="/cxp" className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}>Cuentas x Pagar</NavLink>
+          <NavLink to="/cxp" className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}>CxP</NavLink>
+        </li>
+        <li>
+          <NavLink to="/cajas-bancos" className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}>Cajas y Bancos</NavLink>
         </li>
         <li>
           <NavLink to="/inventarios" className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}>Inventarios</NavLink>
         </li>
         <li>
-          <NavLink to="/finanzas" className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}>Finanzas</NavLink>
+          <NavLink to="/contabilidad" className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}>Contabilidad</NavLink>
         </li>
       </ul>
       <div className="nav-acciones">
@@ -70,10 +73,10 @@ const AppRouter = ({ onLogout }: { onLogout: () => void }) => {
           {/* Dashboard principal */}
           <Route path="/" element={<Dashboard />} />
 
-          {/* Módulo Finanzas (sub-rutas) */}
-          <Route path="/finanzas" element={<FinanzasHub />} />
-          <Route path="/finanzas/plan-cuentas" element={<PlanCuentas />} />
-          <Route path="/finanzas/libro-diario" element={<LibroDiario />} />
+          {/* Módulo Contabilidad (sub-rutas) */}
+          <Route path="/contabilidad" element={<ContabilidadHub />} />
+          <Route path="/contabilidad/plan-cuentas" element={<PlanCuentas />} />
+          <Route path="/contabilidad/libro-diario" element={<LibroDiario />} />
 
           {/* Módulos pendientes (placeholders) */}
           <Route path="/cxc" element={<CuentasCobrar />} />

@@ -38,10 +38,9 @@ const CajasBancos: React.FC = () => {
   // Aux
   const [escuelaId, setEscuelaId] = useState<string | null>(null);
   
-  // Modales
-  const [mostrarTransferencia, setMostrarTransferencia] = useState(false);
-  const [mostrarModalMovimiento, setMostrarModalMovimiento] = useState(false);
-  const [tipoMovimiento, setTipoMovimiento] = useState<'ingreso' | 'salida'>('ingreso');
+  // Estados para formularios activos
+  const [activeForm, setActiveForm] = useState<'ingreso' | 'salida' | 'transferencia' | null>(null);
+  const [formDirty, setFormDirty] = useState(false);
 
   const obtenerEscuelaId = useCallback(async (): Promise<string | null> => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -72,7 +71,7 @@ const CajasBancos: React.FC = () => {
       .or(`escuela_id.eq.${eid},escuela_id.is.null`)
       .eq('tipo', 'activo')
       .eq('es_transaccional', true)
-      .like('codigo', '1.1.1.%') // Convención contable para Efectivo y Equivalentes
+      .or('codigo.like.1.1.1.%,codigo.like.1.1.2.%')
       .order('codigo');
 
     if (errCuentas) {
@@ -124,6 +123,38 @@ const CajasBancos: React.FC = () => {
     setMovimientos(movsList);
     setCargando(false);
   }, [escuelaId, obtenerEscuelaId]);
+
+  const toggleForm = (type: 'ingreso' | 'salida' | 'transferencia') => {
+    if (activeForm === type) {
+      if (formDirty) {
+        if (!window.confirm('Tienes cambios sin guardar. ¿Deseas descartarlos y cerrar el formulario?')) {
+          return;
+        }
+      }
+      setActiveForm(null);
+      setFormDirty(false);
+      return;
+    }
+
+    if (activeForm && formDirty) {
+      if (!window.confirm('Tienes cambios sin guardar en el formulario actual. ¿Deseas descartarlos y cambiar de operación?')) {
+        return;
+      }
+    }
+
+    setActiveForm(type);
+    setFormDirty(false);
+  };
+
+  const handleCerrarModal = () => {
+    if (formDirty) {
+      if (!window.confirm('Tienes cambios sin guardar. ¿Deseas descartarlos y cerrar el formulario?')) {
+        return;
+      }
+    }
+    setActiveForm(null);
+    setFormDirty(false);
+  };
 
   useEffect(() => {
     cargarDatos();
@@ -188,7 +219,6 @@ const CajasBancos: React.FC = () => {
           </button>
           <div>
             <h1 className="cxc-titulo-principal" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <Landmark size={24} style={{ color: 'var(--brand-blue)' }} /> 
               Caja y Bancos
             </h1>
           </div>
@@ -196,29 +226,47 @@ const CajasBancos: React.FC = () => {
         <div className="cxc-header-acciones">
           <button 
             className="cxc-accion-btn" 
-            onClick={() => { setTipoMovimiento('ingreso'); setMostrarModalMovimiento(true); }} 
+            onClick={() => toggleForm('ingreso')} 
             title="Registrar un ingreso directo"
-            style={{ fontWeight: 500, padding: '0.4rem 0.85rem' }}
+            style={{ 
+              fontWeight: 600, 
+              padding: '0.5rem 1rem', 
+              background: activeForm === 'ingreso' ? '#008b46' : '#00D26A', 
+              color: 'white', border: 'none', borderRadius: '8px', 
+              boxShadow: activeForm === 'ingreso' ? 'inset 0 2px 4px rgba(0,0,0,0.2)' : '0 2px 4px rgba(0,210,106,0.2)' 
+            }}
           >
-            <ArrowDownRight size={16} /> Nuevo Ingreso
+            <ArrowDownRight size={18} /> {activeForm === 'ingreso' ? 'Cerrar Ingreso' : 'Nuevo Ingreso'}
           </button>
           
           <button 
             className="cxc-accion-btn" 
-            onClick={() => { setTipoMovimiento('salida'); setMostrarModalMovimiento(true); }} 
+            onClick={() => toggleForm('salida')} 
             title="Registrar un gasto/salida directa"
-            style={{ fontWeight: 500, padding: '0.4rem 0.85rem' }}
+            style={{ 
+              fontWeight: 600, 
+              padding: '0.5rem 1rem', 
+              background: activeForm === 'salida' ? '#bd4b22' : '#FF6B35', 
+              color: 'white', border: 'none', borderRadius: '8px', 
+              boxShadow: activeForm === 'salida' ? 'inset 0 2px 4px rgba(0,0,0,0.2)' : '0 2px 4px rgba(255,107,53,0.2)' 
+            }}
           >
-            <ArrowUpRight size={16} /> Nueva Salida
+            <ArrowUpRight size={18} /> {activeForm === 'salida' ? 'Cerrar Salida' : 'Nueva Salida'}
           </button>
 
           <button 
             className="cxc-accion-btn" 
-            onClick={() => setMostrarTransferencia(true)} 
+            onClick={() => toggleForm('transferencia')} 
             title="Transferir dinero entre dos cajas/bancos"
-            style={{ fontWeight: 500, padding: '0.4rem 0.85rem' }}
+            style={{ 
+              fontWeight: 600, 
+              padding: '0.5rem 1rem', 
+              background: activeForm === 'transferencia' ? '#075db3' : '#0A84FF', 
+              color: 'white', border: 'none', borderRadius: '8px', 
+              boxShadow: activeForm === 'transferencia' ? 'inset 0 2px 4px rgba(0,0,0,0.2)' : '0 4px 6px rgba(10,132,255,0.2)' 
+            }}
           >
-            <ArrowRightLeft size={16} /> Nueva Transferencia
+            <ArrowRightLeft size={16} /> {activeForm === 'transferencia' ? 'Cerrar Transf.' : 'Nueva Transferencia'}
           </button>
 
           <button 
@@ -242,10 +290,10 @@ const CajasBancos: React.FC = () => {
           <button
             className={`cxc-accion-btn ${filtroCuenta === 'todas' ? 'active-filter' : ''}`}
             style={{ 
-              background: filtroCuenta === 'todas' ? 'var(--brand-blue)' : 'var(--surface-color)',
+              background: filtroCuenta === 'todas' ? 'var(--secondary)' : 'var(--bg-card)',
               color: filtroCuenta === 'todas' ? 'white' : 'var(--text-secondary)',
               border: '1px solid',
-              borderColor: filtroCuenta === 'todas' ? 'var(--brand-blue)' : 'var(--border-light)',
+              borderColor: filtroCuenta === 'todas' ? 'var(--secondary)' : 'var(--border)',
               borderRadius: '8px',
               padding: '0.4rem 1rem',
               fontWeight: 600,
@@ -264,10 +312,10 @@ const CajasBancos: React.FC = () => {
              key={c.id}
              className={`cxc-accion-btn ${filtroCuenta === c.id ? 'active-filter' : ''}`}
              style={{ 
-               background: filtroCuenta === c.id ? 'var(--brand-blue)' : 'var(--surface-color)',
+               background: filtroCuenta === c.id ? 'var(--secondary)' : 'var(--bg-card)',
                color: filtroCuenta === c.id ? 'white' : 'var(--text-secondary)',
                border: '1px solid',
-               borderColor: filtroCuenta === c.id ? 'var(--brand-blue)' : 'var(--border-light)',
+               borderColor: filtroCuenta === c.id ? 'var(--secondary)' : 'var(--border)',
                borderRadius: '8px',
                padding: '0.4rem 1rem',
                fontWeight: 500,
@@ -370,7 +418,7 @@ const CajasBancos: React.FC = () => {
                     </td>
                     <td className="cxc-td cxc-td-right">
                       {esIngreso ? (
-                        <span style={{ color: 'var(--success-color)', fontWeight: 600 }}>
+                        <span style={{ color: 'var(--success)', fontWeight: 600 }}>
                           Bs +{fmtMonto(mov.debe)}
                           <ArrowUpRight size={12} style={{ marginLeft: '4px', display: 'inline-block', verticalAlign: 'middle' }} />
                         </span>
@@ -380,7 +428,7 @@ const CajasBancos: React.FC = () => {
                     </td>
                     <td className="cxc-td cxc-td-right">
                       {!esIngreso ? (
-                        <span style={{ color: 'var(--danger-color)', fontWeight: 600 }}>
+                        <span style={{ color: 'var(--danger)', fontWeight: 600 }}>
                           Bs -{fmtMonto(mov.haber)}
                           <ArrowDownRight size={12} style={{ marginLeft: '4px', display: 'inline-block', verticalAlign: 'middle' }} />
                         </span>
@@ -391,7 +439,7 @@ const CajasBancos: React.FC = () => {
                     <td className="cxc-td cxc-td-center">
                       <button 
                         onClick={() => toggleConciliar(mov.id, mov.conciliado)}
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: mov.conciliado ? 'var(--success-color)' : 'var(--text-tertiary)' }}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: mov.conciliado ? 'var(--success)' : 'var(--text-tertiary)' }}
                         title={mov.conciliado ? "Marcar como no conciliado" : "Marcar como conciliado en Banco"}
                       >
                         {mov.conciliado ? <CheckSquare size={18} /> : <Square size={18} />}
@@ -407,22 +455,26 @@ const CajasBancos: React.FC = () => {
 
       {/* Modales */}
       <ModalMovimientoDirecto
-        visible={mostrarModalMovimiento}
-        tipo={tipoMovimiento}
+        visible={activeForm === 'ingreso' || activeForm === 'salida'}
+        tipo={activeForm === 'ingreso' ? 'ingreso' : 'salida'}
         cajas={cajas}
-        onCerrar={() => setMostrarModalMovimiento(false)}
+        onCerrar={handleCerrarModal}
+        setFormDirty={setFormDirty}
         onCreado={() => {
-          setMostrarModalMovimiento(false);
+          setActiveForm(null);
+          setFormDirty(false);
           cargarDatos();
         }}
       />
       
       <ModalTransferencia 
-        visible={mostrarTransferencia} 
+        visible={activeForm === 'transferencia'} 
         cajas={cajas} 
-        onCerrar={() => setMostrarTransferencia(false)} 
+        onCerrar={handleCerrarModal}
+        setFormDirty={setFormDirty}
         onCreado={() => {
-          setMostrarTransferencia(false);
+          setActiveForm(null);
+          setFormDirty(false);
           cargarDatos();
         }} 
       />
