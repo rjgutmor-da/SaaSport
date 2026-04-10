@@ -11,8 +11,9 @@ import React, { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import {
   ChevronLeft, Plus, Edit2, ToggleLeft, ToggleRight,
-  Save, X, AlertCircle, Check, Truck, Users, RefreshCw
+  Save, X, AlertCircle, Check, Truck, Users, RefreshCw, Trash2
 } from 'lucide-react';
+import ModalEntidadCxP from './ModalEntidadCxP';
 
 type TabActiva = 'proveedores' | 'personal';
 
@@ -62,11 +63,9 @@ const AdminEntidadesCxP: React.FC<Props> = ({ onVolver }) => {
   const [personal, setPersonal] = useState<Personal[]>([]);
   const [cargando, setCargando] = useState(true);
 
-  // Formulario activo
-  const [editandoId, setEditandoId] = useState<string | 'nuevo' | null>(null);
-  const [formProv, setFormProv] = useState<Partial<Proveedor>>({});
-  const [formPers, setFormPers] = useState<Partial<Personal>>({});
-  const [guardando, setGuardando] = useState(false);
+  // Modal de edición
+  const [mostrarModal, setMostrarModal] = useState(false);
+  const [itemAEditar, setItemAEditar] = useState<any | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [exito, setExito] = useState<string | null>(null);
 
@@ -104,84 +103,14 @@ const AdminEntidadesCxP: React.FC<Props> = ({ onVolver }) => {
     setCargando(false);
   };
 
-  /** Abrir formulario de edición */
+  /** Abrir modal de registro/edición */
   const abrirEditar = (item: Proveedor | Personal | 'nuevo') => {
-    setError(null); setExito(null);
     if (item === 'nuevo') {
-      setEditandoId('nuevo');
-      tab === 'proveedores'
-        ? setFormProv({ nombre: '', categoria: 'otro', activo: true })
-        : setFormPers({ nombres: '', apellidos: '', activo: true });
-    } else if (tab === 'proveedores') {
-      setEditandoId((item as Proveedor).id);
-      setFormProv({ ...(item as Proveedor) });
+      setItemAEditar(null);
     } else {
-      setEditandoId((item as Personal).id);
-      setFormPers({ ...(item as Personal) });
+      setItemAEditar(item);
     }
-  };
-
-  /** Guardar proveedor */
-  const guardarProveedor = async () => {
-    if (!formProv.nombre?.trim()) { setError('El nombre es obligatorio.'); return; }
-    setGuardando(true); setError(null);
-
-    const payload = {
-      escuela_id: escuelaId!,
-      nombre: formProv.nombre!.trim(),
-      nit_ci: formProv.nit_ci?.trim() || null,
-      telefono: formProv.telefono?.trim() || null,
-      direccion: formProv.direccion?.trim() || null,
-      contacto: formProv.contacto?.trim() || null,
-      categoria: formProv.categoria || 'otro',
-      activo: formProv.activo ?? true,
-    };
-
-    if (editandoId === 'nuevo') {
-      const { error: err } = await supabase.from('proveedores').insert(payload);
-      if (err) { setError(err.message); setGuardando(false); return; }
-    } else {
-      const { error: err } = await supabase.from('proveedores').update(payload).eq('id', editandoId!);
-      if (err) { setError(err.message); setGuardando(false); return; }
-    }
-
-    setExito('✅ Proveedor guardado correctamente.');
-    setGuardando(false);
-    setEditandoId(null);
-    setTimeout(() => { setExito(null); cargarDatos(); }, 1200);
-  };
-
-  /** Guardar personal */
-  const guardarPersonal = async () => {
-    if (!formPers.nombres?.trim() || !formPers.apellidos?.trim()) {
-      setError('Nombres y apellidos son obligatorios.'); return;
-    }
-    setGuardando(true); setError(null);
-
-    const payload = {
-      escuela_id: escuelaId!,
-      nombres: formPers.nombres!.trim(),
-      apellidos: formPers.apellidos!.trim(),
-      cargo: formPers.cargo?.trim() || null,
-      telefono: formPers.telefono?.trim() || null,
-      direccion: formPers.direccion?.trim() || null,
-      contacto_emergencia: formPers.contacto_emergencia?.trim() || null,
-      salario_base: formPers.salario_base ? Number(formPers.salario_base) : null,
-      activo: formPers.activo ?? true,
-    };
-
-    if (editandoId === 'nuevo') {
-      const { error: err } = await supabase.from('personal').insert(payload);
-      if (err) { setError(err.message); setGuardando(false); return; }
-    } else {
-      const { error: err } = await supabase.from('personal').update(payload).eq('id', editandoId!);
-      if (err) { setError(err.message); setGuardando(false); return; }
-    }
-
-    setExito('✅ Trabajador guardado correctamente.');
-    setGuardando(false);
-    setEditandoId(null);
-    setTimeout(() => { setExito(null); cargarDatos(); }, 1200);
+    setMostrarModal(true);
   };
 
   /** Toggle activo/inactivo */
@@ -220,124 +149,21 @@ const AdminEntidadesCxP: React.FC<Props> = ({ onVolver }) => {
       <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem' }}>
         <button
           className={`nota-mes-btn ${tab === 'proveedores' ? 'nota-mes-btn--activo' : ''}`}
-          onClick={() => { setTab('proveedores'); setEditandoId(null); }}
+          onClick={() => { setTab('proveedores'); setMostrarModal(false); }}
           style={{ padding: '0.5rem 1.25rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}
         >
           <Truck size={15} /> Proveedores
         </button>
         <button
           className={`nota-mes-btn ${tab === 'personal' ? 'nota-mes-btn--activo' : ''}`}
-          onClick={() => { setTab('personal'); setEditandoId(null); }}
+          onClick={() => { setTab('personal'); setMostrarModal(false); }}
           style={{ padding: '0.5rem 1.25rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}
         >
           <Users size={15} /> Personal / Trabajadores
         </button>
       </div>
 
-      {/* Formulario de creación/edición (inline) */}
-      {editandoId !== null && (
-        <div style={{
-          background: 'rgba(59,130,246,0.05)', border: '1px solid rgba(59,130,246,0.25)',
-          borderRadius: '12px', padding: '1.25rem', marginBottom: '1.5rem'
-        }}>
-          <h3 style={{ fontSize: '0.95rem', fontWeight: 600, marginBottom: '1rem', color: 'var(--text-primary)' }}>
-            {editandoId === 'nuevo'
-              ? (tab === 'proveedores' ? 'Nuevo Proveedor' : 'Nuevo Trabajador')
-              : 'Editar'
-            }
-          </h3>
 
-          {tab === 'proveedores' ? (
-            <div className="admin-form-grid">
-              <div className="form-campo">
-                <label>Nombre *</label>
-                <input type="text" value={formProv.nombre || ''} onChange={e => setFormProv(p => ({ ...p, nombre: e.target.value }))} placeholder="Nombre del proveedor" disabled={guardando} />
-              </div>
-              <div className="form-campo">
-                <label>Categoría *</label>
-                <select
-                  value={formProv.categoria || 'otro'}
-                  onChange={e => setFormProv(p => ({ ...p, categoria: e.target.value }))}
-                  disabled={guardando}
-                >
-                  {CATEGORIAS_PROVEEDOR.map(c => (
-                    <option key={c.value} value={c.value}>{c.label}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="form-campo">
-                <label>NIT / CI</label>
-                <input type="text" value={formProv.nit_ci || ''} onChange={e => setFormProv(p => ({ ...p, nit_ci: e.target.value }))} placeholder="NIT o CI" disabled={guardando} />
-              </div>
-              <div className="form-campo">
-                <label>Teléfono</label>
-                <input type="text" value={formProv.telefono || ''} onChange={e => setFormProv(p => ({ ...p, telefono: e.target.value }))} placeholder="Teléfono de contacto" disabled={guardando} />
-              </div>
-              <div className="form-campo">
-                <label>Persona de Contacto</label>
-                <input type="text" value={formProv.contacto || ''} onChange={e => setFormProv(p => ({ ...p, contacto: e.target.value }))} placeholder="Nombre del encargado" disabled={guardando} />
-              </div>
-              <div className="form-campo" style={{ gridColumn: '1 / -1' }}>
-                <label>Dirección</label>
-                <input type="text" value={formProv.direccion || ''} onChange={e => setFormProv(p => ({ ...p, direccion: e.target.value }))} placeholder="Dirección del proveedor" disabled={guardando} />
-              </div>
-            </div>
-          ) : (
-            <div className="admin-form-grid">
-              <div className="form-campo">
-                <label>Nombres *</label>
-                <input type="text" value={formPers.nombres || ''} onChange={e => setFormPers(p => ({ ...p, nombres: e.target.value }))} placeholder="Nombres" disabled={guardando} />
-              </div>
-              <div className="form-campo">
-                <label>Apellidos *</label>
-                <input type="text" value={formPers.apellidos || ''} onChange={e => setFormPers(p => ({ ...p, apellidos: e.target.value }))} placeholder="Apellidos" disabled={guardando} />
-              </div>
-              <div className="form-campo">
-                <label>Cargo</label>
-                <input type="text" value={formPers.cargo || ''} onChange={e => setFormPers(p => ({ ...p, cargo: e.target.value }))} placeholder="Ej: Entrenador, Administrador..." disabled={guardando} />
-              </div>
-              <div className="form-campo">
-                <label>Teléfono</label>
-                <input type="text" value={formPers.telefono || ''} onChange={e => setFormPers(p => ({ ...p, telefono: e.target.value }))} placeholder="Teléfono" disabled={guardando} />
-              </div>
-              <div className="form-campo">
-                <label>Cónyuge / Contacto de emergencia</label>
-                <input type="text" value={formPers.contacto_emergencia || ''} onChange={e => setFormPers(p => ({ ...p, contacto_emergencia: e.target.value }))} placeholder="Nombre del cónyuge o contacto" disabled={guardando} />
-              </div>
-              <div className="form-campo">
-                <label>Salario base (Bs)</label>
-                <input type="number" step="0.01" min="0" value={formPers.salario_base || ''} onChange={e => setFormPers(p => ({ ...p, salario_base: parseFloat(e.target.value) }))} placeholder="0.00" disabled={guardando} />
-              </div>
-              <div className="form-campo" style={{ gridColumn: '1 / -1' }}>
-                <label>Dirección</label>
-                <input type="text" value={formPers.direccion || ''} onChange={e => setFormPers(p => ({ ...p, direccion: e.target.value }))} placeholder="Dirección del trabajador" disabled={guardando} />
-              </div>
-            </div>
-          )}
-
-          {error && <div className="form-msg form-msg--error" style={{ marginTop: '0.5rem' }}><AlertCircle size={13} /> {error}</div>}
-          {exito && <div className="form-msg form-msg--exito" style={{ marginTop: '0.5rem' }}><Check size={13} /> {exito}</div>}
-
-          <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.75rem' }}>
-            <button
-              type="button"
-              className="btn-guardar-cuenta"
-              onClick={tab === 'proveedores' ? guardarProveedor : guardarPersonal}
-              disabled={guardando}
-            >
-              <Save size={15} /> {guardando ? 'Guardando...' : 'Guardar'}
-            </button>
-            <button
-              type="button"
-              className="btn-refrescar"
-              onClick={() => { setEditandoId(null); setError(null); setExito(null); }}
-              disabled={guardando}
-            >
-              <X size={15} /> Cancelar
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* Listado */}
       {cargando ? (
@@ -429,6 +255,16 @@ const AdminEntidadesCxP: React.FC<Props> = ({ onVolver }) => {
           </div>
         )
       )}
+
+      {/* Modal Premium de Registro */}
+      <ModalEntidadCxP 
+        visible={mostrarModal}
+        tipo={tab === 'proveedores' ? 'proveedor' : 'personal'}
+        itemAEditar={itemAEditar}
+        escuelaId={escuelaId}
+        onCerrar={() => { setMostrarModal(false); setItemAEditar(null); }}
+        onGuardado={cargarDatos}
+      />
     </main>
   );
 };

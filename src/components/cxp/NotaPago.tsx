@@ -22,11 +22,12 @@ interface LineaNotaPago {
   precio_unitario: number;
   subtotal: number;
   descripcion: string;
+  cuenta_gasto_id?: string | null;
 }
 
 interface Props {
   visible: boolean;
-  tipoInicial: 'proveedor' | 'personal' | 'gasto_corriente';
+  tipoInicial: 'proveedor' | 'personal';
   onCerrar: () => void;
   onCreada: () => void;
 }
@@ -39,6 +40,7 @@ const lineaVacia = (): LineaNotaPago => ({
   precio_unitario: 0,
   subtotal: 0,
   descripcion: '',
+  cuenta_gasto_id: null,
 });
 
 const fmtMonto = (n: number) =>
@@ -53,7 +55,6 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, onCerrar, onCreada })
   const [vencimiento, setVencimiento] = useState('');
   const [observaciones, setObservaciones] = useState('');
   const [lineas, setLineas] = useState<LineaNotaPago[]>([lineaVacia()]);
-  const [cuentaGastoId, setCuentaGastoId] = useState('');
 
   // Pago inmediato
   const [pagarAlCrear, setPagarAlCrear] = useState(false);
@@ -65,9 +66,10 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, onCerrar, onCreada })
   // Datos maestros
   const [proveedores, setProveedores] = useState<{ id: string; nombre: string }[]>([]);
   const [personal, setPersonal] = useState<{ id: string; nombres: string; apellidos: string }[]>([]);
-  const [catalogo, setCatalogo] = useState<{ id: string; nombre: string; tipo: string; precio_venta: number }[]>([]);
+  const [catalogo, setCatalogo] = useState<{ id: string; nombre: string; tipo: string; precio_venta: number; cuenta_gasto_id?: string }[]>([]);
   const [cajasBancos, setCajasBancos] = useState<{ id: string; nombre: string; cuenta_contable_id: string }[]>([]);
   const [cuentasGasto, setCuentasGasto] = useState<{ id: string; codigo: string; nombre: string }[]>([]);
+  const [cuentasMaestras, setCuentasMaestras] = useState<{ id: string; codigo: string }[]>([]);
 
   // Estado de control
   const [guardando, setGuardando] = useState(false);
@@ -87,15 +89,18 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, onCerrar, onCreada })
         .select('escuela_id, sucursal_id').eq('id', user.id).single();
       if (!usr) return;
 
-      const [resProv, persProv, resCat, resCajas, resGastos] = await Promise.all([
+      const [resProv, persProv, resCat, resCajas, resGastos, resMaestras] = await Promise.all([
         supabase.from('proveedores').select('id, nombre').eq('escuela_id', usr.escuela_id).eq('activo', true).order('nombre'),
         supabase.from('personal').select('id, nombres, apellidos').eq('escuela_id', usr.escuela_id).eq('activo', true).order('nombres'),
-        supabase.from('catalogo_items').select('id, nombre, tipo, precio_venta').eq('activo', true).order('nombre'),
+        supabase.from('catalogo_items').select('id, nombre, tipo, precio_venta, cuenta_gasto_id').eq('activo', true).eq('es_gasto', true).order('nombre'),
         supabase.from('cajas_bancos').select('id, nombre, cuenta_contable_id').eq('escuela_id', usr.escuela_id).eq('activo', true).order('nombre'),
         supabase.from('plan_cuentas').select('id, codigo, nombre')
-          .like('codigo', '5.%').eq('es_transaccional', true)
+          .eq('es_transaccional', true).in('tipo', ['gasto', 'activo', 'pasivo'])
           .or(`escuela_id.eq.${usr.escuela_id},escuela_id.is.null`)
-          .order('codigo'),
+          .order('nombre'),
+        supabase.from('plan_cuentas').select('id, codigo')
+          .in('codigo', ['2.1.1', '2.1.2', '1.1.4', '1.1.5'])
+          .is('escuela_id', null),
       ]);
 
       setProveedores(resProv.data ?? []);
@@ -103,6 +108,7 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, onCerrar, onCreada })
       setCatalogo(resCat.data ?? []);
       setCajasBancos(resCajas.data ?? []);
       setCuentasGasto(resGastos.data ?? []);
+      setCuentasMaestras(resMaestras?.data ?? []);
     };
     cargar();
 
@@ -113,7 +119,6 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, onCerrar, onCreada })
     setVencimiento('');
     setObservaciones('');
     setLineas([lineaVacia()]);
-    setCuentaGastoId('');
     setPagarAlCrear(false);
     setMetodoPago('efectivo');
     setCuentaPagoId('');
@@ -152,6 +157,7 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, onCerrar, onCreada })
         precio_unitario: Number(item.precio_venta) || 0,
         cantidad: 1,
         descripcion: '',
+        cuenta_gasto_id: item.cuenta_gasto_id || null,
       });
     } else {
       actualizarLinea(idx, lineaVacia());
@@ -165,7 +171,7 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, onCerrar, onCreada })
 
     const lineasValidas = lineas.filter(l => l.catalogo_item_id && l.precio_unitario >= 0 && l.cantidad > 0);
     if (lineasValidas.length === 0) { setError('Agrega al menos un ítem válido.'); return; }
-    if (!cuentaGastoId) { setError('Selecciona la cuenta de gasto a afectar.'); return; }
+    if (lineasValidas.some(l => !l.cuenta_gasto_id)) { setError('Todos los ítems deben tener asignada una cuenta.'); return; }
 
     if (pagarAlCrear) {
       const mp = parseFloat(montoPago);
@@ -185,13 +191,20 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, onCerrar, onCreada })
     const montoTotal = lineasValidas.reduce((s, l) => s + l.subtotal, 0);
     const descAuto = lineasValidas.map(l => l.nombre).join(', ');
 
+    let cuentaPasivoId = lineasValidas[0]?.cuenta_gasto_id || '';
+    if (tipoGasto === 'proveedor') {
+      cuentaPasivoId = cuentasMaestras.find(c => c.codigo === '2.1.1')?.id || cuentaPasivoId;
+    } else if (tipoGasto === 'personal') {
+      cuentaPasivoId = cuentasMaestras.find(c => c.codigo === '2.1.2')?.id || cuentaPasivoId;
+    }
+
     // 1. Crear la Nota de Pago (CxP)
     const { data: nuevaCxP, error: errCxP } = await supabase.from('cuentas_pagar').insert({
       escuela_id: ctx.escuela_id,
       sucursal_id: ctx.sucursal_id || null,
       proveedor_id: tipoGasto === 'proveedor' && proveedorId ? proveedorId : null,
       personal_id: tipoGasto === 'personal' && personalId ? personalId : null,
-      cuenta_contable_id: cuentaGastoId,
+      cuenta_contable_id: cuentaPasivoId,
       monto_total: montoTotal,
       tipo_gasto: tipoGasto,
       descripcion: descripcion || descAuto,
@@ -223,6 +236,35 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, onCerrar, onCreada })
       return;
     }
 
+    // 2.5 Generar Asiento Contable por la Adquisición del Gasto/Inventario y la Deuda
+    const movs = [];
+    const agrupado = new Map<string, number>();
+    lineasValidas.forEach(l => {
+      if (l.cuenta_gasto_id) {
+        agrupado.set(l.cuenta_gasto_id, (agrupado.get(l.cuenta_gasto_id) || 0) + l.subtotal);
+      }
+    });
+
+    agrupado.forEach((monto, idCta) => {
+      movs.push({ cuenta_contable_id: idCta, debe: monto, haber: 0 }); // DEBE
+    });
+    
+    movs.push({ cuenta_contable_id: cuentaPasivoId, debe: 0, haber: montoTotal }); // HABER
+
+    const payloadCompra = {
+      escuela_id: ctx.escuela_id,
+      sucursal_id: ctx.sucursal_id,
+      usuario_id: ctx.id,
+      descripcion: `Obligación por: ${descripcion || descAuto}`,
+      metodo_pago: 'efectivo', // Metodo genérico para la obligación
+      movimientos: movs
+    };
+    
+    const { error: errAsientoBase } = await supabase.rpc('rpc_procesar_transaccion_financiera', { p_payload: payloadCompra });
+    if (errAsientoBase) {
+      console.warn('Asiento base de compra no pudo ser generado:', errAsientoBase.message);
+    }
+
     // 3. Si se eligió pagar al crear, ejecutar RPC de pago
     if (pagarAlCrear) {
       const mp = parseFloat(montoPago);
@@ -232,7 +274,6 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, onCerrar, onCreada })
           monto: mp,
           metodo_pago: metodoPago,
           cuenta_pago_id: cuentaPagoId, // caja/banco que paga
-          cuenta_gasto_id: cuentaGastoId, // cuenta de gasto (5.X.X)
           escuela_id: ctx.escuela_id,
           sucursal_id: ctx.sucursal_id,
           usuario_id: ctx.id,
@@ -265,7 +306,7 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, onCerrar, onCreada })
       <div className="cxc-modal cxc-modal--nota" onClick={e => e.stopPropagation()}>
         {/* Cabecera */}
         <div className="cxc-modal-header">
-          <h2>💸 Nueva Nota de Pago</h2>
+          <h2>💸 Nueva Nota de Deuda</h2>
           <button onClick={() => { if (exito) onCreada(); onCerrar(); }} disabled={guardando}>
             <X size={20} />
           </button>
@@ -279,7 +320,6 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, onCerrar, onCreada })
               {[
                 { val: 'proveedor', label: '🏭 Proveedor' },
                 { val: 'personal', label: '👤 Personal' },
-                { val: 'gasto_corriente', label: '⚡ Gasto Corriente' },
               ].map(opt => (
                 <button
                   key={opt.val}
@@ -343,7 +383,8 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, onCerrar, onCreada })
           </div>
 
           {lineas.map((linea, idx) => (
-            <div key={idx} className="nota-linea">
+            <React.Fragment key={idx}>
+            <div className="nota-linea">
               <select
                 value={linea.catalogo_item_id}
                 onChange={e => seleccionarItem(idx, e.target.value)}
@@ -387,6 +428,26 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, onCerrar, onCreada })
                 <Trash2 size={14} />
               </button>
             </div>
+            {/* Seleccion de cuenta manual */}
+            {linea.catalogo_item_id && catalogo.find(c => c.id === linea.catalogo_item_id) && !catalogo.find(c => c.id === linea.catalogo_item_id)?.cuenta_gasto_id && (
+              <div className="nota-cuenta-manual" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.2rem', paddingLeft: '0.5rem', marginBottom: '0.5rem' }}>
+                <label style={{ fontSize: '0.8rem', color: 'var(--text-tertiary)', fontWeight: 600 }}>Cuenta Aplicable:</label>
+                <select
+                  value={linea.cuenta_gasto_id || ''}
+                  onChange={e => actualizarLinea(idx, { cuenta_gasto_id: e.target.value })}
+                  disabled={guardando}
+                  className="nota-select-item"
+                  style={{ padding: '0.2rem 0.5rem', fontSize: '0.8rem', flex: 1, maxWidth: '280px', background: 'rgba(0,0,0,0.1)' }}
+                  required
+                >
+                  <option value="">— Seleccione cuenta de gasto —</option>
+                  {cuentasGasto.map(c => (
+                    <option key={c.id} value={c.id}>{c.nombre}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+            </React.Fragment>
           ))}
 
           {/* Nota informativa de inventario */}
@@ -409,16 +470,6 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, onCerrar, onCreada })
             </button>
           )}
 
-          {/* Cuenta de gasto (obligatoria para el asiento contable) */}
-          <div className="form-campo" style={{ marginTop: '0.75rem' }}>
-            <label>Cuenta de gasto (contabilidad) <span style={{ color: '#f87171' }}>*</span></label>
-            <select value={cuentaGastoId} onChange={e => setCuentaGastoId(e.target.value)} required disabled={guardando}>
-              <option value="">— Seleccionar cuenta —</option>
-              {cuentasGasto.map(c => (
-                <option key={c.id} value={c.id}>{c.codigo} — {c.nombre}</option>
-              ))}
-            </select>
-          </div>
 
           {/* Observaciones */}
           <div className="form-campo">

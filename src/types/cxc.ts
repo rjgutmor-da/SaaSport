@@ -11,6 +11,9 @@ export interface CatalogoItem {
   nombre: string;
   tipo: 'producto' | 'servicio';
   precio_venta: number | null;
+  costo_unitario?: number | null;
+  cuenta_ingreso_id?: string | null;
+  cuenta_gasto_id?: string | null;
   activo: boolean;
   created_at: string;
 }
@@ -24,8 +27,10 @@ export interface CxcDetalle {
   cantidad: number;
   precio_unitario: number;
   periodo_meses: string[] | null; // Meses seleccionados (ej: ["Ene-2026","Feb-2026"])
+  detalle_extra: string | null;  // Nombre de torneo o periodo custom
   subtotal: number;
   created_at: string;
+
   // Campos enriquecidos (join con catalogo_items)
   item_nombre?: string;
   item_tipo?: string;
@@ -38,9 +43,13 @@ export interface LineaNota {
   tipo: 'producto' | 'servicio';
   cantidad: number;
   precio_unitario: number;
+  costo_unitario?: number;
   periodo_meses: string[];
+  detalle_personalizado?: string; // Para torneos o periodos específicos
   subtotal: number;
+  cuenta_ingreso_id?: string | null;
 }
+
 
 /** Registro de cuenta por cobrar con datos calculados de la vista */
 export interface CuentaCobrar {

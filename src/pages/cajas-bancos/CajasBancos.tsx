@@ -457,6 +457,7 @@ const CajasBancos: React.FC = () => {
       <ModalMovimientoDirecto
         visible={activeForm === 'ingreso' || activeForm === 'salida'}
         tipo={activeForm === 'ingreso' ? 'ingreso' : 'salida'}
+        isDirty={formDirty}
         cajas={cajas}
         onCerrar={handleCerrarModal}
         setFormDirty={setFormDirty}
