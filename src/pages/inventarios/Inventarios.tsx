@@ -26,6 +26,11 @@ interface ItemConsolidado {
   ventasMesPresente: number;
   ventasMesPasado: number;
   stock_id?: string;
+  costo_unitario?: number | null;
+  cuenta_ingreso_id?: string | null;
+  cuenta_gasto_id?: string | null;
+  es_ingreso?: boolean;
+  es_gasto?: boolean;
 }
 
 const Inventarios: React.FC = () => {
@@ -35,6 +40,9 @@ const Inventarios: React.FC = () => {
   const [items, setItems] = useState<ItemConsolidado[]>([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const [cuentasIngreso, setCuentasIngreso] = useState<{ id: string; codigo: string; nombre: string }[]>([]);
+  const [cuentasGasto, setCuentasGasto] = useState<{ id: string; codigo: string; nombre: string }[]>([]);
 
   // Filtro
   const [filtroTipo, setFiltroTipo] = useState('');
@@ -46,6 +54,11 @@ const Inventarios: React.FC = () => {
     nombre: string;
     tipo: 'producto' | 'servicio';
     precio_venta: string;
+    costo_unitario: string;
+    cuenta_ingreso_id: string;
+    cuenta_gasto_id: string;
+    es_ingreso: boolean;
+    es_gasto: boolean;
     esNuevo: boolean;
   }[]>([]);
   const [guardandoItems, setGuardandoItems] = useState(false);
@@ -78,10 +91,12 @@ const Inventarios: React.FC = () => {
       return;
     }
 
-    const [resItems, resStock, resMovs] = await Promise.all([
+    const [resItems, resStock, resMovs, resCtasIngreso, resCtasGasto] = await Promise.all([
       supabase.from('catalogo_items').select('*').eq('activo', true).eq('escuela_id', ctx.escuela_id).order('nombre'),
       supabase.from('stock_productos').select('id, catalogo_item_id, cantidad_disponible').eq('escuela_id', ctx.escuela_id),
-      supabase.from('movimientos_stock').select('catalogo_item_id, cantidad, tipo, created_at').eq('escuela_id', ctx.escuela_id)
+      supabase.from('movimientos_stock').select('catalogo_item_id, cantidad, tipo, created_at').eq('escuela_id', ctx.escuela_id),
+      supabase.from('plan_cuentas').select('id, codigo, nombre').like('codigo', '4.%').eq('es_transaccional', true).or(`escuela_id.eq.${ctx.escuela_id},escuela_id.is.null`).order('codigo'),
+      supabase.from('plan_cuentas').select('id, codigo, nombre').like('codigo', '5.%').eq('es_transaccional', true).or(`escuela_id.eq.${ctx.escuela_id},escuela_id.is.null`).order('codigo')
     ]);
 
     if (resItems.error) {
@@ -89,6 +104,9 @@ const Inventarios: React.FC = () => {
       setCargando(false);
       return;
     }
+
+    setCuentasIngreso(resCtasIngreso.data as any || []);
+    setCuentasGasto(resCtasGasto.data as any || []);
 
     const catalogItems = resItems.data as CatalogoItem[];
     const allStock = resStock.data || [];
@@ -125,8 +143,13 @@ const Inventarios: React.FC = () => {
         nombre: item.nombre,
         tipo: item.tipo,
         precio_venta: item.precio_venta,
+        costo_unitario: (item as any).costo_unitario,
         saldo: st?.cantidad_disponible || 0,
         stock_id: st?.id,
+        cuenta_ingreso_id: (item as any).cuenta_ingreso_id,
+        cuenta_gasto_id: (item as any).cuenta_gasto_id,
+        es_ingreso: (item as any).es_ingreso ?? true,
+        es_gasto: (item as any).es_gasto ?? false,
         ventasMesPresente: mapVentasPres.get(item.id) || 0,
         ventasMesPasado: mapVentasPas.get(item.id) || 0,
       };
@@ -155,6 +178,11 @@ const Inventarios: React.FC = () => {
         nombre: i.nombre,
         tipo: i.tipo,
         precio_venta: i.precio_venta != null ? String(i.precio_venta) : '',
+        costo_unitario: i.costo_unitario != null ? String(i.costo_unitario) : '',
+        cuenta_ingreso_id: i.cuenta_ingreso_id || '',
+        cuenta_gasto_id: i.cuenta_gasto_id || '',
+        es_ingreso: i.es_ingreso ?? true,
+        es_gasto: i.es_gasto ?? false,
         esNuevo: false,
       }))
     );
@@ -162,11 +190,15 @@ const Inventarios: React.FC = () => {
   };
 
   const agregarItem = () => {
-    if (itemsEditables.length >= 10) return;
     setItemsEditables(prev => [...prev, {
       nombre: '',
       tipo: 'servicio',
       precio_venta: '',
+      costo_unitario: '',
+      cuenta_ingreso_id: '',
+      cuenta_gasto_id: '',
+      es_ingreso: true,
+      es_gasto: false,
       esNuevo: true,
     }]);
   };
@@ -188,45 +220,83 @@ const Inventarios: React.FC = () => {
     if (validos.length === 0) { alert('Agrega al menos un ítem.'); return; }
 
     setGuardandoItems(true);
-    const ctx = await obtenerCtx();
-    if (!ctx) { setGuardandoItems(false); return; }
+    let errorOcurrido = false;
 
-    for (const item of validos.filter(i => !i.esNuevo && i.id)) {
-      await supabase.from('catalogo_items').update({
-        nombre: item.nombre,
-        tipo: item.tipo,
-        precio_venta: item.precio_venta ? parseFloat(item.precio_venta) : null,
-      }).eq('id', item.id!);
-    }
+    try {
+      const ctx = await obtenerCtx();
+      if (!ctx) {
+        alert('Sesión expirada o usuario no encontrado.');
+        setGuardandoItems(false);
+        return;
+      }
 
-    const nuevos = validos.filter(i => i.esNuevo);
-    if (nuevos.length > 0) {
-      const inserts = nuevos.map(i => ({
-        escuela_id: ctx.escuela_id,
-        nombre: i.nombre,
-        tipo: i.tipo,
-        precio_venta: i.precio_venta ? parseFloat(i.precio_venta) : null,
-      }));
-      const { data: insertados, error: errIns } = await supabase
-        .from('catalogo_items').insert(inserts).select('id, tipo');
+      // 1. Actualizar ítems existentes
+      for (const item of validos.filter(i => !i.esNuevo && i.id)) {
+        const { error } = await supabase.from('catalogo_items').update({
+          nombre: item.nombre,
+          tipo: item.tipo,
+          precio_venta: item.precio_venta ? parseFloat(item.precio_venta) : null,
+          costo_unitario: item.costo_unitario ? parseFloat(item.costo_unitario) : null,
+          cuenta_ingreso_id: item.cuenta_ingreso_id || null,
+          cuenta_gasto_id: item.cuenta_gasto_id || null,
+          es_ingreso: !!item.es_ingreso,
+          es_gasto: !!item.es_gasto,
+        }).eq('id', item.id!);
 
-      if (!errIns && insertados) {
-        const productosNuevos = insertados.filter(i => i.tipo === 'producto');
-        if (productosNuevos.length > 0) {
-          await supabase.from('stock_productos').insert(
-            productosNuevos.map(p => ({
-              escuela_id: ctx.escuela_id,
-              catalogo_item_id: p.id,
-              cantidad_disponible: 0,
-            }))
-          );
+        if (error) {
+          console.error("Error actualizando ítem:", error);
+          errorOcurrido = true;
         }
       }
-    }
 
-    setGuardandoItems(false);
-    setEditando(false);
-    cargarDatos();
+      // 2. Insertar ítems nuevos
+      const nuevos = validos.filter(i => i.esNuevo);
+      if (nuevos.length > 0) {
+        const inserts = nuevos.map(i => ({
+          escuela_id: ctx.escuela_id,
+          nombre: i.nombre,
+          tipo: i.tipo,
+          precio_venta: i.precio_venta ? parseFloat(i.precio_venta) : null,
+          costo_unitario: i.costo_unitario ? parseFloat(i.costo_unitario) : null,
+          cuenta_ingreso_id: i.cuenta_ingreso_id || null,
+          cuenta_gasto_id: i.cuenta_gasto_id || null,
+          es_ingreso: !!i.es_ingreso,
+          es_gasto: !!i.es_gasto,
+        }));
+
+        const { data: insertados, error: errIns } = await supabase
+          .from('catalogo_items').insert(inserts).select('id, tipo');
+
+        if (errIns) {
+          console.error("Error insertando ítems:", errIns);
+          errorOcurrido = true;
+        } else if (insertados) {
+          const productosNuevos = insertados.filter(i => i.tipo === 'producto');
+          if (productosNuevos.length > 0) {
+            const { error: errStock } = await supabase.from('stock_productos').insert(
+              productosNuevos.map(p => ({
+                escuela_id: ctx.escuela_id,
+                catalogo_item_id: p.id,
+                cantidad_disponible: 0,
+              }))
+            );
+            if (errStock) console.error("Error creando stock:", errStock);
+          }
+        }
+      }
+
+      if (errorOcurrido) {
+        alert('Hubo problemas al guardar algunos ítems. Por favor revisa la consola o intenta de nuevo.');
+      } else {
+        setEditando(false);
+        cargarDatos();
+      }
+    } catch (err) {
+      console.error("Falla crítica al guardar:", err);
+      alert('Error inesperado al conectar con el servidor.');
+    } finally {
+      setGuardandoItems(false);
+    }
   };
 
   const registrarMovimiento = async (e: React.FormEvent) => {
@@ -324,60 +394,163 @@ const Inventarios: React.FC = () => {
 
       {/* Edición de Catálogo in-line (se reemplaza si estamos editando) */}
       {editando ? (
-        <div className="cxc-tabla-wrapper" style={{ padding: '1rem', background: '#fff', borderRadius: '12px' }}>
-          <h3 style={{ fontSize: '1.05rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '1rem' }}>
-            📋 Editar Catálogo ({itemsEditables.length}/10)
-          </h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-            {itemsEditables.map((item, idx) => (
-              <div key={idx} style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
-                <input
-                  type="text"
-                  value={item.nombre}
-                  onChange={e => actualizarItemEditable(idx, 'nombre', e.target.value)}
-                  placeholder="Nombre del ítem"
-                  style={{ flex: 1, padding: '0.5rem 0.75rem', border: '1px solid var(--border-color)', borderRadius: '8px', fontSize: '0.9rem' }}
-                  disabled={guardandoItems}
-                />
-                <select
-                  value={item.tipo}
-                  onChange={e => actualizarItemEditable(idx, 'tipo', e.target.value)}
-                  style={{ padding: '0.5rem 0.75rem', border: '1px solid var(--border-color)', borderRadius: '8px', fontSize: '0.9rem' }}
-                  disabled={guardandoItems}
-                >
-                  <option value="servicio">Servicio</option>
-                  <option value="producto">Producto</option>
-                </select>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={item.precio_venta}
-                  onChange={e => actualizarItemEditable(idx, 'precio_venta', e.target.value)}
-                  placeholder="Opc. Bs"
-                  style={{ width: '100px', padding: '0.5rem 0.75rem', border: '1px solid var(--border-color)', borderRadius: '8px', fontSize: '0.9rem' }}
-                  disabled={guardandoItems}
-                />
-                <button
-                  onClick={() => eliminarItemEditable(idx)}
-                  disabled={guardandoItems}
-                  style={{ background: '#fee2e2', color: '#ef4444', padding: '0.5rem 0.75rem', borderRadius: '8px' }}
-                >
-                  <Trash2 size={16} />
-                </button>
-              </div>
-            ))}
-            {itemsEditables.length < 10 && (
-              <button
-                onClick={agregarItem}
-                disabled={guardandoItems}
+        <div className="cxc-tabla-wrapper" style={{ padding: '1rem', background: 'var(--bg-primary)', border: '1px solid var(--border-color)', borderRadius: '12px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '1rem' }}>
+              <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', background: 'var(--bg-secondary)', padding: '0.25rem 0.75rem', borderRadius: '20px', fontWeight: 600 }}>
+                {itemsEditables.length} ítems en catálogo
+              </span>
+            </div>
+
+            {/* Encabezados de Columna */}
+            <div style={{ 
+              display: 'grid', 
+              gridTemplateColumns: '1.5fr 90px 70px 70px 1.2fr 1.2fr 90px 32px', 
+              gap: '0.4rem', 
+              padding: '0 0.4rem 0.4rem 0.4rem',
+              borderBottom: '1px solid var(--border-color)',
+              marginBottom: '0.5rem',
+              color: 'var(--text-secondary)',
+              fontSize: '0.65rem',
+              fontWeight: 700,
+              textTransform: 'uppercase',
+              letterSpacing: '0.05em'
+            }}>
+              <div>Nombre</div>
+              <div>Tipo</div>
+              <div style={{ textAlign: 'right' }}>Venta</div>
+              <div style={{ textAlign: 'right' }}>Costo</div>
+              <div>Cuenta Ingreso</div>
+              <div>Cuenta Egreso</div>
+              <div style={{ textAlign: 'center' }}>Clasif.</div>
+              <div></div>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+              {itemsEditables.map((item, idx) => (
+                <div key={idx} style={{ 
+                  display: 'grid', 
+                  gridTemplateColumns: '1.5fr 90px 70px 70px 1.2fr 1.2fr 90px 32px', 
+                  gap: '0.4rem', 
+                  alignItems: 'center', 
+                  background: 'rgba(255,255,255,0.02)', 
+                  padding: '0.3rem 0.4rem', 
+                  borderRadius: '6px',
+                  border: '1px solid rgba(255,255,255,0.04)'
+                }}>
+                  <input
+                    type="text"
+                    value={item.nombre}
+                    onChange={e => actualizarItemEditable(idx, 'nombre', e.target.value)}
+                    placeholder="Ej. Polera"
+                    style={{ background: '#111', border: '1px solid #333', padding: '0.4rem', borderRadius: '4px', fontSize: '0.85rem', color: '#fff' }}
+                    disabled={guardandoItems}
+                  />
+                  <select
+                    value={item.tipo}
+                    onChange={e => actualizarItemEditable(idx, 'tipo', e.target.value)}
+                    style={{ background: '#111', border: '1px solid #333', padding: '0.4rem', borderRadius: '4px', fontSize: '0.85rem', color: '#fff' }}
+                    disabled={guardandoItems}
+                  >
+                    <option value="servicio">Servicio</option>
+                    <option value="producto">Producto</option>
+                  </select>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={item.precio_venta}
+                    onChange={e => actualizarItemEditable(idx, 'precio_venta', e.target.value)}
+                    placeholder="0.00"
+                    style={{ background: '#111', border: '1px solid #333', padding: '0.3rem', borderRadius: '4px', fontSize: '0.8rem', color: '#fff', textAlign: 'right', width: '100%' }}
+                    disabled={guardandoItems}
+                  />
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={item.costo_unitario}
+                    onChange={e => actualizarItemEditable(idx, 'costo_unitario', e.target.value)}
+                    placeholder="0.00"
+                    style={{ background: '#111', border: '1px solid #333', padding: '0.3rem', borderRadius: '4px', fontSize: '0.8rem', color: '#fff', textAlign: 'right', width: '100%' }}
+                    disabled={guardandoItems}
+                  />
+                  <select
+                    value={item.cuenta_ingreso_id}
+                    onChange={e => actualizarItemEditable(idx, 'cuenta_ingreso_id', e.target.value)}
+                    style={{ background: '#111', border: '1px solid #333', padding: '0.4rem', borderRadius: '4px', fontSize: '0.8rem', color: '#fff', maxWidth: '100%' }}
+                    disabled={guardandoItems}
+                  >
+                    <option value="" style={{ background: '#222' }}>(Ingreso)</option>
+                    {cuentasIngreso.map(c => <option key={c.id} value={c.id} style={{ background: '#222' }}>{c.codigo} {c.nombre}</option>)}
+                  </select>
+                  <select
+                    value={item.cuenta_gasto_id}
+                    onChange={e => actualizarItemEditable(idx, 'cuenta_gasto_id', e.target.value)}
+                    style={{ background: '#111', border: '1px solid #333', padding: '0.4rem', borderRadius: '4px', fontSize: '0.8rem', color: '#fff', maxWidth: '100%' }}
+                    disabled={guardandoItems}
+                  >
+                    <option value="" style={{ background: '#222' }}>(Gasto)</option>
+                    {cuentasGasto.map(c => <option key={c.id} value={c.id} style={{ background: '#222' }}>{c.codigo} {c.nombre}</option>)}
+                  </select>
+
+                  <div style={{ display: 'flex', gap: '2px', justifyContent: 'center' }}>
+                    <button
+                      type="button"
+                      onClick={() => actualizarItemEditable(idx, 'es_ingreso', (!item.es_ingreso) as any)}
+                      style={{
+                        flex: 1,
+                        padding: '6px 0',
+                        fontSize: '0.6rem',
+                        fontWeight: 800,
+                        borderRadius: '3px',
+                        border: '1px solid ' + (item.es_ingreso ? '#10b981' : '#333'),
+                        background: item.es_ingreso ? 'rgba(16, 185, 129, 0.2)' : '#000',
+                        color: item.es_ingreso ? '#10b981' : '#555',
+                        cursor: 'pointer'
+                      }}
+                      title="Item de Ingreso"
+                    >
+                      ING
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => actualizarItemEditable(idx, 'es_gasto', (!item.es_gasto) as any)}
+                      style={{
+                        flex: 1,
+                        padding: '6px 0',
+                        fontSize: '0.6rem',
+                        fontWeight: 800,
+                        borderRadius: '3px',
+                        border: '1px solid ' + (item.es_gasto ? '#ef4444' : '#333'),
+                        background: item.es_gasto ? 'rgba(239, 68, 68, 0.2)' : '#000',
+                        color: item.es_gasto ? '#ef4444' : '#555',
+                        cursor: 'pointer'
+                      }}
+                      title="Item de Gasto"
+                    >
+                      GAS
+                    </button>
+                  </div>
+
+                  <button
+                    onClick={() => eliminarItemEditable(idx)}
+                    disabled={guardandoItems}
+                    style={{ background: 'rgba(239, 68, 68, 0.15)', color: '#f87171', height: '32px', width: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '4px', border: 'none', cursor: 'pointer' }}
+                    title="Eliminar ítem"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              ))}
+            </div>
+            <button
+              onClick={agregarItem}
+              disabled={guardandoItems}
                 style={{ alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--primary)', fontWeight: 600, padding: '0.5rem', marginTop: '0.5rem', cursor: 'pointer', background: 'none' }}
               >
-                <Plus size={16} /> Agregar ítem
+                <Plus size={16} /> Agregar ítem nuevo
               </button>
-            )}
           </div>
-        </div>
       ) : (
         /* Tarjeta 3: Tabla Correspondiente */
         <>

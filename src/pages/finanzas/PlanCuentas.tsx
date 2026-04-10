@@ -42,9 +42,15 @@ const PlanCuentas: React.FC = () => {
   const [formError, setFormError] = useState<string | null>(null);
   const [formExito, setFormExito] = useState<string | null>(null);
 
-  // Lista de cuentas que pueden ser padres (no transaccionales)
+  // Estado del formulario de edición
+  const [cuentaEditando, setCuentaEditando] = useState<CuentaContable | null>(null);
+  const [editNombre, setEditNombre] = useState('');
+  const [editTransaccional, setEditTransaccional] = useState(true);
+  const [guardandoEdit, setGuardandoEdit] = useState(false);
+
+  // Lista de cuentas que pueden ser padres (no transaccionales y de nivel 2 o superior)
   const cuentasPadre = useMemo(() => {
-    return cuentas.filter(c => !c.es_transaccional).sort((a,b) => a.codigo.localeCompare(b.codigo));
+    return cuentas.filter(c => !c.es_transaccional && c.codigo.split('.').length >= 2).sort((a,b) => a.codigo.localeCompare(b.codigo));
   }, [cuentas]);
 
   const handleCambioPadre = (cod: string) => {
@@ -190,6 +196,7 @@ const PlanCuentas: React.FC = () => {
 
     const { error: errDel } = await supabase.from('plan_cuentas').delete().eq('id', id);
     if (errDel) {
+      alert(`Error al eliminar: ${errDel.message}\n(Código: ${errDel.code}, Detalles: ${errDel.details})`);
       setError(`Error al eliminar: ${errDel.message}`);
     } else {
       cargarCuentas();
@@ -218,6 +225,34 @@ const PlanCuentas: React.FC = () => {
     cargarCuentas();
     // Opcional: ocultar form tras éxito
     setTimeout(() => setMostrarForm(false), 2000);
+  };
+
+  const abrirModalEdicion = (cuenta: CuentaContable) => {
+    setCuentaEditando(cuenta);
+    setEditNombre(cuenta.nombre);
+    setEditTransaccional(cuenta.es_transaccional);
+  };
+
+  const guardarEdicionCuenta = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!cuentaEditando || !editNombre.trim()) return;
+    setGuardandoEdit(true);
+
+    const { error: updateErr } = await supabase
+      .from('plan_cuentas')
+      .update({
+        nombre: editNombre.trim(),
+        es_transaccional: editTransaccional,
+      })
+      .eq('id', cuentaEditando.id);
+
+    if (updateErr) {
+      alert(`Error al actualizar: ${updateErr.message}`);
+    } else {
+      setCuentaEditando(null);
+      cargarCuentas();
+    }
+    setGuardandoEdit(false);
   };
 
   return (
@@ -324,6 +359,49 @@ const PlanCuentas: React.FC = () => {
         </section>
       )}
 
+      {/* ─── Formulario de Edición ─── */}
+      {cuentaEditando && (
+        <section className="cxc-card" style={{ marginBottom: '1.5rem', padding: '1.5rem', background: 'var(--bg-panel)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+            <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 600 }}>Editar Cuenta: {cuentaEditando.codigo}</h3>
+            <button className="btn-close" onClick={() => setCuentaEditando(null)}><X size={18} /></button>
+          </div>
+
+          <form onSubmit={guardarEdicionCuenta}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '1rem', marginBottom: '1rem', alignItems: 'end' }}>
+              <div className="form-campo">
+                <label style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '4px', display: 'block' }}>Nombre de la Cuenta</label>
+                <input 
+                  type="text" 
+                  value={editNombre} 
+                  onChange={e => setEditNombre(e.target.value)} 
+                  required 
+                  style={{ width: '100%', padding: '0.6rem', borderRadius: '8px', border: '1px solid var(--border)' }}
+                />
+              </div>
+
+              <div className="form-campo" style={{ paddingBottom: '0.6rem' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.9rem' }}>
+                  <input 
+                    type="checkbox" 
+                    checked={editTransaccional} 
+                    onChange={e => setEditTransaccional(e.target.checked)}
+                    style={{ width: '18px', height: '18px' }}
+                  /> 
+                  <strong>Es Transaccional</strong>
+                </label>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', alignItems: 'center' }}>
+              <button type="submit" className="btn-guardar-cuenta" disabled={guardandoEdit} style={{ padding: '0.7rem 1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <Check size={18} /> {guardandoEdit ? 'Guardando...' : 'Guardar Cambios'}
+              </button>
+            </div>
+          </form>
+        </section>
+      )}
+
       {/* ─── Tarjetas de Resumen (Totales en Pesos/Cuentas) ─── */}
       <div className="pc-stats-grid" style={{ marginBottom: '1rem', display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '1rem' }}>
         {estadisticas.map(({ tipo, cantidad, total }) => {
@@ -405,19 +483,30 @@ const PlanCuentas: React.FC = () => {
                       0.00
                     </td>
                     <td className="excel-td" style={{ textAlign: 'center' }}>
-                      <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
-                        <button className="btn-refrescar" style={{ padding: '4px', background: 'none', border: 'none', color: 'var(--text-tertiary)' }} title="Editar">
-                          <Edit2 size={14} />
-                        </button>
-                        <button 
-                          className="btn-refrescar" 
-                          style={{ padding: '4px', background: 'none', border: 'none', color: 'var(--danger-color)' }} 
-                          title="Eliminar"
-                          onClick={(e) => { e.stopPropagation(); eliminarCuenta(cuenta.id, cuenta.nombre); }}
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
+                      {cuenta.escuela_id === null ? (
+                        <span style={{ fontSize: '0.65rem', padding: '2px 6px', borderRadius: '4px', background: 'var(--bg-panel)', color: 'var(--text-tertiary)', border: '1px solid var(--border)' }}>
+                          SISTEMA
+                        </span>
+                      ) : cuenta.codigo.split('.').length > 2 && (
+                        <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
+                          <button 
+                            className="btn-refrescar" 
+                            style={{ padding: '4px', background: 'none', border: 'none', color: 'var(--text-tertiary)' }} 
+                            title="Editar"
+                            onClick={(e) => { e.stopPropagation(); abrirModalEdicion(cuenta); }}
+                          >
+                            <Edit2 size={14} />
+                          </button>
+                          <button 
+                            className="btn-refrescar" 
+                            style={{ padding: '4px', background: 'none', border: 'none', color: 'var(--danger-color)' }} 
+                            title="Eliminar"
+                            onClick={(e) => { e.stopPropagation(); eliminarCuenta(cuenta.id, cuenta.nombre); }}
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      )}
                     </td>
                   </tr>
                 );

@@ -22,6 +22,7 @@ import FiltrosCxP, { CATEGORIAS_PROVEEDOR, OPCIONES_ANTIGUEDAD } from '../../com
 import NotaPago from '../../components/cxp/NotaPago';
 import DetalleProveedorCxP from '../../components/cxp/DetalleProveedorCxP';
 import AdminEntidadesCxP from '../../components/cxp/AdminEntidadesCxP';
+import ModalPagoRapidoCxP from '../../components/cxp/ModalPagoRapidoCxP';
 
 /** Formato de moneda boliviana */
 const fmtMonto = (n: number) =>
@@ -57,9 +58,12 @@ const CuentasPagar: React.FC = () => {
 
   // ── Modales ──
   const [mostrarNota, setMostrarNota]                   = useState(false);
-  const [tipoNotaInicial, setTipoNotaInicial]           = useState<'proveedor' | 'personal' | 'gasto_corriente'>('proveedor');
+  const [tipoNotaInicial, setTipoNotaInicial]           = useState<'proveedor' | 'personal'>('proveedor');
   const [entidadSeleccionada, setEntidadSeleccionada]   = useState<EntidadCxP | null>(null);
   const [mostrarAdmin, setMostrarAdmin]                 = useState(false);
+
+  const [mostrarPagoRapido, setMostrarPagoRapido]       = useState(false);
+  const [entidadParaPagoRapido, setEntidadParaPagoRapido] = useState<EntidadCxP | null>(null);
 
   // ── Entidad para pago rápido ──
   const [entidadParaNota, setEntidadParaNota]           = useState<EntidadCxP | null>(null);
@@ -271,7 +275,7 @@ const CuentasPagar: React.FC = () => {
         <div className="cxc-header-acciones">
           <button
             className="btn-nueva-cuenta btn-nuevo-cobro"
-            onClick={() => { setEntidadParaNota(null); setTipoNotaInicial('proveedor'); setMostrarNota(true); }}
+            onClick={() => { setEntidadParaPagoRapido(null); setMostrarPagoRapido(true); }}
           >
             <CreditCard size={16} /> Nuevo Pago
           </button>
@@ -279,7 +283,7 @@ const CuentasPagar: React.FC = () => {
             className="btn-nueva-cuenta"
             onClick={() => { setEntidadParaNota(null); setTipoNotaInicial('proveedor'); setMostrarNota(true); }}
           >
-            <Plus size={16} /> Nueva Nota
+            <Plus size={16} /> Nueva Nota de Deuda
           </button>
           <button className="btn-refrescar" onClick={cargarDatos} disabled={cargando}>
             <RefreshCw size={18} className={cargando ? 'spin' : ''} />
@@ -487,17 +491,19 @@ const CuentasPagar: React.FC = () => {
                         <span>Nota</span>
                       </button>
 
-                      {/* Pago rápido si tiene deuda */}
-                      {tieneDeuda && (
-                        <button
-                          className="cxc-accion-btn cxc-accion-btn--cobro"
-                          onClick={e => { e.stopPropagation(); abrirDetalle(entidad); }}
-                          title="Ver y registrar pago"
-                        >
-                          <CreditCard size={13} />
-                          <span>Pagar</span>
-                        </button>
-                      )}
+                      {/* Pago rápido / Anticipo */}
+                      <button
+                        className="cxc-accion-btn cxc-accion-btn--cobro"
+                        onClick={e => {
+                          e.stopPropagation();
+                          setEntidadParaPagoRapido(entidad);
+                          setMostrarPagoRapido(true);
+                        }}
+                        title="Ver y registrar pago o anticipo"
+                      >
+                        <CreditCard size={13} />
+                        <span>Pagar</span>
+                      </button>
                     </td>
                   </tr>
                 );
@@ -513,6 +519,15 @@ const CuentasPagar: React.FC = () => {
         tipoInicial={tipoNotaInicial}
         onCerrar={() => { setMostrarNota(false); setEntidadParaNota(null); }}
         onCreada={() => { setMostrarNota(false); setEntidadParaNota(null); cargarDatos(); }}
+      />
+
+      {/* ─── Modal: Pago Rápido ─── */}
+      <ModalPagoRapidoCxP
+        visible={mostrarPagoRapido}
+        entidades={entidades}
+        entidadInicial={entidadParaPagoRapido}
+        onCerrar={() => { setMostrarPagoRapido(false); setEntidadParaPagoRapido(null); }}
+        onPagado={cargarDatos}
       />
 
       {/* ─── Modal: Detalle del Proveedor ─── */}

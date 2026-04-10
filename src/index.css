@@ -347,18 +347,133 @@ input[type=number] {
 .cxc-modal-header button:hover { background: var(--danger-bg); color: var(--danger); transform: rotate(90deg); }
 .cxc-modal-form { padding: 2rem; display: flex; flex-direction: column; gap: 1.5rem; }
 
-/* Formularios dentro de notas */
-.form-campo { display: flex; flex-direction: column; gap: 0.5rem; }
-.form-campo label { font-size: 0.85rem; font-weight: 700; color: var(--text-secondary); }
+.modal-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1.5rem;
+}
 
-.nota-linea { display: grid; grid-template-columns: 2fr 1fr 1fr 30px; gap: 1rem; align-items: center; background: var(--bg-glass); padding: 1rem; border-radius: var(--radius-sm); border: 1px solid var(--border); }
-.nota-select-item, .nota-input-cant, .nota-input-precio { width: 100%; }
-.nota-btn-eliminar { color: var(--danger); background: var(--danger-bg); width: 30px; height: 30px; border-radius: 6px; display: flex; align-items: center; justify-content: center; }
-.nota-btn-eliminar:hover { background: var(--danger); color: #FFF; }
+.cxc-header-icon-circle {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+}
+
+.form-campo.full-width {
+  grid-column: 1 / -1;
+}
+
+.form-campo label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--text-tertiary);
+  margin-bottom: 0.6rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.form-campo label svg {
+  opacity: 0.6;
+}
+
+.nota-lineas-header {
+  display: grid;
+  grid-template-columns: 2.5fr 0.6fr 1fr 1.2fr 35px;
+  gap: 1rem;
+  padding: 0 1rem;
+  margin-bottom: 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+}
+
+.nota-linea { 
+  display: grid; 
+  grid-template-columns: 2.5fr 0.6fr 1fr 1.2fr 35px; 
+  gap: 1rem; 
+  align-items: center; 
+  background: var(--bg-glass); 
+  padding: 0.75rem 1rem; 
+  border-radius: var(--radius-md); 
+  border: 1px solid var(--border); 
+  transition: var(--transition);
+}
+
+.nota-linea:hover {
+  background: var(--bg-glass-hover);
+  border-color: rgba(255,255,255,0.15);
+}
+
+.nota-select-item, .nota-input-cant, .nota-input-precio { 
+  width: 100%; 
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  padding: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.nota-subtotal { 
+  text-align: right; 
+  font-size: 0.95rem; 
+  font-weight: 400; 
+  color: #FFF; 
+}
+
+
+.nota-btn-eliminar { 
+  color: var(--text-tertiary); 
+  background: transparent; 
+  width: 35px; 
+  height: 35px; 
+  border-radius: 50%; 
+  display: flex; 
+  align-items: center; 
+  justify-content: center; 
+  transition: var(--transition);
+}
+
+.nota-btn-eliminar:hover { 
+  background: var(--danger-bg); 
+  color: var(--danger); 
+}
+
 .nota-btn-agregar { background: var(--bg-glass); color: var(--text-primary); font-weight: 600; padding: 0.8rem; border-radius: var(--radius-sm); border: 1px dashed var(--border); text-align: center; }
 .nota-btn-agregar:hover { border-color: var(--primary); color: var(--primary); background: var(--primary-glow); }
 
-.nota-subtotal { text-align: right; font-size: 1.2rem; font-weight: 800; color: var(--primary); padding-top: 1rem; border-top: 1px solid var(--border); margin-top: 1rem; }
+.nota-total {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.2rem 1rem;
+  border-top: 2px solid var(--border);
+  margin-top: 0.5rem;
+  background: rgba(255,255,255,0.02);
+  border-radius: var(--radius-sm);
+}
+
+.nota-total span {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.nota-total strong {
+  font-size: 1.7rem;
+  color: var(--primary);
+  font-weight: 900;
+  text-shadow: 0 0 20px var(--primary-glow);
+}
+
 
 .nota-pago-section { background: rgba(16, 185, 129, 0.05); border: 1px solid rgba(16, 185, 129, 0.2); border-radius: var(--radius-md); padding: 1.5rem; margin-top: 1rem; }
 .nota-pago-toggle { display: flex; align-items: center; gap: 0.75rem; font-weight: 700; color: var(--success); cursor: pointer; user-select: none; }
@@ -372,7 +487,27 @@ input[type=number] {
 .nota-wa-btn-omitir { background: var(--bg-glass); color: var(--text-secondary); padding: 0.8rem 1.5rem; border-radius: var(--radius-sm); font-weight: 600; }
 .nota-wa-btn-omitir:hover { background: var(--bg-glass-hover); color: var(--text-primary); }
 
+.nota-mes-btn {
+  padding: 0.4rem;
+  font-size: 0.75rem;
+  border-radius: 4px;
+  background: var(--bg-input);
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+  transition: var(--transition);
+  cursor: pointer;
+}
+
+.nota-mes-btn--activo {
+  background: var(--secondary) !important;
+  color: #FFF !important;
+  border-color: var(--secondary) !important;
+  font-weight: 700;
+  box-shadow: 0 0 10px var(--secondary-glow);
+}
+
 .form-msg { padding: 1rem; border-radius: var(--radius-sm); font-size: 0.9rem; display: flex; align-items: center; gap: 0.5rem; margin-top: 1rem; font-weight: 600; }
+
 .form-msg--error { background: var(--danger-bg); border: 1px solid var(--danger); color: #FCA5A5; }
 .form-msg--exito { background: var(--success-bg); border: 1px solid var(--success); color: #6EE7B7; }
 
