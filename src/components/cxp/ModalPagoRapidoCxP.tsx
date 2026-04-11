@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import type { CuentaContable } from '../../types/finanzas';
-import { X, CreditCard, AlertCircle, Check, MessageCircle, FileText } from 'lucide-react';
+import { X, CreditCard, AlertCircle, Check, MessageCircle, FileText, Users, RefreshCw, DollarSign, Building2, Hash } from 'lucide-react';
 
 const fmtMonto = (n: number): string =>
   n.toLocaleString('es-BO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -201,56 +201,80 @@ const ModalPagoRapidoCxP: React.FC<Props> = ({ entidadInicial, entidades, visibl
 
   return (
     <div className="cxc-modal-overlay" onClick={() => !guardando && onCerrar()}>
-      <div className="cxc-modal cxc-modal--cobro-rapido" onClick={e => e.stopPropagation()}>
-        {/* Cabecera */}
+      <div className="cxc-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '650px' }}>
         <div className="cxc-modal-header">
-          <h2><CreditCard size={20} style={{ marginRight: '0.5rem' }} /> Registrar Pago / Anticipo</h2>
-          <button onClick={onCerrar} disabled={guardando}><X size={20} /></button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <div className="cxc-header-icon-circle" style={{ 
+              background: 'rgba(255, 107, 53, 0.15)',
+              color: '#FF6B35'
+            }}>
+              <CreditCard size={20} />
+            </div>
+            <div>
+              <h2 style={{ margin: 0, fontSize: '1.25rem' }}>Registrar Pago / Anticipo</h2>
+              <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-tertiary)' }}>
+                Liquida una deuda pendiente o registra un adelanto
+              </p>
+            </div>
+          </div>
+          <button onClick={onCerrar} className="btn-cerrar-modal" disabled={guardando}><X size={20} /></button>
         </div>
 
         <div className="cxc-modal-form">
           {!entidadInicial ? (
-            <div className="form-campo">
-              <label>Pagar a (Proveedor / Personal)</label>
+            <div className="form-campo full-width" style={{ marginBottom: '1rem' }}>
+              <label><Users size={14} /> Pagar a (Proveedor / Personal) *</label>
               <select
                 value={entidadSel?.id || ''}
                 onChange={e => setEntidadSel(entidades.find(a => a.id === e.target.value) || null)}
+                style={{ fontSize: '1rem', padding: '0.8rem' }}
               >
                 <option value="">— Seleccionar —</option>
                 {entidades.map(a => (
                   <option key={a.id} value={a.id}>
-                    {a.nombre} ({a.tipo === 'proveedor' ? 'Proveedor' : 'Personal'}) — Bs {fmtMonto(a.saldo_pendiente)}
+                    {a.nombre} ({a.tipo === 'proveedor' ? 'Prov' : 'Pers'}) — Saldo: Bs {fmtMonto(a.saldo_pendiente)}
                   </option>
                 ))}
               </select>
             </div>
           ) : (
-            <div className="cxc-cobro-alumno">
-              <div className="cxc-alumno-avatar" style={{ width: '44px', height: '44px', fontSize: '1rem', background: 'var(--accent)' }}>
+            <div className="cxc-cobro-alumno" style={{ marginBottom: '1.5rem', border: '1px solid rgba(255,255,255,0.06)' }}>
+              <div className="cxc-alumno-avatar" style={{ 
+                  width: '50px', 
+                  height: '50px', 
+                  fontSize: '1.2rem', 
+                  borderRadius: '12px',
+                  background: entidadSel?.tipo === 'proveedor' ? 'var(--secondary)' : 'var(--success)'
+              }}>
                 {entidadSel?.nombre[0]}
               </div>
-              <div>
-                <div style={{ fontWeight: 700, fontSize: '1.1rem' }}>{entidadSel?.nombre}</div>
-                <div style={{ color: 'var(--warning)', fontSize: '0.9rem' }}>
-                  Deuda Total: Bs {fmtMonto(entidadSel?.saldo_pendiente || 0)}
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 800, fontSize: '1.15rem' }}>{entidadSel?.nombre}</div>
+                <div style={{ display: 'flex', gap: '1rem', marginTop: '0.2rem' }}>
+                    <span style={{ color: 'var(--text-tertiary)', fontSize: '0.85rem' }}>{entidadSel?.tipo === 'proveedor' ? 'Proveedor' : 'Trabajador'}</span>
+                    <span style={{ color: 'var(--warning)', fontWeight: 700, fontSize: '0.85rem' }}>Deuda Total: Bs {fmtMonto(entidadSel?.saldo_pendiente || 0)}</span>
                 </div>
               </div>
             </div>
           )}
 
           {entidadSel && (
-            <div className="form-campo">
-              <label>Nota a pagar</label>
-              <select value={cxpSelId} onChange={e => handleChangeCxp(e.target.value)}>
-                {cxpsPendientes.length > 0 && <optgroup label="Notas Pendientes">
+            <div className="form-campo full-width" style={{ marginBottom: '1.5rem' }}>
+              <label><FileText size={14} /> Nota / Documento a Liquidar *</label>
+              <select 
+                value={cxpSelId} 
+                onChange={e => handleChangeCxp(e.target.value)}
+                style={{ background: 'var(--bg-glass)', fontWeight: 600 }}
+              >
+                {cxpsPendientes.length > 0 && <optgroup label="Deudas Pendientes">
                   {cxpsPendientes.map(c => (
                     <option key={c.id} value={c.id}>
                       {c.numero_documento} {c.descripcion || ''} — Saldo: Bs {fmtMonto(Number(c.deuda_restante))}
                     </option>
                   ))}
                 </optgroup>}
-                <optgroup label="Otros">
-                  <option value="anticipo">🌟 Registrar como Anticipo</option>
+                <optgroup label="Otras Acciones">
+                  <option value="anticipo">🌟 Registrar como Anticipo (Adelante)</option>
                 </optgroup>
               </select>
             </div>
@@ -258,19 +282,21 @@ const ModalPagoRapidoCxP: React.FC<Props> = ({ entidadInicial, entidades, visibl
 
           {(cxpSel || cxpSelId === 'anticipo') && (
             <form onSubmit={registrar} style={{ display: 'contents' }}>
-              <div className="nota-pago-campos">
+              <div className="modal-form-grid">
                 <div className="form-campo">
-                  <label>Monto a pagar (Bs)</label>
+                  <label><DollarSign size={14} /> Monto a pagar *</label>
                   <input
                     type="number" step="0.01" min="0.01" max={cxpSelId === 'anticipo' ? undefined : saldoCxp}
                     value={monto}
                     onChange={e => setMonto(e.target.value)}
                     required disabled={guardando}
-                    placeholder={cxpSelId === 'anticipo' ? 'Monto del anticipo' : `Máx. Bs ${fmtMonto(saldoCxp)}`}
+                    placeholder="0.00"
+                    style={{ fontSize: '1.1rem', fontWeight: 700, color: '#FF6B35' }}
                   />
                 </div>
+
                 <div className="form-campo">
-                  <label>Método de pago</label>
+                  <label><CreditCard size={14} /> Método de pago *</label>
                   <select value={metodo} onChange={e => setMetodo(e.target.value)} disabled={guardando}>
                     <option value="efectivo">Efectivo</option>
                     <option value="transferencia">Transferencia</option>
@@ -278,30 +304,51 @@ const ModalPagoRapidoCxP: React.FC<Props> = ({ entidadInicial, entidades, visibl
                     <option value="cheque">Cheque</option>
                   </select>
                 </div>
-                <div className="form-campo">
-                  <label>Caja / Banco de salida</label>
+
+                <div className="form-campo full-width">
+                  <label><Building2 size={14} /> Caja / Banco de Salida *</label>
                   <select value={cuentaId} onChange={e => setCuentaId(e.target.value)} required disabled={guardando}>
-                    <option value="">— Seleccionar —</option>
+                    <option value="">— Seleccionar origen —</option>
                     {cuentasPago.map(c => (
                       <option key={c.id} value={c.id}>{c.nombre}</option>
                     ))}
                   </select>
                 </div>
-                <div className="form-campo" style={{ gridColumn: '1 / -1' }}>
-                   <label>Nro. Comprobante (opcional)</label>
-                   <input type="text" placeholder="Nro. recibo o referencia" value={nroDoc} onChange={e => setNroDoc(e.target.value)} disabled={guardando} />
+
+                <div className="form-campo full-width">
+                   <label><Hash size={14} /> Nro. Comprobante / Referencia (Opcional)</label>
+                   <input type="text" placeholder="Ej: Recibo 123, Transferencia #88..." value={nroDoc} onChange={e => setNroDoc(e.target.value)} disabled={guardando} />
                 </div>
               </div>
 
-              {error && <div className="form-msg form-msg--error"><AlertCircle size={16} /> {error}</div>}
-              {exito && <div className="form-msg form-msg--exito"><Check size={16} /> {exito}</div>}
+              {error && (
+                <div className="form-msg form-msg--error" style={{ marginTop: '1.5rem' }}>
+                  <AlertCircle size={18} /> {error}
+                </div>
+              )}
+              {exito && (
+                <div className="form-msg form-msg--exito" style={{ marginTop: '1.5rem' }}>
+                  <Check size={18} /> {exito}
+                </div>
+              )}
 
-              <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end' }}>
-                <button type="button" className="nota-wa-btn-omitir" onClick={onCerrar} disabled={guardando}>
+              <div className="cxc-modal-footer" style={{ 
+                marginTop: '1.5rem', 
+                paddingTop: '1.25rem',
+                borderTop: '1px solid rgba(255,255,255,0.06)',
+                display: 'flex',
+                justifyContent: 'flex-end',
+                gap: '1rem'
+              }}>
+                <button type="button" className="btn-refrescar" onClick={onCerrar} disabled={guardando} style={{ borderRadius: '8px', padding: '0 1.5rem', width: 'auto' }}>
                   Cancelar
                 </button>
-                <button type="submit" className="btn-guardar-cuenta" disabled={guardando || !!exito}>
-                  <CreditCard size={16} /> {guardando ? 'Registrando...' : 'Registrar Pago'}
+                <button type="submit" className="btn-guardar-cuenta" disabled={guardando || !!exito} style={{ padding: '0.6rem 2rem' }}>
+                  {guardando ? (
+                    <> <RefreshCw size={16} className="spin" /> Registrando... </>
+                  ) : (
+                    <> <Check size={18} /> Confirmar Pago </>
+                  )}
                 </button>
               </div>
             </form>
