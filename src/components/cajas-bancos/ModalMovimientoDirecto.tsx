@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabaseClient';
-import { X, ArrowDownRight, ArrowUpRight, DollarSign, Calendar, CreditCard, AlignLeft, Building2, Tag } from 'lucide-react';
+import { X, ArrowDownRight, ArrowUpRight, DollarSign, Calendar, CreditCard, AlignLeft, Building2, Tag, AlertCircle, Save, RefreshCw } from 'lucide-react';
 import type { CuentaContable } from '../../types/finanzas';
 
 interface Props {
@@ -139,105 +139,130 @@ const ModalMovimientoDirecto: React.FC<Props> = ({ visible, tipo, cajas, onCerra
   };
 
   return (
-    <div className="modal-overlay">
-      <div className="modal-content" style={{ maxWidth: '500px' }}>
-        <div className="modal-header">
-          <h2 style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', color: isIngreso ? '#00D26A' : '#0A84FF', fontSize: '1.4rem', fontWeight: 700 }}>
-            {isIngreso ? <ArrowDownRight size={26} /> : <ArrowUpRight size={26} />}
-            {isIngreso ? 'Nuevo Ingreso de Dinero' : 'Nueva Salida / Gasto'}
-          </h2>
-          <button className="btn-close" onClick={onCerrar} disabled={guardando}>
-            <X size={20} />
-          </button>
+    <div className="cxc-modal-overlay" onClick={onCerrar}>
+      <div className="cxc-modal cxc-modal--entidad" onClick={e => e.stopPropagation()} style={{ maxWidth: '650px' }}>
+        <div className="cxc-modal-header">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <div className="cxc-header-icon-circle" style={{ 
+              background: isIngreso ? 'rgba(0, 210, 106, 0.15)' : 'rgba(255, 107, 53, 0.15)',
+              color: isIngreso ? '#00D26A' : '#FF6B35'
+            }}>
+              {isIngreso ? <ArrowDownRight size={20} /> : <ArrowUpRight size={20} />}
+            </div>
+            <div>
+              <h2 style={{ margin: 0, fontSize: '1.25rem' }}>
+                {isIngreso ? 'Nuevo Ingreso de Dinero' : 'Nueva Salida / Gasto'}
+              </h2>
+              <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-tertiary)' }}>
+                {isIngreso ? 'Registra un ingreso directo a tu caja o banco' : 'Registra un egreso directo de tu caja o banco'}
+              </p>
+            </div>
+          </div>
+          <button onClick={onCerrar} className="btn-cerrar-modal" disabled={guardando}><X size={20} /></button>
         </div>
 
-        <form onSubmit={handleSubmit} className="modal-body form-grid" style={{ gap: '1.2rem' }}>
-          {error && <div className="form-msg form-msg--error">{error}</div>}
+        <form onSubmit={handleSubmit} className="cxc-modal-form">
+          <div className="modal-form-grid" style={{ padding: '0.5rem 0' }}>
+            {/* Selector de Caja / Banco */}
+            <div className="form-campo full-width">
+              <label><Building2 size={14} /> Caja o Banco *</label>
+              <select value={cajaId} onChange={e => handleInputChange(setCajaId, e.target.value)} required disabled={guardando}>
+                <option value="">Seleccione cuenta transaccional...</option>
+                {cajas.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+              </select>
+            </div>
 
-          {/* Selector de Caja / Banco */}
-          <div className="form-campo" style={{ marginBottom: '0.5rem' }}>
-            <label style={{ color: 'var(--text-secondary)', fontWeight: 600, fontSize: '0.8rem', marginBottom: '0px' }}>Caja o Banco</label>
-            <select value={cajaId} onChange={e => handleInputChange(setCajaId, e.target.value)} required disabled={guardando} style={{ padding: '0.7rem' }}>
-              <option value="">Seleccione cuenta...</option>
-              {cajas.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-            </select>
+            {/* Selector de Contra Cuenta */}
+            <div className="form-campo">
+              <label><Tag size={14} /> Concepto de {isIngreso ? 'Ingreso' : 'Salida'} *</label>
+              <select value={contraCuentaId} onChange={e => handleInputChange(setContraCuentaId, e.target.value)} required disabled={guardando}>
+                <option value="">Seleccione concepto...</option>
+                {todasLasCuentas.map(c => (
+                  <option key={c.id} value={c.id}>{c.nombre}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="form-campo">
+              <label><DollarSign size={14} /> Monto (Bs) *</label>
+              <input 
+                type="number" 
+                step="0.01" 
+                min="0.01"
+                value={monto} 
+                onChange={e => handleInputChange(setMonto, e.target.value)} 
+                required 
+                disabled={guardando} 
+                placeholder="0.00"
+              />
+            </div>
+
+            <div className="form-campo">
+              <label><Calendar size={14} /> Fecha *</label>
+              <input 
+                type="date" 
+                value={fecha} 
+                onChange={e => handleInputChange(setFecha, e.target.value)} 
+                required 
+                disabled={guardando} 
+              />
+            </div>
+
+            <div className="form-campo">
+              <label><CreditCard size={14} /> Método de {isIngreso ? 'Cobro' : 'Pago'} *</label>
+              <select value={metodo} onChange={e => handleInputChange(setMetodo, e.target.value)} disabled={guardando}>
+                <option value="efectivo">Efectivo</option>
+                <option value="qr">QR</option>
+                <option value="transferencia">Transferencia</option>
+              </select>
+            </div>
+
+            <div className="form-campo full-width">
+              <label><AlignLeft size={14} /> Observaciones *</label>
+              <textarea 
+                value={descripcion} 
+                onChange={e => handleInputChange(setDescripcion, e.target.value)} 
+                required 
+                disabled={guardando} 
+                placeholder="Descripción del movimiento"
+                maxLength={255}
+                style={{ resize: 'vertical', minHeight: '60px' }}
+              />
+            </div>
           </div>
 
-          {/* Selector de Contra Cuenta */}
-          <div className="form-campo" style={{ marginBottom: '0.5rem' }}>
-            <label style={{ color: 'var(--text-secondary)', fontWeight: 600, fontSize: '0.8rem', marginBottom: '0px' }}>Concepto de {isIngreso ? 'Ingreso' : 'Salida'}</label>
-            <select value={contraCuentaId} onChange={e => handleInputChange(setContraCuentaId, e.target.value)} required disabled={guardando} style={{ padding: '0.7rem' }}>
-              <option value="">Seleccione concepto...</option>
-              {todasLasCuentas.map(c => (
-                <option key={c.id} value={c.id}>{c.nombre}</option>
-              ))}
-            </select>
-          </div>
+          {error && (
+            <div className="form-msg form-msg--error" style={{ margin: '1rem 0' }}>
+              <AlertCircle size={18} /> {error}
+            </div>
+          )}
 
-          <div className="form-campo" style={{ marginBottom: '0.5rem' }}>
-            <label style={{ color: 'var(--text-secondary)', fontWeight: 600, fontSize: '0.8rem', marginBottom: '0px' }}>Monto (Bs)</label>
-            <input 
-              type="number" 
-              step="0.01" 
-              min="0.01"
-              value={monto} 
-              onChange={e => handleInputChange(setMonto, e.target.value)} 
-              required 
-              disabled={guardando} 
-              placeholder="0.00"
-              style={{ padding: '0.7rem' }}
-            />
-          </div>
-
-          <div className="form-campo" style={{ marginBottom: '0.5rem' }}>
-            <label style={{ color: 'var(--text-secondary)', fontWeight: 600, fontSize: '0.8rem', marginBottom: '0px' }}>Fecha</label>
-            <input 
-              type="date" 
-              value={fecha} 
-              onChange={e => handleInputChange(setFecha, e.target.value)} 
-              required 
-              disabled={guardando} 
-              style={{ padding: '0.7rem' }}
-            />
-          </div>
-
-          <div className="form-campo" style={{ gridColumn: '1 / -1', marginBottom: '0.5rem' }}>
-            <label style={{ color: 'var(--text-secondary)', fontWeight: 600, fontSize: '0.8rem', marginBottom: '0px' }}>Método de {isIngreso ? 'Cobro' : 'Pago'}</label>
-            <select value={metodo} onChange={e => handleInputChange(setMetodo, e.target.value)} disabled={guardando} style={{ padding: '0.7rem' }}>
-              <option value="efectivo">Efectivo</option>
-              <option value="qr">QR</option>
-              <option value="transferencia">Transferencia</option>
-            </select>
-          </div>
-
-          <div className="form-campo" style={{ gridColumn: '1 / -1', marginBottom: '0.5rem' }}>
-            <label style={{ color: 'var(--text-secondary)', fontWeight: 600, fontSize: '0.8rem', marginBottom: '0px' }}>Observaciones</label>
-            <textarea 
-              value={descripcion} 
-              onChange={e => handleInputChange(setDescripcion, e.target.value)} 
-              required 
-              disabled={guardando} 
-              placeholder=""
-              style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', border: '1px solid var(--border)', minHeight: '80px', resize: 'vertical', fontSize: '0.9rem' }}
-              maxLength={255}
-            />
-          </div>
-
-          <div className="modal-footer" style={{ gridColumn: '1 / -1', marginTop: '1.5rem', borderTop: '1px solid var(--border-light)', paddingTop: '1.5rem', display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
-            <button type="button" className="btn-cancelar" onClick={onCerrar} disabled={guardando} style={{ padding: '0.75rem 1.5rem' }}>Cancelar</button>
+          <div className="cxc-modal-footer" style={{ 
+            marginTop: '1.5rem', 
+            paddingTop: '1.25rem',
+            borderTop: '1px solid rgba(255,255,255,0.06)',
+            display: 'flex',
+            justifyContent: 'flex-end',
+            gap: '1rem'
+          }}>
+            <button type="button" className="btn-refrescar" onClick={onCerrar} disabled={guardando}>
+              Cancelar
+            </button>
             <button 
                 type="submit" 
                 className="btn-guardar-cuenta" 
                 disabled={guardando}
                 style={{ 
-                  background: isIngreso ? '#00D26A' : '#0A84FF', 
-                  borderColor: isIngreso ? '#00D26A' : '#0A84FF',
-                  padding: '0.75rem 2rem',
-                  fontWeight: 600,
-                  boxShadow: `0 4px 12px ${isIngreso ? 'rgba(0,210,106,0.3)' : 'rgba(10,132,255,0.3)'}`
+                  background: isIngreso ? '#00D26A' : '#FF6B35', 
+                  borderColor: isIngreso ? '#00D26A' : '#FF6B35',
+                  padding: '0.6rem 2rem',
                 }}
               >
-              {guardando ? 'Registrando...' : (isIngreso ? 'Confirmar Ingreso' : 'Confirmar Salida')}
+              {guardando ? (
+                <> <RefreshCw size={16} className="spin" /> Registrando... </>
+              ) : (
+                <> <Save size={16} /> Confirmar {isIngreso ? 'Ingreso' : 'Salida'} </>
+              )}
             </button>
           </div>
         </form>

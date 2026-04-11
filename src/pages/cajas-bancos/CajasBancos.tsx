@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { supabase } from '../../lib/supabaseClient';
-import { ChevronLeft, Plus, Search, RefreshCw, Landmark, ArrowDownRight, ArrowUpRight, CheckCircle2, ArrowRightLeft, CheckSquare, Square } from 'lucide-react';
+import { ChevronLeft, Search, RefreshCw, Landmark, ArrowDownRight, ArrowUpRight, CheckCircle2, ArrowRightLeft, CheckSquare, Square } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import type { CuentaContable, MovimientoContable, AsientoContable } from '../../types/finanzas';
 import ModalTransferencia from '../../components/cajas-bancos/ModalTransferencia';
@@ -196,10 +196,7 @@ const CajasBancos: React.FC = () => {
     return list;
   }, [movimientos, filtroCuenta, busqueda]);
 
-  // Manejo botón crear caja (por ahora manda al plan de cuentas)
-  const handleCrearCaja = () => {
-    navigate('/finanzas/plan-cuentas');
-  };
+
 
   const toggleConciliar = async (id: string, valorActual: boolean) => {
     const newVal = !valorActual;
@@ -267,15 +264,6 @@ const CajasBancos: React.FC = () => {
             }}
           >
             <ArrowRightLeft size={16} /> {activeForm === 'transferencia' ? 'Cerrar Transf.' : 'Nueva Transferencia'}
-          </button>
-
-          <button 
-            className="cxc-accion-btn" 
-            onClick={handleCrearCaja} 
-            title="Crear en Plan de Cuentas"
-            style={{ fontWeight: 500, padding: '0.4rem 0.85rem' }}
-          >
-            <Plus size={16} /> Crear Caja o Banco
           </button>
 
           <button className="btn-refrescar" onClick={cargarDatos} disabled={cargando}>
@@ -368,16 +356,6 @@ const CajasBancos: React.FC = () => {
         <div className="arbol-vacio">
           <Landmark size={40} style={{ marginBottom: '0.75rem', opacity: 0.4 }} />
           <p>No tienes Cajas ni Bancos configurados en el Plan de Cuentas.</p>
-          <p style={{ fontSize: '0.85rem', color: 'var(--text-tertiary)', marginTop: '0.5rem' }}>
-            Asegúrate de crear cuentas de tipo Activo, marcadas como Transaccionales, bajo el rubro de Efectivo ("1.1.1.X", ej. 1.1.1.01).
-          </p>
-          <button
-              className="btn-nueva-cuenta"
-              style={{ marginTop: '1rem' }}
-              onClick={handleCrearCaja}
-            >
-              <Plus size={16} /> Ir a Plan de Cuentas
-          </button>
         </div>
       ) : movimientosFiltrados.length === 0 ? (
         <div className="arbol-vacio">
@@ -479,6 +457,7 @@ const CajasBancos: React.FC = () => {
           cargarDatos();
         }} 
       />
+
     </main>
   );
 };

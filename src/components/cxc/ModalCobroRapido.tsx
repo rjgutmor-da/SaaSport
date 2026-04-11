@@ -7,7 +7,7 @@ import React, { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import type { AlumnoDeuda, CuentaCobrar } from '../../types/cxc';
 import type { CuentaContable } from '../../types/finanzas';
-import { X, CreditCard, AlertCircle, Check, MessageCircle } from 'lucide-react';
+import { X, CreditCard, AlertCircle, Check, MessageCircle, Users, FileText, RefreshCw, DollarSign, Building2, Info, Calendar, Hash } from 'lucide-react';
 
 /** Formatea un número como moneda (Bs) */
 const fmtMonto = (n: number): string =>
@@ -225,73 +225,91 @@ const ModalCobroRapido: React.FC<Props> = ({ alumnoInicial, visible, onCerrar, o
 
   return (
     <div className="cxc-modal-overlay" onClick={() => !guardando && onCerrar()}>
-      <div className="cxc-modal cxc-modal--cobro-rapido" onClick={e => e.stopPropagation()}>
-        {/* Cabecera */}
+      <div className="cxc-modal cxc-modal--cobro-rapido" onClick={e => e.stopPropagation()} style={{ maxWidth: '680px' }}>
         <div className="cxc-modal-header">
-          <h2><CreditCard size={20} style={{ marginRight: '0.5rem' }} /> Registrar Pago</h2>
-          <button onClick={onCerrar} disabled={guardando}><X size={20} /></button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <div className="cxc-header-icon-circle" style={{ 
+              background: 'rgba(0, 210, 106, 0.15)',
+              color: '#00D26A'
+            }}>
+              <CreditCard size={20} />
+            </div>
+            <div>
+              <h2 style={{ margin: 0, fontSize: '1.25rem' }}>Registrar Pago</h2>
+              <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-tertiary)' }}>
+                {mensajeWA ? 'Recibo automático generado' : 'Registra el ingreso de dinero del alumno'}
+              </p>
+            </div>
+          </div>
+          <button onClick={onCerrar} className="btn-cerrar-modal" disabled={guardando}><X size={20} /></button>
         </div>
 
         <div className="cxc-modal-form">
-          {/* Mensaje WhatsApp post-cobro */}
-          {mensajeWA && (
-            <div className="nota-wa-recibo" style={{ marginBottom: '1rem' }}>
-              <p style={{ fontSize: '0.9rem', marginBottom: '1rem', color: 'var(--text-secondary)' }}>
-                {mensajeWA.texto}
-              </p>
-              <button className="nota-wa-btn-enviar" onClick={enviarWA}>
-                <MessageCircle size={16} /> Enviar recibo por WhatsApp
-              </button>
-              <button className="nota-wa-btn-omitir" onClick={onCerrar}>Cerrar</button>
+          {mensajeWA ? (
+            <div className="nota-wa-recibo">
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem' }}>
+                <div style={{ padding: '1.5rem', background: 'var(--bg-glass)', borderRadius: '12px', width: '100%', textAlign: 'left', border: '1px solid var(--border)' }}>
+                  <p style={{ margin: 0, fontSize: '0.95rem', lineHeight: '1.6' }}>{mensajeWA.texto}</p>
+                </div>
+                <div style={{ display: 'flex', gap: '1rem', width: '100%', justifyContent: 'center' }}>
+                  <button className="nota-wa-btn-enviar" onClick={enviarWA}>
+                    <MessageCircle size={18} /> Enviar por WhatsApp
+                  </button>
+                  <button className="nota-wa-btn-omitir" onClick={onCerrar}>Omitir y cerrar</button>
+                </div>
+              </div>
             </div>
-          )}
-
-          {/* Alumno */}
-          {!mensajeWA && (
+          ) : (
             <>
+              {/* Información del Alumno */}
               {!alumnoInicial ? (
-                <div className="form-campo">
-                  <label>Alumno</label>
+                <div className="form-campo full-width" style={{ marginBottom: '1rem' }}>
+                  <label><Users size={14} /> Alumno / Cliente *</label>
                   <select
                     value={alumnoSel?.alumno_id || ''}
                     onChange={e => setAlumnoSel(alumnos.find(a => a.alumno_id === e.target.value) || null)}
+                    style={{ fontSize: '1rem', padding: '0.8rem' }}
                   >
                     <option value="">— Seleccionar alumno —</option>
                     {alumnos.sort((a, b) => `${a.nombres} ${a.apellidos}`.localeCompare(`${b.nombres} ${b.apellidos}`))
                       .map(a => (
                         <option key={a.alumno_id} value={a.alumno_id}>
-                          {a.nombres} {a.apellidos} — Bs {fmtMonto(Number(a.saldo_pendiente))}
+                          {a.nombres} {a.apellidos} — Pendiente: Bs {fmtMonto(Number(a.saldo_pendiente))}
                         </option>
                       ))}
                   </select>
                 </div>
               ) : (
-                <div className="cxc-cobro-alumno">
-                  <div className="cxc-alumno-avatar" style={{ width: '44px', height: '44px', fontSize: '1rem' }}>
+                <div className="cxc-cobro-alumno" style={{ marginBottom: '1.5rem', border: '1px solid rgba(255,255,255,0.06)' }}>
+                  <div className="cxc-alumno-avatar" style={{ width: '50px', height: '50px', fontSize: '1.2rem', borderRadius: '12px' }}>
                     {alumnoSel?.nombres[0]}{alumnoSel?.apellidos[0]}
                   </div>
-                  <div>
-                    <div style={{ fontWeight: 700, fontSize: '1.1rem' }}>{alumnoSel?.nombres} {alumnoSel?.apellidos}</div>
-                    <div style={{ color: 'var(--warning)', fontSize: '0.9rem' }}>
-                      Saldo total: Bs {fmtMonto(Number(alumnoSel?.saldo_pendiente))}
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 800, fontSize: '1.15rem' }}>{alumnoSel?.nombres} {alumnoSel?.apellidos}</div>
+                    <div style={{ display: 'flex', gap: '1rem', marginTop: '0.2rem' }}>
+                        <span style={{ color: 'var(--text-tertiary)', fontSize: '0.85rem' }}>Deudor: {alumnoSel?.identificacion || 'S/I'}</span>
+                        <span style={{ color: 'var(--warning)', fontWeight: 700, fontSize: '0.85rem' }}>Saldo Total: Bs {fmtMonto(Number(alumnoSel?.saldo_pendiente))}</span>
                     </div>
                   </div>
                 </div>
               )}
 
-              {/* CxC a cubrir o Anticipo */}
               {alumnoSel && (
-                <div className="form-campo">
-                  <label>Nota de Servicio a cobrar</label>
-                  <select value={cxcSelId} onChange={e => handleChangeCxc(e.target.value)}>
+                <div className="form-campo full-width" style={{ marginBottom: '1.5rem' }}>
+                  <label><FileText size={14} /> Nota / Concepto a Cobrar *</label>
+                  <select 
+                    value={cxcSelId} 
+                    onChange={e => handleChangeCxc(e.target.value)}
+                    style={{ background: 'var(--bg-glass)', fontWeight: 600 }}
+                  >
                     {cxcsPendientes.length > 0 && <optgroup label="Notas Pendientes">
                       {cxcsPendientes.map(c => (
                         <option key={c.id} value={c.id}>
-                          {c.descripcion || 'Sin descripción'} — Saldo: Bs {fmtMonto(Number(c.saldo_pendiente))}
+                          {c.descripcion || 'Servicio'} — Saldo: Bs {fmtMonto(Number(c.saldo_pendiente))}
                         </option>
                       ))}
                     </optgroup>}
-                    <optgroup label="Otros">
+                    <optgroup label="Opciones Especiales">
                       <option value="anticipo">🌟 Registrar como Anticipo / Adelanto</option>
                     </optgroup>
                   </select>
@@ -300,28 +318,30 @@ const ModalCobroRapido: React.FC<Props> = ({ alumnoInicial, visible, onCerrar, o
 
               {(cxcSel || cxcSelId === 'anticipo') && (
                 <form onSubmit={registrar} style={{ display: 'contents' }}>
-                  {/* Monto */}
-                  <div className="nota-pago-campos">
+                  <div className="modal-form-grid">
                     <div className="form-campo">
-                      <label>Monto a cobrar (Bs)</label>
+                      <label><DollarSign size={14} /> Monto a cobrar *</label>
                       <input
                         type="number" step="0.01" min="0.01" max={cxcSelId === 'anticipo' ? undefined : saldoCxc}
                         value={monto}
                         onChange={e => setMonto(e.target.value)}
                         required disabled={guardando}
-                        placeholder={cxcSelId === 'anticipo' ? 'Monto del anticipo' : `Máx. Bs ${fmtMonto(saldoCxc)}`}
+                        placeholder="0.00"
+                        style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--success)' }}
                       />
                     </div>
+
                     <div className="form-campo">
-                      <label>Método de pago</label>
+                      <label><CreditCard size={14} /> Método de pago *</label>
                       <select value={metodo} onChange={e => setMetodo(e.target.value)} disabled={guardando}>
                         <option value="efectivo">Efectivo</option>
                         <option value="transferencia">Transferencia</option>
                         <option value="qr">QR</option>
                       </select>
                     </div>
-                    <div className="form-campo">
-                      <label>Caja / Banco destino</label>
+
+                    <div className="form-campo full-width">
+                      <label><Building2 size={14} /> Caja o Banco Destino *</label>
                       <select value={cuentaId} onChange={e => setCuentaId(e.target.value)} required disabled={guardando}>
                         <option value="">— Seleccionar —</option>
                         {cuentasCobro.map(c => (
@@ -329,33 +349,55 @@ const ModalCobroRapido: React.FC<Props> = ({ alumnoInicial, visible, onCerrar, o
                         ))}
                       </select>
                     </div>
+
                     {(metodo === 'transferencia' || metodo === 'qr') && (
                       <>
                         <div className="form-campo">
-                          <label>Banco origen</label>
+                          <label><Info size={14} /> Banco origen</label>
                           <input type="text" placeholder="Ej: BNB, Tigo Money..." value={bancoOrigen} onChange={e => setBancoOrigen(e.target.value)} disabled={guardando} />
                         </div>
                         <div className="form-campo">
-                          <label>Hora de transferencia</label>
-                          <input type="time" value={hora} onChange={e => setHora(e.target.value)} disabled={guardando} />
+                          <label><Calendar size={14} /> Hora/Referencia</label>
+                          <input type="text" value={hora} placeholder="Ej: 14:30 o Ref: 4567" onChange={e => setHora(e.target.value)} disabled={guardando} />
                         </div>
                       </>
                     )}
-                    <div className="form-campo">
-                      <label>Nro. Comprobante (opcional)</label>
-                      <input type="text" placeholder="Nro. recibo o referencia" value={nroDoc} onChange={e => setNroDoc(e.target.value)} disabled={guardando} />
+
+                    <div className="form-campo full-width">
+                      <label><Hash size={14} /> Nro. Comprobante Interno (Opcional)</label>
+                      <input type="text" placeholder="Número de recibo físico si aplica" value={nroDoc} onChange={e => setNroDoc(e.target.value)} disabled={guardando} />
                     </div>
                   </div>
 
-                  {error && <div className="form-msg form-msg--error"><AlertCircle size={16} /> {error}</div>}
-                  {exito && <div className="form-msg form-msg--exito"><Check size={16} /> {exito}</div>}
+                  {error && (
+                    <div className="form-msg form-msg--error" style={{ marginTop: '1.5rem' }}>
+                      <AlertCircle size={18} /> {error}
+                    </div>
+                  )}
+                  
+                  {exito && (
+                    <div className="form-msg form-msg--exito" style={{ marginTop: '1.5rem' }}>
+                      <Check size={18} /> {exito}
+                    </div>
+                  )}
 
-                  <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end' }}>
-                    <button type="button" className="nota-wa-btn-omitir" onClick={onCerrar} disabled={guardando}>
+                  <div className="cxc-modal-footer" style={{ 
+                    marginTop: '2rem', 
+                    paddingTop: '1.5rem',
+                    borderTop: '1px solid rgba(255,255,255,0.06)',
+                    display: 'flex',
+                    justifyContent: 'flex-end',
+                    gap: '1rem'
+                  }}>
+                    <button type="button" className="btn-refrescar" onClick={onCerrar} disabled={guardando} style={{ borderRadius: '8px', padding: '0 1.5rem', width: 'auto' }}>
                       Cancelar
                     </button>
-                    <button type="submit" className="btn-guardar-cuenta" disabled={guardando || !!exito}>
-                      <CreditCard size={16} /> {guardando ? 'Registrando...' : 'Registrar Cobro'}
+                    <button type="submit" className="btn-guardar-cuenta" disabled={guardando || !!exito} style={{ background: '#00D26A', borderColor: '#00D26A', padding: '0.6rem 2.5rem' }}>
+                      {guardando ? (
+                        <> <RefreshCw size={16} className="spin" /> Procesando... </>
+                      ) : (
+                        <> <Check size={18} /> Confirmar Cobro </>
+                      )}
                     </button>
                   </div>
                 </form>

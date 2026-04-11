@@ -10,7 +10,7 @@ import type { CatalogoItem, LineaNota } from '../../types/cxc';
 import { MESES_ANIO } from '../../types/cxc';
 import {
   X, Plus, Check, Trash2, Calendar, AlertCircle,
-  CreditCard, MessageCircle
+  CreditCard, MessageCircle, FileText, Users, RefreshCw, Info
 } from 'lucide-react';
 
 /** Props del componente */
@@ -522,344 +522,301 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
 
   return (
     <div className="cxc-modal-overlay" onClick={() => { if (!guardando && !mensajeWA) onCerrar(); }}>
-      <div className="cxc-modal cxc-modal--nota" onClick={e => e.stopPropagation()}>
-        {/* Cabecera */}
+      <div className="cxc-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '850px' }}>
         <div className="cxc-modal-header">
-          <h2>📝 {esEdicion ? 'Editar Nota de Servicios' : 'Nueva Nota de Servicios'}</h2>
-          <button onClick={() => { if (mensajeWA) { onCreada(); } onCerrar(); }} disabled={guardando}><X size={20} /></button>
-        </div>
-
-        {/* Panel de mensaje WhatsApp (después de crear con pago) */}
-        {mensajeWA ? (
-          <div className="nota-wa-recibo">
-            <div className="nota-wa-exito">{exito}</div>
-            <p className="nota-wa-mensaje">{mensajeWA.texto}</p>
-            <div className="nota-wa-acciones">
-              <button className="nota-wa-btn-enviar" onClick={enviarReciboWA}>
-                <MessageCircle size={16} /> Enviar recibo por WhatsApp
-              </button>
-              <button className="nota-wa-btn-omitir" onClick={() => { onCreada(); onCerrar(); }}>
-                Omitir
-              </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <div className="cxc-header-icon-circle" style={{ 
+              background: 'rgba(59, 130, 246, 0.15)',
+              color: '#3b82f6'
+            }}>
+              <FileText size={20} />
+            </div>
+            <div>
+              <h2 style={{ margin: 0, fontSize: '1.25rem' }}>{esEdicion ? 'Editar Nota de Servicios' : 'Nueva Nota de Servicios'}</h2>
+              <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-tertiary)' }}>
+                {esEdicion ? 'Modifica los ítems y condiciones de la factura' : 'Genera una nueva cuenta por cobrar para el alumno'}
+              </p>
             </div>
           </div>
-        ) : (
-          <form className="cxc-modal-form" onSubmit={guardarNota}>
-            {/* Alumno */}
-            <div className="form-campo">
-              <label htmlFor="nota-alumno">Alumno</label>
-              <select
-                id="nota-alumno"
-                value={alumnoId}
-                onChange={e => setAlumnoId(e.target.value)}
-                required
-                disabled={guardando || !!alumnoPreseleccionado || esEdicion}
-              >
-                <option value="">— Seleccionar alumno —</option>
-                {alumnos.map(a => (
-                  <option key={a.id} value={a.id}>{a.nombres} {a.apellidos}</option>
-                ))}
-              </select>
-            </div>
+          <button onClick={() => { if (mensajeWA) { onCreada(); } onCerrar(); }} className="btn-cerrar-modal" disabled={guardando}><X size={20} /></button>
+        </div>
 
-            {/* Vencimiento */}
-            <div className="form-campo">
-              <label htmlFor="nota-venc">Fecha de vencimiento (opcional)</label>
-              <input
-                id="nota-venc" type="date" value={vencimiento}
-                onChange={e => setVencimiento(e.target.value)}
-                disabled={guardando}
-              />
-            </div>
-
-            {/* Líneas de ítems */}
-            <div className="nota-lineas-header">
-              <span>Descripción Ítem</span>
-              <span style={{ textAlign: 'center' }}>Cant.</span>
-              <span style={{ textAlign: 'center' }}>Precio Unit.</span>
-              <span style={{ textAlign: 'right' }}>Subtotal</span>
-              <span></span>
-            </div>
-
-            {lineas.map((linea, idx) => {
-              const nomL = linea.nombre.toLowerCase();
-              const esMensualidad = nomL.includes('mensualidad');
-              const esTorneo = nomL.includes('torneo') || nomL.includes('inscripción');
-
-              return (
-                <div key={idx} className="nota-linea-grupo" style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                  <div className="nota-linea">
-                    <select
-                      value={linea.catalogo_item_id}
-                      onChange={e => seleccionarItem(idx, e.target.value)}
-                      disabled={guardando}
-                      className="nota-select-item"
-                    >
-                      <option value="">— Seleccionar ítem —</option>
-                      {catalogo.map(c => (
-                        <option key={c.id} value={c.id}>
-                          {c.nombre}
-                        </option>
-                      ))}
-                    </select>
-
-                    <input
-                      type="number" min="1" max="99"
-                      value={linea.cantidad}
-                      onChange={e => actualizarLinea(idx, { cantidad: parseInt(e.target.value) || 1 })}
-                      disabled={guardando || esMensualidad}
-                      className="nota-input-cant"
-                      style={{ textAlign: 'center' }}
-                    />
-
-                    <input
-                      type="number" step="0.10" min="0"
-                      value={linea.precio_unitario || ''}
-                      onChange={e => actualizarLinea(idx, { precio_unitario: parseFloat(e.target.value) || 0 })}
-                      disabled={guardando}
-                      placeholder="0.00"
-                      className="nota-input-precio"
-                      style={{ textAlign: 'center' }}
-                    />
-
-                    <span className="nota-subtotal">
-                      Bs {fmtMonto(linea.subtotal)}
-                    </span>
-
-
-                    <button
-                      type="button"
-                      className="nota-btn-eliminar"
-                      onClick={() => eliminarLinea(idx)}
-                      disabled={guardando || lineas.length <= 1}
-                      title="Eliminar línea"
-                    >
-                      <Trash2 size={18} />
-                    </button>
-                  </div>
-
-                  {/* Selector manual de cuenta de ingreso si el item original no tiene una cuenta vinculada */}
-                  {linea.catalogo_item_id && catalogo.find(c => c.id === linea.catalogo_item_id) && !catalogo.find(c => c.id === linea.catalogo_item_id)?.cuenta_ingreso_id && (
-                    <div className="nota-cuenta-manual" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.2rem', paddingLeft: '0.5rem' }}>
-                      <label style={{ fontSize: '0.8rem', color: 'var(--text-tertiary)', fontWeight: 600 }}>Cuenta Aplicable:</label>
-                      <select
-                        value={linea.cuenta_ingreso_id || ''}
-                        onChange={e => actualizarLinea(idx, { cuenta_ingreso_id: e.target.value })}
-                        disabled={guardando}
-                        className="nota-select-item"
-                        style={{ padding: '0.2rem 0.5rem', fontSize: '0.8rem', flex: 1, maxWidth: '280px', background: 'rgba(0,0,0,0.1)' }}
-                        required
-                      >
-                        <option value="">— Seleccione cuenta de ingreso —</option>
-                        {cuentasIngreso.map(c => (
-                          <option key={c.id} value={c.id}>{c.nombre}</option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
-
-                  {/* Selector de meses - solo para Mensualidad */}
-                  {esMensualidad && (
-                    <div className="nota-meses-container" style={{ 
-                      marginTop: '0.25rem', 
-                      padding: '1rem', 
-                      background: 'rgba(56, 189, 248, 0.03)', 
-                      borderRadius: '8px',
-                      border: '1px solid rgba(56, 189, 248, 0.15)' 
-                    }}>
-                      <div className="nota-meses-header" style={{ marginBottom: '0.75rem', border: 'none', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <Calendar size={16} style={{ color: 'var(--secondary)' }} />
-                        <span style={{ fontWeight: 700, fontSize: '0.85rem', color: 'var(--secondary)' }}>Marcar meses a cobrar:</span>
-                      </div>
-                      <div className="nota-meses-grid" style={{ gridTemplateColumns: 'repeat(6, 1fr)', gap: '0.4rem' }}>
-                        {MESES_ANIO.map(mes => {
-                          const clave = `${mes}-${anioMeses}`;
-                          const activo = linea.periodo_meses.includes(clave);
-                          return (
-                            <button
-                              key={clave}
-                              type="button"
-                              className={`nota-mes-btn ${activo ? 'nota-mes-btn--activo' : ''}`}
-                              onClick={() => toggleMes(idx, clave)}
-                              disabled={guardando}
-                            >
-                              {mes}
-                            </button>
-
-                          );
-                        })}
-                      </div>
-                      
-                      {/* Periodo personalizado */}
-                      <div className="nota-periodo-custom" style={{ marginTop: '0.75rem', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '0.75rem' }}>
-                        <label style={{ display: 'block', marginBottom: '0.4rem', fontSize: '0.8rem', color: 'var(--text-tertiary)', fontWeight: 600 }}>
-                          O registrar periodo específico:
-                        </label>
-                        <input
-                          type="text"
-                          placeholder="Ej: Septiembre - Diciembre 2026"
-                          className="nota-input-periodo"
-                          value={linea.detalle_personalizado || ''}
-                          onChange={e => actualizarLinea(idx, { detalle_personalizado: e.target.value })}
-                          disabled={guardando}
-                          style={{ width: '100%', background: 'rgba(0,0,0,0.2)', fontSize: '0.85rem' }}
-                        />
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Campo para Torneo */}
-                  {esTorneo && (
-                    <div className="nota-torneo-container" style={{ 
-                      marginTop: '0.25rem', 
-                      padding: '1rem', 
-                      background: 'rgba(255, 107, 53, 0.03)', 
-                      borderRadius: '8px',
-                      border: '1px solid rgba(255, 107, 53, 0.15)' 
-                    }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                        <AlertCircle size={16} style={{ color: 'var(--primary)' }} />
-                        <span style={{ fontWeight: 700, fontSize: '0.85rem', color: 'var(--primary)' }}>Nombre del Torneo / Evento:</span>
-                      </div>
-                      <input
-                        type="text"
-                        placeholder="Escriba el nombre del torneo..."
-                        className="nota-input-torneo"
-                        value={linea.detalle_personalizado || ''}
-                        onChange={e => actualizarLinea(idx, { detalle_personalizado: e.target.value })}
-                        disabled={guardando}
-                        style={{ width: '100%', padding: '0.6rem', background: 'rgba(0,0,0,0.2)', border: '1px solid var(--border)' }}
-                      />
-                    </div>
-                  )}
+        <div className="cxc-modal-form" style={{ padding: '1.5rem 2rem' }}>
+          {mensajeWA ? (
+            <div className="nota-wa-recibo">
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1.5rem' }}>
+                <div className="form-msg form-msg--exito" style={{ width: '100%', justifyContent: 'center' }}>
+                    <Check size={20} /> {exito}
                 </div>
-              );
-            })}
-
-            {/* Agregar línea */}
-            {lineas.length < 4 && (
-              <button
-                type="button"
-                className="nota-btn-agregar"
-                onClick={agregarLinea}
-                disabled={guardando}
-              >
-                <Plus size={14} /> Agregar ítem
-              </button>
-            )}
-
-            {/* Observaciones */}
-            <div className="form-campo">
-              <label htmlFor="nota-obs">Observaciones generales</label>
-              <textarea
-                id="nota-obs"
-                value={observaciones}
-                onChange={e => setObservaciones(e.target.value)}
-                placeholder="Notas adicionales para esta nota de servicio..."
-                rows={2}
-                disabled={guardando}
-                className="nota-textarea"
-                style={{ background: 'var(--bg-input)', fontSize: '0.9rem' }}
-              />
+                <div style={{ padding: '1.5rem', background: 'var(--bg-glass)', borderRadius: '12px', width: '100%', border: '1px solid var(--border)' }}>
+                  <p style={{ margin: 0, fontSize: '1rem', lineHeight: '1.6', color: 'var(--text-secondary)' }}>{mensajeWA.texto}</p>
+                </div>
+                <div style={{ display: 'flex', gap: '1rem', width: '100%', justifyContent: 'center' }}>
+                  <button type="button" className="nota-wa-btn-enviar" onClick={enviarReciboWA} style={{ padding: '0.8rem 2rem' }}>
+                    <MessageCircle size={18} /> Enviar por WhatsApp
+                  </button>
+                  <button type="button" className="nota-wa-btn-omitir" onClick={() => { onCreada(); onCerrar(); }} style={{ padding: '0.8rem 2rem' }}>
+                    Omitir y cerrar
+                  </button>
+                </div>
+              </div>
             </div>
+          ) : (
+            <form onSubmit={guardarNota}>
+              <div className="modal-form-grid" style={{ marginBottom: '2rem' }}>
+                <div className="form-campo full-width">
+                  <label><Users size={14} /> Alumno / Cliente *</label>
+                  <select
+                    value={alumnoId}
+                    onChange={e => setAlumnoId(e.target.value)}
+                    required
+                    disabled={guardando || !!alumnoPreseleccionado || esEdicion}
+                    style={{ fontSize: '1rem', padding: '0.8rem' }}
+                  >
+                    <option value="">— Seleccionar alumno —</option>
+                    {alumnos.map(a => (
+                      <option key={a.id} value={a.id}>{a.nombres} {a.apellidos}</option>
+                    ))}
+                  </select>
+                </div>
 
-            {/* Total */}
-            <div className="nota-total">
-              <span>TOTAL FINAL</span>
-              <strong>Bs {fmtMonto(total)}</strong>
-            </div>
-
-
-            {/* Sección de pago inmediato */}
-            {!esEdicion && (
-              <div className="nota-pago-section">
-                <label className="nota-pago-toggle">
+                <div className="form-campo">
+                  <label><Calendar size={14} /> Fecha de vencimiento (Opcional)</label>
                   <input
-                    type="checkbox"
-                    checked={pagarAlCrear}
-                    onChange={e => setPagarAlCrear(e.target.checked)}
+                    type="date" value={vencimiento}
+                    onChange={e => setVencimiento(e.target.value)}
                     disabled={guardando}
                   />
-                  <CreditCard size={14} />
-                  <span>¿Deseas registrar el pago ahora mismo?</span>
-                </label>
+                </div>
 
-                {pagarAlCrear && (
-                  <div className="nota-pago-campos">
-                    <div className="form-campo">
-                      <label>Monto a pagar</label>
-                      <input
-                        type="number" step="0.01" min="0.01"
-                        value={montoPago}
-                        onChange={e => setMontoPago(e.target.value)}
-                        placeholder="Monto"
-                        className="nota-pago-input"
+                <div className="form-campo">
+                    <label><FileText size={14} /> Referencia / Observación Corta</label>
+                    <input 
+                        type="text" 
+                        placeholder="Ej: Mensualidad Abril..." 
+                        value={observaciones}
+                        onChange={e => setObservaciones(e.target.value)}
                         disabled={guardando}
-                      />
-                    </div>
-                    <div className="form-campo">
-                      <label>Metodo</label>
-                      <select
-                        value={metodoPago}
-                        onChange={e => setMetodoPago(e.target.value)}
-                        disabled={guardando}
-                        className="nota-pago-select"
-                      >
-                        <option value="efectivo">Efectivo</option>
-                        <option value="transferencia">Transferencia</option>
-                        <option value="qr">QR</option>
-                      </select>
-                    </div>
-                    <div className="form-campo">
-                      <label>Cuenta Destino</label>
-                      <select
-                        value={cuentaCobroId}
-                        onChange={e => setCuentaCobroId(e.target.value)}
-                        required={pagarAlCrear}
-                        disabled={guardando}
-                        className="nota-pago-select"
-                      >
-                        <option value="">— Seleccionar Caja/Banco —</option>
-                        {cuentasCobro.map(c => (
-                          <option key={c.id} value={c.id}>{c.nombre}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="form-campo">
-                      <label>Referencia / Comprobante</label>
-                      <input
-                        type="text"
-                        value={cobroNroDoc}
-                        onChange={e => setCobroNroDoc(e.target.value)}
-                        placeholder="Opcional"
-                        className="nota-pago-input"
-                        disabled={guardando}
-                      />
-                    </div>
-                  </div>
-                )}
+                    />
+                </div>
               </div>
-            )}
 
-            {/* Mensajes */}
-            {error && <div className="form-msg form-msg--error"><AlertCircle size={14} /> {error}</div>}
-            {exito && <div className="form-msg form-msg--exito"><Check size={14} /> {exito}</div>}
+              {/* Detalle de Items */}
+              <div style={{ marginBottom: '2rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                    <h3 style={{ margin: 0, fontSize: '0.9rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 700 }}>Detalle de Cobro</h3>
+                    {lineas.length < 4 && (
+                        <button type="button" onClick={agregarLinea} disabled={guardando} className="btn-refrescar" style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem', width: 'auto' }}>
+                            <Plus size={14} /> Agregar ítem
+                        </button>
+                    )}
+                </div>
 
-            {/* Botón crear/editar */}
-            <button
-              type="submit"
-              className="btn-guardar-cuenta"
-              style={{ width: '100%', justifyContent: 'center', marginTop: '1rem', padding: '1rem' }}
-              disabled={guardando}
-            >
-              <Check size={18} /> {guardando
-                ? (esEdicion ? 'Guardando...' : 'Creando...')
-                : (esEdicion ? 'Guardar cambios' : (pagarAlCrear ? 'Crear Nota y Cobrar' : 'Crear Nota de Servicios'))
-              }
-            </button>
-          </form>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  {lineas.map((linea, idx) => {
+                    const nomL = linea.nombre.toLowerCase();
+                    const esMensualidad = nomL.includes('mensualidad');
+                    const esTorneo = nomL.includes('torneo') || nomL.includes('inscripción');
 
-        )}
+                    return (
+                      <div key={idx} style={{ background: 'var(--bg-glass)', borderRadius: '12px', border: '1px solid var(--border)', padding: '1rem', overflow: 'hidden' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px 120px 120px 40px', gap: '1rem', alignItems: 'center' }}>
+                          <div className="form-campo" style={{ marginBottom: 0 }}>
+                            <select
+                              value={linea.catalogo_item_id}
+                              onChange={e => seleccionarItem(idx, e.target.value)}
+                              disabled={guardando}
+                              style={{ border: 'none', background: 'transparent', padding: '0.5rem 0', fontWeight: 600, fontSize: '1rem' }}
+                            >
+                              <option value="">— Seleccionar ítem —</option>
+                              {catalogo.map(c => (
+                                <option key={c.id} value={c.id}>{c.nombre}</option>
+                              ))}
+                            </select>
+                          </div>
+
+                          <div className="form-campo" style={{ marginBottom: 0 }}>
+                            <input
+                              type="number" min="1" max="99"
+                              value={linea.cantidad}
+                              onChange={e => actualizarLinea(idx, { cantidad: parseInt(e.target.value) || 1 })}
+                              disabled={guardando || esMensualidad}
+                              style={{ textAlign: 'center', border: 'none', background: 'rgba(255,255,255,0.03)', borderRadius: '6px' }}
+                            />
+                          </div>
+
+                          <div className="form-campo" style={{ marginBottom: 0 }}>
+                            <input
+                              type="number" step="0.10" min="0"
+                              value={linea.precio_unitario || ''}
+                              onChange={e => actualizarLinea(idx, { precio_unitario: parseFloat(e.target.value) || 0 })}
+                              disabled={guardando}
+                              style={{ textAlign: 'right', border: 'none', background: 'rgba(255,255,255,0.03)', borderRadius: '6px', fontWeight: 700 }}
+                            />
+                          </div>
+
+                          <div style={{ textAlign: 'right', fontWeight: 800, color: 'var(--success)', fontSize: '1.1rem' }}>
+                             Bs {fmtMonto(linea.subtotal)}
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => eliminarLinea(idx)}
+                            disabled={guardando || lineas.length <= 1}
+                            style={{ background: 'transparent', border: 'none', color: 'var(--danger)', cursor: 'pointer', opacity: guardando ? 0.5 : 1 }}
+                          >
+                            <Trash2 size={20} />
+                          </button>
+                        </div>
+
+                        {(esMensualidad || esTorneo || (!linea.cuenta_ingreso_id && linea.catalogo_item_id)) && (
+                          <div style={{ marginTop: '0.75rem', paddingTop: '0.75rem', borderTop: '1px dotted var(--border)', display: 'flex', flexWrap: 'wrap', gap: '1rem' }}>
+                            {esMensualidad && (
+                              <div style={{ flex: 1, minWidth: '300px' }}>
+                                <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.75rem', fontWeight: 800, color: 'var(--secondary)', textTransform: 'uppercase', marginBottom: '0.5rem' }}>
+                                  <Calendar size={12} /> Meses a Cobrar ({anioMeses})
+                                </label>
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '0.4rem' }}>
+                                  {MESES_ANIO.map(mes => {
+                                    const clave = `${mes}-${anioMeses}`;
+                                    const activo = linea.periodo_meses.includes(clave);
+                                    return (
+                                      <button
+                                        key={clave}
+                                        type="button"
+                                        onClick={() => toggleMes(idx, clave)}
+                                        disabled={guardando}
+                                        style={{
+                                          padding: '0.3rem',
+                                          fontSize: '0.7rem',
+                                          borderRadius: '4px',
+                                          border: '1px solid',
+                                          borderColor: activo ? 'var(--secondary)' : 'var(--border)',
+                                          background: activo ? 'var(--secondary)' : 'transparent',
+                                          color: activo ? 'white' : 'var(--text-tertiary)',
+                                          cursor: 'pointer',
+                                          fontWeight: activo ? 700 : 500,
+                                          transition: 'all 0.2s'
+                                        }}
+                                      >
+                                        {mes.substring(0, 3)}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            )}
+
+                            {(esTorneo || esMensualidad) && (
+                              <div style={{ flex: 1, minWidth: '200px' }}>
+                                <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-tertiary)', textTransform: 'uppercase', marginBottom: '0.5rem' }}>
+                                  <AlertCircle size={12} /> {esTorneo ? 'Nombre del Torneo' : 'Periodo Custom'}
+                                </label>
+                                <input
+                                  type="text"
+                                  placeholder={esTorneo ? "Ej: Copa Invierno 2026" : "Ej: Verano 2026"}
+                                  value={linea.detalle_personalizado || ''}
+                                  onChange={e => actualizarLinea(idx, { detalle_personalizado: e.target.value })}
+                                  disabled={guardando}
+                                  style={{ width: '100%', padding: '0.4rem 0.6rem', fontSize: '0.85rem', background: 'rgba(0,0,0,0.1)', border: '1px solid var(--border)', borderRadius: '6px' }}
+                                />
+                              </div>
+                            )}
+
+                            {linea.catalogo_item_id && !catalogo.find(c => c.id === linea.catalogo_item_id)?.cuenta_ingreso_id && (
+                              <div style={{ flex: 1, minWidth: '200px' }}>
+                                <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.75rem', fontWeight: 800, color: '#f59e0b', textTransform: 'uppercase', marginBottom: '0.5rem' }}>
+                                  <CreditCard size={12} /> Cuenta de Ingreso *
+                                </label>
+                                <select
+                                  value={linea.cuenta_ingreso_id || ''}
+                                  onChange={e => actualizarLinea(idx, { cuenta_ingreso_id: e.target.value })}
+                                  required
+                                  style={{ width: '100%', padding: '0.4rem', fontSize: '0.8rem', background: 'rgba(245, 158, 11, 0.05)', borderColor: 'rgba(245, 158, 11, 0.2)' }}
+                                >
+                                  <option value="">— Seleccionar —</option>
+                                  {cuentasIngreso.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                                </select>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div style={{ background: 'var(--bg-glass)', borderRadius: '16px', border: '1px solid var(--border)', padding: '1.5rem', marginTop: '2rem' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 200px', gap: '2rem', alignItems: 'center' }}>
+                    <div>
+                        {!esEdicion && (
+                            <div style={{ border: 'none', background: 'transparent', padding: 0 }}>
+                                <label style={{ border: '1px solid var(--border)', padding: '0.75rem 1rem', borderRadius: '10px', display: 'inline-flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                                    <input
+                                        type="checkbox"
+                                        checked={pagarAlCrear}
+                                        onChange={e => setPagarAlCrear(e.target.checked)}
+                                        disabled={guardando}
+                                    />
+                                    <CreditCard size={16} />
+                                    <span style={{ fontWeight: 700 }}>¿Registrar pago inmediato?</span>
+                                </label>
+
+                                {pagarAlCrear && (
+                                    <div style={{ marginTop: '1rem', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                                        <div className="form-campo">
+                                            <label>Monto</label>
+                                            <input type="number" step="0.01" value={montoPago} onChange={e => setMontoPago(e.target.value)} />
+                                        </div>
+                                        <div className="form-campo">
+                                            <label>Método</label>
+                                            <select value={metodoPago} onChange={e => setMetodoPago(e.target.value)}>
+                                                <option value="efectivo">Efectivo</option>
+                                                <option value="transferencia">Transferencia</option>
+                                                <option value="qr">QR</option>
+                                            </select>
+                                        </div>
+                                        <div className="form-campo full-width">
+                                            <label>Caja o Banco de Ingreso</label>
+                                            <select value={cuentaCobroId} onChange={e => setCuentaCobroId(e.target.value)} required>
+                                                <option value="">— Seleccionar Destino —</option>
+                                                {cuentasCobro.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                                            </select>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
+
+                    <div style={{ textAlign: 'right' }}>
+                        <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '0.5rem' }}>Total a Facturar</span>
+                        <div style={{ fontSize: '2.5rem', fontWeight: 900, color: 'white', lineHeight: 1 }}>
+                            <span style={{ fontSize: '1rem', color: 'var(--text-tertiary)', marginRight: '0.2rem' }}>Bs</span>
+                            {fmtMonto(total)}
+                        </div>
+                    </div>
+                </div>
+
+                {error && <div className="form-msg form-msg--error" style={{ marginTop: '1.5rem' }}><AlertCircle size={18} /> {error}</div>}
+                
+                <div className="cxc-modal-footer" style={{ marginTop: '1.5rem', paddingTop: '1.5rem', borderTop: '1px solid rgba(255,255,255,0.06)', display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
+                    <button type="button" className="btn-refrescar" onClick={onCerrar} disabled={guardando} style={{ borderRadius: '8px', padding: '0 1.5rem', width: 'auto' }}>
+                        Cancelar
+                    </button>
+                    <button type="submit" className="btn-guardar-cuenta" disabled={guardando} style={{ padding: '0.8rem 2.5rem' }}>
+                        {guardando ? (
+                            <> <RefreshCw size={18} className="spin" /> Guardando... </>
+                        ) : (
+                            <> <Check size={20} /> {esEdicion ? 'Actualizar Nota' : (pagarAlCrear ? 'Crear y Cobrar' : 'Confirmar Registro')} </>
+                        )}
+                    </button>
+                </div>
+              </div>
+            </form>
+          )}
+        </div>
       </div>
     </div>
   );
