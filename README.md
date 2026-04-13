@@ -11,8 +11,8 @@ Bienvenido al sistema de gestión financiera de **SaaSport**. Este proyecto es u
 
 ## 📂 Estructura del Proyecto
 - `/src/pages/cxc`: Módulo de Cuentas por Cobrar.
-- `/src/pages/finanzas`: Libro Diario y Plan de Cuentas.
-- `/src/pages/config`: Auditoría y trazabilidad.
+- `/src/pages/finanzas`: Libro Diario, Plan de Cuentas y Registro de Actividad.
+- `/src/pages/config`: Configuraciones generales.
 - `/src/components/cxc`: Componentes especializados para gestión de deudas y pagos.
 
 ## 🛠️ Cómo Probar (Verificación Manual)

@@ -49,9 +49,8 @@ const ContabilidadHub: React.FC = () => {
       titulo: 'Registro de Actividad',
       descripcion: 'Auditoría de cambios y registros realizados en el sistema contable.',
       icono: <Activity size={60} strokeWidth={1.5} />,
-      ruta: '/contabilidad/auditoria',
+      ruta: '/contabilidad/registro-actividad',
       hoverClass: 'hover-color-blue',
-      proximamente: true,
     },
   ];
 
