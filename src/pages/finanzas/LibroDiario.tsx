@@ -8,8 +8,8 @@ import { supabase } from '../../lib/supabaseClient';
 import type { CuentaContable, TipoCuenta } from '../../types/finanzas';
 import { COLORES_TIPO } from '../../types/finanzas';
 import {
-  BookOpen, ChevronLeft, Plus, X, Check,
-  RefreshCw, Calendar, CreditCard, AlertCircle
+  ChevronLeft, Plus, X,
+  RefreshCw
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
@@ -55,7 +55,7 @@ const LibroDiario: React.FC = () => {
   const [asientos, setAsientos] = useState<Asiento[]>([]);
   const [cuentas, setCuentas] = useState<CuentaContable[]>([]);
   const [cargando, setCargando] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [_error, setError] = useState<string | null>(null);
 
   // Formulario
   const [mostrarForm, setMostrarForm] = useState(false);
@@ -67,7 +67,7 @@ const LibroDiario: React.FC = () => {
   ]);
   const [guardando, setGuardando] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
-  const [formExito, setFormExito] = useState<string | null>(null);
+  const [_formExito, setFormExito] = useState<string | null>(null);
 
   const cargarAsientos = async () => {
     setCargando(true);
