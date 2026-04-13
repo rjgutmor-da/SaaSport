@@ -7,7 +7,7 @@ import { supabase } from '../../lib/supabaseClient';
 import { 
   X, Save, AlertCircle, Check, Truck, Users, 
   MapPin, Phone, User as UserIcon, Briefcase, 
-  CreditCard, Hash, Info
+  CreditCard, Hash, Info, RefreshCw
 } from 'lucide-react';
 
 interface Props {

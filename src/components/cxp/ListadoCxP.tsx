@@ -350,7 +350,7 @@ const ListadoCxP: React.FC<Props> = ({ titulo, tipoGasto, iconoTitulo, colorAcce
       {/* Modal: Nueva Nota de Pago */}
       <NotaPago
         visible={mostrarNota}
-        tipoInicial={tipoGasto}
+        tipoInicial={tipoGasto as any}
         onCerrar={() => setMostrarNota(false)}
         onCreada={() => { setMostrarNota(false); cargarNotas(); }}
       />

@@ -292,7 +292,7 @@ const ModalCobroRapido: React.FC<Props> = ({ alumnoInicial, visible, onCerrar, o
                   <div style={{ flex: 1 }}>
                     <div style={{ fontWeight: 800, fontSize: '1.15rem' }}>{alumnoSel?.nombres} {alumnoSel?.apellidos}</div>
                     <div style={{ display: 'flex', gap: '1rem', marginTop: '0.2rem' }}>
-                        <span style={{ color: 'var(--text-tertiary)', fontSize: '0.85rem' }}>Deudor: {alumnoSel?.identificacion || 'S/I'}</span>
+                        <span style={{ color: 'var(--text-tertiary)', fontSize: '0.85rem' }}>Deudor del sistema</span>
                         <span style={{ color: 'var(--warning)', fontWeight: 700, fontSize: '0.85rem' }}>Saldo Total: Bs {fmtMonto(Number(alumnoSel?.saldo_pendiente))}</span>
                     </div>
                   </div>

@@ -11,7 +11,8 @@
  *   ❌ Entrenador         → BLOQUEADO, solo puede usar AsisPort
  *   ❌ Entrenarqueros     → BLOQUEADO, solo puede usar AsisPort
  */
-import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useEffect, useState } from 'react';
+import type { ReactNode } from 'react';
 import { supabase } from './supabaseClient';
 import type { Session } from '@supabase/supabase-js';
 
