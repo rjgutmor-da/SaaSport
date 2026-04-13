@@ -42,7 +42,6 @@ const ContabilidadHub: React.FC = () => {
       icono: <BarChart3 size={60} strokeWidth={1.5} />,
       ruta: '/contabilidad/estadisticas',
       hoverClass: 'hover-color-orange',
-      proximamente: true,
     },
     {
       id: 'registro-actividad',
