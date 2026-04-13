@@ -1,28 +1,43 @@
 /**
  * App.tsx — Punto de entrada principal de SaaSport.
- * Controla la autenticación, Layout persistente (Navbar) y todas las rutas.
+ *
+ * Cambios de integración:
+ * - Usa AuthProviderSaaSport para control de roles
+ * - Bloquea entrenadores con pantalla de acceso denegado
+ * - Navbar: icono Settings → /configuraciones, botón LogOut separado
+ * - Rutas: agregado /configuraciones/panel-escuela
  */
 import React, { useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, NavLink } from 'react-router-dom';
-import { Settings, Sun, Moon, Monitor } from 'lucide-react';
+import { Settings, Sun, Moon, Monitor, LogOut } from 'lucide-react';
 import { supabase } from './lib/supabaseClient';
-import type { Session } from '@supabase/supabase-js';
+import { AuthProviderSaaSport, useAuthSaaSport } from './lib/authHelper';
 import Dashboard from './pages/Dashboard';
 import Login from './pages/Login';
 import ContabilidadHub from './pages/finanzas/ContabilidadHub';
 import PlanCuentas from './pages/finanzas/PlanCuentas';
 import LibroDiario from './pages/finanzas/LibroDiario';
 import RegistroActividad from './pages/finanzas/RegistroActividad';
+import Estadisticas from './pages/finanzas/estadisticas/Estadisticas';
 import CuentasCobrar from './pages/cxc/CuentasCobrar';
 import CuentasPagar from './pages/cxp/CuentasPagar';
 import Inventarios from './pages/inventarios/Inventarios';
 import Configuraciones from './pages/config/Configuraciones';
 import AuditLog from './pages/config/AuditLog';
+import PanelEscuela from './pages/config/PanelEscuela';
 import CajasBancos from './pages/cajas-bancos/CajasBancos';
 
+const ASISPORT_URL = 'https://asisport.vercel.app';
 
-/** Barra de navegación superior */
-const Navbar = ({ onLogout, theme, onCycleTheme }: { onLogout: () => void; theme: string; onCycleTheme: () => void }) => {
+// ─── Navbar ────────────────────────────────────────────────────────────────
+
+interface NavbarProps {
+  onLogout: () => void;
+  theme: string;
+  onCycleTheme: () => void;
+}
+
+const Navbar: React.FC<NavbarProps> = ({ onLogout, theme, onCycleTheme }) => {
   const getThemeIcon = () => {
     if (theme === 'light') return <Sun size={20} />;
     if (theme === 'dark') return <Moon size={20} />;
@@ -40,7 +55,9 @@ const Navbar = ({ onLogout, theme, onCycleTheme }: { onLogout: () => void; theme
       <div className="nav-brand">SaaSport</div>
       <ul className="nav-links">
         <li>
-          <NavLink to="/" className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')} end>Inicio</NavLink>
+          <NavLink to="/" className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')} end>
+            Inicio
+          </NavLink>
         </li>
         <li>
           <NavLink to="/cxc" className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}>CxC</NavLink>
@@ -49,49 +66,129 @@ const Navbar = ({ onLogout, theme, onCycleTheme }: { onLogout: () => void; theme
           <NavLink to="/cxp" className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}>CxP</NavLink>
         </li>
         <li>
-          <NavLink to="/cajas-bancos" className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}>Cajas y Bancos</NavLink>
+          <NavLink to="/cajas-bancos" className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}>
+            Cajas y Bancos
+          </NavLink>
         </li>
         <li>
-          <NavLink to="/inventarios" className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}>Inventarios</NavLink>
+          <NavLink to="/inventarios" className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}>
+            Inventarios
+          </NavLink>
         </li>
         <li>
-          <NavLink to="/contabilidad" className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}>Contabilidad</NavLink>
+          <NavLink to="/contabilidad" className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}>
+            Contabilidad
+          </NavLink>
         </li>
       </ul>
-      <div className="nav-acciones" style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-        <button 
-          className="nav-theme-toggle" 
-          onClick={onCycleTheme} 
+      <div className="nav-acciones" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+        {/* Selector de tema */}
+        <button
+          className="nav-theme-toggle"
+          onClick={onCycleTheme}
           title={getThemeTitle()}
           style={{ color: 'var(--text-primary)', display: 'flex', alignItems: 'center' }}
         >
           {getThemeIcon()}
         </button>
-        <button className="nav-config" onClick={onLogout} title="Cerrar sesión">
+
+        {/* Configuraciones → navega a /configuraciones */}
+        <NavLink
+          to="/configuraciones"
+          className="nav-config"
+          title="Configuraciones"
+          style={{ display: 'flex', alignItems: 'center' }}
+        >
           <Settings size={22} strokeWidth={1.5} />
+        </NavLink>
+
+        {/* Cerrar sesión (separado) */}
+        <button
+          className="nav-config"
+          onClick={onLogout}
+          title="Cerrar sesión"
+          style={{ display: 'flex', alignItems: 'center', color: 'var(--text-secondary)' }}
+        >
+          <LogOut size={20} strokeWidth={1.5} />
         </button>
       </div>
     </nav>
   );
 };
 
-/** Layout envolvente con Navbar persistente */
-const Layout = ({ children, onLogout, theme, onCycleTheme }: { 
-  children: React.ReactNode; 
+// ─── Layout ─────────────────────────────────────────────────────────────────
+
+interface LayoutProps {
+  children: React.ReactNode;
   onLogout: () => void;
   theme: string;
   onCycleTheme: () => void;
-}) => {
-  return (
-    <div className="app-container">
-      <Navbar onLogout={onLogout} theme={theme} onCycleTheme={onCycleTheme} />
-      {children}
-    </div>
-  );
-};
+}
 
-/** Router interno (solo se renderiza cuando hay sesión) */
-const AppRouter = ({ onLogout, theme, onCycleTheme }: { onLogout: () => void; theme: string; onCycleTheme: () => void }) => {
+const Layout: React.FC<LayoutProps> = ({ children, onLogout, theme, onCycleTheme }) => (
+  <div className="app-container">
+    <Navbar onLogout={onLogout} theme={theme} onCycleTheme={onCycleTheme} />
+    {children}
+  </div>
+);
+
+// ─── Pantalla de acceso denegado por rol ─────────────────────────────────────
+
+const AccesoDenegado: React.FC<{ rol: string; onLogout: () => void }> = ({ rol, onLogout }) => (
+  <div className="login-container">
+    <div className="login-card" style={{ textAlign: 'center', gap: '1.5rem' }}>
+      <div style={{ fontSize: '3rem' }}>🚫</div>
+      <div className="login-brand">
+        <h1 className="login-titulo" style={{ color: 'var(--error)' }}>Acceso Restringido</h1>
+        <p className="login-subtitulo">
+          Tu rol de <strong style={{ color: 'var(--text-primary)' }}>{rol}</strong> no tiene acceso a SaaSport.
+        </p>
+      </div>
+      <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', lineHeight: '1.7' }}>
+        SaaSport es el módulo financiero para Administradores y Dueños.
+        <br />Como <strong>{rol}</strong>, tu aplicación es <strong style={{ color: 'var(--primary)' }}>AsiSport</strong>.
+      </p>
+      <a
+        href={ASISPORT_URL}
+        className="login-btn"
+        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', textDecoration: 'none' }}
+      >
+        Ir a AsiSport →
+      </a>
+      <button onClick={onLogout} style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', cursor: 'pointer' }}>
+        Cerrar sesión
+      </button>
+    </div>
+  </div>
+);
+
+// ─── Router interno con control de acceso ────────────────────────────────────
+
+interface AppRouterProps {
+  onLogout: () => void;
+  theme: string;
+  onCycleTheme: () => void;
+}
+
+const AppRouter: React.FC<AppRouterProps> = ({ onLogout, theme, onCycleTheme }) => {
+  const { tieneAcceso, perfil, cargando } = useAuthSaaSport();
+
+  if (cargando) {
+    return (
+      <div className="login-container">
+        <div className="login-card" style={{ textAlign: 'center' }}>
+          <h1 className="login-titulo">SaaSport</h1>
+          <p style={{ color: 'var(--text-secondary)', marginTop: '1rem' }}>Verificando permisos...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Bloquear roles no permitidos (entrenadores, etc.)
+  if (!tieneAcceso && perfil) {
+    return <AccesoDenegado rol={perfil.rol} onLogout={onLogout} />;
+  }
+
   return (
     <BrowserRouter>
       <Layout onLogout={onLogout} theme={theme} onCycleTheme={onCycleTheme}>
@@ -104,30 +201,34 @@ const AppRouter = ({ onLogout, theme, onCycleTheme }: { onLogout: () => void; th
           <Route path="/contabilidad/plan-cuentas" element={<PlanCuentas />} />
           <Route path="/contabilidad/libro-diario" element={<LibroDiario />} />
           <Route path="/contabilidad/registro-actividad" element={<RegistroActividad />} />
+          <Route path="/contabilidad/estadisticas" element={<Estadisticas />} />
 
-          {/* Módulos pendientes (placeholders) */}
+          {/* Módulos financieros */}
           <Route path="/cxc" element={<CuentasCobrar />} />
           <Route path="/cxp" element={<CuentasPagar />} />
           <Route path="/inventarios" element={<Inventarios />} />
           <Route path="/cajas-bancos" element={<CajasBancos />} />
+
+          {/* Configuraciones */}
           <Route path="/configuraciones" element={<Configuraciones />} />
           <Route path="/configuraciones/auditoria" element={<AuditLog />} />
+          <Route path="/configuraciones/panel-escuela" element={<PanelEscuela />} />
         </Routes>
       </Layout>
     </BrowserRouter>
   );
 };
 
-function App() {
-  const [sesion, setSesion] = useState<Session | null>(null);
-  const [verificando, setVerificando] = useState(true);
+// ─── Componente raíz ─────────────────────────────────────────────────────────
 
-  const [theme, setTheme] = useState<'light' | 'dark' | 'system'>(() => {
-    return (localStorage.getItem('theme') as any) || 'system';
-  });
+function AppInterna() {
+  const { session, cargando, cerrarSesion } = useAuthSaaSport();
+
+  const [theme, setTheme] = useState<'light' | 'dark' | 'system'>(() =>
+    (localStorage.getItem('theme') as any) || 'system'
+  );
 
   useEffect(() => {
-    // Aplicar atributo de tema a la raíz
     document.documentElement.setAttribute('data-theme', theme);
     localStorage.setItem('theme', theme);
   }, [theme]);
@@ -138,29 +239,8 @@ function App() {
     else setTheme('system');
   };
 
-  useEffect(() => {
-    // Verificar sesión existente al cargar
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSesion(session);
-      setVerificando(false);
-    });
-
-    // Escuchar cambios de autenticación
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSesion(session);
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
-
-  // Función para cerrar sesión
-  const cerrarSesion = async () => {
-    await supabase.auth.signOut();
-    setSesion(null);
-  };
-
-  // Estado de carga inicial
-  if (verificando) {
+  // Carga inicial
+  if (cargando) {
     return (
       <div className="login-container">
         <div className="login-card" style={{ textAlign: 'center' }}>
@@ -171,13 +251,23 @@ function App() {
     );
   }
 
-  // Si no hay sesión, mostrar login
-  if (!sesion) {
-    return <Login onLoginExitoso={() => { /* onAuthStateChange se encarga */ }} />;
+  // Sin sesión → login
+  if (!session) {
+    return <Login onLoginExitoso={() => { /* onAuthStateChange lo maneja */ }} />;
   }
 
-  // Si hay sesión, mostrar la app completa
+  // Con sesión → app completa
   return <AppRouter onLogout={cerrarSesion} theme={theme} onCycleTheme={cycleTheme} />;
+}
+
+// ─── Export con provider ──────────────────────────────────────────────────────
+
+function App() {
+  return (
+    <AuthProviderSaaSport>
+      <AppInterna />
+    </AuthProviderSaaSport>
+  );
 }
 
 export default App;

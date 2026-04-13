@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom';
-import { ClipboardList, HandCoins, PieChart, Shirt, TrendingUp, Settings, Landmark } from 'lucide-react';
+import { ClipboardList, HandCoins, PieChart, Shirt, TrendingUp, Landmark } from 'lucide-react';
+import { navegarAAsisport } from '../lib/navegacion';
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -7,18 +8,17 @@ const Dashboard = () => {
   return (
     <main className="main-content">
       <div className="dashboard-hero-grid">
-        {/* 1. AsiSport (Branding & Enlace Externo) */}
-        <a 
-          href="http://localhost:5173" 
-          target="_blank" 
-          rel="noopener noreferrer" 
-          className="dashboard-hero-card hover-color-orange" 
+        {/* 1. AsiSport (SSO — abre con sesión activa) */}
+        <button
+          className="dashboard-hero-card hover-color-orange"
+          onClick={() => navegarAAsisport('/dashboard')}
+          title="Abrir AsiSport con tu sesión activa"
         >
           <div className="card-icon">
             <ClipboardList size={100} strokeWidth={1.2} />
           </div>
           <span className="card-title">AsiSport</span>
-        </a>
+        </button>
 
         {/* 2. Cuentas x Cobrar */}
         <button className="dashboard-hero-card hover-color-orange" onClick={() => navigate('/cxc')}>

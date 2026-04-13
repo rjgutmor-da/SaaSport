@@ -1,19 +1,21 @@
 /**
  * Configuraciones.tsx
  * Página principal de Configuraciones del sistema.
- * Desde aquí se accede a la auditoría y otros ajustes.
+ * Desde aquí se accede a la auditoría, Panel de Escuela y otros ajustes.
  */
 import React from 'react';
 import {
-  ChevronLeft, Shield, Settings
+  ChevronLeft, Shield, Settings, School
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useAuthSaaSport } from '../../lib/authHelper';
 
 const Configuraciones: React.FC = () => {
   const navigate = useNavigate();
+  const { esSuperAdmin } = useAuthSaaSport();
 
   /** Opciones de configuración */
-  const opciones = [
+  const opcionesBase = [
     {
       titulo: 'Auditoría',
       descripcion: 'Huella verificable de operaciones financieras (CxC, CxP, Banco)',
@@ -22,6 +24,19 @@ const Configuraciones: React.FC = () => {
       ruta: '/configuraciones/auditoria',
     },
   ];
+
+  /** Panel de Escuela — solo SuperAdministrador y Dueño */
+  const opcionPanelEscuela = {
+    titulo: 'Panel de Escuela',
+    descripcion: 'Estadísticas generales, sucursales, usuarios y configuraciones',
+    icono: <School size={32} />,
+    color: '#f97316',
+    ruta: '/configuraciones/panel-escuela',
+  };
+
+  const opciones = esSuperAdmin
+    ? [...opcionesBase, opcionPanelEscuela]
+    : opcionesBase;
 
   return (
     <main className="main-content">
