@@ -1,7 +1,7 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
 
 :root {
-  /* AsiSport Base Colors + SaaSport Personality (Blues/Greens) */
+  /* Default Dark Mode (SaaSport Core) */
   --bg-main: #0A0A0A;
   --bg-card: #1A1A1A;
   --bg-card-hover: #252525;
@@ -13,24 +13,22 @@
   --text-secondary: #A0A0A0;
   --text-tertiary: #6B7280;
 
-  /* Vibrant Accent Colors */
-  --primary: #FF6B35; /* AsiSport Orange */
+  --primary: #FF6B35;
   --primary-hover: #FF8555;
   --primary-glow: rgba(255, 107, 53, 0.3);
 
-  --secondary: #0A84FF; /* AsiSport Info Blue */
+  --secondary: #0A84FF;
   --secondary-glow: rgba(10, 132, 255, 0.3);
   
-  --success: #00D26A; /* AsiSport Success Green */
+  --success: #00D26A;
   --success-bg: rgba(0, 210, 106, 0.1);
   
-  --warning: var(--secondary); /* Usamos azul para advertencias suaves */
+  --warning: var(--secondary);
   --warning-bg: var(--secondary-glow);
   
-  --danger: #FF3B30; /* Rojo es estándar, pero aseguramos que sea rojo puro y no fuxia */
+  --danger: #FF3B30;
   --danger-bg: rgba(255, 59, 48, 0.1);
 
-  /* Layout & Utility */
   --border: #2D2D2D;
   --border-focus: var(--primary);
   --radius-sm: 4px;
@@ -46,6 +44,66 @@
   --transition-slow: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+/* --- MODO CLARO (FORZADO) --- */
+:root[data-theme='light'] {
+  --bg-main: #F4F7FA;
+  --bg-card: #FFFFFF;
+  --bg-card-hover: #F9FAFB;
+  --bg-glass: rgba(0, 0, 0, 0.03);
+  --bg-glass-hover: rgba(0, 0, 0, 0.06);
+  --bg-input: #FFFFFF;
+
+  --text-primary: #1A1A1B;
+  --text-secondary: #475569;
+  --text-tertiary: #94A3B8;
+
+  --border: #E2E8F0;
+  --border-focus: var(--primary);
+  
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 10px 15px -3px rgba(0, 0, 0, 0.08);
+  --shadow-glow: 0 0 20px -5px rgba(255, 107, 53, 0.1);
+}
+
+/* --- MODO SISTEMA (SI EL SISTEMA ES CLARO) --- */
+@media (prefers-color-scheme: light) {
+  :root[data-theme='system'], :root:not([data-theme]) {
+    --bg-main: #F4F7FA;
+    --bg-card: #FFFFFF;
+    --bg-card-hover: #F9FAFB;
+    --bg-glass: rgba(0, 0, 0, 0.03);
+    --bg-glass-hover: rgba(0, 0, 0, 0.06);
+    --bg-input: #FFFFFF;
+
+    --text-primary: #1A1A1B;
+    --text-secondary: #475569;
+    --text-tertiary: #94A3B8;
+
+    --border: #E2E8F0;
+    --border-focus: var(--primary);
+    
+    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+    --shadow-md: 0 10px 15px -3px rgba(0, 0, 0, 0.08);
+    --shadow-glow: 0 0 20px -5px rgba(255, 107, 53, 0.1);
+  }
+}
+
+/* --- MODO OSCURO (FORZADO) --- */
+:root[data-theme='dark'] {
+  --bg-main: #0A0A0A;
+  --bg-card: #1A1A1A;
+  --bg-card-hover: #252525;
+  --bg-glass: rgba(255, 255, 255, 0.05);
+  --bg-glass-hover: rgba(255, 255, 255, 0.1);
+  --bg-input: #121212;
+
+  --text-primary: #FFFFFF;
+  --text-secondary: #A0A0A0;
+  --text-tertiary: #6B7280;
+
+  --border: #2D2D2D;
+}
+
 * {
   box-sizing: border-box;
   margin: 0;
@@ -55,13 +113,14 @@
 body {
   background-color: var(--bg-main);
   background-image: 
-    radial-gradient(circle at 10% 20%, rgba(0, 210, 106, 0.03), transparent 40%),
-    radial-gradient(circle at 90% 80%, rgba(10, 132, 255, 0.03), transparent 40%);
+    radial-gradient(circle at 10% 20%, var(--success-bg), transparent 40%),
+    radial-gradient(circle at 90% 80%, var(--secondary-glow), transparent 40%);
   background-attachment: fixed;
   color: var(--text-primary);
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+  font-family: 'Inter', sans-serif;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 /* =========================================
@@ -92,25 +151,55 @@ input:focus, select:focus, textarea:focus {
   box-shadow: 0 0 0 2px var(--primary-glow);
 }
 
+/* Fix for native select dropdowns in dark theme - Ensuring white text on dark background */
+select option {
+  background-color: #0A0A0A;
+  color: #FFFFFF;
+}
+
 /* =========================================
    LAYOUT & NAVBAR & HEADERS
    ========================================= */
 .app-container { display: flex; flex-direction: column; min-height: 100vh; }
 .navbar {
   display: flex; justify-content: space-between; align-items: center;
-  padding: 1rem 3rem; background: rgba(10, 10, 12, 0.8);
+  padding: 1rem 3rem; 
+  background: var(--bg-glass);
   backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
   border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 100;
-  gap: 2rem; /* 32px separation roughly when compressed but let's use flex correctly */
+  gap: 2rem;
+  transition: var(--transition);
 }
 .nav-brand { font-size: 39px; font-weight: 900; color: var(--primary); letter-spacing: -0.5px; margin-right: 2rem; }
 .nav-links { display: flex; gap: 1.5rem; list-style: none; /* gap 24px */ }
-.nav-link { color: var(--text-secondary); text-decoration: none; font-size: 23px; font-weight: 500; transition: color 0.3s ease; padding: 0.5rem 0.75rem; border-radius: var(--radius-sm); }
-.nav-link:hover { color: var(--primary); } /* hover:text-primary */
-.nav-link.active { color: #FFFFFF; font-weight: 700; background: transparent; } /* Selected is White bold */
+.nav-link {
+  color: var(--text-secondary);
+  text-decoration: none;
+  font-size: 0.95rem;
+  font-weight: 500;
+  transition: var(--transition);
+  padding: 0.5rem 1rem;
+  border-radius: var(--radius-md);
+}
+.nav-link:hover {
+  color: var(--text-primary);
+  background: var(--bg-glass-hover);
+}
+.nav-link.active {
+  color: var(--primary);
+  background: var(--bg-glass-hover);
+}
 .nav-acciones { display: flex; gap: 1rem; margin-left: auto; }
-.nav-config { color: #FFFFFF; padding: 0.5rem; border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; transition: background-color 0.15s ease, color 0.15s ease; }
-.nav-config:hover { background-color: var(--bg-card-hover); color: var(--text-primary); cursor: pointer; }
+.nav-config { 
+  color: var(--text-secondary); 
+  padding: 0.5rem; 
+  border-radius: var(--radius-sm); 
+  display: flex; 
+  align-items: center; 
+  justify-content: center; 
+  transition: var(--transition); 
+}
+.nav-config:hover { color: var(--text-primary); cursor: pointer; }
 
 .main-content {
   padding: 3rem 2rem; max-width: 1440px; margin: 0 auto; width: 100%;
@@ -180,17 +269,17 @@ input:focus, select:focus, textarea:focus {
 }
 
 .dashboard-hero-card {
-  background: var(--bg-card); /* bg-surface (#1A1A1A) */
-  border: 3px solid #FFFFFF; /* All cards must be white originally */
-  border-radius: var(--radius-md); 
-  padding: 3.5rem 1.5rem; /* Increased vertical padding to make them taller */
-  min-height: 280px; /* Force minimum height */
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg); 
+  padding: 3.5rem 1.5rem;
+  min-height: 280px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 1.5rem; 
-  transition: all 0.3s ease-in-out; /* transition-all duration-300 ease-in-out */
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   text-decoration: none;
   cursor: pointer;
 }
@@ -206,8 +295,9 @@ input:focus, select:focus, textarea:focus {
 }
 
 .card-icon {
-  color: #FFFFFF; /* White base color */
-  transition: transform 0.3s ease-in-out, filter 0.3s ease-in-out;
+  color: var(--text-primary);
+  opacity: 0.8;
+  transition: transform 0.3s ease-in-out, filter 0.3s ease-in-out, color 0.3s;
 }
 
 .dashboard-hero-card:hover .card-icon, 
@@ -219,7 +309,7 @@ input:focus, select:focus, textarea:focus {
 .card-title {
   font-size: 1.25rem; 
   font-weight: 700; 
-  color: #FFFFFF;
+  color: var(--text-primary);
   letter-spacing: 0.5px;
   transition: var(--transition);
 }
@@ -247,7 +337,7 @@ input[type=number] {
 .dashboard-hero-card.hover-color-blue:hover, .cxp-menu-card.hover-color-blue:hover, .finanzas-modulo-card.hover-color-blue:hover { border-color: var(--secondary); }
 
 .cxp-menu-card { align-items: flex-start; text-align: left; gap: 1rem; }
-.cxp-menu-card:hover { border-color: rgba(255,255,255,0.2); box-shadow: var(--shadow-md); }
+.cxp-menu-card:hover { border-color: var(--primary); box-shadow: var(--shadow-md); }
 .cxp-card-icono { margin-bottom: 0.5rem; }
 .cxp-card-info { display: flex; flex-direction: column; gap: 0.25rem; flex: 1; }
 .cxp-card-titulo { font-size: 1.3rem; font-weight: 800; }
@@ -301,7 +391,7 @@ input[type=number] {
   font-size: 0.85rem; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px;
 }
 .cxc-alumno-row:not(.cxc-alumno-row--header):hover {
-  background: var(--bg-card-hover); border-color: rgba(255,255,255,0.15); transform: translateX(4px);
+  background: var(--bg-card-hover); border-color: var(--primary-glow); transform: translateX(4px);
 }
 .cxc-alumno-row--deuda { border-left: 4px solid var(--warning); }
 .cxc-col-center { text-align: center; }
@@ -330,9 +420,9 @@ input[type=number] {
   animation: fadeIn 0.2s ease-out;
 }
 .cxc-modal {
-  background: var(--bg-main); border: 1px solid rgba(255,255,255,0.1);
+  background: var(--bg-main); border: 1px solid var(--border);
   border-radius: var(--radius-xl); width: 100%; max-width: 650px; max-height: 90vh;
-  overflow-y: auto; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.8);
+  overflow-y: auto; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25);
   animation: modalIn 0.3s cubic-bezier(0.16, 1, 0.3, 1); display: flex; flex-direction: column;
 }
 @keyframes modalIn { from { opacity: 0; transform: scale(0.95) translateY(20px); } to { opacity: 1; transform: scale(1) translateY(0); } }
@@ -340,7 +430,7 @@ input[type=number] {
 .cxc-modal-header {
   padding: 1.5rem 2rem; border-bottom: 1px solid var(--border); display: flex;
   justify-content: space-between; align-items: center; position: sticky;
-  top: 0; background: rgba(6, 6, 6, 0.95); z-index: 10;
+  top: 0; background: var(--bg-main); z-index: 10;
 }
 .cxc-modal-header h2 { font-size: 1.4rem; color: var(--text-primary); }
 .cxc-modal-header button { color: var(--text-secondary); padding: 0.5rem; border-radius: 50%; background: var(--bg-glass); }

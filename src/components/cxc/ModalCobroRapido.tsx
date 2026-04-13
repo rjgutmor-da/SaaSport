@@ -182,7 +182,12 @@ const ModalCobroRapido: React.FC<Props> = ({ alumnoInicial, visible, onCerrar, o
       escuela_id: ctx.escuela_id, usuario_id: ctx.id,
       usuario_nombre: `${ctx.nombres} ${ctx.apellidos}`,
       accion: 'cobro', modulo: 'cxc', entidad_id: objetivoCxcId,
-      detalle: { monto: montoNum, metodo_pago: metodo, nuevo_estado: rpcData?.nuevo_estado },
+      detalle: { 
+        cliente: `${alumnoSel.nombres} ${alumnoSel.apellidos}`,
+        monto: montoNum, 
+        metodo_pago: metodo, 
+        nuevo_estado: rpcData?.nuevo_estado 
+      },
     });
 
     // Mensaje WhatsApp de recibo

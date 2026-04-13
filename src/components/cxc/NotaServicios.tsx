@@ -34,6 +34,21 @@ interface NotaServiciosProps {
 const fmtMonto = (n: number): string =>
   n.toLocaleString('es-BO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+/** Lista de torneos predefinidos */
+const TORNEOS_PREDEFINIDOS = [
+  'Torito Garcia',
+  'Taquito',
+  'Super Campeones',
+  'Leones',
+  'Atletico Junior',
+  'Cañito',
+  'Planeta',
+  'Semillero',
+  'JMP',
+  'Milton Melgar',
+  'Blooming Cup'
+];
+
 /** Crea una línea vacía */
 const lineaVacia = (): LineaNota => ({
   catalogo_item_id: '',
@@ -326,6 +341,7 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
 
       // Registrar auditoría
       await registrarAudit(ctx, 'editar', cxcEditar.id, {
+        cliente: cxcEditar.alumno_nombre,
         descripcion: descripcionAuto,
         monto_total: montoTotal,
         items: lineasValidas.map(l => l.nombre),
@@ -385,7 +401,11 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
     }
 
     // Registrar auditoría de creación
+    const alumObj = alumnos.find(a => a.id === alumnoId);
+    const nombreAlum = alumObj ? `${alumObj.nombres} ${alumObj.apellidos}` : 'N/A';
+
     await registrarAudit(ctx, 'crear', nuevaCxc.id, {
+      cliente: nombreAlum,
       alumno_id: alumnoId,
       descripcion: descripcionAuto,
       monto_total: montoTotal,
@@ -467,6 +487,7 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
 
       // Registrar auditoría del cobro
       await registrarAudit(ctx, 'cobro', nuevaCxc.id, {
+        cliente: nombreAlum,
         monto: mp,
         metodo_pago: metodoPago,
         nuevo_estado: rpcResult?.nuevo_estado,
@@ -532,7 +553,7 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
               <FileText size={20} />
             </div>
             <div>
-              <h2 style={{ margin: 0, fontSize: '1.25rem' }}>{esEdicion ? 'Editar Nota de Servicios' : 'Nueva Nota de Servicios'}</h2>
+              <h2 style={{ margin: 0, fontSize: '1.25rem' }}>{esEdicion ? 'Editar Nota de Servicio' : 'Nueva Nota de Servicio'}</h2>
               <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-tertiary)' }}>
                 {esEdicion ? 'Modifica los ítems y condiciones de la factura' : 'Genera una nueva cuenta por cobrar para el alumno'}
               </p>
@@ -710,16 +731,50 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
                             {(esTorneo || esMensualidad) && (
                               <div style={{ flex: 1, minWidth: '200px' }}>
                                 <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-tertiary)', textTransform: 'uppercase', marginBottom: '0.5rem' }}>
-                                  <AlertCircle size={12} /> {esTorneo ? 'Nombre del Torneo' : 'Periodo Custom'}
+                                  <AlertCircle size={12} /> {esTorneo ? 'Seleccionar Torneo' : 'Periodo Custom'}
                                 </label>
-                                <input
-                                  type="text"
-                                  placeholder={esTorneo ? "Ej: Copa Invierno 2026" : "Ej: Verano 2026"}
-                                  value={linea.detalle_personalizado || ''}
-                                  onChange={e => actualizarLinea(idx, { detalle_personalizado: e.target.value })}
-                                  disabled={guardando}
-                                  style={{ width: '100%', padding: '0.4rem 0.6rem', fontSize: '0.85rem', background: 'rgba(0,0,0,0.1)', border: '1px solid var(--border)', borderRadius: '6px' }}
-                                />
+                                
+                                {esTorneo ? (
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                    <select
+                                      value={TORNEOS_PREDEFINIDOS.includes(linea.detalle_personalizado || '') ? linea.detalle_personalizado : (linea.detalle_personalizado ? 'Otros' : '')}
+                                      onChange={e => {
+                                        const val = e.target.value;
+                                        if (val === 'Otros') {
+                                          actualizarLinea(idx, { detalle_personalizado: '' });
+                                        } else {
+                                          actualizarLinea(idx, { detalle_personalizado: val });
+                                        }
+                                      }}
+                                      disabled={guardando}
+                                      style={{ width: '100%', padding: '0.4rem 0.6rem', fontSize: '0.85rem', background: 'rgba(0,0,0,0.1)', border: '1px solid var(--border)', borderRadius: '6px', color: 'var(--text-primary)', outline: 'none' }}
+                                    >
+                                      <option value="" style={{ background: '#0A0A0A' }}>— Seleccionar Torneo —</option>
+                                      {TORNEOS_PREDEFINIDOS.map(t => <option key={t} value={t} style={{ background: '#0A0A0A' }}>{t}</option>)}
+                                      <option value="Otros" style={{ background: '#0A0A0A' }}>Otro (Especificar...)</option>
+                                    </select>
+                                    
+                                    {(linea.detalle_personalizado === '' || !TORNEOS_PREDEFINIDOS.includes(linea.detalle_personalizado || '')) && (
+                                      <input
+                                        type="text"
+                                        placeholder="Escribe el nombre del torneo..."
+                                        value={linea.detalle_personalizado || ''}
+                                        onChange={e => actualizarLinea(idx, { detalle_personalizado: e.target.value })}
+                                        disabled={guardando}
+                                        style={{ width: '100%', padding: '0.4rem 0.6rem', fontSize: '0.85rem', background: 'rgba(0,0,0,0.1)', border: '1px solid var(--border)', borderRadius: '6px' }}
+                                      />
+                                    )}
+                                  </div>
+                                ) : (
+                                  <input
+                                    type="text"
+                                    placeholder="Ej: Verano 2026"
+                                    value={linea.detalle_personalizado || ''}
+                                    onChange={e => actualizarLinea(idx, { detalle_personalizado: e.target.value })}
+                                    disabled={guardando}
+                                    style={{ width: '100%', padding: '0.4rem 0.6rem', fontSize: '0.85rem', background: 'rgba(0,0,0,0.1)', border: '1px solid var(--border)', borderRadius: '6px' }}
+                                  />
+                                )}
                               </div>
                             )}
 

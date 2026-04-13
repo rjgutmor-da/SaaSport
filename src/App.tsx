@@ -4,7 +4,7 @@
  */
 import React, { useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, NavLink } from 'react-router-dom';
-import { Settings } from 'lucide-react';
+import { Settings, Sun, Moon, Monitor } from 'lucide-react';
 import { supabase } from './lib/supabaseClient';
 import type { Session } from '@supabase/supabase-js';
 import Dashboard from './pages/Dashboard';
@@ -12,6 +12,7 @@ import Login from './pages/Login';
 import ContabilidadHub from './pages/finanzas/ContabilidadHub';
 import PlanCuentas from './pages/finanzas/PlanCuentas';
 import LibroDiario from './pages/finanzas/LibroDiario';
+import RegistroActividad from './pages/finanzas/RegistroActividad';
 import CuentasCobrar from './pages/cxc/CuentasCobrar';
 import CuentasPagar from './pages/cxp/CuentasPagar';
 import Inventarios from './pages/inventarios/Inventarios';
@@ -21,7 +22,19 @@ import CajasBancos from './pages/cajas-bancos/CajasBancos';
 
 
 /** Barra de navegación superior */
-const Navbar = ({ onLogout }: { onLogout: () => void }) => {
+const Navbar = ({ onLogout, theme, onCycleTheme }: { onLogout: () => void; theme: string; onCycleTheme: () => void }) => {
+  const getThemeIcon = () => {
+    if (theme === 'light') return <Sun size={20} />;
+    if (theme === 'dark') return <Moon size={20} />;
+    return <Monitor size={20} />;
+  };
+
+  const getThemeTitle = () => {
+    if (theme === 'light') return 'Modo Claro';
+    if (theme === 'dark') return 'Modo Oscuro';
+    return 'Predeterminado del Sistema';
+  };
+
   return (
     <nav className="navbar">
       <div className="nav-brand">SaaSport</div>
@@ -45,9 +58,17 @@ const Navbar = ({ onLogout }: { onLogout: () => void }) => {
           <NavLink to="/contabilidad" className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}>Contabilidad</NavLink>
         </li>
       </ul>
-      <div className="nav-acciones">
+      <div className="nav-acciones" style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+        <button 
+          className="nav-theme-toggle" 
+          onClick={onCycleTheme} 
+          title={getThemeTitle()}
+          style={{ color: 'var(--text-primary)', display: 'flex', alignItems: 'center' }}
+        >
+          {getThemeIcon()}
+        </button>
         <button className="nav-config" onClick={onLogout} title="Cerrar sesión">
-          <Settings size={32} strokeWidth={1.5} />
+          <Settings size={22} strokeWidth={1.5} />
         </button>
       </div>
     </nav>
@@ -55,20 +76,25 @@ const Navbar = ({ onLogout }: { onLogout: () => void }) => {
 };
 
 /** Layout envolvente con Navbar persistente */
-const Layout = ({ children, onLogout }: { children: React.ReactNode; onLogout: () => void }) => {
+const Layout = ({ children, onLogout, theme, onCycleTheme }: { 
+  children: React.ReactNode; 
+  onLogout: () => void;
+  theme: string;
+  onCycleTheme: () => void;
+}) => {
   return (
     <div className="app-container">
-      <Navbar onLogout={onLogout} />
+      <Navbar onLogout={onLogout} theme={theme} onCycleTheme={onCycleTheme} />
       {children}
     </div>
   );
 };
 
 /** Router interno (solo se renderiza cuando hay sesión) */
-const AppRouter = ({ onLogout }: { onLogout: () => void }) => {
+const AppRouter = ({ onLogout, theme, onCycleTheme }: { onLogout: () => void; theme: string; onCycleTheme: () => void }) => {
   return (
     <BrowserRouter>
-      <Layout onLogout={onLogout}>
+      <Layout onLogout={onLogout} theme={theme} onCycleTheme={onCycleTheme}>
         <Routes>
           {/* Dashboard principal */}
           <Route path="/" element={<Dashboard />} />
@@ -77,6 +103,7 @@ const AppRouter = ({ onLogout }: { onLogout: () => void }) => {
           <Route path="/contabilidad" element={<ContabilidadHub />} />
           <Route path="/contabilidad/plan-cuentas" element={<PlanCuentas />} />
           <Route path="/contabilidad/libro-diario" element={<LibroDiario />} />
+          <Route path="/contabilidad/registro-actividad" element={<RegistroActividad />} />
 
           {/* Módulos pendientes (placeholders) */}
           <Route path="/cxc" element={<CuentasCobrar />} />
@@ -94,6 +121,22 @@ const AppRouter = ({ onLogout }: { onLogout: () => void }) => {
 function App() {
   const [sesion, setSesion] = useState<Session | null>(null);
   const [verificando, setVerificando] = useState(true);
+
+  const [theme, setTheme] = useState<'light' | 'dark' | 'system'>(() => {
+    return (localStorage.getItem('theme') as any) || 'system';
+  });
+
+  useEffect(() => {
+    // Aplicar atributo de tema a la raíz
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('theme', theme);
+  }, [theme]);
+
+  const cycleTheme = () => {
+    if (theme === 'system') setTheme('light');
+    else if (theme === 'light') setTheme('dark');
+    else setTheme('system');
+  };
 
   useEffect(() => {
     // Verificar sesión existente al cargar
@@ -134,7 +177,7 @@ function App() {
   }
 
   // Si hay sesión, mostrar la app completa
-  return <AppRouter onLogout={cerrarSesion} />;
+  return <AppRouter onLogout={cerrarSesion} theme={theme} onCycleTheme={cycleTheme} />;
 }
 
 export default App;

@@ -314,7 +314,7 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, onCerrar, onCreada })
               <Package size={20} />
             </div>
             <div>
-              <h2 style={{ margin: 0, fontSize: '1.25rem' }}>Nueva Nota de Deuda / Gasto</h2>
+              <h2 style={{ margin: 0, fontSize: '1.25rem' }}>Nueva Nota de Deuda</h2>
               <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-tertiary)' }}>
                 Registra una compra o compromiso de pago
               </p>
