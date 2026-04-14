@@ -57,14 +57,21 @@ export const AuthProviderSaaSport = ({ children }: { children: ReactNode }) => {
   const [perfil, setPerfil] = useState<PerfilUsuario | null>(null);
   const [cargando, setCargando] = useState(true);
 
-  /** Obtener perfil desde la tabla usuarios */
+  /** Obtener perfil desde la tabla usuarios con timeout de seguridad */
   const cargarPerfil = async (userId: string): Promise<void> => {
     try {
-      const { data, error } = await supabase
+      const queryPromise = supabase
         .from('usuarios')
         .select('*')
         .eq('id', userId)
         .single();
+
+      // Timeout de 8 segundos para evitar bloqueos infinitos
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Timeout al cargar perfil')), 8000)
+      );
+
+      const { data, error } = await Promise.race([queryPromise, timeoutPromise]) as any;
 
       if (error) {
         console.error('Error al cargar perfil:', error);
