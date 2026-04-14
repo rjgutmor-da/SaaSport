@@ -61,6 +61,13 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
 
   // Historial de cobros por CxC
   const [historialCobros, setHistorialCobros] = useState<Record<string, any[]>>({});
+
+  // Datos adicionales solicitados
+  const [datosAdicionales, setDatosAdicionales] = useState({
+    primeraMensualidad: '—',
+    cantidadMeses: 0,
+    totalHistorico: 0
+  });
   
   // Edición de un cobro específico
   const [cobroEditandoId, setCobroEditandoId] = useState<string | null>(null);
@@ -130,6 +137,48 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
       }
 
       setCargando(false);
+
+      // Cargar datos adicionales (Primera mensualidad, cantidad de meses, total ingresos)
+      const cargarAdicionales = async () => {
+        // Total histórico de ingresos
+        const { data: resIngresos } = await supabase
+          .from('cobros_aplicados')
+          .select('monto_aplicado')
+          .in('cuenta_cobrar_id', dataCxc.map(c => c.id));
+        
+        const totalHistorico = (resIngresos ?? []).reduce((acc, curr) => acc + Number(curr.monto_aplicado), 0);
+
+        // Primera mensualidad y cantidad de meses
+        const { data: detMensualidades } = await supabase
+          .from('cxc_detalle')
+          .select(`
+            periodo_meses, 
+            cuenta_cobrar!inner(fecha_emision),
+            catalogo_items!inner(nombre)
+          `)
+          .in('cuenta_cobrar_id', dataCxc.map(c => c.id))
+          .ilike('catalogo_items.nombre', '%mensualidad%');
+
+        let primeraFecha: Date | null = null;
+        let mesesUnicos = new Set<string>();
+
+        (detMensualidades ?? []).forEach((d: any) => {
+          const fecha = new Date(d.cuenta_cobrar.fecha_emision);
+          if (!primeraFecha || fecha < primeraFecha) primeraFecha = fecha;
+          
+          if (d.periodo_meses && Array.isArray(d.periodo_meses)) {
+            d.periodo_meses.forEach((m: string) => mesesUnicos.add(m));
+          }
+        });
+
+        setDatosAdicionales({
+          primeraMensualidad: primeraFecha ? fmtFecha(primeraFecha.toISOString()) : '—',
+          cantidadMeses: mesesUnicos.size + (Number(alumno.meses_permanencia_inicial) || 0),
+          totalHistorico: totalHistorico + (Number(alumno.ingresos_iniciales) || 0)
+        });
+      };
+
+      if (dataCxc.length > 0) cargarAdicionales();
     };
     cargar();
 
@@ -464,49 +513,56 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                 <h2 style={{ fontSize: '1.2rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {alumno.nombres} {alumno.apellidos}
                 </h2>
-                <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', marginTop: '0.2rem' }}>
-                  {alumno.sucursal_nombre && <span style={{ fontSize: '0.8rem', color: 'var(--text-tertiary)' }}>📍 {alumno.sucursal_nombre}</span>}
-                  {alumno.entrenador_nombre && <span style={{ fontSize: '0.8rem', color: 'var(--text-tertiary)' }}>👨‍🏫 {alumno.entrenador_nombre}</span>}
-                  {alumno.cancha_nombre && <span style={{ fontSize: '0.8rem', color: 'var(--text-tertiary)' }}>🏟️ {alumno.cancha_nombre}</span>}
-                  {alumno.horario_hora && <span style={{ fontSize: '0.8rem', color: 'var(--text-tertiary)' }}>🕐 {alumno.horario_hora}</span>}
+                <div className="cxc-modal-meta-line">
+                  {alumno.sucursal_nombre && <span>📍 {alumno.sucursal_nombre}</span>}
+                  {alumno.entrenador_nombre && <span>👨‍🏫 {alumno.entrenador_nombre}</span>}
+                  {alumno.cancha_nombre && <span>🏟️ {alumno.cancha_nombre}</span>}
+                  {alumno.horario_hora && <span>🕐 {alumno.horario_hora}</span>}
                 </div>
               </div>
             </div>
             <button onClick={onCerrar} disabled={guardandoCobro}><X size={20} /></button>
           </div>
 
-          {/* Resumen */}
-          <div className="detalle-resumen">
-            <div className="detalle-stat">
-              <span className="detalle-stat-label">Total deuda</span>
-              <span className="detalle-stat-valor" style={{ color: '#f87171' }}>
+          {/* Resumen Estadístico Premium */}
+          <div className="detalle-resumen-premium">
+            <div className="resumen-card">
+              <span className="resumen-label">Total Gral. Deuda</span>
+              <span className="resumen-valor color-deuda">
                 Bs {fmtMonto(Number(alumno.saldo_pendiente))}
               </span>
+              <div className="resumen-footer">
+                <AlertCircle size={12} /> {alumno.cxc_pendientes} pendientes
+              </div>
             </div>
-            <div className="detalle-stat">
-              <span className="detalle-stat-label">CxC pendientes</span>
-              <span className="detalle-stat-valor">{alumno.cxc_pendientes}</span>
-            </div>
-            <div className="detalle-stat">
-              <span className="detalle-stat-label">Total cobrado</span>
-              <span className="detalle-stat-valor" style={{ color: '#4ade80' }}>
-                Bs {fmtMonto(Number(alumno.total_cobrado))}
+
+            <div className="resumen-card">
+              <span className="resumen-label">Total Ingresos</span>
+              <span className="resumen-valor color-ingreso">
+                Bs {fmtMonto(datosAdicionales.totalHistorico)}
               </span>
+              <div className="resumen-footer">
+                <Check size={12} /> Histórico recaudado
+              </div>
             </div>
-            {/* WhatsApp cobranza */}
+
+            <div className="resumen-card">
+              <span className="resumen-label">Permanencia</span>
+              <span className="resumen-valor color-meses">
+                {datosAdicionales.cantidadMeses} <small>Meses</small>
+              </span>
+              <div className="resumen-footer">
+                Desde: {datosAdicionales.primeraMensualidad}
+              </div>
+            </div>
+
+            {/* WhatsApp cobranza flotante en el resumen */}
             {alumno.saldo_pendiente > 0 && (
-              <button className="detalle-btn-whatsapp" onClick={enviarWhatsApp} title="Enviar cobranza por WhatsApp">
-                <MessageCircle size={16} /> Cobrar
+              <button className="resumen-btn-wa" onClick={enviarWhatsApp} title="Enviar cobranza por WhatsApp">
+                <MessageCircle size={20} />
+                <span>Cobrar</span>
               </button>
             )}
-          </div>
-
-          {/* Info del alumno */}
-          <div className="detalle-info-alumno">
-            {alumno.sucursal_nombre && <span>📍 {alumno.sucursal_nombre}</span>}
-            {alumno.entrenador_nombre && <span>👨‍🏫 {alumno.entrenador_nombre}</span>}
-            {alumno.cancha_nombre && <span>🏟️ {alumno.cancha_nombre}</span>}
-            {alumno.horario_hora && <span>🕐 {alumno.horario_hora}</span>}
           </div>
 
           {/* Mensaje de recibo de pago (después de cobrar) */}

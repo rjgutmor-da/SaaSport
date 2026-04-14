@@ -122,6 +122,8 @@ export interface AlumnoDeuda {
   cxc_total: number;
   asistencias_actual: number;   // Nuevos campos
   asistencias_anterior: number;
+  meses_permanencia_inicial?: number; // Datos legados
+  ingresos_iniciales?: number;
 }
 
 /** Colores y etiquetas por estado */
