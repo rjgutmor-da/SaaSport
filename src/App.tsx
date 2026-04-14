@@ -27,7 +27,7 @@ import AuditLog from './pages/config/AuditLog';
 import PanelEscuela from './pages/config/PanelEscuela';
 import CajasBancos from './pages/cajas-bancos/CajasBancos';
 
-const ASISPORT_URL = 'https://asisport.vercel.app';
+const ASISPORT_URL = 'https://asisport.saasport.pro';
 
 // ─── Navbar ────────────────────────────────────────────────────────────────
 
