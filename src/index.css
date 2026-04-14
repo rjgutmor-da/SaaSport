@@ -1778,3 +1778,207 @@ input[type=number] {
 .acceso-card:active { transform: scale(0.98); }
 .acceso-card h3 { font-size: 1.1rem; font-weight: 700; color: var(--text-primary); margin-bottom: 0.5rem; }
 .acceso-card p  { font-size: 0.82rem; color: var(--text-secondary); line-height: 1.4; }
+
+/* =========================================
+   LOGIN — Estética AsiSport
+   ========================================= */
+
+/* Forzar fondo negro puro en la página de login independiente del tema */
+.login-container {
+  min-height: 100vh;
+  background: #0A0A0A;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  font-family: 'Inter', sans-serif;
+}
+
+/* Card central */
+.login-card {
+  width: 100%;
+  max-width: 460px;
+  background: #1C1C1C;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  padding: 2.5rem 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.6);
+  animation: loginFadeIn 0.4s ease-out;
+}
+
+@keyframes loginFadeIn {
+  from { opacity: 0; transform: translateY(16px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0)   scale(1); }
+}
+
+/* Encabezado / Brand */
+.login-brand {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.login-titulo {
+  font-size: 2.25rem;
+  font-weight: 900;
+  color: #FFFFFF;
+  letter-spacing: -0.04em;
+  line-height: 1.1;
+}
+
+.login-subtitulo {
+  font-size: 0.95rem;
+  color: #A0A0A0;
+  font-weight: 400;
+  line-height: 1.5;
+}
+
+/* Formulario */
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+/* Campo individual */
+.login-campo {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.login-label {
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: #FFFFFF;
+  letter-spacing: 0.01em;
+}
+
+/* Input base */
+.login-input {
+  width: 100%;
+  background: #111111;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  padding: 0.85rem 1rem;
+  font-size: 0.95rem;
+  color: #FFFFFF;
+  font-family: 'Inter', sans-serif;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  outline: none;
+  -webkit-appearance: none;
+}
+
+.login-input::placeholder {
+  color: #555555;
+}
+
+.login-input:focus {
+  border-color: #FF6B35;
+  box-shadow: 0 0 0 3px rgba(255, 107, 53, 0.2);
+}
+
+.login-input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Password con toggle */
+.login-password-wrapper {
+  position: relative;
+}
+
+.login-password-wrapper .login-input {
+  padding-right: 3rem;
+}
+
+.login-toggle-password {
+  position: absolute;
+  right: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #666666;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 0.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s ease;
+}
+
+.login-toggle-password:hover {
+  color: #AAAAAA;
+}
+
+/* Mensaje de error */
+.login-error {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  background: rgba(255, 59, 48, 0.12);
+  border: 1px solid rgba(255, 59, 48, 0.35);
+  border-radius: 8px;
+  color: #FF6B6B;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+/* Botón principal de login */
+.login-btn {
+  width: 100%;
+  background: #FF6B35;
+  color: #FFFFFF;
+  font-size: 1rem;
+  font-weight: 700;
+  padding: 0.9rem 1.5rem;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background 0.2s ease, transform 0.15s ease, box-shadow 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  font-family: 'Inter', sans-serif;
+  letter-spacing: 0.01em;
+  margin-top: 0.25rem;
+}
+
+.login-btn:hover:not(:disabled) {
+  background: #FF8555;
+  transform: translateY(-1px);
+  box-shadow: 0 8px 24px rgba(255, 107, 53, 0.4);
+}
+
+.login-btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.login-btn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+/* Nota inferior */
+.login-nota {
+  font-size: 0.875rem;
+  color: #6B7280;
+  text-align: center;
+}
+
+.login-nota a {
+  color: #FF6B35;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.login-nota a:hover {
+  text-decoration: underline;
+}
