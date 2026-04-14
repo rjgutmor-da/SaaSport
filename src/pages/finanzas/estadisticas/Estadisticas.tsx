@@ -78,6 +78,13 @@ const Estadisticas: React.FC = () => {
   // ─── Filtros pestaña "Alumnos por Ítem" ───
   const [itemSeleccionado, setItemSeleccionado] = useState<CatalogoItem | null>(null);
   const [dropdownItemAbierto, setDropdownItemAbierto] = useState(false);
+  
+  // Nuevos filtros solicitados (Entrenador y Categoría/Sucursal)
+  const [entrenadorId, setEntrenadorId] = useState('');
+  const [sucursalId, setSucursalId] = useState('');
+  const [entrenadores, setEntrenadores] = useState<any[]>([]);
+  const [sucursales, setSucursales] = useState<any[]>([]);
+
   // Subfiltros: meses (para Mensualidad) o torneo seleccionado (para Torneos)
   const [mesesSeleccionados, setMesesSeleccionados] = useState<string[]>([]);
   // Torneo: selección del dropdown predefinido
@@ -119,7 +126,9 @@ const Estadisticas: React.FC = () => {
     intervalo,
     desdePersonalizado,
     hastaPersonalizado,
-    subfiltrosActivos.length > 0 ? subfiltrosActivos : undefined
+    subfiltrosActivos.length > 0 ? subfiltrosActivos : undefined,
+    entrenadorId,
+    sucursalId
   );
 
   // ─── Cargar catálogo ───
@@ -144,6 +153,22 @@ const Estadisticas: React.FC = () => {
       }
       setCatalogo(unicos);
       setCargandoCatalogo(false);
+
+      // Cargar Entrenadores (Usuarios de la escuela)
+      const { data: users } = await supabase
+        .from('usuarios')
+        .select('id, nombres, apellidos')
+        .eq('escuela_id', escuelaId)
+        .order('nombres');
+      setEntrenadores(users ?? []);
+
+      // Cargar Sucursales (Como Categorías)
+      const { data: sucs } = await supabase
+        .from('sucursales')
+        .select('id, nombre')
+        .eq('escuela_id', escuelaId)
+        .order('nombre');
+      setSucursales(sucs ?? []);
     };
     cargar();
   }, [escuelaId]);
@@ -290,10 +315,8 @@ const Estadisticas: React.FC = () => {
         {/* ══════ PESTAÑA ALUMNOS POR ÍTEM ══════ */}
         {pestaña === 'alumnos' && (
           <div className="est-panel">
-            {/* Selector de ítem */}
-            <div className="est-filtros-alumnos">
-              <div className="est-filtro-grupo">
-                <label className="est-filtro-label">Ítem del Catálogo</label>
+            <div className="est-filtros-alumnos-v3">
+              <div className="est-card-item-search">
                 <div className="est-item-dropdown-wrap">
                   <button
                     className="est-item-dropdown-btn"
@@ -333,6 +356,31 @@ const Estadisticas: React.FC = () => {
                       )}
                     </div>
                   )}
+                </div>
+
+                {/* Filtros laterales (Entrenador y Categoría) */}
+                <div className="est-filtros-laterales-wrap">
+                  <select 
+                    className="est-select-premium"
+                    value={entrenadorId}
+                    onChange={e => setEntrenadorId(e.target.value)}
+                  >
+                    <option value="">Todos los Entrenadores</option>
+                    {entrenadores.map(e => (
+                      <option key={e.id} value={e.id}>{e.nombres} {e.apellidos}</option>
+                    ))}
+                  </select>
+
+                  <select 
+                    className="est-select-premium"
+                    value={sucursalId}
+                    onChange={e => setSucursalId(e.target.value)}
+                  >
+                    <option value="">Todas las Categorías</option>
+                    {sucursales.map(s => (
+                      <option key={s.id} value={s.id}>{s.nombre}</option>
+                    ))}
+                  </select>
                 </div>
               </div>
 

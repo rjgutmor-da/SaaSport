@@ -797,6 +797,105 @@ input[type=number] {
   transform: translateY(-1px);
   box-shadow: 0 2px 8px rgba(10, 132, 255, 0.25);
 }
+
+/* --- Detalle Alumno Premium v3 --- */
+.cxc-modal-meta-line {
+  display: flex;
+  gap: 1.25rem;
+  flex-wrap: wrap;
+  margin-top: 0.4rem;
+}
+.cxc-modal-meta-line span {
+  font-size: 0.8rem;
+  color: var(--text-tertiary);
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-weight: 500;
+}
+
+.detalle-resumen-premium {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+  padding: 1.5rem 2rem;
+  background: rgba(255,255,255,0.01);
+  border-bottom: 1px solid var(--border);
+  position: relative;
+}
+
+@media (max-width: 600px) {
+  .detalle-resumen-premium { grid-template-columns: 1fr; }
+}
+
+.resumen-card {
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 1rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  position: relative;
+  overflow: hidden;
+}
+
+.resumen-label {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 800;
+  color: var(--text-tertiary);
+}
+
+.resumen-valor {
+  font-size: 1.25rem;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+}
+
+.resumen-valor small {
+  font-size: 0.8rem;
+  font-weight: 600;
+  opacity: 0.7;
+}
+
+.color-deuda { color: #f87171; text-shadow: 0 0 15px rgba(248,113,113,0.2); }
+.color-ingreso { color: #4ade80; text-shadow: 0 0 15px rgba(74,222,128,0.2); }
+.color-meses { color: #38bdf8; text-shadow: 0 0 15px rgba(56,189,248,0.2); }
+
+.resumen-footer {
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+  margin-top: 0.4rem;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.resumen-btn-wa {
+  position: absolute;
+  right: 2rem;
+  top: 50%;
+  transform: translateY(-50%);
+  background: #25D366;
+  color: #fff;
+  padding: 0.75rem 1.25rem;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-weight: 800;
+  font-size: 0.85rem;
+  box-shadow: 0 4px 15px rgba(37, 211, 102, 0.3);
+  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.resumen-btn-wa:hover {
+  transform: translateY(-52%) scale(1.05);
+  box-shadow: 0 8px 25px rgba(37, 211, 102, 0.5);
+  background: #1EBE5D;
+}
 /* Variante atenuada: nota ya pagada */
 .cxc-btn-editar-visible--dim {
   background: rgba(255,255,255,0.04) !important;
@@ -1981,4 +2080,59 @@ input[type=number] {
 
 .login-nota a:hover {
   text-decoration: underline;
+}
+
+/* --- Estadísticas v3 Filters --- */
+.est-filtros-alumnos-v3 {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 1.25rem 1.5rem;
+  margin-bottom: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.est-card-item-search {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  width: 100%;
+}
+
+@media (max-width: 900px) {
+  .est-card-item-search { flex-direction: column; align-items: stretch; }
+}
+
+.est-filtros-laterales-wrap {
+  display: flex;
+  gap: 0.75rem;
+  flex: 1;
+}
+
+.est-select-premium {
+  flex: 1;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 0.7rem 1rem;
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--transition);
+  outline: none;
+}
+
+.est-select-premium:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px var(--primary-glow);
+}
+
+.est-item-dropdown-wrap {
+  min-width: 320px;
+}
+@media (max-width: 600px) {
+  .est-item-dropdown-wrap { min-width: 100%; }
 }

@@ -34,7 +34,9 @@ export function useAlumnosPorItem(
   intervalo: IntervaloPredefinido,
   desdePersonalizado?: string,
   hastaPersonalizado?: string,
-  filtroSubItems?: string[] // meses o texto de torneo
+  filtroSubItems?: string[], // meses o texto de torneo
+  entrenadorId?: string,
+  sucursalId?: string
 ): UseAlumnosPorItemResult {
   const [alumnos, setAlumnos] = useState<AlumnoPorItem[]>([]);
   const [cargando, setCargando] = useState(false);
@@ -52,8 +54,8 @@ export function useAlumnosPorItem(
     cargarAlumnos(escuelaId, catalogoItemId, rango.desde, rango.hasta);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [escuelaId, catalogoItemId, intervalo, desdePersonalizado, hastaPersonalizado, tick,
-    // serializar filtroSubItems para evitar re-renders infinitos
-    JSON.stringify(filtroSubItems)]);
+    // serializar filtros para evitar re-renders infinitos
+    JSON.stringify(filtroSubItems), entrenadorId, sucursalId]);
 
   async function cargarAlumnos(
     eid: string,
@@ -77,7 +79,12 @@ export function useAlumnosPorItem(
             fecha_emision,
             anulada,
             alumno_id,
-            alumnos!cuentas_cobrar_alumno_id_fkey (nombres, apellidos)
+            alumnos!cuentas_cobrar_alumno_id_fkey (
+              nombres, 
+              apellidos,
+              profesor_asignado_id,
+              sucursal_id
+            )
           )
         `)
         .eq('escuela_id', eid)
@@ -85,12 +92,22 @@ export function useAlumnosPorItem(
 
       if (err) throw new Error(err.message);
 
-      // Filtrar por fecha y no anuladas
+      // Filtrar por fecha, no anuladas y filtros adicionales (entrenador/sucursal)
       let filtrados = (data || []).filter((row: any) => {
         if (row.cuentas_cobrar?.anulada) return false;
         const fecha = row.cuentas_cobrar?.fecha_emision;
         if (!fecha) return false;
-        return fecha >= desde && fecha <= hasta;
+        
+        // Rango de fechas
+        if (!(fecha >= desde && fecha <= hasta)) return false;
+
+        // Filtro Entrenador
+        if (entrenadorId && row.cuentas_cobrar?.alumnos?.profesor_asignado_id !== entrenadorId) return false;
+
+        // Filtro Sucursal (Categoría)
+        if (sucursalId && row.cuentas_cobrar?.alumnos?.sucursal_id !== sucursalId) return false;
+
+        return true;
       });
 
       // Aplicar subfiltro de meses (periodo_meses es un array JSONB)
