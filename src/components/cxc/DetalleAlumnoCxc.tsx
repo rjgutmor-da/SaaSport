@@ -172,7 +172,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
         });
 
         setDatosAdicionales({
-          primeraMensualidad: primeraFecha ? fmtFecha(primeraFecha.toISOString()) : '—',
+          primeraMensualidad: (primeraFecha as any) ? fmtFecha((primeraFecha as any).toISOString()) : '—',
           cantidadMeses: mesesUnicos.size + (Number(alumno.meses_permanencia_inicial) || 0),
           totalHistorico: totalHistorico + (Number(alumno.ingresos_iniciales) || 0)
         });
