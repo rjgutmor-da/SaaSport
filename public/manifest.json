@@ -1,0 +1,17 @@
+{
+  "name": "SaaSport",
+  "short_name": "SaaSport",
+  "description": "Gestión financiera de tu academia deportiva",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#FF6B35",
+  "icons": [
+    {
+      "src": "/SaaSport icon 250.png",
+      "sizes": "250x250",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
