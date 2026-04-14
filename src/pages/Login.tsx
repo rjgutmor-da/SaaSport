@@ -17,7 +17,7 @@ interface LoginProps {
 
 /** Roles que tienen acceso a SaaSport */
 const ROLES_PERMITIDOS = ['SuperAdministrador', 'Dueño', 'Administrador'];
-const ASISPORT_URL = 'https://asisport.vercel.app';
+const ASISPORT_URL = 'https://asisport.saasport.pro';
 
 const Login: React.FC<LoginProps> = ({ onLoginExitoso }) => {
   const [email, setEmail] = useState('');

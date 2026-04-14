@@ -15,4 +15,47 @@ if (!supabaseUrl || !supabaseAnonKey) {
   )
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+/**
+ * Storage personalizado para compartir la sesión entre subdominios.
+ * Guarda la sesión en una cookie en el dominio raíz (.saasport.pro).
+ */
+const isBrowser = typeof document !== 'undefined';
+const domain = '.saasport.pro';
+
+const cookieStorage = {
+  getItem: (key: string) => {
+    if (!isBrowser) return null;
+    const name = `${key}=`;
+    const decodedCookie = decodeURIComponent(document.cookie);
+    const ca = decodedCookie.split(';');
+    for (let i = 0; i < ca.length; i++) {
+      let c = ca[i].trim();
+      if (c.indexOf(name) === 0) {
+        return c.substring(name.length, c.length);
+      }
+    }
+    return null;
+  },
+  setItem: (key: string, value: string) => {
+    if (!isBrowser) return;
+    // Expira en 1 año
+    const d = new Date();
+    d.setTime(d.getTime() + (365 * 24 * 60 * 60 * 1000));
+    const expires = "expires=" + d.toUTCString();
+    document.cookie = `${key}=${value};${expires};domain=${domain};path=/;SameSite=Lax;Secure`;
+  },
+  removeItem: (key: string) => {
+    if (!isBrowser) return;
+    document.cookie = `${key}=;expires=Thu, 01 Jan 1970 00:00:00 UTC;domain=${domain};path=/;SameSite=Lax;Secure`;
+  }
+};
+
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    storage: cookieStorage,
+    autoRefreshToken: true,
+    persistSession: true,
+    detectSessionInUrl: true,
+    flowType: 'pkce'
+  }
+})
