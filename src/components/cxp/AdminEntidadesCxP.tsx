@@ -32,7 +32,7 @@ interface Proveedor {
 /** Etiquetas de categorías de proveedor */
 const CATEGORIAS_PROVEEDOR = [
   { value: 'uniforme',          label: 'Proveedor de Uniformes' },
-  { value: 'trabajador',        label: 'Trabajadores' },
+  { value: 'trabajador',        label: 'Personal Externo' },
   { value: 'servicios_basicos', label: 'Servicios Básicos' },
   { value: 'alquiler',          label: 'Alquileres' },
   { value: 'otro',              label: 'Otros' },
@@ -40,14 +40,17 @@ const CATEGORIAS_PROVEEDOR = [
 
 interface Personal {
   id: string;
-  nombres: string;
-  apellidos: string;
+  nombres?: string;
+  apellidos?: string;
+  nombre?: string; // Para proveedores personal
   cargo: string | null;
   telefono: string | null;
   direccion: string | null;
-  contacto_emergencia: string | null;
+  contacto_emergencia?: string | null;
+  contacto?: string | null; // Para proveedores personal
   salario_base: number | null;
   activo: boolean;
+  tipo_origen: 'personal' | 'proveedor';
 }
 
 interface Props {
@@ -66,8 +69,7 @@ const AdminEntidadesCxP: React.FC<Props> = ({ onVolver }) => {
   // Modal de edición
   const [mostrarModal, setMostrarModal] = useState(false);
   const [itemAEditar, setItemAEditar] = useState<any | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [exito, setExito] = useState<string | null>(null);
+  const [modalTipo, setModalTipo]           = useState<'proveedor' | 'personal'>('proveedor');
 
   /** Inicializar escuela */
   useEffect(() => {
@@ -91,32 +93,55 @@ const AdminEntidadesCxP: React.FC<Props> = ({ onVolver }) => {
     setCargando(true);
     if (tab === 'proveedores') {
       const { data } = await supabase.from('proveedores')
-        .select('id, nombre, nit_ci, telefono, direccion, contacto, categoria, activo')
-        .eq('escuela_id', escuelaId).order('nombre');
-      setProveedores(data ?? []);
+        .select('id, nombre, nit_ci, telefono, direccion, contacto, categoria, activo, salario_base')
+        .eq('escuela_id', escuelaId)
+        .neq('categoria', 'trabajador')
+        .order('nombre');
+      setProveedores((data ?? []).map(p => ({ ...p, tipo_origen: 'proveedor' as const })));
     } else {
-      const { data } = await supabase.from('personal')
+      // Personal unificado: Tabla Personal + Tabla Proveedores(categoria=trabajador)
+      const { data: dataPers } = await supabase.from('personal')
         .select('id, nombres, apellidos, cargo, telefono, direccion, contacto_emergencia, salario_base, activo')
         .eq('escuela_id', escuelaId).order('nombres');
-      setPersonal(data ?? []);
+      
+      const { data: dataProvPers } = await supabase.from('proveedores')
+        .select('id, nombre, telefono, direccion, contacto, categoria, activo, salario_base')
+        .eq('escuela_id', escuelaId)
+        .eq('categoria', 'trabajador')
+        .order('nombre');
+
+      const listaUnificada: Personal[] = [
+        ...(dataPers ?? []).map(p => ({ ...p, tipo_origen: 'personal' as const })),
+        ...(dataProvPers ?? []).map(p => ({ 
+          ...p, 
+          nombres: p.nombre, 
+          apellidos: '', 
+          cargo: 'Personal Externo', 
+          contacto_emergencia: p.contacto,
+          tipo_origen: 'proveedor' as const 
+        }))
+      ];
+      setPersonal(listaUnificada);
     }
     setCargando(false);
   };
 
   /** Abrir modal de registro/edición */
-  const abrirEditar = (item: Proveedor | Personal | 'nuevo') => {
+  const abrirEditar = (item: any | 'nuevo') => {
     if (item === 'nuevo') {
       setItemAEditar(null);
+      setModalTipo(tab === 'proveedores' ? 'proveedor' : 'personal');
     } else {
       setItemAEditar(item);
+      setModalTipo(item.tipo_origen || (tab === 'proveedores' ? 'proveedor' : 'personal'));
     }
     setMostrarModal(true);
   };
 
   /** Toggle activo/inactivo */
-  const toggleActivo = async (id: string, activo: boolean) => {
-    const tabla = tab === 'proveedores' ? 'proveedores' : 'personal';
-    await supabase.from(tabla).update({ activo: !activo }).eq('id', id);
+  const toggleActivo = async (item: any) => {
+    const tabla = item.tipo_origen === 'personal' || (tab === 'personal' && !item.categoria) ? 'personal' : 'proveedores';
+    await supabase.from(tabla).update({ activo: !item.activo }).eq('id', item.id);
     cargarDatos();
   };
 
@@ -137,7 +162,7 @@ const AdminEntidadesCxP: React.FC<Props> = ({ onVolver }) => {
             className="btn-nueva-cuenta"
             onClick={() => abrirEditar('nuevo')}
           >
-            <Plus size={18} /> {tab === 'proveedores' ? 'Nuevo Proveedor' : 'Nuevo Trabajador'}
+            <Plus size={18} /> {tab === 'proveedores' ? 'Nuevo Proveedor' : 'Nuevo Personal'}
           </button>
           <button className="btn-refrescar" onClick={cargarDatos} disabled={cargando}>
             <RefreshCw size={18} className={cargando ? 'spin' : ''} />
@@ -159,7 +184,7 @@ const AdminEntidadesCxP: React.FC<Props> = ({ onVolver }) => {
           onClick={() => { setTab('personal'); setMostrarModal(false); }}
           style={{ padding: '0.5rem 1.25rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}
         >
-          <Users size={15} /> Personal / Trabajadores
+          <Users size={15} /> Personal
         </button>
       </div>
 
@@ -196,7 +221,7 @@ const AdminEntidadesCxP: React.FC<Props> = ({ onVolver }) => {
                 <span className="cxc-alumno-meta">{p.telefono || '—'}</span>
                 <span className="cxc-col-center">
                   <button
-                    onClick={() => toggleActivo(p.id, p.activo)}
+                    onClick={() => toggleActivo(p)}
                     title={p.activo ? 'Desactivar' : 'Activar'}
                     style={{ background: 'none', border: 'none', cursor: 'pointer', color: p.activo ? '#4ade80' : '#64748b' }}
                   >
@@ -216,14 +241,14 @@ const AdminEntidadesCxP: React.FC<Props> = ({ onVolver }) => {
         personal.length === 0 ? (
           <div className="arbol-vacio">
             <Users size={36} style={{ opacity: 0.3, marginBottom: '0.75rem' }} />
-            <p>No hay trabajadores registrados. Agrega el primero.</p>
+            <p>No hay personal registrado. Agrega el primero.</p>
           </div>
         ) : (
           <div className="cxc-lista">
             <div className="cxc-alumno-row cxc-alumno-row--header">
               <span>Nombre</span>
-              <span>Cargo</span>
-              <span>Contacto emergencia</span>
+              <span>Categoría</span>
+              <span>Sueldo</span>
               <span>Teléfono</span>
               <span className="cxc-col-center">Estado</span>
               <span></span>
@@ -233,12 +258,18 @@ const AdminEntidadesCxP: React.FC<Props> = ({ onVolver }) => {
                 <span className="cxc-alumno-nombre" style={{ opacity: p.activo ? 1 : 0.45 }}>
                   <Users size={13} /> {p.nombres} {p.apellidos}
                 </span>
-                <span className="cxc-alumno-meta">{p.cargo || '—'}</span>
-                <span className="cxc-alumno-meta">{p.contacto_emergencia || '—'}</span>
+                <span className="cxc-alumno-meta">
+                  {p.tipo_origen === 'personal' 
+                    ? 'Personal Interno' 
+                    : (CATEGORIAS_PROVEEDOR.find(c => c.value === 'trabajador')?.label || 'Personal')}
+                </span>
+                <span className="cxc-alumno-meta" style={{ fontWeight: 700, color: 'var(--success)' }}>
+                  {p.salario_base ? `Bs ${p.salario_base.toLocaleString()}` : '—'}
+                </span>
                 <span className="cxc-alumno-meta">{p.telefono || '—'}</span>
                 <span className="cxc-col-center">
                   <button
-                    onClick={() => toggleActivo(p.id, p.activo)}
+                    onClick={() => toggleActivo(p)}
                     title={p.activo ? 'Desactivar' : 'Activar'}
                     style={{ background: 'none', border: 'none', cursor: 'pointer', color: p.activo ? '#4ade80' : '#64748b' }}
                   >
@@ -259,7 +290,7 @@ const AdminEntidadesCxP: React.FC<Props> = ({ onVolver }) => {
       {/* Modal Premium de Registro */}
       <ModalEntidadCxP 
         visible={mostrarModal}
-        tipo={tab === 'proveedores' ? 'proveedor' : 'personal'}
+        tipo={modalTipo}
         itemAEditar={itemAEditar}
         escuelaId={escuelaId}
         onCerrar={() => { setMostrarModal(false); setItemAEditar(null); }}
