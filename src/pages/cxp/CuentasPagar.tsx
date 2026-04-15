@@ -181,7 +181,7 @@ const CuentasPagar: React.FC = () => {
         id: p.id,
         tipo: 'personal',
         nombre: `${p.nombres} ${p.apellidos}`,
-        categoria: 'trabajador',
+        categoria: 'personal_interno',
         cargo: p.cargo,
         telefono: p.telefono,
         saldo_pendiente: sg.saldo,

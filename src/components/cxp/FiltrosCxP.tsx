@@ -8,11 +8,13 @@ import { Filter, X } from 'lucide-react';
 
 /** Opciones de categoría de proveedor */
 export const CATEGORIAS_PROVEEDOR: { value: string; label: string }[] = [
-  { value: 'uniforme',          label: 'Proveedor de Uniformes' },
-  { value: 'trabajador',        label: 'Trabajadores' },
+  { value: 'todas', label: 'Todas las categorías' },
+  { value: 'personal_interno', label: 'Personal Interno' },
+  { value: 'trabajador', label: 'Personal Externo' },
+  { value: 'uniforme', label: 'Uniformes' },
   { value: 'servicios_basicos', label: 'Servicios Básicos' },
-  { value: 'alquiler',          label: 'Alquileres' },
-  { value: 'otro',              label: 'Otros' },
+  { value: 'alquiler', label: 'Alquileres' },
+  { value: 'otro', label: 'Otros' },
 ];
 
 /** Opciones de antigüedad en días */
@@ -48,7 +50,7 @@ const FiltrosCxP: React.FC<Props> = ({
         onChange={e => onChangeCategoria(e.target.value)}
         className="cxc-filtro-select"
       >
-        <option value="">Categoría</option>
+
         {CATEGORIAS_PROVEEDOR.map(c => (
           <option key={c.value} value={c.value}>{c.label}</option>
         ))}
