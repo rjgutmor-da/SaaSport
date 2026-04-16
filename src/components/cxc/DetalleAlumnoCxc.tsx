@@ -193,10 +193,10 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
         // 3. Fecha de creación en AsiSport (created_at).
         // 4. Primera mensualidad registrada en SaaSport.
         let fInicioFinal = '—';
-        if (dataLegacy?.fechaInicio) {
-          fInicioFinal = fmtFecha(dataLegacy.fechaInicio);
-        } else if (alumBase?.fecha_inicio) {
+        if (alumBase?.fecha_inicio) {
           fInicioFinal = fmtFecha(alumBase.fecha_inicio);
+        } else if (dataLegacy?.fechaInicio) {
+          fInicioFinal = fmtFecha(dataLegacy.fechaInicio);
         } else if (alumBase?.created_at) {
           fInicioFinal = fmtFecha(alumBase.created_at);
         } else if (primeraFechaSaaSport) {
@@ -204,15 +204,23 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
         }
 
         // Lógica para Meses de Actividad:
-        // Legacy + lo que tenga en DB (permanencia inicial) + meses únicos en SaaSport
-        const mesesLegacy = dataLegacy?.mesesActividad || 0;
+        // Prioridad absoluta a la DB si el valor es > 0
         const mesesPermanenciaDB = Number(alumBase?.meses_permanencia_inicial) || 0;
+        const mesesLegacy = mesesPermanenciaDB > 0 ? 0 : (dataLegacy?.mesesActividad || 0);
         const mesesSaaSport = mesesUnicosSaaSport.size;
 
         // Lógica para Total Ingresos:
-        // Legacy (si existe, asumo que ya incluye ingresos_iniciales de la DB) + ingresos registrados en SaaSport
-        const ingresosLegacy = dataLegacy?.totalIngresos || Number(alumBase?.ingresos_iniciales) || 0;
+        // Prioridad absoluta a la DB si el valor es > 0
+        const ingresosBaseDB = Number(alumBase?.ingresos_iniciales) || 0;
+        const ingresosLegacy = ingresosBaseDB > 0 ? ingresosBaseDB : (dataLegacy?.totalIngresos || 0);
         
+        console.log('DEBUG CXC:', { 
+          alumno: nombreCompleto,
+          ingresosDB: ingresosBaseDB, 
+          mesesDB: mesesPermanenciaDB,
+          totalSaaSport: totalHistoricoSaaSport 
+        });
+
         setDatosAdicionales({
           fechaInicio: fInicioFinal,
           cantidadMeses: mesesLegacy + mesesPermanenciaDB + mesesSaaSport,
