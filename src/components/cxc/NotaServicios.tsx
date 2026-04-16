@@ -414,86 +414,101 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
       items: lineasValidas.map(l => l.nombre),
     });
 
-    // 2.5 Generar asiento de la VENTA (Reconocimiento del Ingreso)
+    // 2.5 Generar asiento CONSOLIDADO de la VENTA (Ingreso y Cobro Simultáneo)
+    let montoPagado = 0;
     if (montoTotal > 0) {
-      const movimientosVenta = [
-        { cuenta_contable_id: ctaCxc.id, debe: montoTotal, haber: 0 } // DEBE a 1.1.3 (CxC)
-      ];
-      
+      const movimientosVenta: { cuenta_contable_id: string; debe: number; haber: number }[] = [];
       const haberesMap = new Map<string, number>();
+      const gastosMap = new Map<string, number>();
+      let totalCosto = 0;
+      
+      const { data: ctaCostoFallback } = await supabase.from('plan_cuentas').select('id').eq('codigo', '5.6.1').or(`escuela_id.eq.${ctx.escuela_id},escuela_id.is.null`).single();
+      const { data: ctaInvFallback } = await supabase.from('plan_cuentas').select('id').eq('codigo', '1.1.4').or(`escuela_id.eq.${ctx.escuela_id},escuela_id.is.null`).single();
+
+      // 1. Calcular Ingresos y Costos de Inventario
       lineasValidas.forEach(l => {
           const dbItem = catalogo.find(c => c.id === l.catalogo_item_id);
-          const idCta = dbItem?.cuenta_ingreso_id || l.cuenta_ingreso_id || (cuentasCobro.find(c => c.codigo.startsWith('4.1'))?.id || ctaCxc.id);
-          haberesMap.set(idCta, (haberesMap.get(idCta) || 0) + l.subtotal);
-      });
-
-      haberesMap.forEach((monto, idCta) => {
-          movimientosVenta.push({ cuenta_contable_id: idCta, debe: 0, haber: monto }); // HABER a Ingresos
-      });
-
-      // Añadir movimiento de Costo de Ventas e Inventario si hay productos
-      const { data: ctaCosto } = await supabase.from('plan_cuentas').select('id').eq('codigo', '5.6.1').or(`escuela_id.eq.${ctx.escuela_id},escuela_id.is.null`).single();
-      const { data: ctaInv } = await supabase.from('plan_cuentas').select('id').eq('codigo', '1.1.4').or(`escuela_id.eq.${ctx.escuela_id},escuela_id.is.null`).single();
-
-      if (ctaCosto && ctaInv) {
-        let totalCosto = 0;
-        lineasValidas.forEach(l => {
+          const idCtaIngreso = dbItem?.cuenta_ingreso_id || l.cuenta_ingreso_id || (cuentasCobro.find(c => c.codigo.startsWith('4.1'))?.id || ctaCxc.id);
+          haberesMap.set(idCtaIngreso, (haberesMap.get(idCtaIngreso) || 0) + l.subtotal);
+          
           if (l.tipo === 'producto' && l.costo_unitario && l.costo_unitario > 0) {
-            totalCosto += (l.costo_unitario * l.cantidad);
+             const costoFila = l.costo_unitario * l.cantidad;
+             totalCosto += costoFila;
+             // Usa la cuenta definida en el catálogo o la por defecto
+             const idCtaGasto = dbItem?.cuenta_gasto_id || ctaCostoFallback?.id;
+             if (idCtaGasto) {
+                gastosMap.set(idCtaGasto, (gastosMap.get(idCtaGasto) || 0) + costoFila);
+             }
           }
-        });
-        
-        if (totalCosto > 0) {
-           movimientosVenta.push({ cuenta_contable_id: ctaCosto.id, debe: totalCosto, haber: 0 }); // DEBE a Costos (5.6.1)
-           movimientosVenta.push({ cuenta_contable_id: ctaInv.id, debe: 0, haber: totalCosto });   // HABER a Inventarios (1.1.4)
-        }
+      });
+
+      // HABER: Ingresos consolidados
+      haberesMap.forEach((monto, idCta) => {
+          if (monto > 0) movimientosVenta.push({ cuenta_contable_id: idCta, debe: 0, haber: monto });
+      });
+
+      // 2. Caja/Bancos (Pago Inmediato)
+      if (pagarAlCrear) {
+         montoPagado = parseFloat(montoPago) || 0;
+         if (montoPagado > 0 && cuentaCobroId) {
+            movimientosVenta.push({ cuenta_contable_id: cuentaCobroId, debe: montoPagado, haber: 0 }); // DEBE a Caja/Bancos
+         }
       }
 
-      const payloadVenta = {
+      // 3. DEBE: CxC Alumnos (Saldo Pendiente)
+      const saldoPendiente = montoTotal - montoPagado;
+      if (saldoPendiente > 0) {
+         movimientosVenta.push({ cuenta_contable_id: ctaCxc.id, debe: saldoPendiente, haber: 0 }); // DEBE a CxC
+      }
+
+      // 4. DOBLE ASIENTO DE COSTO (Si aplica)
+      if (totalCosto > 0 && ctaInvFallback) {
+         gastosMap.forEach((montoCosto, idCtaCosto) => {
+             if (montoCosto > 0) movimientosVenta.push({ cuenta_contable_id: idCtaCosto, debe: montoCosto, haber: 0 }); // DEBE a Costo
+         });
+         movimientosVenta.push({ cuenta_contable_id: ctaInvFallback.id, debe: 0, haber: totalCosto }); // HABER a Inventario (1.1.4)
+      }
+
+      const payloadVenta: any = {
         escuela_id: ctx.escuela_id,
         sucursal_id: ctx.sucursal_id,
         usuario_id: ctx.id,
         descripcion: `Venta: ${descripcionAuto}`,
-        metodo_pago: 'efectivo', 
+        metodo_pago: pagarAlCrear ? metodoPago : 'efectivo', 
         movimientos: movimientosVenta
       };
-      
-      await supabase.rpc('rpc_procesar_transaccion_financiera', { p_payload: payloadVenta });
-    }
 
-    // 3. Si el usuario eligió pagar al crear
-    let montoPagado = 0;
-    if (pagarAlCrear) {
-      const mp = parseFloat(montoPago);
-      const { data: rpcResult, error: rpcErr } = await supabase.rpc('rpc_registrar_cobro', {
-        p_payload: {
-          cuenta_cobrar_id: nuevaCxc.id,
-          monto: mp,
-          metodo_pago: metodoPago,
-          cuenta_cobro_id: cuentaCobroId,
-          escuela_id: ctx.escuela_id,
-          sucursal_id: ctx.sucursal_id,
-          usuario_id: ctx.id,
-          descripcion: `Pago al crear: ${descripcionAuto}`,
-          nro_comprobante: cobroNroDoc.trim() || null,
-        }
-      });
-
-      if (rpcErr) {
-        setError(`Nota creada pero error en cobro: ${rpcErr.message}`);
-        setGuardando(false);
-        return;
+      // Si hubo pago al crear, enlazar el pago a la CxC en la tabla cobros_aplicados
+      if (pagarAlCrear && montoPagado > 0) {
+         payloadVenta.cobros = [{
+             cuenta_cobrar_id: nuevaCxc.id,
+             monto_aplicado: montoPagado
+         }];
+         if (cobroNroDoc.trim()) {
+            payloadVenta.documento_referencia = cobroNroDoc.trim();
+         }
       }
-
-      montoPagado = mp;
-
-      // Registrar auditoría del cobro
-      await registrarAudit(ctx, 'cobro', nuevaCxc.id, {
-        cliente: nombreAlum,
-        monto: mp,
-        metodo_pago: metodoPago,
-        nuevo_estado: rpcResult?.nuevo_estado,
-      });
+      
+      const { error: errAsiento } = await supabase.rpc('rpc_procesar_transaccion_financiera', { p_payload: payloadVenta });
+      
+      if (errAsiento) {
+          setError(`Error generando comprobante contable: ${errAsiento.message}`);
+          setGuardando(false);
+          return;
+      }
+      
+      // Actualizar estado de CxC manual
+      if (pagarAlCrear && montoPagado > 0) {
+          const nuevo_estado = montoPagado >= montoTotal ? 'pagada' : 'parcial';
+          await supabase.from('cuentas_cobrar').update({ estado: nuevo_estado, updated_at: new Date().toISOString() }).eq('id', nuevaCxc.id);
+          
+          await registrarAudit(ctx, 'cobro', nuevaCxc.id, {
+            cliente: nombreAlum,
+            monto: montoPagado,
+            metodo_pago: metodoPago,
+            nuevo_estado: nuevo_estado,
+          });
+      }
     }
 
     // 4. Preparar mensaje WhatsApp de recibo

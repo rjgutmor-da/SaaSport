@@ -321,14 +321,23 @@ const Inventarios: React.FC = () => {
     if (errMov) { setMsgMov(`Error: ${errMov.message}`); setGuardandoMov(false); return; }
 
     const itemObj = items.find(s => s.id === movItemId);
-    if (itemObj && itemObj.stock_id) {
+    if (itemObj) {
       const nuevaCant = movTipo === 'entrada'
         ? itemObj.saldo + cant
         : itemObj.saldo - cant;
-      await supabase.from('stock_productos').update({
-        cantidad_disponible: nuevaCant,
-        updated_at: new Date().toISOString(),
-      }).eq('id', itemObj.stock_id);
+        
+      if (itemObj.stock_id) {
+        await supabase.from('stock_productos').update({
+          cantidad_disponible: nuevaCant,
+          updated_at: new Date().toISOString(),
+        }).eq('id', itemObj.stock_id);
+      } else {
+        await supabase.from('stock_productos').insert({
+          escuela_id: ctx.escuela_id,
+          catalogo_item_id: movItemId,
+          cantidad_disponible: nuevaCant
+        });
+      }
     }
 
     setGuardandoMov(false);
