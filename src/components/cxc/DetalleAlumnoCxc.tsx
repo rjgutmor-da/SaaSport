@@ -9,7 +9,7 @@ import { supabase } from '../../lib/supabaseClient';
 import type { AlumnoDeuda, CuentaCobrar, CxcDetalle, LineaNota } from '../../types/cxc';
 // Componente DetalleAlumnoCxc
 import type { CuentaContable } from '../../types/finanzas';
-import { AlertCircle, Check, CreditCard, Pencil, Ban, MessageCircle, X } from 'lucide-react';
+import { AlertCircle, Check, CreditCard, Pencil, Ban, MessageCircle, X, Calendar } from 'lucide-react';
 import NotaServicios from './NotaServicios';
 
 /** Props del componente */
@@ -64,7 +64,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
 
   // Datos adicionales solicitados
   const [datosAdicionales, setDatosAdicionales] = useState({
-    primeraMensualidad: '—',
+    fechaInicio: '—',
     cantidadMeses: 0,
     totalHistorico: 0
   });
@@ -145,8 +145,12 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
           .from('cobros_aplicados')
           .select('monto_aplicado')
           .in('cuenta_cobrar_id', dataCxc.map(c => c.id));
-        
+
         const totalHistorico = (resIngresos ?? []).reduce((acc, curr) => acc + Number(curr.monto_aplicado), 0);
+
+        // Obtener fecha_inicio manual del alumno
+        const { data: alumBase } = await supabase.from('alumnos').select('fecha_inicio').eq('id', alumno.alumno_id).single();
+        const fechaManual = alumBase?.fecha_inicio;
 
         // Primera mensualidad y cantidad de meses
         const { data: detMensualidades } = await supabase
@@ -172,7 +176,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
         });
 
         setDatosAdicionales({
-          primeraMensualidad: (primeraFecha as any) ? fmtFecha((primeraFecha as any).toISOString()) : '—',
+          fechaInicio: fechaManual ? fmtFecha(fechaManual) : (primeraFecha ? fmtFecha((primeraFecha as any).toISOString()) : '—'),
           cantidadMeses: mesesUnicos.size + (Number(alumno.meses_permanencia_inicial) || 0),
           totalHistorico: totalHistorico + (Number(alumno.ingresos_iniciales) || 0)
         });
@@ -524,10 +528,10 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
             <button onClick={onCerrar} disabled={guardandoCobro}><X size={20} /></button>
           </div>
 
-          {/* Resumen Estadístico Premium */}
-          <div className="detalle-resumen-premium">
+          {/* Resumen Estadístico Premium - AHORA 4 FICHAS */}
+          <div className="detalle-resumen-premium" style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
             <div className="resumen-card">
-              <span className="resumen-label">Total Gral. Deuda</span>
+              <span className="resumen-label">Total Deuda</span>
               <span className="resumen-valor color-deuda">
                 Bs {fmtMonto(Number(alumno.saldo_pendiente))}
               </span>
@@ -547,12 +551,22 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
             </div>
 
             <div className="resumen-card">
-              <span className="resumen-label">Permanencia</span>
+              <span className="resumen-label">Fecha de Inicio</span>
+              <span className="resumen-valor color-meses" style={{ fontSize: '1.25rem' }}>
+                {datosAdicionales.fechaInicio}
+              </span>
+              <div className="resumen-footer">
+                <Calendar size={12} /> Inicio actividad
+              </div>
+            </div>
+
+            <div className="resumen-card">
+              <span className="resumen-label">Meses de Actividad</span>
               <span className="resumen-valor color-meses">
                 {datosAdicionales.cantidadMeses} <small>Meses</small>
               </span>
               <div className="resumen-footer">
-                Desde: {datosAdicionales.primeraMensualidad}
+                <Check size={12} /> Permanencia total
               </div>
             </div>
 

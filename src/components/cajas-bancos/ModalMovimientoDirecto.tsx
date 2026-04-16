@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabaseClient';
-import { X, ArrowDownRight, ArrowUpRight, DollarSign, Calendar, CreditCard, AlignLeft, Building2, Tag, AlertCircle, Save, RefreshCw } from 'lucide-react';
+import { X, ArrowDownRight, ArrowUpRight, DollarSign, Calendar, Hash, AlignLeft, Building2, Tag, AlertCircle, Save, RefreshCw } from 'lucide-react';
 import type { CuentaContable } from '../../types/finanzas';
 
 interface Props {
@@ -21,7 +21,7 @@ const ModalMovimientoDirecto: React.FC<Props> = ({ visible, tipo, cajas, onCerra
   const [monto, setMonto] = useState('');
   const [fecha, setFecha] = useState(new Date().toISOString().split('T')[0]);
   const [descripcion, setDescripcion] = useState('');
-  const [metodo, setMetodo] = useState('efectivo');
+  const [nroTransaccion, setNroTransaccion] = useState('');
 
   const [todasLasCuentas, setTodasLasCuentas] = useState<CuentaContable[]>([]);
   const [guardando, setGuardando] = useState(false);
@@ -36,7 +36,7 @@ const ModalMovimientoDirecto: React.FC<Props> = ({ visible, tipo, cajas, onCerra
       setDescripcion('');
       setContraCuentaId('');
       setCajaId('');
-      setFormDirty(false);
+      setNroTransaccion('');
     }
   }, [visible, setFormDirty]);
 
@@ -99,7 +99,8 @@ const ModalMovimientoDirecto: React.FC<Props> = ({ visible, tipo, cajas, onCerra
         usuario_id: user.id,
         fecha,
         descripcion,
-        metodo_pago: metodo
+        metodo_pago: 'efectivo',
+        nro_transaccion: nroTransaccion.trim() || null
       }).select().single();
 
       if (errAsiento || !asiento) throw new Error('Error al registrar el comprobante.');
@@ -209,12 +210,14 @@ const ModalMovimientoDirecto: React.FC<Props> = ({ visible, tipo, cajas, onCerra
             </div>
 
             <div className="form-campo">
-              <label><CreditCard size={14} /> Método de {isIngreso ? 'Cobro' : 'Pago'} *</label>
-              <select value={metodo} onChange={e => handleInputChange(setMetodo, e.target.value)} disabled={guardando}>
-                <option value="efectivo">Efectivo</option>
-                <option value="qr">QR</option>
-                <option value="transferencia">Transferencia</option>
-              </select>
+              <label><Hash size={14} /> Nro. Transacción / Recibo</label>
+              <input 
+                type="text"
+                value={nroTransaccion}
+                onChange={e => handleInputChange(setNroTransaccion, e.target.value)}
+                disabled={guardando}
+                placeholder="Ej: 00123, REC-001..."
+              />
             </div>
 
             <div className="form-campo full-width">

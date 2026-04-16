@@ -1,10 +1,11 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { supabase } from '../../lib/supabaseClient';
-import { ChevronLeft, Search, RefreshCw, Landmark, ArrowDownRight, ArrowUpRight, CheckCircle2, ArrowRightLeft, CheckSquare, Square } from 'lucide-react';
+import { ChevronLeft, Search, RefreshCw, Landmark, ArrowDownRight, ArrowUpRight, CheckCircle2, ArrowRightLeft, CheckSquare, Square, Pencil } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import type { CuentaContable, MovimientoContable, AsientoContable } from '../../types/finanzas';
 import ModalTransferencia from '../../components/cajas-bancos/ModalTransferencia';
 import ModalMovimientoDirecto from '../../components/cajas-bancos/ModalMovimientoDirecto';
+import ModalEditarMovimiento from '../../components/cajas-bancos/ModalEditarMovimiento';
 
 const fmtMonto = (n: number) =>
   n.toLocaleString('es-BO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -15,7 +16,7 @@ interface MovimientoExtendido {
   haber: number;
   fecha: string;
   descripcion: string;
-  metodo_pago: string;
+  nro_transaccion: string;
   asiento_id: string;
   cuenta_id: string;
   cuenta_nombre: string;
@@ -41,6 +42,9 @@ const CajasBancos: React.FC = () => {
   // Estados para formularios activos
   const [activeForm, setActiveForm] = useState<'ingreso' | 'salida' | 'transferencia' | null>(null);
   const [formDirty, setFormDirty] = useState(false);
+
+  // Estado para edición de movimientos
+  const [movEditar, setMovEditar] = useState<MovimientoExtendido | null>(null);
 
   const obtenerEscuelaId = useCallback(async (): Promise<string | null> => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -96,7 +100,7 @@ const CajasBancos: React.FC = () => {
       .from('movimientos_contables')
       .select(`
         id, debe, haber, cuenta_contable_id, conciliado,
-        asientos_contables(id, fecha, descripcion, metodo_pago)
+        asientos_contables(id, fecha, descripcion, nro_transaccion)
       `)
       .in('cuenta_contable_id', idsCajas)
       .order('created_at', { ascending: false });
@@ -113,7 +117,7 @@ const CajasBancos: React.FC = () => {
       haber: Number(m.haber),
       fecha: m.asientos_contables?.fecha,
       descripcion: m.asientos_contables?.descripcion || 'Sin descripción',
-      metodo_pago: m.asientos_contables?.metodo_pago,
+      nro_transaccion: m.asientos_contables?.nro_transaccion || '',
       asiento_id: m.asientos_contables?.id,
       cuenta_id: m.cuenta_contable_id,
       cuenta_nombre: listCajas.find((c: any) => c.id === m.cuenta_contable_id)?.nombre || 'Desconocida',
@@ -190,7 +194,7 @@ const CajasBancos: React.FC = () => {
       const q = busqueda.toLowerCase();
       list = list.filter(m => 
         m.descripcion.toLowerCase().includes(q) || 
-        m.metodo_pago?.toLowerCase().includes(q)
+        m.nro_transaccion?.toLowerCase().includes(q)
       );
     }
     return list;
@@ -326,7 +330,7 @@ const CajasBancos: React.FC = () => {
           <Search size={16} className="pc-busqueda-icono" />
           <input
             type="text"
-            placeholder="Buscar por descripción o método de pago..."
+            placeholder="Buscar por descripción o nro. transacción..."
             value={busqueda}
             onChange={e => setBusqueda(e.target.value)}
             className="pc-busqueda-input"
@@ -370,10 +374,11 @@ const CajasBancos: React.FC = () => {
                 <th className="cxc-th">Fecha</th>
                 <th className="cxc-th">Cuenta</th>
                 <th className="cxc-th">Descripción</th>
-                <th className="cxc-th cxc-th-center">Método</th>
+                <th className="cxc-th cxc-th-center">Nro. Transacción</th>
                 <th className="cxc-th cxc-th-right">Ingreso (Debe)</th>
                 <th className="cxc-th cxc-th-right">Egreso (Haber)</th>
                 <th className="cxc-th cxc-th-center">Conciliado</th>
+                <th className="cxc-th cxc-th-center" style={{ width: '60px' }}></th>
               </tr>
             </thead>
             <tbody>
@@ -392,7 +397,7 @@ const CajasBancos: React.FC = () => {
                       {mov.descripcion}
                     </td>
                     <td className="cxc-td cxc-td-center cxc-td-meta">
-                      <span style={{ textTransform: 'capitalize' }}>{mov.metodo_pago || '—'}</span>
+                      <span>{mov.nro_transaccion || '—'}</span>
                     </td>
                     <td className="cxc-td cxc-td-right">
                       {esIngreso ? (
@@ -422,6 +427,17 @@ const CajasBancos: React.FC = () => {
                       >
                         {mov.conciliado ? <CheckSquare size={18} /> : <Square size={18} />}
                       </button>
+                    </td>
+                    <td className="cxc-td cxc-td-center">
+                      {!mov.conciliado && (
+                        <button
+                          onClick={() => setMovEditar(mov)}
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--secondary)' }}
+                          title="Editar movimiento"
+                        >
+                          <Pencil size={15} />
+                        </button>
+                      )}
                     </td>
                   </tr>
                 );
@@ -456,6 +472,15 @@ const CajasBancos: React.FC = () => {
           setFormDirty(false);
           cargarDatos();
         }} 
+      />
+
+      {/* Modal: Editar movimiento existente */}
+      <ModalEditarMovimiento
+        visible={!!movEditar}
+        movimiento={movEditar}
+        cajas={cajas}
+        onCerrar={() => setMovEditar(null)}
+        onGuardado={() => { setMovEditar(null); cargarDatos(); }}
       />
 
     </main>

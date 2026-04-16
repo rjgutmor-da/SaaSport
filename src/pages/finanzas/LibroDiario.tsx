@@ -25,7 +25,7 @@ interface Asiento {
   id: string;
   fecha: string;
   descripcion: string;
-  metodo_pago: string;
+  nro_transaccion: string;
   created_at: string;
   movimientos_contables: Movimiento[];
 }
@@ -36,11 +36,7 @@ interface LineaForm {
   haber: string;
 }
 
-const METODOS_PAGO = [
-  { valor: 'efectivo', etiqueta: 'Efectivo' },
-  { valor: 'transferencia', etiqueta: 'Transferencia' },
-  { valor: 'qr', etiqueta: 'QR' },
-];
+
 
 const formatMonto = (n: number): string =>
   n.toLocaleString('es-BO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -60,7 +56,7 @@ const LibroDiario: React.FC = () => {
   // Formulario
   const [mostrarForm, setMostrarForm] = useState(false);
   const [formDesc, setFormDesc] = useState('');
-  const [formMetodo, setFormMetodo] = useState('efectivo');
+  const [formNroTransaccion, setFormNroTransaccion] = useState('');
   const [formLineas, setFormLineas] = useState<LineaForm[]>([
     { cuenta_contable_id: '', debe: '', haber: '' },
     { cuenta_contable_id: '', debe: '', haber: '' },
@@ -79,7 +75,7 @@ const LibroDiario: React.FC = () => {
     const { data, error: err } = await supabase
       .from('asientos_contables')
       .select(`
-        id, fecha, descripcion, metodo_pago, created_at,
+        id, fecha, descripcion, nro_transaccion, created_at,
         movimientos_contables (
           id, cuenta_contable_id, debe, haber,
           cuenta:plan_cuentas ( codigo, nombre, tipo )
@@ -120,7 +116,8 @@ const LibroDiario: React.FC = () => {
       sucursal_id: userData?.sucursal_id,
       usuario_id: userData?.id,
       descripcion: formDesc.trim(),
-      metodo_pago: formMetodo,
+      metodo_pago: 'efectivo',
+      nro_transaccion: formNroTransaccion.trim() || null,
       movimientos: formLineas.filter(l => l.cuenta_contable_id && (parseFloat(l.debe) > 0 || parseFloat(l.haber) > 0)).map(l => ({
         cuenta_contable_id: l.cuenta_contable_id,
         debe: parseFloat(l.debe) || 0,
@@ -132,6 +129,7 @@ const LibroDiario: React.FC = () => {
     if (rpcErr) { setFormError(rpcErr.message); setGuardando(false); return; }
     setFormExito('Registrado.');
     setFormDesc('');
+    setFormNroTransaccion('');
     setFormLineas([{ cuenta_contable_id: '', debe: '', haber: '' }, { cuenta_contable_id: '', debe: '', haber: '' }]);
     setGuardando(false);
     cargarAsientos();
@@ -161,16 +159,14 @@ const LibroDiario: React.FC = () => {
       {/* ─── Formulario ─── */}
       {mostrarForm && (
         <form className="ld-form" onSubmit={guardarAsiento} style={{ background: 'var(--bg-card)', padding: '1.5rem', borderRadius: '12px', border: '1px solid var(--border)', marginBottom: '1.5rem' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 180px', gap: '1rem', marginBottom: '1rem' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 200px', gap: '1rem', marginBottom: '1rem' }}>
             <div className="form-campo">
               <label>Glosa / Descripción</label>
               <input type="text" value={formDesc} onChange={e => setFormDesc(e.target.value)} placeholder="Descripción del asiento..." required />
             </div>
             <div className="form-campo">
-              <label>Método de Pago</label>
-              <select value={formMetodo} onChange={e => setFormMetodo(e.target.value)}>
-                {METODOS_PAGO.map(m => <option key={m.valor} value={m.valor}>{m.etiqueta}</option>)}
-              </select>
+              <label>Nro. Transacción</label>
+              <input type="text" value={formNroTransaccion} onChange={e => setFormNroTransaccion(e.target.value)} placeholder="Ej: 00123..." />
             </div>
           </div>
           
@@ -237,9 +233,11 @@ const LibroDiario: React.FC = () => {
                     <td className="excel-td">{formatFecha(a.fecha)}</td>
                     <td className="excel-td" colSpan={2} style={{ color: idx % 2 === 0 ? 'var(--secondary)' : 'var(--text-primary)' }}>
                       {a.descripcion.toUpperCase()} 
-                      <span style={{ marginLeft: '1rem', fontStyle: 'italic', fontWeight: 400, fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>
-                        ({a.metodo_pago.toUpperCase()})
-                      </span>
+                      {a.nro_transaccion && (
+                        <span style={{ marginLeft: '1rem', fontStyle: 'italic', fontWeight: 400, fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>
+                          (Nro: {a.nro_transaccion})
+                        </span>
+                      )}
                     </td>
                     <td className="excel-td excel-monto"></td>
                     <td className="excel-td excel-monto"></td>

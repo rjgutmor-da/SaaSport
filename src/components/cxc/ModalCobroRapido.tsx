@@ -337,12 +337,8 @@ const ModalCobroRapido: React.FC<Props> = ({ alumnoInicial, visible, onCerrar, o
                     </div>
 
                     <div className="form-campo">
-                      <label><CreditCard size={14} /> Método de pago *</label>
-                      <select value={metodo} onChange={e => setMetodo(e.target.value)} disabled={guardando}>
-                        <option value="efectivo">Efectivo</option>
-                        <option value="transferencia">Transferencia</option>
-                        <option value="qr">QR</option>
-                      </select>
+                      <label><Hash size={14} /> Nro. Transacción</label>
+                      <input type="text" value={metodo} onChange={e => setMetodo(e.target.value)} disabled={guardando} placeholder="Ej: 00123, REC-001..." />
                     </div>
 
                     <div className="form-campo full-width">

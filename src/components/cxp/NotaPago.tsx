@@ -12,7 +12,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import {
   X, Plus, Check, Trash2, AlertCircle, CreditCard, Package,
-  Users, FileText, Calendar, RefreshCw, Info
+  Users, FileText, Calendar, RefreshCw, Info, Hash
 } from 'lucide-react';
 
 interface LineaNotaPago {
@@ -94,7 +94,11 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, onCerrar, onCreada })
         supabase.from('proveedores').select('id, nombre').eq('escuela_id', usr.escuela_id).eq('activo', true).order('nombre'),
         supabase.from('personal').select('id, nombres, apellidos').eq('escuela_id', usr.escuela_id).eq('activo', true).order('nombres'),
         supabase.from('catalogo_items').select('id, nombre, tipo, precio_venta, cuenta_gasto_id').eq('activo', true).eq('es_gasto', true).order('nombre'),
-        supabase.from('cajas_bancos').select('id, nombre, cuenta_contable_id').eq('escuela_id', usr.escuela_id).eq('activo', true).order('nombre'),
+        supabase.from('plan_cuentas').select('id, codigo, nombre, cuenta_contable_id:id')
+          .eq('es_transaccional', true).eq('tipo', 'activo')
+          .or('codigo.like.1.1.1.%,codigo.like.1.1.2.%')
+          .or(`escuela_id.eq.${usr.escuela_id},escuela_id.is.null`)
+          .order('codigo'),
         supabase.from('plan_cuentas').select('id, codigo, nombre')
           .eq('es_transaccional', true).in('tipo', ['gasto', 'activo', 'pasivo'])
           .or(`escuela_id.eq.${usr.escuela_id},escuela_id.is.null`)
@@ -495,19 +499,14 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, onCerrar, onCreada })
                                         <input type="number" step="0.01" value={montoPago} onChange={e => setMontoPago(e.target.value)} style={{ fontWeight: 700, color: '#FF6B35' }} />
                                     </div>
                                     <div className="form-campo">
-                                        <label>Método</label>
-                                        <select value={metodoPago} onChange={e => setMetodoPago(e.target.value)}>
-                                            <option value="efectivo">Efectivo</option>
-                                            <option value="transferencia">Transferencia</option>
-                                            <option value="qr">QR</option>
-                                            <option value="cheque">Cheque</option>
-                                        </select>
+                                        <label><Hash size={14} /> Nro. Transacción</label>
+                                        <input type="text" value={metodoPago} onChange={e => setMetodoPago(e.target.value)} placeholder="Ej: 00123, REC-001..." />
                                     </div>
                                     <div className="form-campo full-width">
                                         <label>Caja o Banco de Origen</label>
                                         <select value={cuentaPagoId} onChange={e => setCuentaPagoId(e.target.value)} required>
                                             <option value="">— Seleccionar Caja/Banco —</option>
-                                            {cajasBancos.map(c => <option key={c.cuenta_contable_id} value={c.cuenta_contable_id}>{c.nombre}</option>)}
+                                            {cajasBancos.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
                                         </select>
                                     </div>
                                 </div>
