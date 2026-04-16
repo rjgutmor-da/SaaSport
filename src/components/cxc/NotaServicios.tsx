@@ -10,7 +10,7 @@ import type { CatalogoItem, LineaNota } from '../../types/cxc';
 import { MESES_ANIO } from '../../types/cxc';
 import {
   X, Plus, Check, Trash2, Calendar, AlertCircle,
-  CreditCard, MessageCircle, FileText, Users, RefreshCw, Info
+  CreditCard, MessageCircle, FileText, Users, RefreshCw, Info, Hash
 } from 'lucide-react';
 
 /** Props del componente */
@@ -87,6 +87,7 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
   const [cuentaCobroId, setCuentaCobroId] = useState('');
   const [montoPago, setMontoPago] = useState('');
   const [cobroNroDoc, setCobroNroDoc] = useState('');
+  const [nroRecibo, setNroRecibo] = useState('');
 
   // Mensaje WhatsApp de recibo (se muestra tras crear/pagar exitosamente)
   const [mensajeWA, setMensajeWA] = useState<{ texto: string; telefono: string } | null>(null);
@@ -151,6 +152,7 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
     setCuentaCobroId('');
     setMontoPago('');
     setCobroNroDoc('');
+    setNroRecibo('');
     setError(null);
     setExito(null);
     setMensajeWA(null);
@@ -620,6 +622,17 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
                         disabled={guardando}
                     />
                 </div>
+
+                <div className="form-campo">
+                    <label><Hash size={14} /> Nro. Transacción / Recibo</label>
+                    <input 
+                        type="text" 
+                        placeholder="Ej: REC-001, 00123..." 
+                        value={nroRecibo}
+                        onChange={e => setNroRecibo(e.target.value)}
+                        disabled={guardando}
+                    />
+                </div>
               </div>
 
               {/* Detalle de Items */}
@@ -641,6 +654,16 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
 
                     return (
                       <div key={idx} style={{ background: 'var(--bg-glass)', borderRadius: '12px', border: '1px solid var(--border)', padding: '1rem', overflow: 'hidden' }}>
+                        {/* Labels de columnas solo en la primera línea */}
+                        {idx === 0 && (
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px 120px 120px 40px', gap: '1rem', marginBottom: '0.5rem' }}>
+                            <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-tertiary)', textTransform: 'uppercase' }}>Ítem</span>
+                            <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-tertiary)', textTransform: 'uppercase', textAlign: 'center' }}>Cant.</span>
+                            <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-tertiary)', textTransform: 'uppercase', textAlign: 'right' }}>P. Unitario</span>
+                            <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-tertiary)', textTransform: 'uppercase', textAlign: 'right' }}>Subtotal</span>
+                            <span></span>
+                          </div>
+                        )}
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px 120px 120px 40px', gap: '1rem', alignItems: 'center' }}>
                           <div className="form-campo" style={{ marginBottom: 0 }}>
                             <select
@@ -662,7 +685,16 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
                               value={linea.cantidad}
                               onChange={e => actualizarLinea(idx, { cantidad: parseInt(e.target.value) || 1 })}
                               disabled={guardando || esMensualidad}
-                              style={{ textAlign: 'center', border: 'none', background: 'rgba(255,255,255,0.03)', borderRadius: '6px' }}
+                              style={{ 
+                                textAlign: 'center', 
+                                border: '1px solid var(--border)', 
+                                background: 'rgba(255,255,255,0.07)', 
+                                borderRadius: '8px',
+                                padding: '0.6rem',
+                                width: '100%',
+                                fontSize: '1rem',
+                                color: 'var(--text-primary)'
+                              }}
                             />
                           </div>
 
@@ -672,7 +704,21 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
                               value={linea.precio_unitario || ''}
                               onChange={e => actualizarLinea(idx, { precio_unitario: parseFloat(e.target.value) || 0 })}
                               disabled={guardando}
-                              style={{ textAlign: 'right', border: 'none', background: 'rgba(255,255,255,0.03)', borderRadius: '6px', fontWeight: 700 }}
+                              placeholder="0.00"
+                              style={{ 
+                                textAlign: 'right', 
+                                border: '1px solid var(--border)', 
+                                background: 'rgba(255,255,255,0.07)', 
+                                borderRadius: '8px', 
+                                fontWeight: 700,
+                                padding: '0.6rem',
+                                width: '100%',
+                                fontSize: '1rem',
+                                color: 'var(--text-primary)',
+                                outline: 'none',
+                                transition: 'all 0.2s'
+                              }}
+                              className="input-precio-unitario"
                             />
                           </div>
 
@@ -825,12 +871,8 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
                                             <input type="number" step="0.01" value={montoPago} onChange={e => setMontoPago(e.target.value)} />
                                         </div>
                                         <div className="form-campo">
-                                            <label>Método</label>
-                                            <select value={metodoPago} onChange={e => setMetodoPago(e.target.value)}>
-                                                <option value="efectivo">Efectivo</option>
-                                                <option value="transferencia">Transferencia</option>
-                                                <option value="qr">QR</option>
-                                            </select>
+                                            <label><Hash size={14} /> Nro. Transacción</label>
+                                            <input type="text" value={cobroNroDoc} onChange={e => setCobroNroDoc(e.target.value)} placeholder="Ej: 00123..." />
                                         </div>
                                         <div className="form-campo full-width">
                                             <label>Caja o Banco de Ingreso</label>

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { supabase } from '../../lib/supabaseClient';
-import { X, ArrowRightLeft, DollarSign, Calendar, CreditCard, AlignLeft, Building2, AlertCircle, Save, RefreshCw } from 'lucide-react';
+import { X, ArrowRightLeft, DollarSign, Calendar, Hash, AlignLeft, Building2, AlertCircle, Save, RefreshCw } from 'lucide-react';
 import type { CuentaContable } from '../../types/finanzas';
 
 interface Props {
@@ -17,7 +17,7 @@ const ModalTransferencia: React.FC<Props> = ({ visible, cajas, onCerrar, onCread
   const [monto, setMonto] = useState('');
   const [fecha, setFecha] = useState(new Date().toISOString().split('T')[0]);
   const [descripcion, setDescripcion] = useState('Transferencia interna');
-  const [metodo, setMetodo] = useState('transferencia');
+  const [nroTransaccion, setNroTransaccion] = useState('');
   
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -67,7 +67,8 @@ const ModalTransferencia: React.FC<Props> = ({ visible, cajas, onCerrar, onCread
         usuario_id: user.id,
         fecha,
         descripcion,
-        metodo_pago: metodo
+        metodo_pago: 'transferencia',
+        nro_transaccion: nroTransaccion.trim() || null
       }).select().single();
 
       if (errAsiento || !asiento) throw new Error('Error al registrar el comprobante: ' + (errAsiento?.message || 'Error desconocido'));
@@ -173,12 +174,14 @@ const ModalTransferencia: React.FC<Props> = ({ visible, cajas, onCerrar, onCread
             </div>
 
             <div className="form-campo full-width" style={{ gridColumn: '1 / -1' }}>
-              <label><CreditCard size={14} /> Método de Transferencia *</label>
-              <select value={metodo} onChange={e => handleInputChange(setMetodo, e.target.value)} disabled={guardando}>
-                <option value="transferencia">Transferencia Bancaria</option>
-                <option value="efectivo">Efectivo</option>
-                <option value="qr">Código QR</option>
-              </select>
+              <label><Hash size={14} /> Nro. Transacción / Referencia</label>
+              <input
+                type="text"
+                value={nroTransaccion}
+                onChange={e => handleInputChange(setNroTransaccion, e.target.value)}
+                disabled={guardando}
+                placeholder="Ej: TRF-001234..."
+              />
             </div>
 
             <div className="form-campo full-width" style={{ gridColumn: '1 / -1' }}>

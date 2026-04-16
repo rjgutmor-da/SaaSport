@@ -14,7 +14,7 @@ import type { AlumnoDeuda } from '../../types/cxc';
 import {
   ChevronLeft, RefreshCw, Plus, Search,
   Users, AlertTriangle, DollarSign,
-  MessageCircle, CreditCard, FileText
+  MessageCircle, CreditCard, FileText, BookOpen
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
@@ -23,6 +23,7 @@ import FiltrosCxc from '../../components/cxc/FiltrosCxc';
 import NotaServicios from '../../components/cxc/NotaServicios';
 import DetalleAlumnoCxc from '../../components/cxc/DetalleAlumnoCxc';
 import ModalCobroRapido from '../../components/cxc/ModalCobroRapido';
+import ModalSaldoInicialCxC from '../../components/cxc/ModalSaldoInicialCxC';
 
 /** Formatea un número como moneda (Bs) */
 const fmtMonto = (n: number): string =>
@@ -56,6 +57,7 @@ const CuentasCobrar: React.FC = () => {
   // Modal cobro rápido desde la lista
   const [alumnoParaCobro, setAlumnoParaCobro] = useState<AlumnoDeuda | null>(null);
   const [mostrarCobroRapido, setMostrarCobroRapido] = useState(false);
+  const [mostrarSaldoInicial, setMostrarSaldoInicial] = useState(false);
 
   // Nombres de meses para cabecera de tabla
   const nombresMeses = [
@@ -217,6 +219,13 @@ const CuentasCobrar: React.FC = () => {
             onClick={() => { setAlumnoParaNota(null); setMostrarNota(true); }}
           >
             <Plus size={16} /> Nueva Nota
+          </button>
+          <button
+            className="btn-nueva-cuenta"
+            onClick={() => setMostrarSaldoInicial(true)}
+            style={{ background: '#f59e0b', borderColor: '#f59e0b' }}
+          >
+            <BookOpen size={16} /> Saldo Inicial
           </button>
           <button className="btn-refrescar" onClick={cargarDatos} disabled={cargando}>
             <RefreshCw size={18} className={cargando ? 'spin' : ''} />
@@ -436,6 +445,13 @@ const CuentasCobrar: React.FC = () => {
         visible={!!alumnoSeleccionado}
         onCerrar={() => setAlumnoSeleccionado(null)}
         onActualizar={cargarDatos}
+      />
+
+      {/* Modal: Saldo Inicial CxC */}
+      <ModalSaldoInicialCxC
+        visible={mostrarSaldoInicial}
+        onCerrar={() => setMostrarSaldoInicial(false)}
+        onCreado={() => { setMostrarSaldoInicial(false); cargarDatos(); }}
       />
     </main>
   );

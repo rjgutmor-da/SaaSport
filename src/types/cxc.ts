@@ -124,6 +124,7 @@ export interface AlumnoDeuda {
   asistencias_anterior: number;
   meses_permanencia_inicial?: number; // Datos legados
   ingresos_iniciales?: number;
+  fecha_inicio?: string;
 }
 
 /** Colores y etiquetas por estado */

@@ -22,6 +22,10 @@ const ICONOS_TIPO: Record<TipoCuenta, React.ReactNode> = {
   gasto: <Wallet size={16} />,
 };
 
+/** Formatea un número como moneda (Bs) */
+const fmtMonto = (n: number): string =>
+  n.toLocaleString('es-BO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
 const PlanCuentas: React.FC = () => {
   const navigate = useNavigate();
   const [cuentas, setCuentas] = useState<CuentaContable[]>([]);
@@ -30,6 +34,7 @@ const PlanCuentas: React.FC = () => {
   const [busqueda, setBusqueda] = useState('');
   const [filtroTipo, setFiltroTipo] = useState<TipoCuenta | 'todos'>('todos');
   const [expandidos, setExpandidos] = useState<Set<string>>(new Set());
+  const [saldos, setSaldos] = useState<Record<string, { debe: number, haber: number }>>({});
 
   // Estado del formulario
   const [mostrarForm, setMostrarForm] = useState(false);
@@ -110,6 +115,20 @@ const PlanCuentas: React.FC = () => {
       return;
     }
     setCuentas(data ?? []);
+    
+    // 2. Cargar saldos agrupados
+    const { data: dataSaldos } = await supabase
+      .from('movimientos_contables')
+      .select('cuenta_contable_id, debe, haber');
+
+    const mapaSaldos: Record<string, { debe: number, haber: number }> = {};
+    (dataSaldos ?? []).forEach(m => {
+      if (!mapaSaldos[m.cuenta_contable_id]) mapaSaldos[m.cuenta_contable_id] = { debe: 0, haber: 0 };
+      mapaSaldos[m.cuenta_contable_id].debe += Number(m.debe) || 0;
+      mapaSaldos[m.cuenta_contable_id].haber += Number(m.haber) || 0;
+    });
+    setSaldos(mapaSaldos);
+
     // Expandir automáticamente los primeros niveles
     const initialExpanded = new Set<string>();
     (data ?? []).forEach(c => {
@@ -139,6 +158,40 @@ const PlanCuentas: React.FC = () => {
     return lista;
   }, [cuentas, filtroTipo, busqueda]);
 
+  /** Calcula el saldo final (Debe/Haber o según naturaleza) incluyendo hijos */
+  const saldosCompletos = useMemo(() => {
+    const res: Record<string, number> = {};
+    
+    // Primero, saldos netos de cuentas transaccionales
+    cuentas.forEach(c => {
+      if (c.es_transaccional) {
+        const s = saldos[c.id] || { debe: 0, haber: 0 };
+        // Naturaleza: Activo y Gasto aumentan por el Debe. Pasivo, Patrimonio e Ingreso por el Haber.
+        if (c.tipo === 'activo' || c.tipo === 'gasto') {
+          res[c.codigo] = s.debe - s.haber;
+        } else {
+          res[c.codigo] = s.haber - s.debe;
+        }
+      } else {
+        res[c.codigo] = 0;
+      }
+    });
+
+    // Luego, sumar hacia los padres (de niveles profundos a niveles altos)
+    const codigosOrdenados = [...cuentas].map(c => c.codigo).sort((a, b) => b.length - a.length);
+    codigosOrdenados.forEach(cod => {
+      const partes = cod.split('.');
+      if (partes.length > 1) {
+        const padreCod = partes.slice(0, -1).join('.');
+        if (res[padreCod] !== undefined) {
+          res[padreCod] += res[cod] || 0;
+        }
+      }
+    });
+
+    return res;
+  }, [cuentas, saldos]);
+
   // Lista aplanada con visibilidad según expansión
   const listaVisible = useMemo(() => {
     const res: Array<CuentaContable & { nivel: number; tieneHijos: boolean; visible: boolean }> = [];
@@ -167,13 +220,19 @@ const PlanCuentas: React.FC = () => {
   }, [cuentasFiltradas, expandidos, busqueda]);
 
   const estadisticas = useMemo(() => {
-    return (Object.keys(ETIQUETAS_TIPO) as TipoCuenta[]).map(tipo => ({
-      tipo,
-      cantidad: cuentas.filter(c => c.tipo === tipo).length,
-      // Placeholder para total real en pesos si estuviera disponible en BD
-      total: 0 
-    }));
-  }, [cuentas]);
+    return (Object.keys(ETIQUETAS_TIPO) as TipoCuenta[]).map(tipo => {
+      // Sumar solo los niveles raíz para evitar duplicar montos
+      const totalRaiz = cuentas
+        .filter(c => c.tipo === tipo && c.codigo.split('.').length === 1)
+        .reduce((acc, curr) => acc + (saldosCompletos[curr.codigo] || 0), 0);
+
+      return {
+        tipo,
+        cantidad: cuentas.filter(c => c.tipo === tipo).length,
+        total: totalRaiz
+      };
+    });
+  }, [cuentas, saldosCompletos]);
 
   const eliminarCuenta = async (id: string, nombre: string) => {
     if (!window.confirm(`¿Estás seguro de que deseas eliminar la cuenta "${nombre}"? Esta acción no se puede deshacer.`)) return;
@@ -479,8 +538,8 @@ const PlanCuentas: React.FC = () => {
                     <td className="excel-td excel-cell-trans">
                       {cuenta.es_transaccional ? <span style={{ color: 'var(--success)' }}>✓ SI</span> : <span style={{ opacity: 0.3 }}>—</span>}
                     </td>
-                    <td className="excel-td excel-monto">
-                      0.00
+                    <td className="excel-td excel-monto" style={{ color: (saldosCompletos[cuenta.codigo] || 0) < 0 ? 'var(--danger)' : 'inherit' }}>
+                      {fmtMonto(saldosCompletos[cuenta.codigo] || 0)}
                     </td>
                     <td className="excel-td" style={{ textAlign: 'center' }}>
                       {cuenta.escuela_id === null ? (
