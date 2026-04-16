@@ -36,7 +36,6 @@ export const LEGACY_DATA: Record<string, LegacyStudentData> = {
   "diego meneses monroy": { totalIngresos: 26240, fechaInicio: "2022-08-10", mesesActividad: 42 },
   "ali moron espinoza": { totalIngresos: 2060, fechaInicio: "2022-08-11", mesesActividad: 3 },
   "said zeballos alvarez": { totalIngresos: 8660, fechaInicio: "2022-07-21", mesesActividad: 26 },
-  "nicolas barrios dipp": { totalIngresos: 25825, fechaInicio: "2022-07-21", mesesActividad: 46 },
   "lucas tellez romero": { totalIngresos: 26480, fechaInicio: "2022-08-22", mesesActividad: 41 },
   "pedro tellez romero": { totalIngresos: 10500, fechaInicio: "2022-08-22", mesesActividad: 31 },
   "nahuel parada comba": { totalIngresos: 22950, fechaInicio: "2022-09-01", mesesActividad: 41 },
