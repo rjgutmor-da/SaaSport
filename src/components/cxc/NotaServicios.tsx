@@ -88,6 +88,8 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
   const [montoPago, setMontoPago] = useState('');
   const [cobroNroDoc, setCobroNroDoc] = useState('');
   const [nroRecibo, setNroRecibo] = useState('');
+  const [cobroOriginalAsientoId, setCobroOriginalAsientoId] = useState<string | null>(null);
+  const [cobroMovimientoId, setCobroMovimientoId] = useState<string | null>(null);
 
   // Mensaje WhatsApp de recibo (se muestra tras crear/pagar exitosamente)
   const [mensajeWA, setMensajeWA] = useState<{ texto: string; telefono: string } | null>(null);
@@ -141,6 +143,36 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
       setLineas(cxcEditar.lineas.length > 0 ? cxcEditar.lineas : [lineaVacia()]);
       setObservaciones(cxcEditar.observaciones || '');
       setVencimiento(cxcEditar.vencimiento || '');
+
+      // CARGAR COBRO SI EXISTE
+      const cargarCobro = async () => {
+        const { data: cobros } = await supabase.from('cobros_aplicados')
+          .select('*, asientos_contables(*)')
+          .eq('cuenta_cobrar_id', cxcEditar.id)
+          .limit(1);
+
+        if (cobros && cobros.length > 0) {
+          const c = cobros[0];
+          setCobroOriginalAsientoId(c.asiento_id);
+          setPagarAlCrear(true);
+          setMontoPago(String(c.monto_aplicado));
+          setMetodoPago(c.asientos_contables?.metodo_pago || 'efectivo');
+          setCobroNroDoc(c.asientos_contables?.documento_referencia || '');
+          
+          // Buscar la cuenta de caja/banco en ese asiento (donde hubo entrada de dinero)
+          const { data: mv } = await supabase.from('movimientos_contables')
+            .select('id, cuenta_contable_id')
+            .eq('asiento_id', c.asiento_id)
+            .gt('debe', 0)
+            .limit(1);
+          
+          if (mv && mv.length > 0) {
+            setCobroMovimientoId(mv[0].id);
+            setCuentaCobroId(mv[0].cuenta_contable_id);
+          }
+        }
+      };
+      cargarCobro();
     } else {
       setAlumnoId(alumnoPreseleccionado?.id || '');
       setLineas([lineaVacia()]);
@@ -153,6 +185,8 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
     setMontoPago('');
     setCobroNroDoc('');
     setNroRecibo('');
+    setCobroOriginalAsientoId(null);
+    setCobroMovimientoId(null);
     setError(null);
     setExito(null);
     setMensajeWA(null);
@@ -341,13 +375,27 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
       await supabase.from('cxc_detalle').insert(detalles);
 
 
-      // Registrar auditoría
       await registrarAudit(ctx, 'editar', cxcEditar.id, {
         cliente: cxcEditar.alumno_nombre,
         descripcion: descripcionAuto,
         monto_total: montoTotal,
         items: lineasValidas.map(l => l.nombre),
       });
+
+      // SI SE CAMBIÓ LA CAJA/BANCO DE UN PAGO EXISTENTE
+      if (cobroMovimientoId && cuentaCobroId) {
+        // Usamos el RPC especializado para evitar problemas de inmutabilidad y permisos
+        await supabase.rpc('rpc_editar_movimiento_financiero', {
+            p_payload: {
+                movimiento_id: cobroMovimientoId,
+                cuenta_id: cuentaCobroId,
+                monto: parseFloat(montoPago),
+                fecha: vencimiento || new Date().toISOString().split('T')[0],
+                descripcion: `Pago Recibo: ${descripcionAuto}`,
+                nro_transaccion: cobroNroDoc || null
+            }
+        });
+      }
 
       setExito('✅ Nota de Servicios actualizada.');
       setGuardando(false);
@@ -866,18 +914,28 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
               <div style={{ background: 'var(--bg-glass)', borderRadius: '16px', border: '1px solid var(--border)', padding: '1.5rem', marginTop: '2rem' }}>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 200px', gap: '2rem', alignItems: 'center' }}>
                     <div>
-                        {!esEdicion && (
-                            <div style={{ border: 'none', background: 'transparent', padding: 0 }}>
-                                <label style={{ border: '1px solid var(--border)', padding: '0.75rem 1rem', borderRadius: '10px', display: 'inline-flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
-                                    <input
-                                        type="checkbox"
-                                        checked={pagarAlCrear}
-                                        onChange={e => setPagarAlCrear(e.target.checked)}
-                                        disabled={guardando}
-                                    />
-                                    <CreditCard size={16} />
-                                    <span style={{ fontWeight: 700 }}>¿Registrar pago inmediato?</span>
-                                </label>
+              <div style={{ border: 'none', background: 'transparent', padding: 0 }}>
+                <label style={{ 
+                  border: '1px solid var(--border)', 
+                  padding: '0.75rem 1rem', 
+                  borderRadius: '10px', 
+                  display: 'inline-flex', 
+                  alignItems: 'center', 
+                  gap: '0.5rem', 
+                  cursor: cobroOriginalAsientoId ? 'default' : 'pointer',
+                  opacity: cobroOriginalAsientoId ? 0.8 : 1
+                }}>
+                  <input
+                    type="checkbox"
+                    checked={pagarAlCrear}
+                    onChange={e => !cobroOriginalAsientoId && setPagarAlCrear(e.target.checked)}
+                    disabled={guardando || !!cobroOriginalAsientoId}
+                  />
+                  <CreditCard size={16} />
+                  <span style={{ fontWeight: 700 }}>
+                    {cobroOriginalAsientoId ? 'Información del Pago Registrado' : '¿Registrar pago inmediato?'}
+                  </span>
+                </label>
 
                                 {pagarAlCrear && (
                                     <div style={{ marginTop: '1rem', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
