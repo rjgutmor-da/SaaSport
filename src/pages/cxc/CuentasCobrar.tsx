@@ -95,7 +95,7 @@ const CuentasCobrar: React.FC = () => {
 
     const { data, error: err } = await supabase
       .from('v_alumnos_deuda')
-      .select('*')
+      .select('*, fecha_nacimiento')
       .eq('escuela_id', escuelaId);
 
     if (err) {
