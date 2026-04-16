@@ -32,6 +32,7 @@ interface Movimiento {
   cuenta_contable_id: string;
   debe: number;
   haber: number;
+  conciliado: boolean;
   cuenta?: { codigo: string; nombre: string; tipo: TipoCuenta };
 }
 
