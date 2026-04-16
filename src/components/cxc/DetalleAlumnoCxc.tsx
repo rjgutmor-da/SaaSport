@@ -11,6 +11,7 @@ import type { AlumnoDeuda, CuentaCobrar, CxcDetalle, LineaNota } from '../../typ
 import type { CuentaContable } from '../../types/finanzas';
 import { AlertCircle, Check, CreditCard, Pencil, Ban, MessageCircle, X, Calendar } from 'lucide-react';
 import NotaServicios from './NotaServicios';
+import { LEGACY_DATA } from '../../lib/legacyData';
 
 /** Props del componente */
 interface DetalleAlumnoProps {
@@ -66,7 +67,8 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
   const [datosAdicionales, setDatosAdicionales] = useState({
     fechaInicio: '—',
     cantidadMeses: 0,
-    totalHistorico: 0
+    totalHistorico: 0,
+    fechaNacimiento: ''
   });
   
   // Edición de un cobro específico
@@ -146,13 +148,19 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
           .select('monto_aplicado')
           .in('cuenta_cobrar_id', dataCxc.map(c => c.id));
 
-        const totalHistorico = (resIngresos ?? []).reduce((acc, curr) => acc + Number(curr.monto_aplicado), 0);
+        const totalHistoricoSaaSport = (resIngresos ?? []).reduce((acc, curr) => acc + Number(curr.monto_aplicado), 0);
 
-        // Obtener fecha_inicio manual del alumno
-        const { data: alumBase } = await supabase.from('alumnos').select('fecha_inicio').eq('id', alumno.alumno_id).single();
-        const fechaManual = alumBase?.fecha_inicio;
+        // Obtener datos base del alumno de la DB
+        const { data: alumBase } = await supabase.from('alumnos')
+          .select('fecha_inicio, created_at, ingresos_iniciales, meses_permanencia_inicial, fecha_nacimiento')
+          .eq('id', alumno.alumno_id)
+          .single();
 
-        // Primera mensualidad y cantidad de meses
+        // Buscar en datos Legacy (Manuales pasados por el usuario)
+        const nombreCompleto = `${alumno.nombres} ${alumno.apellidos}`.toLowerCase().trim();
+        const dataLegacy = LEGACY_DATA[nombreCompleto];
+
+        // Primera mensualidad y cantidad de meses en SaaSport
         const { data: detMensualidades } = await supabase
           .from('cxc_detalle')
           .select(`
@@ -163,26 +171,53 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
           .in('cuenta_cobrar_id', dataCxc.map(c => c.id))
           .ilike('catalogo_items.nombre', '%mensualidad%');
 
-        let primeraFecha: Date | null = null;
-        let mesesUnicos = new Set<string>();
+        let primeraFechaSaaSport: Date | null = null;
+        let mesesUnicosSaaSport = new Set<string>();
 
         (detMensualidades ?? []).forEach((d: any) => {
           const fecha = new Date(d.cuenta_cobrar.fecha_emision);
-          if (!primeraFecha || fecha < primeraFecha) primeraFecha = fecha;
+          if (!primeraFechaSaaSport || fecha < primeraFechaSaaSport) primeraFechaSaaSport = fecha;
           
           if (d.periodo_meses && Array.isArray(d.periodo_meses)) {
-            d.periodo_meses.forEach((m: string) => mesesUnicos.add(m));
+            d.periodo_meses.forEach((m: string) => mesesUnicosSaaSport.add(m));
           }
         });
 
+        // Lógica de Prioridad para Fecha de Inicio:
+        // 1. Datos Legacy proporcionados por el usuario.
+        // 2. Campo fecha_inicio manual en la ficha del alumno.
+        // 3. Fecha de creación en AsiSport (created_at).
+        // 4. Primera mensualidad registrada en SaaSport.
+        let fInicioFinal = '—';
+        if (dataLegacy?.fechaInicio) {
+          fInicioFinal = fmtFecha(dataLegacy.fechaInicio);
+        } else if (alumBase?.fecha_inicio) {
+          fInicioFinal = fmtFecha(alumBase.fecha_inicio);
+        } else if (alumBase?.created_at) {
+          fInicioFinal = fmtFecha(alumBase.created_at);
+        } else if (primeraFechaSaaSport) {
+          fInicioFinal = fmtFecha((primeraFechaSaaSport as any).toISOString());
+        }
+
+        // Lógica para Meses de Actividad:
+        // Legacy + lo que tenga en DB (permanencia inicial) + meses únicos en SaaSport
+        const mesesLegacy = dataLegacy?.mesesActividad || 0;
+        const mesesPermanenciaDB = Number(alumBase?.meses_permanencia_inicial) || 0;
+        const mesesSaaSport = mesesUnicosSaaSport.size;
+
+        // Lógica para Total Ingresos:
+        // Legacy (si existe, asumo que ya incluye ingresos_iniciales de la DB) + ingresos registrados en SaaSport
+        const ingresosLegacy = dataLegacy?.totalIngresos || Number(alumBase?.ingresos_iniciales) || 0;
+        
         setDatosAdicionales({
-          fechaInicio: fechaManual ? fmtFecha(fechaManual) : (primeraFecha ? fmtFecha((primeraFecha as any).toISOString()) : '—'),
-          cantidadMeses: mesesUnicos.size + (Number(alumno.meses_permanencia_inicial) || 0),
-          totalHistorico: totalHistorico + (Number(alumno.ingresos_iniciales) || 0)
+          fechaInicio: fInicioFinal,
+          cantidadMeses: mesesLegacy + mesesPermanenciaDB + mesesSaaSport,
+          totalHistorico: ingresosLegacy + totalHistoricoSaaSport,
+          fechaNacimiento: alumBase?.fecha_nacimiento || alumno.fecha_nacimiento || ''
         });
       };
 
-      if (dataCxc.length > 0) cargarAdicionales();
+      cargarAdicionales();
     };
     cargar();
 
@@ -508,9 +543,9 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
       <div className="cxc-modal-overlay" onClick={() => { if (!guardandoCobro) onCerrar(); }}>
         <div className="cxc-modal cxc-modal--detalle cxc-modal--wide" onClick={e => e.stopPropagation()}>
           {/* Cabecera */}
-          <div className="cxc-modal-header">
-            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', minWidth: 0 }}>
-              <div className="cxc-alumno-avatar" style={{ width: '42px', height: '42px', borderRadius: '50%', flexShrink: 0, fontSize: '0.95rem' }}>
+          <div className="cxc-modal-header" style={{ borderLeft: '8px solid var(--primary)', paddingLeft: '1.5rem' }}>
+            <div className="cxc-modal-header-info" style={{ display: 'flex', alignItems: 'center', gap: '1.2rem', overflow: 'hidden' }}>
+              <div className="cxc-alumno-avatar" style={{ width: '56px', height: '56px', fontSize: '1.3rem', borderRadius: '14px', flexShrink: 0 }}>
                 {alumno.nombres[0]}{alumno.apellidos[0]}
               </div>
               <div style={{ minWidth: 0 }}>
@@ -520,7 +555,9 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                 <div className="cxc-modal-meta-line">
                   {alumno.sucursal_nombre && <span>📍 {alumno.sucursal_nombre}</span>}
                   {alumno.entrenador_nombre && <span>👨‍🏫 {alumno.entrenador_nombre}</span>}
-                  {alumno.cancha_nombre && <span>🏟️ {alumno.cancha_nombre}</span>}
+                  {datosAdicionales.fechaNacimiento && (
+                    <span>🏆 Sub {new Date().getFullYear() - parseInt(datosAdicionales.fechaNacimiento.split('-')[0])}</span>
+                  )}
                   {alumno.horario_hora && <span>🕐 {alumno.horario_hora}</span>}
                 </div>
               </div>
@@ -566,7 +603,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                 {datosAdicionales.cantidadMeses} <small>Meses</small>
               </span>
               <div className="resumen-footer">
-                <Check size={12} /> Permanencia total
+                <Check size={12} /> Financiera
               </div>
             </div>
 
