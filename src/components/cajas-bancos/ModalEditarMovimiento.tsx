@@ -69,10 +69,16 @@ const ModalEditarMovimiento: React.FC<Props> = ({ visible, movimiento, cajas, on
     if (isNaN(valorMonto) || valorMonto <= 0) { setError('Ingrese un monto válido mayor a 0.'); return; }
     if (!fecha) { setError('Debe seleccionar una fecha.'); return; }
     if (!descripcion.trim()) { setError('Ingrese una descripción.'); return; }
-
     setGuardando(true);
 
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      let userRol = '';
+      if (user) {
+        const { data: usrData } = await supabase.from('usuarios').select('rol').eq('id', user.id).single();
+        userRol = usrData?.rol || '';
+      }
+
       const { data, error: rpcErr } = await supabase.rpc('rpc_editar_movimiento_financiero', {
         p_payload: {
           movimiento_id: movimiento.id,
@@ -80,7 +86,8 @@ const ModalEditarMovimiento: React.FC<Props> = ({ visible, movimiento, cajas, on
           monto: valorMonto,
           fecha: fecha,
           descripcion: descripcion.trim(),
-          nro_transaccion: nroTransaccion.trim() || null
+          nro_transaccion: nroTransaccion.trim() || null,
+          rol_usuario: userRol
         }
       });
 

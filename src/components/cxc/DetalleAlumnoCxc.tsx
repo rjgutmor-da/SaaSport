@@ -11,6 +11,7 @@ import type { AlumnoDeuda, CuentaCobrar, CxcDetalle, LineaNota } from '../../typ
 import type { CuentaContable } from '../../types/finanzas';
 import { AlertCircle, Check, CreditCard, Pencil, Ban, MessageCircle, X, Calendar } from 'lucide-react';
 import NotaServicios from './NotaServicios';
+import ModalEditarMovimiento from '../cajas-bancos/ModalEditarMovimiento';
 import { LEGACY_DATA } from '../../lib/legacyData';
 
 /** Props del componente */
@@ -71,7 +72,10 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
     fechaNacimiento: ''
   });
   
-  // Edición de un cobro específico
+  // Edición de un cobro específico (Modal Completo)
+  const [movEditar, setMovEditar] = useState<any | null>(null);
+
+  // Variables deprecated de edición simple (por si acaso pero ya no se usan)
   const [cobroEditandoId, setCobroEditandoId] = useState<string | null>(null);
   const [cobroEditCuentaId, setCobroEditCuentaId] = useState('');
   const [cobroEditDoc, setCobroEditDoc] = useState('');
@@ -818,60 +822,48 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                                       <h4 style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.5rem', textTransform: 'uppercase' }}>Historial de Pagos</h4>
                                       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                                         {cobros.map(cobro => {
-                                          const isEditing = cobroEditandoId === cobro.id;
                                           return (
                                             <div key={cobro.id} style={{ background: 'var(--input-bg)', padding: '0.75rem', borderRadius: '6px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap' }}>
-                                              {isEditing ? (
-                                                <div style={{ display: 'flex', gap: '0.5rem', flex: 1, alignItems: 'center' }}>
-                                                  <select
-                                                    value={cobroEditCuentaId}
-                                                    onChange={e => setCobroEditCuentaId(e.target.value)}
-                                                    disabled={guardandoEdicionCobro}
-                                                    className="detalle-cobro-select"
-                                                    style={{ flex: 1 }}
-                                                  >
-                                                    <option value="">Caja/Banco</option>
-                                                    {cuentasCobro.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-                                                  </select>
-                                                  <input
-                                                    type="text"
-                                                    placeholder="Nro. Comprobante"
-                                                    value={cobroEditDoc}
-                                                    onChange={e => setCobroEditDoc(e.target.value)}
-                                                    disabled={guardandoEdicionCobro}
-                                                    className="detalle-cobro-input"
-                                                    style={{ flex: 1 }}
-                                                  />
-                                                  <button className="btn-guardar-cuenta" onClick={() => guardarEdicionCobro(cobro)} disabled={guardandoEdicionCobro} style={{ padding: '0.4rem 0.6rem'}}>
-                                                    {guardandoEdicionCobro ? '...' : 'Guardar'}
-                                                  </button>
-                                                  <button onClick={() => setCobroEditandoId(null)} disabled={guardandoEdicionCobro} style={{ background: 'var(--border-color)', color: 'var(--text-color)', padding: '0.4rem 0.6rem', borderRadius: '4px', border: 'none', cursor: 'pointer' }}>
-                                                    Cancelar
-                                                  </button>
-                                                </div>
-                                              ) : (
-                                                <>
-                                                  <div style={{flex: 1}}>
-                                                    <strong style={{ display: 'block', fontSize: '0.85rem' }}>Bs {fmtMonto(Number(cobro.monto_aplicado))}</strong>
-                                                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                                                      {fmtFecha(cobro.fecha)} — {cobro.asientos_contables?.metodo_pago}
-                                                      {cobro.asientos_contables?.documento_referencia ? ` | ${cobro.asientos_contables.documento_referencia}` : ''}
-                                                    </span>
-                                                  </div>
-                                                  {(userRol === 'SuperAdministrador' || userRol === 'Dueño' || userRol === 'Administrador' || userRol === 'admin') && (
-                                                    <button
-                                                      onClick={() => {
-                                                        setCobroEditandoId(cobro.id);
-                                                        setCobroEditDoc(cobro.asientos_contables?.documento_referencia || '');
-                                                        setCobroEditCuentaId(''); 
-                                                      }}
-                                                      style={{ background: 'none', border: 'none', color: 'var(--secondary)', cursor: 'pointer', padding: '0.25rem' }}
-                                                      title="Editar forma de pago"
-                                                    >
-                                                      <Pencil size={14} />
-                                                    </button>
-                                                  )}
-                                                </>
+                                              <div style={{flex: 1}}>
+                                                <strong style={{ display: 'block', fontSize: '0.85rem' }}>Bs {fmtMonto(Number(cobro.monto_aplicado))}</strong>
+                                                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                                                  {fmtFecha(cobro.fecha)} — {cobro.asientos_contables?.metodo_pago}
+                                                  {cobro.asientos_contables?.documento_referencia ? ` | ${cobro.asientos_contables.documento_referencia}` : ''}
+                                                </span>
+                                              </div>
+                                              {(userRol === 'SuperAdministrador' || userRol === 'Dueño' || userRol === 'Administrador' || userRol === 'admin') && (
+                                                <button
+                                                  onClick={async () => {
+                                                    // 1. Obtener la contrapartida de caja (donde hubo el debe > 0 en ese asiento)
+                                                    const { data: mvData } = await supabase.from('movimientos_contables')
+                                                      .select('*, cuenta:plan_cuentas(nombre)')
+                                                      .eq('asiento_id', cobro.asientos_contables.id)
+                                                      .gt('debe', 0)
+                                                      .limit(1)
+                                                      .single();
+
+                                                    if (mvData) {
+                                                      setMovEditar({
+                                                        id: mvData.id,
+                                                        debe: Number(mvData.debe),
+                                                        haber: Number(mvData.haber),
+                                                        fecha: cobro.asientos_contables.fecha,
+                                                        descripcion: cobro.asientos_contables.descripcion || '',
+                                                        nro_transaccion: cobro.asientos_contables.nro_transaccion || cobro.asientos_contables.documento_referencia || '',
+                                                        asiento_id: cobro.asientos_contables.id,
+                                                        cuenta_id: mvData.cuenta_contable_id,
+                                                        cuenta_nombre: mvData.cuenta?.nombre || '',
+                                                        conciliado: mvData.conciliado || false
+                                                      });
+                                                    } else {
+                                                      alert('No se pudo encontrar el movimiento original en Caja y Bancos.');
+                                                    }
+                                                  }}
+                                                  style={{ background: 'none', border: 'none', color: 'var(--secondary)', cursor: 'pointer', padding: '0.25rem' }}
+                                                  title="Editar detalles del pago"
+                                                >
+                                                  <Pencil size={14} />
+                                                </button>
                                               )}
                                             </div>
                                           );
@@ -913,6 +905,24 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
             });
         }}
         cxcEditar={cxcParaEditar}
+      />
+
+      {/* Modal para editar abonos/pagos */}
+      <ModalEditarMovimiento
+        visible={!!movEditar}
+        movimiento={movEditar}
+        cajas={cuentasCobro}
+        onCerrar={() => setMovEditar(null)}
+        onGuardado={() => {
+          setMovEditar(null);
+          onActualizar();
+          if (expandida) {
+            // Recargar detalles y cobros de la nota actual (si está expandida)
+            cargarDetalle(expandida);
+            // Hacer que se reabra el detalle porque cargarDetalle es un toggle
+            setExpandida(expandida); 
+          }
+        }}
       />
     </>
   );
