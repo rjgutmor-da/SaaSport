@@ -957,7 +957,6 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
                                     </div>
                                 )}
                             </div>
-                        )}
                     </div>
 
                     <div style={{ textAlign: 'right' }}>
