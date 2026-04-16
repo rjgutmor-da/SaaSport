@@ -38,6 +38,7 @@ const CajasBancos: React.FC = () => {
 
   // Aux
   const [escuelaId, setEscuelaId] = useState<string | null>(null);
+  const [userRol, setUserRol] = useState<string>('');
   
   // Estados para formularios activos
   const [activeForm, setActiveForm] = useState<'ingreso' | 'salida' | 'transferencia' | null>(null);
@@ -51,9 +52,11 @@ const CajasBancos: React.FC = () => {
     if (!user) return null;
     const { data } = await supabase
       .from('usuarios')
-      .select('escuela_id')
+      .select('escuela_id, rol')
       .eq('id', user.id)
       .single();
+    
+    if (data?.rol) setUserRol(data.rol);
     return data?.escuela_id ?? null;
   }, []);
 
@@ -95,12 +98,25 @@ const CajasBancos: React.FC = () => {
 
     const idsCajas = listCajas.map((c: any) => c.id);
 
-    // 2. Cargar movimientos de esas cuentas
+    // 2. Cargar movimientos de esas cuentas con detalles de alumnos/proveedores
     const { data: dataMovs, error: errMovs } = await supabase
       .from('movimientos_contables')
       .select(`
         id, debe, haber, cuenta_contable_id, conciliado,
-        asientos_contables(id, fecha, descripcion, nro_transaccion)
+        asientos_contables(
+          id, fecha, descripcion, nro_transaccion,
+          cobros_aplicados(
+            cuenta_cobrar:cuentas_cobrar(
+              alumno:alumnos(nombres, apellidos)
+            )
+          ),
+          pagos_aplicados(
+            cuenta_pagar:cuentas_pagar(
+              proveedor:proveedores(nombre),
+              personal:personal(nombres, apellidos)
+            )
+          )
+        )
       `)
       .in('cuenta_contable_id', idsCajas)
       .order('created_at', { ascending: false });
@@ -111,18 +127,38 @@ const CajasBancos: React.FC = () => {
       return;
     }
 
-    const movsList: MovimientoExtendido[] = (dataMovs ?? []).map((m: any) => ({
-      id: m.id,
-      debe: Number(m.debe),
-      haber: Number(m.haber),
-      fecha: m.asientos_contables?.fecha,
-      descripcion: m.asientos_contables?.descripcion || 'Sin descripción',
-      nro_transaccion: m.asientos_contables?.nro_transaccion || '',
-      asiento_id: m.asientos_contables?.id,
-      cuenta_id: m.cuenta_contable_id,
-      cuenta_nombre: listCajas.find((c: any) => c.id === m.cuenta_contable_id)?.nombre || 'Desconocida',
-      conciliado: m.conciliado || false
-    })).sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime());
+    const movsList: MovimientoExtendido[] = (dataMovs ?? []).map((m: any) => {
+      const asiento = m.asientos_contables;
+      let descDinamica = asiento?.descripcion || 'Sin descripción';
+
+      // 1. Verificar si es un Cobro (Alumno)
+      const cobro = asiento?.cobros_aplicados?.[0]?.cuenta_cobrar;
+      if (cobro?.alumno) {
+        descDinamica = `Pago de: ${cobro.alumno.nombres} ${cobro.alumno.apellidos}`;
+      } 
+      // 2. Verificar si es un Pago (Proveedor o Personal)
+      else {
+        const pago = asiento?.pagos_aplicados?.[0]?.cuenta_pagar;
+        if (pago?.proveedor) {
+          descDinamica = `Pago a: ${pago.proveedor.nombre}`;
+        } else if (pago?.personal) {
+          descDinamica = `Pago a: ${pago.personal.nombres} ${pago.personal.apellidos}`;
+        }
+      }
+
+      return {
+        id: m.id,
+        debe: Number(m.debe),
+        haber: Number(m.haber),
+        fecha: asiento?.fecha,
+        descripcion: descDinamica,
+        nro_transaccion: asiento?.nro_transaccion || '',
+        asiento_id: asiento?.id,
+        cuenta_id: m.cuenta_contable_id,
+        cuenta_nombre: listCajas.find((c: any) => c.id === m.cuenta_contable_id)?.nombre || 'Desconocida',
+        conciliado: m.conciliado || false
+      };
+    }).sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime());
 
     setMovimientos(movsList);
     setCargando(false);
@@ -371,13 +407,13 @@ const CajasBancos: React.FC = () => {
           <table className="cxc-tabla">
             <thead>
               <tr>
-                <th className="cxc-th">Fecha</th>
-                <th className="cxc-th">Cuenta</th>
+                <th className="cxc-th" style={{ width: '100px' }}>Fecha</th>
+                <th className="cxc-th" style={{ width: '180px' }}>Cuenta</th>
                 <th className="cxc-th">Descripción</th>
-                <th className="cxc-th cxc-th-center">Nro. Transacción</th>
-                <th className="cxc-th cxc-th-right">Ingreso (Debe)</th>
-                <th className="cxc-th cxc-th-right">Egreso (Haber)</th>
-                <th className="cxc-th cxc-th-center">Conciliado</th>
+                <th className="cxc-th cxc-th-center" style={{ width: '150px' }}>Nro. Transacción</th>
+                <th className="cxc-th cxc-th-right" style={{ width: '140px' }}>Ingreso (Debe)</th>
+                <th className="cxc-th cxc-th-right" style={{ width: '140px' }}>Egreso (Haber)</th>
+                <th className="cxc-th cxc-th-center" style={{ width: '100px' }}>Conciliado</th>
                 <th className="cxc-th cxc-th-center" style={{ width: '60px' }}></th>
               </tr>
             </thead>
