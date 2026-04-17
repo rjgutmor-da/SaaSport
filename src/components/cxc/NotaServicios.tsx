@@ -110,11 +110,14 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
       const { data: { user } } = await supabase.auth.getUser();
       let esAdmin = false;
       let userSucursal = '';
+      let escuelaId = '';
+
       if (user) {
         const { data: usr } = await supabase.from('usuarios')
-          .select('rol, sucursal_id').eq('id', user.id).single();
+          .select('rol, sucursal_id, escuela_id').eq('id', user.id).single();
         esAdmin = usr?.rol === 'SuperAdministrador' || usr?.rol === 'Dueño';
         userSucursal = usr?.sucursal_id || '';
+        escuelaId = usr?.escuela_id || '';
       }
 
       let qCuentas = supabase.from('plan_cuentas').select('id, codigo, nombre')
@@ -133,11 +136,11 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
         qCuentas.order('codigo'),
         supabase.from('plan_cuentas').select('id, codigo, nombre')
           .eq('es_transaccional', true).in('tipo', ['ingreso', 'pasivo'])
-          .or(`escuela_id.eq.${usr.escuela_id},escuela_id.is.null`)
+          .or(`escuela_id.eq.${escuelaId},escuela_id.is.null`)
           .order('nombre'),
         supabase.from('plan_cuentas').select('id, codigo')
           .in('codigo', ['2.1.5', '1.1.2'])
-          .or(`escuela_id.eq.${usr.escuela_id},escuela_id.is.null`),
+          .or(`escuela_id.eq.${escuelaId},escuela_id.is.null`),
       ]);
       setAlumnos(resAlum.data ?? []);
       setCatalogo(resCat.data ?? []);
