@@ -48,10 +48,12 @@ const PlanCuentas: React.FC = () => {
   const [formExito, setFormExito] = useState<string | null>(null);
 
   // Estado del formulario de edición
-  const [cuentaEditando, setCuentaEditando] = useState<CuentaContable | null>(null);
+  const [idEnEdicion, setIdEnEdicion] = useState<string | null>(null);
   const [editNombre, setEditNombre] = useState('');
+  const [editCodigo, setEditCodigo] = useState('');
   const [editTransaccional, setEditTransaccional] = useState(true);
   const [guardandoEdit, setGuardandoEdit] = useState(false);
+  const [formCreandoPadre, setFormCreandoPadre] = useState<string | null>(null); // código del padre donde se crea
 
   // Lista de cuentas que pueden ser padres (no transaccionales y de nivel 2 o superior)
   const cuentasPadre = useMemo(() => {
@@ -266,14 +268,23 @@ const PlanCuentas: React.FC = () => {
     e.preventDefault();
     setFormError(null);
     setFormExito(null);
-    if (!formCodigo.trim() || !formNombre.trim()) { setFormError('Requerido.'); return; }
+    const cod = formCodigo.trim();
+    const nom = formNombre.trim();
+    if (!cod || !nom) { setFormError('Requerido.'); return; }
+
+    // Evitar duplicados
+    if (cuentas.some(c => c.codigo === cod)) {
+      setFormError(`El código "${cod}" ya existe en el plan de cuentas.`);
+      return;
+    }
+
     setGuardando(true);
     const { data: { user } } = await supabase.auth.getUser();
     const { data: userData } = await supabase.from('usuarios').select('escuela_id').eq('id', user?.id).single();
     const { error: insertErr } = await supabase.from('plan_cuentas').insert({
       escuela_id: userData?.escuela_id,
-      codigo: formCodigo.trim(),
-      nombre: formNombre.trim(),
+      codigo: cod,
+      nombre: nom,
       tipo: formTipo,
       es_transaccional: formTransaccional,
     });
@@ -281,34 +292,44 @@ const PlanCuentas: React.FC = () => {
     setFormExito('Cuenta creada correctamente.');
     setFormCodigo(''); setFormNombre(''); setPadreCodigo('');
     setGuardando(false);
+    setFormCreandoPadre(null);
     cargarCuentas();
     // Opcional: ocultar form tras éxito
-    setTimeout(() => setMostrarForm(false), 2000);
+    setTimeout(() => { setMostrarForm(false); setFormExito(null); }, 2000);
   };
 
-  const abrirModalEdicion = (cuenta: CuentaContable) => {
-    setCuentaEditando(cuenta);
+  const abrirEdicionInSitu = (cuenta: CuentaContable) => {
+    setIdEnEdicion(cuenta.id);
     setEditNombre(cuenta.nombre);
+    setEditCodigo(cuenta.codigo);
     setEditTransaccional(cuenta.es_transaccional);
   };
 
   const guardarEdicionCuenta = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!cuentaEditando || !editNombre.trim()) return;
+    if (!idEnEdicion || !editNombre.trim() || !editCodigo.trim()) return;
+
+    // Evitar duplicados (excluyendo la cuenta actual)
+    if (cuentas.some(c => c.codigo === editCodigo.trim() && c.id !== idEnEdicion)) {
+      alert(`El código "${editCodigo.trim()}" ya está en uso por otra cuenta.`);
+      return;
+    }
+
     setGuardandoEdit(true);
 
     const { error: updateErr } = await supabase
       .from('plan_cuentas')
       .update({
+        codigo: editCodigo.trim(),
         nombre: editNombre.trim(),
         es_transaccional: editTransaccional,
       })
-      .eq('id', cuentaEditando.id);
+      .eq('id', idEnEdicion);
 
     if (updateErr) {
       alert(`Error al actualizar: ${updateErr.message}`);
     } else {
-      setCuentaEditando(null);
+      setIdEnEdicion(null);
       cargarCuentas();
     }
     setGuardandoEdit(false);
@@ -335,7 +356,9 @@ const PlanCuentas: React.FC = () => {
         </div>
       </div>
 
-      {mostrarForm && (
+      {/* El formulario superior se mantiene solo si se activa desde el botón global, 
+          pero ahora favorecemos la creación in-situ mediante botones en la tabla */}
+      {mostrarForm && !formCreandoPadre && (
         <section className="cxc-card" style={{ marginBottom: '1.5rem', padding: '1.5rem' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
             <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 600 }}>Registrar Nueva Cuenta</h3>
@@ -418,48 +441,6 @@ const PlanCuentas: React.FC = () => {
         </section>
       )}
 
-      {/* ─── Formulario de Edición ─── */}
-      {cuentaEditando && (
-        <section className="cxc-card" style={{ marginBottom: '1.5rem', padding: '1.5rem', background: 'var(--bg-panel)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-            <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 600 }}>Editar Cuenta: {cuentaEditando.codigo}</h3>
-            <button className="btn-close" onClick={() => setCuentaEditando(null)}><X size={18} /></button>
-          </div>
-
-          <form onSubmit={guardarEdicionCuenta}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '1rem', marginBottom: '1rem', alignItems: 'end' }}>
-              <div className="form-campo">
-                <label style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '4px', display: 'block' }}>Nombre de la Cuenta</label>
-                <input 
-                  type="text" 
-                  value={editNombre} 
-                  onChange={e => setEditNombre(e.target.value)} 
-                  required 
-                  style={{ width: '100%', padding: '0.6rem', borderRadius: '8px', border: '1px solid var(--border)' }}
-                />
-              </div>
-
-              <div className="form-campo" style={{ paddingBottom: '0.6rem' }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.9rem' }}>
-                  <input 
-                    type="checkbox" 
-                    checked={editTransaccional} 
-                    onChange={e => setEditTransaccional(e.target.checked)}
-                    style={{ width: '18px', height: '18px' }}
-                  /> 
-                  <strong>Es Transaccional</strong>
-                </label>
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', alignItems: 'center' }}>
-              <button type="submit" className="btn-guardar-cuenta" disabled={guardandoEdit} style={{ padding: '0.7rem 1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <Check size={18} /> {guardandoEdit ? 'Guardando...' : 'Guardar Cambios'}
-              </button>
-            </div>
-          </form>
-        </section>
-      )}
 
       {/* ─── Tarjetas de Resumen (Totales en Pesos/Cuentas) ─── */}
       <div className="pc-stats-grid" style={{ marginBottom: '1rem', display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '1rem' }}>
@@ -469,15 +450,15 @@ const PlanCuentas: React.FC = () => {
             <div 
               key={tipo} 
               className={`cxc-mini-stat ${filtroTipo === tipo ? 'cxc-mini-stat--activo' : ''}`}
-              style={{ padding: '1rem', flexDirection: 'column', alignItems: 'flex-start', borderLeft: `4px solid ${colores.borde}` }}
+              style={{ padding: '0.6rem 0.8rem', flexDirection: 'column', alignItems: 'flex-start', borderLeft: `4px solid ${colores.borde}`, height: '80px', justifyContent: 'center' }}
               onClick={() => setFiltroTipo(filtroTipo === tipo ? 'todos' : tipo)}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.2rem' }}>
                 <span style={{ color: colores.texto }}>{ICONOS_TIPO[tipo]}</span>
-                <span className="cxc-mini-label">{ETIQUETAS_TIPO[tipo]}</span>
+                <span className="cxc-mini-label" style={{ fontSize: '0.75rem' }}>{ETIQUETAS_TIPO[tipo]}</span>
               </div>
-              <span className="cxc-mini-num" style={{ fontSize: '1.2rem' }}>Bs {total.toFixed(2)}</span>
-              <span style={{ fontSize: '0.7rem', color: 'var(--text-tertiary)' }}>{cantidad} cuentas</span>
+              <span className="cxc-mini-num" style={{ fontSize: '1.1rem' }}>Bs {total.toFixed(2)}</span>
+              <span style={{ fontSize: '0.65rem', color: 'var(--text-tertiary)' }}>{cantidad} cuentas</span>
             </div>
           );
         })}
@@ -513,61 +494,143 @@ const PlanCuentas: React.FC = () => {
               listaVisible.map(cuenta => {
                 const colores = COLORES_TIPO[cuenta.tipo];
                 return (
-                  <tr 
-                    key={cuenta.id} 
-                    className={`excel-tr ${!cuenta.es_transaccional ? 'excel-tr--grupo' : ''}`}
-                    onClick={() => cuenta.tieneHijos && toggleExpandir(cuenta.codigo)}
-                    style={{ cursor: cuenta.tieneHijos ? 'pointer' : 'default' }}
-                  >
-                    <td className="excel-td excel-cell-codigo">
-                      {cuenta.codigo}
-                    </td>
-                    <td className="excel-td">
-                      <span className="excel-indent" style={{ width: `${cuenta.nivel * 20}px` }}></span>
-                      <span style={{ marginRight: '8px', opacity: 0.6 }}>
-                        {cuenta.tieneHijos ? (expandidos.has(cuenta.codigo) ? <ChevronDown size={14} /> : <ChevronRight size={14} />) : <span style={{ width: 14, display: 'inline-block' }}></span>}
-                      </span>
-                      {cuenta.tieneHijos ? <Folder size={14} style={{ marginRight: '6px', color: colores.texto }} /> : <FileText size={14} style={{ marginRight: '6px', opacity: 0.5 }} />}
-                      {cuenta.nombre}
-                    </td>
-                    <td className="excel-td excel-cell-tipo">
-                      <span style={{ fontSize: '0.65rem', padding: '2px 6px', borderRadius: '4px', background: colores.bg, color: colores.texto, border: `1px solid ${colores.borde}` }}>
-                        {cuenta.tipo.toUpperCase()}
-                      </span>
-                    </td>
-                    <td className="excel-td excel-cell-trans">
-                      {cuenta.es_transaccional ? <span style={{ color: 'var(--success)' }}>✓ SI</span> : <span style={{ opacity: 0.3 }}>—</span>}
-                    </td>
-                    <td className="excel-td excel-monto" style={{ color: (saldosCompletos[cuenta.codigo] || 0) < 0 ? 'var(--danger)' : 'inherit' }}>
-                      {fmtMonto(saldosCompletos[cuenta.codigo] || 0)}
-                    </td>
-                    <td className="excel-td" style={{ textAlign: 'center' }}>
-                      {cuenta.escuela_id === null ? (
-                        <span style={{ fontSize: '0.65rem', padding: '2px 6px', borderRadius: '4px', background: 'var(--bg-panel)', color: 'var(--text-tertiary)', border: '1px solid var(--border)' }}>
-                          SISTEMA
+                  <React.Fragment key={cuenta.id}>
+                    <tr 
+                      className={`excel-tr ${!cuenta.es_transaccional ? 'excel-tr--grupo' : ''} ${idEnEdicion === cuenta.id ? 'excel-tr--editing' : ''}`}
+                      onClick={() => !idEnEdicion && cuenta.tieneHijos && toggleExpandir(cuenta.codigo)}
+                      style={{ cursor: (cuenta.tieneHijos && !idEnEdicion) ? 'pointer' : 'default' }}
+                    >
+                      <td className="excel-td excel-cell-codigo">
+                        {idEnEdicion === cuenta.id ? (
+                          <input 
+                            type="text" 
+                            value={editCodigo} 
+                            onChange={e => setEditCodigo(e.target.value)}
+                            style={{ width: '100%', padding: '4px', border: '1px solid var(--primary)', borderRadius: '4px' }}
+                          />
+                        ) : cuenta.codigo}
+                      </td>
+                      <td className="excel-td">
+                        <span className="excel-indent" style={{ width: `${cuenta.nivel * 20}px` }}></span>
+                        {idEnEdicion === cuenta.id ? (
+                          <input 
+                            type="text" 
+                            value={editNombre} 
+                            onChange={e => setEditNombre(e.target.value)}
+                            style={{ width: '80%', padding: '4px', border: '1px solid var(--primary)', borderRadius: '4px' }}
+                          />
+                        ) : (
+                          <>
+                            <span style={{ marginRight: '8px', opacity: 0.6 }}>
+                              {cuenta.tieneHijos ? (expandidos.has(cuenta.codigo) ? <ChevronDown size={14} /> : <ChevronRight size={14} />) : <span style={{ width: 14, display: 'inline-block' }}></span>}
+                            </span>
+                            {cuenta.tieneHijos ? <Folder size={14} style={{ marginRight: '6px', color: colores.texto }} /> : <FileText size={14} style={{ marginRight: '6px', opacity: 0.5 }} />}
+                            {cuenta.nombre}
+                          </>
+                        )}
+                      </td>
+                      <td className="excel-td excel-cell-tipo">
+                        <span style={{ fontSize: '0.65rem', padding: '2px 6px', borderRadius: '4px', background: colores.bg, color: colores.texto, border: `1px solid ${colores.borde}` }}>
+                          {cuenta.tipo.toUpperCase()}
                         </span>
-                      ) : cuenta.codigo.split('.').length > 2 && (
-                        <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
-                          <button 
-                            className="btn-refrescar" 
-                            style={{ padding: '4px', background: 'none', border: 'none', color: 'var(--text-tertiary)' }} 
-                            title="Editar"
-                            onClick={(e) => { e.stopPropagation(); abrirModalEdicion(cuenta); }}
-                          >
-                            <Edit2 size={14} />
-                          </button>
-                          <button 
-                            className="btn-refrescar" 
-                            style={{ padding: '4px', background: 'none', border: 'none', color: 'var(--danger-color)' }} 
-                            title="Eliminar"
-                            onClick={(e) => { e.stopPropagation(); eliminarCuenta(cuenta.id, cuenta.nombre); }}
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        </div>
-                      )}
-                    </td>
-                  </tr>
+                      </td>
+                      <td className="excel-td excel-cell-trans">
+                        {idEnEdicion === cuenta.id ? (
+                          <input 
+                            type="checkbox" 
+                            checked={editTransaccional} 
+                            onChange={e => setEditTransaccional(e.target.checked)}
+                          />
+                        ) : (
+                          cuenta.es_transaccional ? <span style={{ color: 'var(--success)' }}>✓ SI</span> : <span style={{ opacity: 0.3 }}>—</span>
+                        )}
+                      </td>
+                      <td className="excel-td excel-monto" style={{ color: (saldosCompletos[cuenta.codigo] || 0) < 0 ? 'var(--danger)' : 'inherit' }}>
+                        {fmtMonto(saldosCompletos[cuenta.codigo] || 0)}
+                      </td>
+                      <td className="excel-td" style={{ textAlign: 'center' }}>
+                        {idEnEdicion === cuenta.id ? (
+                          <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
+                            <button onClick={guardarEdicionCuenta} title="Guardar" style={{ color: 'var(--success)', background: 'none', border: 'none' }}><Check size={16} /></button>
+                            <button onClick={() => setIdEnEdicion(null)} title="Cancelar" style={{ color: 'var(--danger)', background: 'none', border: 'none' }}><X size={16} /></button>
+                          </div>
+                        ) : (
+                          (cuenta.escuela_id === null || cuenta.codigo === '1.1.7') ? (
+                            <span style={{ fontSize: '0.65rem', padding: '2px 6px', borderRadius: '4px', background: 'var(--bg-panel)', color: 'var(--text-tertiary)', border: '1px solid var(--border)' }}>
+                              SISTEMA
+                            </span>
+                          ) : (
+                            <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
+                              {!cuenta.es_transaccional && (
+                                <button 
+                                  className="btn-refrescar" 
+                                  style={{ padding: '4px', background: 'none', border: 'none', color: 'var(--primary)' }} 
+                                  title="Agregar Subcuenta"
+                                  onClick={(e) => { e.stopPropagation(); handleCambioPadre(cuenta.codigo); setFormCreandoPadre(cuenta.codigo); }}
+                                >
+                                  <Plus size={14} />
+                                </button>
+                              )}
+                              <button 
+                                className="btn-refrescar" 
+                                style={{ padding: '4px', background: 'none', border: 'none', color: 'var(--text-tertiary)' }} 
+                                title="Editar"
+                                onClick={(e) => { e.stopPropagation(); abrirEdicionInSitu(cuenta); }}
+                              >
+                                <Edit2 size={14} />
+                              </button>
+                              <button 
+                                className="btn-refrescar" 
+                                style={{ padding: '4px', background: 'none', border: 'none', color: 'var(--danger-color)' }} 
+                                title="Eliminar"
+                                onClick={(e) => { e.stopPropagation(); eliminarCuenta(cuenta.id, cuenta.nombre); }}
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
+                          )
+                        )}
+                      </td>
+                    </tr>
+                    
+                    {/* Fila de creación in-situ */}
+                    {formCreandoPadre === cuenta.codigo && (
+                      <tr className="excel-tr excel-tr--creating">
+                        <td className="excel-td excel-cell-codigo">
+                          <input 
+                            type="text" 
+                            value={formCodigo} 
+                            onChange={e => setFormCodigo(e.target.value)}
+                            placeholder="Código"
+                            style={{ width: '100%', padding: '4px', border: '1px solid var(--primary)', borderRadius: '4px' }}
+                          />
+                        </td>
+                        <td className="excel-td">
+                          <span className="excel-indent" style={{ width: `${(cuenta.nivel + 1) * 20}px` }}></span>
+                          <input 
+                            type="text" 
+                            value={formNombre} 
+                            onChange={e => setFormNombre(e.target.value)}
+                            placeholder="Nombre de la subcuenta"
+                            style={{ width: '80%', padding: '4px', border: '1px solid var(--primary)', borderRadius: '4px' }}
+                          />
+                        </td>
+                        <td className="excel-td">
+                           <span style={{ fontSize: '0.65rem' }}>{cuenta.tipo.toUpperCase()}</span>
+                        </td>
+                        <td className="excel-td">
+                           <input type="checkbox" checked={formTransaccional} onChange={e => setFormTransaccional(e.target.checked)} />
+                        </td>
+                        <td className="excel-td"></td>
+                        <td className="excel-td" style={{ textAlign: 'center' }}>
+                          <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
+                            <button onClick={guardarCuenta} title="Crear" style={{ color: 'var(--primary)', background: 'none', border: 'none' }}><Check size={16} /></button>
+                            <button onClick={() => setFormCreandoPadre(null)} title="Cancelar" style={{ color: 'var(--danger)', background: 'none', border: 'none' }}><X size={16} /></button>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
                 );
               })
             )}

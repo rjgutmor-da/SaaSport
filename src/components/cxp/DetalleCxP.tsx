@@ -8,7 +8,7 @@ import React, { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import {
   X, DollarSign, Calendar, Package, RefreshCw,
-  AlertCircle, Check, CreditCard, CheckCircle2
+  AlertCircle, Check, CreditCard, CheckCircle2, Edit
 } from 'lucide-react';
 
 interface CxPItem {
@@ -75,6 +75,7 @@ const DetalleCxP: React.FC<Props> = ({ nota, visible, onCerrar, onActualizar }) 
   const [detalleItems, setDetalleItems] = useState<DetalleCxPItem[]>([]);
   const [cajasBancos, setCajasBancos] = useState<{ id: string; nombre: string; cuenta_contable_id: string }[]>([]);
   const [cuentasGasto, setCuentasGasto] = useState<{ id: string; codigo: string; nombre: string }[]>([]);
+  const [anticiposDisponibles, setAnticiposDisponibles] = useState<any[]>([]);
   const [cargando, setCargando] = useState(true);
 
   // Formulario de pago
@@ -84,8 +85,11 @@ const DetalleCxP: React.FC<Props> = ({ nota, visible, onCerrar, onActualizar }) 
   const [cuentaGastoId, setCuentaGastoId] = useState('');
   const [nroComprobante, setNroComprobante] = useState('');
   const [registrandoPago, setRegistrandoPago] = useState(false);
+  const [usarAnticipo, setUsarAnticipo] = useState(false);
+  const [anticipoId, setAnticipoId] = useState('');
   const [errorPago, setErrorPago] = useState<string | null>(null);
   const [exitoPago, setExitoPago] = useState<string | null>(null);
+
 
   useEffect(() => {
     if (!visible || !nota) return;
@@ -139,9 +143,24 @@ const DetalleCxP: React.FC<Props> = ({ nota, visible, onCerrar, onActualizar }) 
         setCuentaGastoId((nota as any).cuenta_contable_id || '');
       }
 
+      // Buscar anticipos disponibles
+      let qAnticipos = supabase.from('v_estado_cuentas_pagar')
+        .select('*')
+        .eq('es_anticipo', true)
+        .gt('deuda_restante', 0);
+      
+      if (nota.proveedor_id) qAnticipos = qAnticipos.eq('proveedor_id', nota.proveedor_id);
+      else if (nota.personal_id) qAnticipos = qAnticipos.eq('personal_id', nota.personal_id);
+      else qAnticipos = qAnticipos.is('id', null); // Fallback
+
+      const { data: resAnt } = await qAnticipos;
+      setAnticiposDisponibles(resAnt || []);
+
       setCargando(false);
     };
     cargar();
+    setUsarAnticipo(false);
+    setAnticipoId('');
   }, [visible, nota]);
 
   /** Registrar un pago parcial o total */
@@ -164,28 +183,38 @@ const DetalleCxP: React.FC<Props> = ({ nota, visible, onCerrar, onActualizar }) 
       .select('id, escuela_id, sucursal_id').eq('id', user.id).single();
     if (!ctx) { setErrorPago('Error de contexto.'); setRegistrandoPago(false); return; }
 
-    const { error } = await supabase.rpc('rpc_registrar_pago_cxp', {
-      p_payload: {
-        cuenta_pagar_id: nota.id,
-        monto: mp,
-        metodo_pago: metodoPago,
-        cuenta_pago_id: cuentaPagoId,
-        cuenta_gasto_id: cuentaGastoId,
-        escuela_id: ctx.escuela_id,
-        sucursal_id: ctx.sucursal_id,
-        usuario_id: ctx.id,
-        descripcion: `Pago: ${nota.descripcion || 'Nota de Pago'}`,
-        nro_comprobante: nroComprobante.trim() || null,
-      }
-    });
-
-    if (error) {
-      setErrorPago(`Error al registrar pago: ${error.message}`);
-      setRegistrandoPago(false);
-      return;
+    if (usarAnticipo) {
+      if (!anticipoId) { setErrorPago('Selecciona un anticipo.'); setRegistrandoPago(false); return; }
+      const { error } = await supabase.rpc('rpc_aplicar_anticipo_cxp', {
+        p_payload: {
+          nota_id: nota.id,
+          anticipo_id: anticipoId,
+          monto: mp,
+          usuario_id: ctx.id,
+          escuela_id: ctx.escuela_id,
+          sucursal_id: ctx.sucursal_id,
+        }
+      });
+      if (error) { setErrorPago(`Error: ${error.message}`); setRegistrandoPago(false); return; }
+    } else {
+      const { error } = await supabase.rpc('rpc_registrar_pago_cxp', {
+        p_payload: {
+          cuenta_pagar_id: nota.id,
+          monto: mp,
+          metodo_pago: metodoPago,
+          cuenta_pago_id: cuentaPagoId,
+          cuenta_gasto_id: cuentaGastoId,
+          escuela_id: ctx.escuela_id,
+          sucursal_id: ctx.sucursal_id,
+          usuario_id: ctx.id,
+          descripcion: `Pago: ${nota.descripcion || 'Nota de Pago'}`,
+          nro_comprobante: nroComprobante.trim() || null,
+        }
+      });
+      if (error) { setErrorPago(`Error: ${error.message}`); setRegistrandoPago(false); return; }
     }
 
-    setExitoPago(`✅ Pago de Bs ${fmtMonto(mp)} registrado correctamente.`);
+    setExitoPago(`✅ Aplicación de Bs ${fmtMonto(mp)} registrada correctamente.`);
     setRegistrandoPago(false);
 
     // Recargar la nota actualizada
@@ -214,7 +243,9 @@ const DetalleCxP: React.FC<Props> = ({ nota, visible, onCerrar, onActualizar }) 
             <DollarSign size={20} style={{ marginRight: '0.4rem' }} />
             Detalle — Nota de Pago
           </h2>
-          <button onClick={onCerrar} disabled={registrandoPago}><X size={20} /></button>
+          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+            <button onClick={onCerrar} disabled={registrandoPago}><X size={20} /></button>
+          </div>
         </div>
 
         {cargando ? (
@@ -315,7 +346,49 @@ const DetalleCxP: React.FC<Props> = ({ nota, visible, onCerrar, onActualizar }) 
                     <CreditCard size={14} style={{ marginRight: '0.4rem' }} /> Registrar pago
                   </p>
 
-                  <div className="nota-pago-campos" style={{ flexDirection: 'column', gap: '0.5rem' }}>
+                    <div style={{ marginBottom: '0.75rem', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '0.5rem' }}>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.85rem' }}>
+                        <input
+                          type="checkbox"
+                          checked={usarAnticipo}
+                          onChange={e => setUsarAnticipo(e.target.checked)}
+                          disabled={registrandoPago || anticiposDisponibles.length === 0}
+                        />
+                        <span style={{ color: anticiposDisponibles.length > 0 ? '#a855f7' : '#64748b', fontWeight: 600 }}>
+                          {anticiposDisponibles.length > 0 
+                            ? `Usar Saldo a Favor disponible (Bs ${fmtMonto(anticiposDisponibles.reduce((s, a) => s + Number(a.deuda_restante), 0))})`
+                            : 'No hay anticipos disponibles'
+                          }
+                        </span>
+                      </label>
+                    </div>
+
+                    {usarAnticipo && (
+                      <div style={{ marginBottom: '0.75rem' }}>
+                        <select
+                          value={anticipoId}
+                          onChange={e => {
+                            setAnticipoId(e.target.value);
+                            const ant = anticiposDisponibles.find(a => a.id === e.target.value);
+                            if (ant) {
+                              const maxPosible = Math.min(nota.deuda_restante, Number(ant.deuda_restante));
+                              setMontoPago(String(maxPosible));
+                            }
+                          }}
+                          className="nota-pago-select"
+                          style={{ width: '100%', borderColor: '#a855f7' }}
+                          required
+                        >
+                          <option value="">— Seleccionar Anticipo —</option>
+                          {anticiposDisponibles.map(a => (
+                            <option key={a.id} value={a.id}>
+                              {fmtFecha(a.fecha_emision)} — {a.descripcion} (Bs {fmtMonto(a.deuda_restante)})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+
                     <div style={{ display: 'flex', gap: '0.5rem' }}>
                       <input
                         type="number" step="0.01" min="0.01"
@@ -326,57 +399,62 @@ const DetalleCxP: React.FC<Props> = ({ nota, visible, onCerrar, onActualizar }) 
                         disabled={registrandoPago}
                         style={{ flex: 1 }}
                       />
-                      <select
-                        value={metodoPago}
-                        onChange={e => setMetodoPago(e.target.value)}
-                        disabled={registrandoPago}
-                        className="nota-pago-select"
-                        style={{ minWidth: '130px' }}
-                      >
-                        <option value="efectivo">💵 Efectivo</option>
-                        <option value="transferencia">🏦 Transferencia</option>
-                        <option value="qr">📱 QR</option>
-                      </select>
+                      {!usarAnticipo && (
+                        <select
+                          value={metodoPago}
+                          onChange={e => setMetodoPago(e.target.value)}
+                          disabled={registrandoPago}
+                          className="nota-pago-select"
+                          style={{ minWidth: '130px' }}
+                        >
+                          <option value="efectivo">💵 Efectivo</option>
+                          <option value="transferencia">🏦 Transferencia</option>
+                          <option value="qr">📱 QR</option>
+                        </select>
+                      )}
                     </div>
 
-                    <select
-                      value={cuentaPagoId}
-                      onChange={e => setCuentaPagoId(e.target.value)}
-                      required
-                      disabled={registrandoPago}
-                      className="nota-pago-select"
-                      style={{ width: '100%' }}
-                    >
-                      <option value="">Caja / Banco que paga</option>
-                      {cajasBancos.map(c => (
-                        <option key={c.id} value={c.cuenta_contable_id}>{c.nombre}</option>
-                      ))}
-                    </select>
+                    {!usarAnticipo && (
+                      <>
+                        <select
+                          value={cuentaPagoId}
+                          onChange={e => setCuentaPagoId(e.target.value)}
+                          required
+                          disabled={registrandoPago}
+                          className="nota-pago-select"
+                          style={{ width: '100%' }}
+                        >
+                          <option value="">Caja / Banco que paga</option>
+                          {cajasBancos.map(c => (
+                            <option key={c.id} value={c.cuenta_contable_id}>{c.nombre}</option>
+                          ))}
+                        </select>
 
-                    <select
-                      value={cuentaGastoId}
-                      onChange={e => setCuentaGastoId(e.target.value)}
-                      required
-                      disabled={registrandoPago}
-                      className="nota-pago-select"
-                      style={{ width: '100%' }}
-                    >
-                      <option value="">Cuenta de gasto (5.X.X)</option>
-                      {cuentasGasto.map(c => (
-                        <option key={c.id} value={c.id}>{c.codigo} — {c.nombre}</option>
-                      ))}
-                    </select>
+                        <select
+                          value={cuentaGastoId}
+                          onChange={e => setCuentaGastoId(e.target.value)}
+                          required
+                          disabled={registrandoPago}
+                          className="nota-pago-select"
+                          style={{ width: '100%' }}
+                        >
+                          <option value="">Cuenta de gasto (5.X.X)</option>
+                          {cuentasGasto.map(c => (
+                            <option key={c.id} value={c.id}>{c.codigo} — {c.nombre}</option>
+                          ))}
+                        </select>
 
-                    <input
-                      type="text"
-                      value={nroComprobante}
-                      onChange={e => setNroComprobante(e.target.value)}
-                      placeholder="Nro. Comprobante (opcional)"
-                      className="nota-pago-input"
-                      disabled={registrandoPago}
-                      style={{ width: '100%' }}
-                    />
-                  </div>
+                        <input
+                          type="text"
+                          value={nroComprobante}
+                          onChange={e => setNroComprobante(e.target.value)}
+                          placeholder="Nro. Comprobante (opcional)"
+                          className="nota-pago-input"
+                          disabled={registrandoPago}
+                          style={{ width: '100%' }}
+                        />
+                      </>
+                    )}
 
                   {errorPago && <div className="form-msg form-msg--error" style={{ marginTop: '0.5rem' }}><AlertCircle size={13} /> {errorPago}</div>}
                   {exitoPago && <div className="form-msg form-msg--exito" style={{ marginTop: '0.5rem' }}><Check size={13} /> {exitoPago}</div>}
@@ -407,6 +485,7 @@ const DetalleCxP: React.FC<Props> = ({ nota, visible, onCerrar, onActualizar }) 
           </div>
         )}
       </div>
+
     </div>
   );
 };

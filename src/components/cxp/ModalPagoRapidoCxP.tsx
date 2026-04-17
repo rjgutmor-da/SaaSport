@@ -127,10 +127,11 @@ const ModalPagoRapidoCxP: React.FC<Props> = ({ entidadInicial, entidades, visibl
 
     let objetivoCxpId = cxpSelId;
     
-    // Si es un anticipo, creamos una nota dinámica de CxP apuntando a la 1.1.6 (Anticipo a Proveedores)
+    // Si es un anticipo, creamos una nota dinámica de CxP apuntando a la 1.1.6 (Anticipo a Proveedores) o 1.1.7 (Anticipo a Personal)
     if (cxpSelId === 'anticipo') {
-        const { data: ctaAnticipo } = await supabase.from('plan_cuentas').select('id').eq('codigo', '1.1.6').single();
-        if (!ctaAnticipo) { setError('No se encontró la cuenta 1.1.6 (Anticipo a Proveedores).'); setGuardando(false); return; }
+        const codigoCuentaAnticipo = entidadSel.tipo === 'personal' ? '1.1.7' : '1.1.6';
+        const { data: ctaAnticipo } = await supabase.from('plan_cuentas').select('id').eq('codigo', codigoCuentaAnticipo).single();
+        if (!ctaAnticipo) { setError(`No se encontró la cuenta ${codigoCuentaAnticipo} (Anticipo a ${entidadSel.tipo === 'personal' ? 'Personal' : 'Proveedores'}).`); setGuardando(false); return; }
         
         const payloadCxp = {
             escuela_id: ctx.escuela_id,
@@ -138,7 +139,8 @@ const ModalPagoRapidoCxP: React.FC<Props> = ({ entidadInicial, entidades, visibl
             tipo_gasto: entidadSel.tipo,
             proveedor_id: entidadSel.tipo === 'proveedor' ? entidadSel.id : null,
             personal_id: entidadSel.tipo === 'personal' ? entidadSel.id : null,
-            numero_documento: nroDoc.trim() || 'S/N',
+            // Quitamos numero_documento porque no existe en la tabla y los anticipos son directos,
+            // o lo guardamos en 'observaciones' si es necesario, pero según el schema la descripción ya está.
             descripcion: 'Anticipo',
             monto_total: montoNum,
             estado: 'pendiente'

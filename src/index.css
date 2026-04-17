@@ -998,6 +998,16 @@ input[type=number] {
   display: inline-block;
 }
 
+.excel-tr--editing {
+  background: rgba(10, 132, 255, 0.08) !important;
+  border-left: 3px solid var(--secondary) !important;
+}
+
+.excel-tr--creating {
+  background: rgba(16, 185, 129, 0.08) !important;
+  border-left: 3px solid var(--success) !important;
+}
+
 .excel-monto {
   text-align: right;
   font-family: 'Inter', monospace;

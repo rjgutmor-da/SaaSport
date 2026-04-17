@@ -29,6 +29,7 @@ interface LineaNotaPago {
 interface Props {
   visible: boolean;
   tipoInicial: 'proveedor' | 'personal';
+  esAnticipo?: boolean;
   onCerrar: () => void;
   onCreada: () => void;
 }
@@ -47,12 +48,13 @@ const lineaVacia = (): LineaNotaPago => ({
 const fmtMonto = (n: number) =>
   n.toLocaleString('es-BO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-const NotaPago: React.FC<Props> = ({ visible, tipoInicial, onCerrar, onCreada }) => {
+const NotaPago: React.FC<Props> = ({ visible, tipoInicial, esAnticipo = false, onCerrar, onCreada }) => {
   // Datos del formulario
   const [tipoGasto, setTipoGasto] = useState(tipoInicial);
   const [proveedorId, setProveedorId] = useState('');
   const [personalId, setPersonalId] = useState('');
   const [descripcion, setDescripcion] = useState('');
+  const [fechaEmision, setFechaEmision] = useState(new Date().toISOString().split('T')[0]);
   const [vencimiento, setVencimiento] = useState('');
   const [observaciones, setObservaciones] = useState('');
   const [lineas, setLineas] = useState<LineaNotaPago[]>([lineaVacia()]);
@@ -104,8 +106,8 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, onCerrar, onCreada })
           .or(`escuela_id.eq.${usr.escuela_id},escuela_id.is.null`)
           .order('nombre'),
         supabase.from('plan_cuentas').select('id, codigo')
-          .in('codigo', ['2.1.1', '2.1.2', '1.1.4', '1.1.5'])
-          .is('escuela_id', null),
+          .in('codigo', ['2.1.1', '2.1.2', '1.1.4', '1.1.5', '1.1.6', '1.1.7'])
+          .or(`escuela_id.eq.${usr.escuela_id},escuela_id.is.null`),
       ]);
 
       setProveedores(resProv.data ?? []);
@@ -121,17 +123,23 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, onCerrar, onCreada })
     setProveedorId('');
     setPersonalId('');
     setDescripcion('');
+    setFechaEmision(new Date().toISOString().split('T')[0]);
     setVencimiento('');
     setObservaciones('');
     setLineas([lineaVacia()]);
     setPagarAlCrear(false);
     setMetodoPago('efectivo');
-    setCuentaPagoId('');
     setMontoPago('');
     setNroComprobante('');
     setError(null);
     setExito(null);
-  }, [visible]);
+
+    // Ajustes para anticipo
+    if (esAnticipo) {
+      setPagarAlCrear(true);
+      setDescripcion('Anticipo a Proveedor/Personal');
+    }
+  }, [visible, esAnticipo]);
 
   /** Total calculado */
   const total = useMemo(() => lineas.reduce((s, l) => s + l.subtotal, 0), [lineas]);
@@ -214,8 +222,10 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, onCerrar, onCreada })
       tipo_gasto: tipoGasto,
       descripcion: descripcion || descAuto,
       observaciones: observaciones || null,
+      fecha_emision: fechaEmision,
       fecha_vencimiento: vencimiento || null,
       estado: 'pendiente',
+      es_anticipo: esAnticipo,
     }).select('id').single();
 
     if (errCxP || !nuevaCxP) {
@@ -251,8 +261,26 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, onCerrar, onCreada })
     });
 
     agrupado.forEach((monto, idCta) => {
-      movs.push({ cuenta_contable_id: idCta, debe: monto, haber: 0 }); // DEBE
+      // Si es anticipo, la cuenta de débito es la de Anticipos (1.1.6 / 1.1.7)
+      let ctaDebitoId = idCta;
+      if (esAnticipo) {
+        ctaDebitoId = tipoGasto === 'proveedor' 
+          ? (cuentasMaestras.find(c => c.codigo === '1.1.6')?.id || ctaDebitoId)
+          : (cuentasMaestras.find(c => c.codigo === '1.1.7')?.id || ctaDebitoId);
+      }
+      movs.push({ cuenta_contable_id: ctaDebitoId, debe: monto, haber: 0 }); // DEBE
     });
+    
+    // Si es anticipo, el pasivo no se usa en el asiento de compra porque no es una deuda, es un crédito
+    // Pero en nuestro sistema, la CxP record representa el crédito.
+    // En el asiento de "Compra" (obligación), registramos el derecho.
+    const ctaContraId = esAnticipo ? (tipoGasto === 'proveedor' ? '51f87f60-6855-4dcd-959e-3904821f90b9' : 'bd72965b-69d4-4d92-9ef5-e53a6f216e84') : cuentaPasivoId;
+    
+    // Si es normal: Gasto (D) a CxP (H).
+    // Si es anticipo: Anticipo (D) a CxP_Anticipo (H)? No.
+    // Si es anticipo: El asiento de obligacion seria: Anticipo (D) a "Cuentas por Pagar" (H).
+    // Y luego el pago: "Cuentas por Pagar" (D) a Caja (H).
+    // Así la CxP queda en 0 y el saldo queda en la cuenta de Anticipo.
     
     movs.push({ cuenta_contable_id: cuentaPasivoId, debe: 0, haber: montoTotal }); // HABER
 
@@ -261,13 +289,16 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, onCerrar, onCreada })
       sucursal_id: ctx.sucursal_id,
       usuario_id: ctx.id,
       descripcion: `Obligación por: ${descripcion || descAuto}`,
-      metodo_pago: 'efectivo', // Metodo genérico para la obligación
+      metodo_pago: 'efectivo',
+      fecha: fechaEmision, // Usar la misma fecha de emision para el asiento
       movimientos: movs
     };
     
-    const { error: errAsientoBase } = await supabase.rpc('rpc_procesar_transaccion_financiera', { p_payload: payloadCompra });
+    const { data: vAsientoId, error: errAsientoBase } = await supabase.rpc('rpc_procesar_transaccion_financiera', { p_payload: payloadCompra });
     if (errAsientoBase) {
       console.warn('Asiento base de compra no pudo ser generado:', errAsientoBase.message);
+    } else if (vAsientoId) {
+      await supabase.from('cuentas_pagar').update({ asiento_id: vAsientoId }).eq('id', nuevaCxP.id);
     }
 
     // 3. Si se eligió pagar al crear, ejecutar RPC de pago
@@ -284,6 +315,7 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, onCerrar, onCreada })
           usuario_id: ctx.id,
           descripcion: `Pago al crear: ${descAuto}`,
           nro_comprobante: nroComprobante.trim() || null,
+          fecha: fechaEmision
         }
       });
 
@@ -312,15 +344,17 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, onCerrar, onCreada })
         <div className="cxc-modal-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
             <div className="cxc-header-icon-circle" style={{ 
-              background: 'rgba(255, 107, 53, 0.15)',
-              color: '#FF6B35'
+              background: 'rgba(245, 158, 11, 0.15)',
+              color: '#f59e0b'
             }}>
               <Package size={20} />
             </div>
             <div>
-              <h2 style={{ margin: 0, fontSize: '1.25rem' }}>Nueva Nota de Deuda</h2>
+              <h2 style={{ margin: 0, fontSize: '1.25rem' }}>
+                {esAnticipo ? 'Registrar Anticipo (Saldo a Favor)' : 'Nueva Nota de Deuda'}
+              </h2>
               <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-tertiary)' }}>
-                Registra una compra o compromiso de pago
+                {esAnticipo ? 'Registra un pago adelantado para futuras deudas' : 'Registra una compra o compromiso de pago'}
               </p>
             </div>
           </div>
@@ -333,9 +367,9 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, onCerrar, onCreada })
           <form onSubmit={guardarNota}>
             {/* Beneficiario y Tipo */}
             <div className="modal-form-grid" style={{ marginBottom: '2rem' }}>
-              <div className="form-campo">
+              <div className="form-campo full-width">
                 <label><Users size={14} /> Tipo de Egreso</label>
-                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <div style={{ display: 'flex', gap: '0.5rem', background: 'rgba(255,255,255,0.03)', padding: '4px', borderRadius: '12px', border: '1px solid var(--border)' }}>
                   {[
                     { val: 'proveedor', label: '🏭 Proveedor' },
                     { val: 'personal', label: '👤 Personal' },
@@ -346,7 +380,17 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, onCerrar, onCreada })
                       className={`nota-mes-btn ${tipoGasto === opt.val ? 'nota-mes-btn--activo' : ''}`}
                       onClick={() => setTipoGasto(opt.val as any)}
                       disabled={guardando}
-                      style={{ flex: 1, padding: '0.5rem', fontSize: '0.8rem' }}
+                      style={{ 
+                        flex: 1, 
+                        padding: '0.6rem', 
+                        fontSize: '0.85rem', 
+                        borderRadius: '8px',
+                        background: tipoGasto === opt.val ? 'var(--primary)' : 'transparent',
+                        border: 'none',
+                        color: tipoGasto === opt.val ? 'white' : 'var(--text-secondary)',
+                        fontWeight: tipoGasto === opt.val ? 700 : 500,
+                        transition: 'all 0.2s ease'
+                      }}
                     >
                       {opt.label}
                     </button>
@@ -355,17 +399,29 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, onCerrar, onCreada })
               </div>
 
               {tipoGasto === 'proveedor' ? (
-                <div className="form-campo">
+                <div className="form-campo full-width">
                   <label><Users size={14} /> Proveedor *</label>
-                  <select value={proveedorId} onChange={e => setProveedorId(e.target.value)} disabled={guardando} required>
+                  <select 
+                    value={proveedorId} 
+                    onChange={e => setProveedorId(e.target.value)} 
+                    disabled={guardando} 
+                    required
+                    style={{ fontSize: '1rem', padding: '0.8rem' }}
+                  >
                     <option value="">— Seleccionar Proveedor —</option>
                     {proveedores.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
                   </select>
                 </div>
               ) : (
-                <div className="form-campo">
+                <div className="form-campo full-width">
                   <label><Users size={14} /> Trabajador *</label>
-                  <select value={personalId} onChange={e => setPersonalId(e.target.value)} disabled={guardando} required>
+                  <select 
+                    value={personalId} 
+                    onChange={e => setPersonalId(e.target.value)} 
+                    disabled={guardando} 
+                    required
+                    style={{ fontSize: '1rem', padding: '0.8rem' }}
+                  >
                     <option value="">— Seleccionar Personal —</option>
                     {personal.map(p => <option key={p.id} value={p.id}>{p.nombres} {p.apellidos}</option>)}
                   </select>
@@ -373,6 +429,23 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, onCerrar, onCreada })
               )}
 
               <div className="form-campo">
+                <label style={{ color: 'var(--primary)', fontWeight: 700 }}><Calendar size={14} /> Fecha de Emisión *</label>
+                <input 
+                  type="date" 
+                  value={fechaEmision} 
+                  onChange={e => setFechaEmision(e.target.value)} 
+                  disabled={guardando} 
+                  required 
+                  style={{ borderColor: 'var(--primary)', background: 'rgba(245, 158, 11, 0.05)' }}
+                />
+              </div>
+
+              <div className="form-campo">
+                <label><Calendar size={14} /> Vencimiento (Opcional)</label>
+                <input type="date" value={vencimiento} onChange={e => setVencimiento(e.target.value)} disabled={guardando} />
+              </div>
+
+              <div className="form-campo full-width">
                 <label><FileText size={14} /> Concepto / Referencia *</label>
                 <input
                   type="text"
@@ -381,19 +454,15 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, onCerrar, onCreada })
                   placeholder="Ej: Material de oficina, Uniformes..."
                   required
                   disabled={guardando}
+                  style={{ padding: '0.8rem' }}
                 />
-              </div>
-
-              <div className="form-campo">
-                <label><Calendar size={14} /> Vencimiento (Opcional)</label>
-                <input type="date" value={vencimiento} onChange={e => setVencimiento(e.target.value)} disabled={guardando} />
               </div>
             </div>
 
             {/* Detalle de Items */}
             <div style={{ marginBottom: '2rem' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                  <h3 style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 800 }}>Módulos de Gasto / Ítems</h3>
+                  <h3 style={{ margin: 0, fontSize: '0.9rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 700 }}>Módulos de Gasto / Ítems</h3>
                   {lineas.length < 8 && (
                       <button type="button" onClick={() => setLineas(prev => [...prev, lineaVacia()])} disabled={guardando} className="btn-refrescar" style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem', width: 'auto' }}>
                           <Plus size={14} /> Agregar ítem
@@ -404,13 +473,22 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, onCerrar, onCreada })
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                 {lineas.map((linea, idx) => (
                   <div key={idx} style={{ background: 'var(--bg-glass)', borderRadius: '12px', border: '1px solid var(--border)', padding: '1rem' }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(200px, 1.5fr) 70px 110px 110px 40px', gap: '1rem', alignItems: 'center' }}>
+                    {idx === 0 && (
+                      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(200px, 2fr) 80px 140px 140px 40px', gap: '1rem', marginBottom: '0.5rem' }}>
+                        <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-tertiary)', textTransform: 'uppercase' }}>Ítem</span>
+                        <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-tertiary)', textTransform: 'uppercase', textAlign: 'center' }}>Cant.</span>
+                        <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-tertiary)', textTransform: 'uppercase', textAlign: 'right' }}>P. Unitario</span>
+                        <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-tertiary)', textTransform: 'uppercase', textAlign: 'right' }}>Subtotal</span>
+                        <span></span>
+                      </div>
+                    )}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(200px, 2fr) 80px 140px 140px 40px', gap: '1rem', alignItems: 'center' }}>
                       <div className="form-campo" style={{ marginBottom: 0 }}>
                         <select
                           value={linea.catalogo_item_id}
                           onChange={e => seleccionarItem(idx, e.target.value)}
                           disabled={guardando}
-                          style={{ border: 'none', background: 'transparent', fontWeight: 600, fontSize: '0.95rem' }}
+                          style={{ border: 'none', background: 'transparent', fontWeight: 600, fontSize: '1rem', color: '#fff', width: '100%' }}
                         >
                           <option value="">— Buscar en catálogo —</option>
                           {catalogo.map(c => (
@@ -427,7 +505,7 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, onCerrar, onCreada })
                           value={linea.cantidad}
                           onChange={e => actualizarLinea(idx, { cantidad: parseInt(e.target.value) || 1 })}
                           disabled={guardando}
-                          style={{ textAlign: 'center', border: 'none', background: 'rgba(255,255,255,0.03)', borderRadius: '6px' }}
+                          style={{ textAlign: 'center', border: 'none', background: 'rgba(255,255,255,0.03)', borderRadius: '10px', padding: '0.6rem 0', color: 'white' }}
                         />
                       </div>
 
@@ -438,33 +516,38 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, onCerrar, onCreada })
                           onChange={e => actualizarLinea(idx, { precio_unitario: parseFloat(e.target.value) || 0 })}
                           disabled={guardando}
                           placeholder="0.00"
-                          style={{ textAlign: 'right', border: 'none', background: 'rgba(255,255,255,0.03)', borderRadius: '6px', fontWeight: 700 }}
+                          style={{ textAlign: 'right', border: 'none', background: 'rgba(255,255,255,0.03)', borderRadius: '10px', fontWeight: 700, padding: '0.6rem 0.8rem', color: 'white' }}
                         />
                       </div>
 
-                      <div style={{ textAlign: 'right', fontWeight: 800, color: 'var(--danger)', fontSize: '1rem' }}>
-                         Bs {fmtMonto(linea.subtotal)}
+                      <div style={{ textAlign: 'right', fontWeight: 800, color: '#f59e0b', fontSize: '1.1rem', whiteSpace: 'nowrap' }}>
+                         <span style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', marginRight: '4px' }}>Bs</span>
+                         {fmtMonto(linea.subtotal)}
                       </div>
 
-                      <button
-                        type="button"
-                        onClick={() => { if (lineas.length > 1) setLineas(prev => prev.filter((_, i) => i !== idx)); }}
-                        disabled={guardando || lineas.length <= 1}
-                        style={{ background: 'transparent', border: 'none', color: 'var(--danger)', cursor: 'pointer' }}
-                      >
-                        <Trash2 size={18} />
-                      </button>
+                      <div style={{ display: 'flex', justifyContent: 'center' }}>
+                        <button
+                          type="button"
+                          onClick={() => { if (lineas.length > 1) setLineas(prev => prev.filter((_, i) => i !== idx)); }}
+                          disabled={guardando || lineas.length <= 1}
+                          style={{ background: 'rgba(239, 68, 68, 0.1)', border: 'none', color: '#EF4444', cursor: 'pointer', padding: '0.5rem', borderRadius: '8px' }}
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
                     </div>
 
                     {/* Cuenta de Gasto Manual */}
                     {linea.catalogo_item_id && !catalogo.find(c => c.id === linea.catalogo_item_id)?.cuenta_gasto_id && (
                       <div style={{ marginTop: '0.75rem', paddingTop: '0.75rem', borderTop: '1px dotted var(--border)', display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                        <label style={{ fontSize: '0.75rem', color: 'var(--warning)', fontWeight: 800, textTransform: 'uppercase' }}>Clasificación Contable *</label>
+                        <label style={{ fontSize: '0.75rem', color: 'var(--warning)', fontWeight: 800, textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                          <Info size={12} /> Clasificación Contable *
+                        </label>
                         <select
                           value={linea.cuenta_gasto_id || ''}
                           onChange={e => actualizarLinea(idx, { cuenta_gasto_id: e.target.value })}
                           required
-                          style={{ flex: 1, padding: '0.4rem', fontSize: '0.8rem', background: 'rgba(245, 158, 11, 0.05)', borderColor: 'rgba(245, 158, 11, 0.2)', maxWidth: '400px' }}
+                          style={{ flex: 1, padding: '0.4rem', fontSize: '0.85rem', background: 'rgba(245, 158, 11, 0.05)', borderColor: 'rgba(245, 158, 11, 0.2)', borderRadius: '8px' }}
                         >
                           <option value="">— Seleccionar Cuenta de Gasto / Activo —</option>
                           {cuentasGasto.map(c => <option key={c.id} value={c.id}>{c.codigo} {c.nombre}</option>)}
@@ -477,34 +560,64 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, onCerrar, onCreada })
             </div>
 
             {/* Resumen y Pago */}
-            <div style={{ background: 'var(--bg-glass)', borderRadius: '16px', border: '1px solid var(--border)', padding: '1.5rem', marginTop: '1rem' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 220px', gap: '2rem', alignItems: 'center' }}>
+            <div style={{ background: 'var(--bg-glass)', borderRadius: '20px', border: '1px solid var(--border)', padding: '1.75rem', marginTop: '1rem' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 240px', gap: '2rem', alignItems: 'center' }}>
                     <div>
                         <div style={{ border: 'none', background: 'transparent', padding: 0 }}>
-                            <label style={{ border: '1px solid var(--border)', padding: '0.75rem 1rem', borderRadius: '10px', display: 'inline-flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                            <label style={{ 
+                              background: pagarAlCrear ? 'rgba(245, 158, 11, 0.1)' : 'rgba(255,255,255,0.03)',
+                              border: pagarAlCrear ? '1px solid var(--primary)' : '1px solid var(--border)',
+                              padding: '1rem', 
+                              borderRadius: '12px', 
+                              display: 'inline-flex', 
+                              alignItems: 'center', 
+                              gap: '0.75rem', 
+                              cursor: 'pointer',
+                              transition: 'all 0.3s ease'
+                            }}>
                                 <input
                                     type="checkbox"
                                     checked={pagarAlCrear}
-                                    onChange={e => setPagarAlCrear(e.target.checked)}
-                                    disabled={guardando}
+                                    onChange={e => setPagarAlCrear(true)} // Si es anticipo, siempre true
+                                    disabled={guardando || esAnticipo}
+                                    style={{ width: '18px', height: '18px' }}
                                 />
-                                <CreditCard size={16} />
-                                <span style={{ fontWeight: 700 }}>¿Efectuar pago ahora?</span>
+                                <CreditCard size={18} color={pagarAlCrear ? 'var(--primary)' : 'var(--text-tertiary)'} />
+                                <span style={{ fontWeight: 700, fontSize: '0.95rem', color: pagarAlCrear ? 'white' : 'var(--text-secondary)' }}>
+                                  {esAnticipo ? 'Pago Obligatorio (Anticipo)' : '¿Efectuar pago ahora?'}
+                                </span>
                             </label>
 
                             {pagarAlCrear && (
-                                <div style={{ marginTop: '1rem', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                                <div style={{ marginTop: '1.25rem', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                                     <div className="form-campo">
                                         <label>Monto a Pagar</label>
-                                        <input type="number" step="0.01" value={montoPago} onChange={e => setMontoPago(e.target.value)} style={{ fontWeight: 700, color: '#FF6B35' }} />
+                                        <input 
+                                          type="number" 
+                                          step="0.01" 
+                                          value={montoPago} 
+                                          onChange={e => setMontoPago(e.target.value)} 
+                                          style={{ fontWeight: 800, color: '#f59e0b', fontSize: '1.1rem', padding: '0.7rem' }} 
+                                        />
                                     </div>
                                     <div className="form-campo">
-                                        <label><Hash size={14} /> Nro. Transacción</label>
-                                        <input type="text" value={metodoPago} onChange={e => setMetodoPago(e.target.value)} placeholder="Ej: 00123, REC-001..." />
+                                        <label><Hash size={14} /> Nro. Transacción / Comprobante</label>
+                                        <input 
+                                          type="text" 
+                                          value={nroComprobante} 
+                                          onChange={e => setNroComprobante(e.target.value)} 
+                                          placeholder="Ej: 00123, REC-001..." 
+                                          style={{ padding: '0.7rem' }}
+                                        />
                                     </div>
                                     <div className="form-campo full-width">
                                         <label>Caja o Banco de Origen</label>
-                                        <select value={cuentaPagoId} onChange={e => setCuentaPagoId(e.target.value)} required>
+                                        <select 
+                                          value={cuentaPagoId} 
+                                          onChange={e => setCuentaPagoId(e.target.value)} 
+                                          required
+                                          style={{ padding: '0.7rem' }}
+                                        >
                                             <option value="">— Seleccionar Caja/Banco —</option>
                                             {cajasBancos.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
                                         </select>
@@ -515,31 +628,38 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, onCerrar, onCreada })
                     </div>
 
                     <div style={{ textAlign: 'right' }}>
-                        <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '0.5rem' }}>Total Obligación</span>
-                        <div style={{ fontSize: '2.5rem', fontWeight: 900, color: 'white', lineHeight: 1 }}>
-                            <span style={{ fontSize: '1rem', color: 'var(--text-tertiary)', marginRight: '0.2rem' }}>Bs</span>
+                        <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '0.5rem', letterSpacing: '0.05em' }}>Total Obligación</span>
+                        <div style={{ fontSize: '2.85rem', fontWeight: 900, color: 'white', lineHeight: 1, letterSpacing: '-0.02em' }}>
+                            <span style={{ fontSize: '1.25rem', color: 'var(--text-tertiary)', marginRight: '0.3rem' }}>Bs</span>
                             {fmtMonto(total)}
                         </div>
                         {hayProductos && (
-                            <p style={{ margin: '0.5rem 0 0 0', fontSize: '0.7rem', color: '#a5b4fc', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.3rem' }}>
-                                <Package size={12} /> Actualizará inventario
-                            </p>
+                            <div style={{ margin: '0.75rem 0 0 0', fontSize: '0.75rem', color: '#a5b4fc', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.4rem', fontWeight: 600 }}>
+                                <Package size={14} /> Actualizará inventario automático
+                            </div>
                         )}
                     </div>
                 </div>
 
-                {error && <div className="form-msg form-msg--error" style={{ marginTop: '1.5rem' }}><AlertCircle size={18} /> {error}</div>}
-                {exito && <div className="form-msg form-msg--exito" style={{ marginTop: '1.5rem' }}><Check size={18} /> {exito}</div>}
+                {error && <div className="form-msg form-msg--error" style={{ marginTop: '1.5rem', borderRadius: '10px' }}><AlertCircle size={18} /> {error}</div>}
+                {exito && <div className="form-msg form-msg--exito" style={{ marginTop: '1.5rem', borderRadius: '10px' }}><Check size={18} /> {exito}</div>}
                 
-                <div className="cxc-modal-footer" style={{ marginTop: '1.5rem', paddingTop: '1.25rem', borderTop: '1px solid rgba(255,255,255,0.06)', display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
-                    <button type="button" className="btn-refrescar" onClick={onCerrar} disabled={guardando} style={{ borderRadius: '8px', padding: '0 1.5rem', width: 'auto' }}>
+                <div className="cxc-modal-footer" style={{ marginTop: '1.75rem', paddingTop: '1.5rem', borderTop: '1px solid rgba(255,255,255,0.06)', display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
+                    <button type="button" className="btn-refrescar" onClick={onCerrar} disabled={guardando} style={{ borderRadius: '10px', padding: '0 1.8rem', width: 'auto', fontWeight: 600 }}>
                         Cancelar
                     </button>
-                    <button type="submit" className="btn-guardar-cuenta" disabled={guardando || !!exito} style={{ background: '#FF6B35', borderColor: '#FF6B35', padding: '0.8rem 2.5rem' }}>
+                    <button type="submit" className="btn-guardar-cuenta" disabled={guardando || !!exito} style={{ 
+                      background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)', 
+                      borderColor: 'transparent', 
+                      padding: '0.9rem 3rem',
+                      borderRadius: '12px',
+                      fontWeight: 800,
+                      boxShadow: '0 10px 15px -3px rgba(245, 158, 11, 0.3)'
+                    }}>
                         {guardando ? (
                             <> <RefreshCw size={18} className="spin" /> Procesando... </>
                         ) : (
-                            <> <Check size={20} /> {pagarAlCrear ? 'Crear y Pagar' : 'Confirmar Deuda'} </>
+                            <> <Check size={20} /> {pagarAlCrear ? 'Confirmar y Pagar' : 'Confirmar Deuda'} </>
                         )}
                     </button>
                 </div>

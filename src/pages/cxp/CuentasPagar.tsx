@@ -23,7 +23,6 @@ import NotaPago from '../../components/cxp/NotaPago';
 import DetalleProveedorCxP from '../../components/cxp/DetalleProveedorCxP';
 import AdminEntidadesCxP from '../../components/cxp/AdminEntidadesCxP';
 import ModalPagoRapidoCxP from '../../components/cxp/ModalPagoRapidoCxP';
-import ModalSaldoInicialCxP from '../../components/cxp/ModalSaldoInicialCxP';
 
 /** Formato de moneda boliviana */
 const fmtMonto = (n: number) =>
@@ -62,7 +61,6 @@ const CuentasPagar: React.FC = () => {
   const [tipoNotaInicial, setTipoNotaInicial]           = useState<'proveedor' | 'personal'>('proveedor');
   const [entidadSeleccionada, setEntidadSeleccionada]   = useState<EntidadCxP | null>(null);
   const [mostrarAdmin, setMostrarAdmin]                 = useState(false);
-  const [mostrarSaldoInicial, setMostrarSaldoInicial]   = useState(false);
 
   const [mostrarPagoRapido, setMostrarPagoRapido]       = useState(false);
   const [entidadParaPagoRapido, setEntidadParaPagoRapido] = useState<EntidadCxP | null>(null);
@@ -286,13 +284,6 @@ const CuentasPagar: React.FC = () => {
             onClick={() => { setEntidadParaNota(null); setTipoNotaInicial('proveedor'); setMostrarNota(true); }}
           >
             <Plus size={16} /> Nueva Nota de Deuda
-          </button>
-          <button
-            className="btn-nueva-cuenta"
-            onClick={() => setMostrarSaldoInicial(true)}
-            style={{ background: '#A855F7', borderColor: '#A855F7' }}
-          >
-            <BookOpen size={16} /> Saldo Inicial
           </button>
           <button className="btn-refrescar" onClick={cargarDatos} disabled={cargando}>
             <RefreshCw size={18} className={cargando ? 'spin' : ''} />
@@ -547,12 +538,6 @@ const CuentasPagar: React.FC = () => {
         onActualizar={cargarDatos}
       />
 
-      {/* ─── Modal: Saldo Inicial CxP ─── */}
-      <ModalSaldoInicialCxP
-        visible={mostrarSaldoInicial}
-        onCerrar={() => setMostrarSaldoInicial(false)}
-        onCreado={() => { setMostrarSaldoInicial(false); cargarDatos(); }}
-      />
     </main>
   );
 };

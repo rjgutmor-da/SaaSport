@@ -67,6 +67,7 @@ const DetalleProveedorCxP: React.FC<Props> = ({ entidad, visible, onCerrar, onAc
   const [notas, setNotas] = useState<NotaResumen[]>([]);
   const [cargando, setCargando] = useState(true);
   const [filtroEstado, setFiltroEstado] = useState('');
+  const [modoAnticipo, setModoAnticipo] = useState(false);
 
   // Modales internos
   const [mostrarNuevaNota, setMostrarNuevaNota] = useState(false);
@@ -82,7 +83,7 @@ const DetalleProveedorCxP: React.FC<Props> = ({ entidad, visible, onCerrar, onAc
       .select(`
         id, fecha_emision, fecha_vencimiento, estado,
         monto_total, monto_pagado, deuda_restante,
-        descripcion, tipo_gasto, proveedor_id, personal_id
+        descripcion, tipo_gasto, proveedor_id, personal_id, es_anticipo
       `)
       .order('fecha_emision', { ascending: false });
 
@@ -106,14 +107,39 @@ const DetalleProveedorCxP: React.FC<Props> = ({ entidad, visible, onCerrar, onAc
     setCargando(false);
   };
 
+  /** Anular nota */
+  const handleAnularNota = async (id: string) => {
+    if (!window.confirm('¿Está seguro de anular esta nota? Esta acción no se puede deshacer.')) return;
+    
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Usuario no autenticado');
+
+      const { error } = await supabase.rpc('rpc_anular_cuenta_pagar', {
+        p_id: id,
+        p_usuario_id: user.id
+      });
+
+      if (error) throw error;
+      
+      cargarNotas();
+      onActualizar();
+    } catch (err: any) {
+      alert('Error al anular nota: ' + err.message);
+    }
+  };
+
   useEffect(() => {
     if (visible && entidad) cargarNotas();
   }, [visible, entidad]);
 
   /** Notas filtradas por estado */
   const notasFiltradas = useMemo(() => {
+    if (filtroEstado === 'anticipo') {
+      return notas.filter(n => (n as any).es_anticipo);
+    }
     if (!filtroEstado) return notas;
-    return notas.filter(n => n.estado === filtroEstado);
+    return notas.filter(n => n.estado === filtroEstado && !(n as any).es_anticipo);
   }, [notas, filtroEstado]);
 
   /** Estadísticas rápidas */
@@ -196,6 +222,17 @@ const DetalleProveedorCxP: React.FC<Props> = ({ entidad, visible, onCerrar, onAc
             >
               <FileText size={15} /> Nueva Nota
             </button>
+            <button
+              className="btn-refrescar"
+              onClick={() => {
+                // Abrir formulario de nota pero forzando modo anticipo
+                setMostrarNuevaNota(true);
+                setModoAnticipo(true);
+              }}
+              style={{ flexShrink: 0, color: '#a855f7', borderColor: '#a855f7' }}
+            >
+              <DollarSign size={15} /> Registrar Anticipo
+            </button>
             <select
               value={filtroEstado}
               onChange={e => setFiltroEstado(e.target.value)}
@@ -207,6 +244,7 @@ const DetalleProveedorCxP: React.FC<Props> = ({ entidad, visible, onCerrar, onAc
               <option value="parcial">Parcial</option>
               <option value="pagada">Pagada</option>
               <option value="vencida">Vencida</option>
+              <option value="anticipo">Anticipos</option>
             </select>
             <span style={{ fontSize: '0.8rem', color: 'var(--text-tertiary)', marginLeft: 'auto' }}>
               {notasFiltradas.length} nota{notasFiltradas.length !== 1 ? 's' : ''}
@@ -237,17 +275,21 @@ const DetalleProveedorCxP: React.FC<Props> = ({ entidad, visible, onCerrar, onAc
                       <th className="cxc-th cxc-th-right">Total</th>
                       <th className="cxc-th cxc-th-right">Pagado</th>
                       <th className="cxc-th cxc-th-right">Saldo</th>
-                      <th className="cxc-th cxc-th-center">Acción</th>
+                      <th className="cxc-th cxc-th-center">Acciones</th>
                     </tr>
                   </thead>
                   <tbody>
                     {notasFiltradas.map(nota => {
-                      const badge = BADGE_ESTADOS[nota.estado] ?? BADGE_ESTADOS.pendiente;
+                      const isAnticipo = (nota as any).es_anticipo;
+                      const badge = isAnticipo 
+                        ? { label: 'Anticipo', color: '#a855f7', bg: 'rgba(168,85,247,0.15)' }
+                        : (BADGE_ESTADOS[nota.estado] ?? BADGE_ESTADOS.pendiente);
                       const tieneSaldo = nota.deuda_restante > 0;
+                      
                       return (
                         <tr
                           key={nota.id}
-                          className={`cxc-tr ${tieneSaldo ? 'cxc-tr--deuda' : ''}`}
+                          className={`cxc-tr ${tieneSaldo ? 'cxc-tr--deuda' : ''} ${isAnticipo ? 'cxc-tr--anticipo' : ''}`}
                           style={{ cursor: 'pointer' }}
                           onClick={() => setNotaSeleccionada({
                             ...nota,
@@ -280,24 +322,50 @@ const DetalleProveedorCxP: React.FC<Props> = ({ entidad, visible, onCerrar, onAc
                             Bs {fmtMonto(nota.monto_pagado)}
                           </td>
                           <td className="cxc-td cxc-td-right">
-                            {tieneSaldo
+                            {isAnticipo ? (
+                              <span style={{ color: '#a855f7', fontWeight: 600 }}>Bs {fmtMonto(nota.deuda_restante)} (Disp.)</span>
+                            ) : tieneSaldo
                               ? <span className="cxc-monto-deuda">Bs {fmtMonto(nota.deuda_restante)}</span>
                               : <span className="cxc-al-dia">✓ Pagada</span>
                             }
                           </td>
                           <td className="cxc-td cxc-td-acciones" onClick={e => e.stopPropagation()}>
-                            <button
-                              className="cxc-accion-btn cxc-accion-btn--nota"
-                              onClick={() => setNotaSeleccionada({
-                                ...nota,
-                                proveedor_nombre: entidad.tipo === 'proveedor' ? entidad.nombre : undefined,
-                                personal_nombre:  entidad.tipo === 'personal'  ? entidad.nombre : undefined,
-                              })}
-                              title="Ver detalle / Pagar"
-                            >
-                              {tieneSaldo ? <CreditCard size={13} /> : <Edit2 size={13} />}
-                              <span>{tieneSaldo ? 'Pagar' : 'Ver'}</span>
-                            </button>
+                            <div style={{ display: 'flex', gap: '0.4rem', justifyContent: 'center' }}>
+                              {tieneSaldo && !isAnticipo && (
+                                <button
+                                  className="cxc-accion-btn cxc-accion-btn--nota"
+                                  onClick={() => setNotaSeleccionada({
+                                    ...nota,
+                                    proveedor_nombre: entidad.tipo === 'proveedor' ? entidad.nombre : undefined,
+                                    personal_nombre:  entidad.tipo === 'personal'  ? entidad.nombre : undefined,
+                                  })}
+                                  title="Pagar"
+                                  style={{ padding: '4px 8px' }}
+                                >
+                                  <CreditCard size={13} />
+                                </button>
+                              )}
+                              <button
+                                className="cxc-accion-btn"
+                                onClick={() => setNotaSeleccionada({
+                                  ...nota,
+                                  proveedor_nombre: entidad.tipo === 'proveedor' ? entidad.nombre : undefined,
+                                  personal_nombre:  entidad.tipo === 'personal'  ? entidad.nombre : undefined,
+                                })}
+                                title="Ver detalles / Editar"
+                                style={{ padding: '4px 8px', borderColor: 'rgba(255,255,255,0.1)' }}
+                              >
+                                <Edit2 size={13} />
+                              </button>
+                              <button
+                                className="cxc-accion-btn"
+                                onClick={() => handleAnularNota(nota.id)}
+                                title="Anular nota"
+                                style={{ padding: '4px 8px', color: 'var(--danger)', borderColor: 'rgba(239,68,68,0.2)' }}
+                              >
+                                <X size={13} />
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       );
@@ -314,8 +382,9 @@ const DetalleProveedorCxP: React.FC<Props> = ({ entidad, visible, onCerrar, onAc
       <NotaPago
         visible={mostrarNuevaNota}
         tipoInicial={tipoGastoInicial}
-        onCerrar={() => setMostrarNuevaNota(false)}
-        onCreada={() => { setMostrarNuevaNota(false); cargarNotas(); onActualizar(); }}
+        esAnticipo={modoAnticipo}
+        onCerrar={() => { setMostrarNuevaNota(false); setModoAnticipo(false); }}
+        onCreada={() => { setMostrarNuevaNota(false); setModoAnticipo(false); cargarNotas(); onActualizar(); }}
       />
 
       {/* Modal: Detalle y pago de nota */}
