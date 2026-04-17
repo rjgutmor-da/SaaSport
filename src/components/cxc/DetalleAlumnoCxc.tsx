@@ -349,11 +349,12 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
     if (cobroNroDoc.trim()) partesRef.push(`Nro: ${cobroNroDoc.trim()}`);
     const concatDoc = partesRef.join(' | ');
 
-    if (rpcErr) { setCobroError(`Error: ${rpcErr.message}`); setGuardandoCobro(false); return; }
+    let resultData: any = null;
+    let errorAlCobrar: any = null;
 
     if (usarAnticipo) {
         if (!anticipoId) { setCobroError('Seleccione un anticipo.'); setGuardandoCobro(false); return; }
-        const { error: errAnt } = await supabase.rpc('rpc_aplicar_anticipo_cxc', {
+        const { data, error: errAnt } = await supabase.rpc('rpc_aplicar_anticipo_cxc', {
             p_payload: {
                 nota_id: cobroCxcId,
                 anticipo_id: anticipoId,
@@ -363,7 +364,8 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                 sucursal_id: ctx.sucursal_id,
             }
         });
-        if (errAnt) { setCobroError(`Error: ${errAnt.message}`); setGuardandoCobro(false); return; }
+        resultData = data;
+        errorAlCobrar = errAnt;
     } else {
         const { data, error: rpcErr } = await supabase.rpc('rpc_registrar_cobro', {
             p_payload: {
@@ -377,8 +379,11 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                 nro_comprobante: concatDoc || null,
             }
         });
-        if (rpcErr) { setCobroError(`Error: ${rpcErr.message}`); setGuardandoCobro(false); return; }
+        resultData = data;
+        errorAlCobrar = rpcErr;
     }
+
+    if (errorAlCobrar) { setCobroError(`Error: ${errorAlCobrar.message}`); setGuardandoCobro(false); return; }
 
     // Registrar auditoría
     await supabase.from('audit_log').insert({
@@ -388,11 +393,11 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
       accion: 'cobro',
       modulo: 'cxc',
       entidad_id: cobroCxcId,
-      detalle: { monto, metodo_pago: cobroMetodo, nuevo_estado: data?.nuevo_estado },
+      detalle: { monto, metodo_pago: cobroMetodo, nuevo_estado: resultData?.nuevo_estado },
     });
 
     // Generar mensaje WhatsApp de recibo de pago
-    const tipoPago = data?.nuevo_estado === 'pagada' ? 'pago total' : 'pago parcial';
+    const tipoPago = resultData?.nuevo_estado === 'pagada' ? 'pago total' : 'pago parcial';
     // Cargar detalle si no tenemos
     if (!detalles[cobroCxcId]) {
       const { data: detData } = await supabase
@@ -422,7 +427,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
       setMensajePagoWA({ texto: textoWA, telefono: telFinal });
     }
 
-    setCobroExito(`✅ Cobro registrado. ${data?.nuevo_estado === 'pagada' ? 'CxC pagada.' : `Saldo: Bs ${fmtMonto(data?.saldo_pendiente || 0)}`}`);
+    setCobroExito(`✅ Cobro registrado. ${resultData?.nuevo_estado === 'pagada' ? 'CxC pagada.' : `Saldo: Bs ${fmtMonto(resultData?.saldo_pendiente || 0)}`}`);
     setGuardandoCobro(false);
     setCobroMonto('');
 
