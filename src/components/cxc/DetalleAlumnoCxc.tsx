@@ -63,6 +63,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
 
   // Historial de cobros por CxC
   const [historialCobros, setHistorialCobros] = useState<Record<string, any[]>>({});
+  const [anticiposDisponibles, setAnticiposDisponibles] = useState<any[]>([]);
 
   // Datos adicionales solicitados
   const [datosAdicionales, setDatosAdicionales] = useState({
@@ -81,6 +82,9 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
   const [cobroEditDoc, setCobroEditDoc] = useState('');
   const [guardandoEdicionCobro, setGuardandoEdicionCobro] = useState(false);
   const [cobroNroDoc, setCobroNroDoc] = useState('');
+  const [usarAnticipo, setUsarAnticipo] = useState(false);
+  const [anticipoId, setAnticipoId] = useState('');
+  const [mostrarNotaAnticipo, setMostrarNotaAnticipo] = useState(false);
 
 
 
@@ -141,6 +145,14 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
         }
         setHistorialCobros(historyMap);
       }
+
+      // Buscar anticipos disponibles para el alumno
+      const { data: resAnt } = await supabase.from('v_cuentas_cobrar')
+        .select('*')
+        .eq('alumno_id', alumno.alumno_id)
+        .eq('es_anticipo', true)
+        .gt('saldo_pendiente', 0);
+      setAnticiposDisponibles(resAnt || []);
 
       setCargando(false);
 
@@ -337,20 +349,36 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
     if (cobroNroDoc.trim()) partesRef.push(`Nro: ${cobroNroDoc.trim()}`);
     const concatDoc = partesRef.join(' | ');
 
-    const { data, error: rpcErr } = await supabase.rpc('rpc_registrar_cobro', {
-      p_payload: {
-        cuenta_cobrar_id: cobroCxcId,
-        monto,
-        metodo_pago: cobroMetodo,
-        cuenta_cobro_id: cobroCuentaId,
-        escuela_id: ctx.escuela_id,
-        sucursal_id: ctx.sucursal_id,
-        usuario_id: ctx.id,
-        nro_comprobante: concatDoc || null,
-      }
-    });
-
     if (rpcErr) { setCobroError(`Error: ${rpcErr.message}`); setGuardandoCobro(false); return; }
+
+    if (usarAnticipo) {
+        if (!anticipoId) { setCobroError('Seleccione un anticipo.'); setGuardandoCobro(false); return; }
+        const { error: errAnt } = await supabase.rpc('rpc_aplicar_anticipo_cxc', {
+            p_payload: {
+                nota_id: cobroCxcId,
+                anticipo_id: anticipoId,
+                monto: monto,
+                usuario_id: ctx.id,
+                escuela_id: ctx.escuela_id,
+                sucursal_id: ctx.sucursal_id,
+            }
+        });
+        if (errAnt) { setCobroError(`Error: ${errAnt.message}`); setGuardandoCobro(false); return; }
+    } else {
+        const { data, error: rpcErr } = await supabase.rpc('rpc_registrar_cobro', {
+            p_payload: {
+                cuenta_cobrar_id: cobroCxcId,
+                monto,
+                metodo_pago: cobroMetodo,
+                cuenta_cobro_id: cobroCuentaId,
+                escuela_id: ctx.escuela_id,
+                sucursal_id: ctx.sucursal_id,
+                usuario_id: ctx.id,
+                nro_comprobante: concatDoc || null,
+            }
+        });
+        if (rpcErr) { setCobroError(`Error: ${rpcErr.message}`); setGuardandoCobro(false); return; }
+    }
 
     // Registrar auditoría
     await supabase.from('audit_log').insert({
@@ -461,13 +489,10 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
       .eq('id', user.id).single();
     if (!ctx) return;
 
-    const { error: err } = await supabase.from('cuentas_cobrar').update({
-      anulada: true,
-      anulada_por: ctx.id,
-      anulada_at: new Date().toISOString(),
-      estado: 'pagada', // Se marca como resuelta
-      updated_at: new Date().toISOString(),
-    }).eq('id', cxcId);
+    const { error: err } = await supabase.rpc('rpc_anular_cuenta_cobrar', {
+      p_cuenta_cobrar_id: cxcId,
+      p_usuario_id: ctx.id
+    });
 
     if (err) { alert(`Error al anular: ${err.message}`); return; }
 
@@ -554,7 +579,6 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
     <>
       <div className="cxc-modal-overlay" onClick={() => { if (!guardandoCobro) onCerrar(); }}>
         <div className="cxc-modal cxc-modal--detalle cxc-modal--wide" onClick={e => e.stopPropagation()}>
-          {/* Cabecera */}
           <div className="cxc-modal-header" style={{ borderLeft: '8px solid var(--primary)', paddingLeft: '1.5rem' }}>
             <div className="cxc-modal-header-info" style={{ display: 'flex', alignItems: 'center', gap: '1.2rem', overflow: 'hidden' }}>
               <div className="cxc-alumno-avatar" style={{ width: '56px', height: '56px', fontSize: '1.3rem', borderRadius: '14px', flexShrink: 0 }}>
@@ -574,7 +598,16 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                 </div>
               </div>
             </div>
-            <button onClick={onCerrar} disabled={guardandoCobro}><X size={20} /></button>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <button 
+                onClick={() => setMostrarNotaAnticipo(true)} 
+                className="btn-guardar-cuenta" 
+                style={{ background: 'var(--secondary)', fontSize: '0.8rem', padding: '0.4rem 0.8rem', width: 'auto' }}
+              >
+                <CreditCard size={14} style={{ marginRight: '0.3rem' }} /> Registrar Saldo a Favor
+              </button>
+              <button onClick={onCerrar} disabled={guardandoCobro}><X size={20} /></button>
+            </div>
           </div>
 
           {/* Resumen Estadístico Premium - AHORA 4 FICHAS */}
@@ -692,20 +725,31 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                               {cxc.anulada ? (
                                 <span className="cxc-estado-badge cxc-estado-badge--anulada">Anulada</span>
                               ) : (
-                                <button
-                                  className={`cxc-btn-editar-visible ${cxc.estado === 'pagada' ? 'cxc-btn-editar-visible--dim' : ''}`}
-                                  onClick={() => prepararEdicion(cxc)}
-                                  title={
-                                    cxc.estado === 'pagada'
-                                      ? 'Esta nota ya está pagada'
-                                      : (puedeEditar(cxc) || puedeReEditar())
-                                        ? 'Editar nota de servicio'
-                                        : 'Sin permisos para editar'
-                                  }
-                                >
-                                  <Pencil size={13} />
-                                  Editar
-                                </button>
+                                <div style={{ display: 'flex', gap: '0.25rem', justifyContent: 'center' }}>
+                                  <button
+                                    className={`cxc-btn-editar-visible ${cxc.estado === 'pagada' ? 'cxc-btn-editar-visible--dim' : ''}`}
+                                    onClick={() => prepararEdicion(cxc)}
+                                    title={
+                                      cxc.estado === 'pagada'
+                                        ? 'Esta nota ya está pagada'
+                                        : (puedeEditar(cxc) || puedeReEditar())
+                                          ? 'Editar nota de servicio'
+                                          : 'Sin permisos para editar'
+                                    }
+                                  >
+                                    <Pencil size={13} />
+                                  </button>
+                                  {puedeAnular() && !cxc.anulada && (
+                                    <button
+                                      className="cxc-btn-editar-visible"
+                                      style={{ color: 'var(--danger)', borderColor: 'var(--danger)' }}
+                                      onClick={() => anularNota(cxc.id)}
+                                      title="Anular Nota"
+                                    >
+                                      <Ban size={13} />
+                                    </button>
+                                  )}
+                                </div>
                               )}
                             </td>
                           </tr>
@@ -713,78 +757,145 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                           {/* Fila colapsable de pago inline */}
                           {isCobro && (
                             <tr>
-                              <td colSpan={7} style={{padding: 0, borderBottom: '1px solid var(--border-color)'}}>
-                                <div style={{padding: '1rem', background: 'var(--input-bg)'}}>
+                              <td colSpan={7} style={{ padding: 0, borderBottom: '1px solid var(--border-color)' }}>
+                                <div style={{ padding: '1rem', background: 'var(--input-bg)' }}>
                                   <form className="detalle-cobro-form" onSubmit={registrarCobro} onClick={e => e.stopPropagation()}>
-                                    <div className="detalle-cobro-campos">
-                                      <input
-                                        type="number" step="0.01" min="0.01"
-                                        max={Number(cxc.saldo_pendiente)}
-                                        value={cobroMonto}
-                                        onChange={e => setCobroMonto(e.target.value)}
-                                        placeholder="Monto"
-                                        required disabled={guardandoCobro}
-                                        className="detalle-cobro-input"
-                                      />
-                                      <select
-                                        value={cobroMetodo}
-                                        onChange={e => setCobroMetodo(e.target.value)}
-                                        disabled={guardandoCobro}
-                                        className="detalle-cobro-select"
-                                      >
-                                        <option value="efectivo">Efectivo</option>
-                                        <option value="transferencia">Transferencia</option>
-                                        <option value="qr">QR</option>
-                                      </select>
-                                      <select
-                                        value={cobroCuentaId}
-                                        onChange={e => setCobroCuentaId(e.target.value)}
-                                        required disabled={guardandoCobro}
-                                        className="detalle-cobro-select"
-                                      >
-                                        <option value="">Caja/Banco</option>
-                                        {cuentasCobro.map(c => (
-                                          <option key={c.id} value={c.id}>{c.codigo} — {c.nombre}</option>
-                                        ))}
-                                      </select>
-                                      <div style={{display: 'flex', gap: '0.25rem'}}>
-                                        {(cobroMetodo === 'transferencia' || cobroMetodo === 'qr') && (
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '0.5rem' }}>
+                                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.85rem' }}>
+                                          <input
+                                            type="checkbox"
+                                            checked={usarAnticipo}
+                                            onChange={(e) => setUsarAnticipo(e.target.checked)}
+                                            disabled={guardandoCobro || anticiposDisponibles.length === 0}
+                                          />
+                                          <span style={{ color: anticiposDisponibles.length > 0 ? 'var(--secondary)' : 'var(--text-tertiary)', fontWeight: 600 }}>
+                                            {anticiposDisponibles.length > 0
+                                              ? `Usar Saldo a Favor (Disponible: Bs ${fmtMonto(anticiposDisponibles.reduce((s, a) => s + Number(a.saldo_pendiente), 0))})`
+                                              : 'Sin saldos a favor disponibles'}
+                                          </span>
+                                        </label>
+                                        {usarAnticipo && (
+                                          <select
+                                            value={anticipoId}
+                                            onChange={(e) => {
+                                              setAnticipoId(e.target.value);
+                                              const ant = anticiposDisponibles.find((a) => a.id === e.target.value);
+                                              if (ant) {
+                                                const max = Math.min(Number(cxc.saldo_pendiente), Number(ant.saldo_pendiente));
+                                                setCobroMonto(String(max));
+                                              }
+                                            }}
+                                            className="detalle-cobro-select"
+                                            style={{ flex: 1, borderColor: 'var(--secondary)' }}
+                                            required
+                                          >
+                                            <option value="">— Seleccionar Anticipo —</option>
+                                            {anticiposDisponibles.map((a) => (
+                                              <option key={a.id} value={a.id}>
+                                                {fmtFecha(a.fecha_emision)} - Bs {fmtMonto(a.saldo_pendiente)}
+                                              </option>
+                                            ))}
+                                          </select>
+                                        )}
+                                      </div>
+
+                                      <div className="detalle-cobro-campos">
+                                        <input
+                                          type="number"
+                                          step="0.01"
+                                          min="0.01"
+                                          max={Number(cxc.saldo_pendiente)}
+                                          value={cobroMonto}
+                                          onChange={(e) => setCobroMonto(e.target.value)}
+                                          placeholder="Monto"
+                                          required
+                                          disabled={guardandoCobro}
+                                          className="detalle-cobro-input"
+                                        />
+                                        {!usarAnticipo && (
                                           <>
+                                            <select
+                                              value={cobroMetodo}
+                                              onChange={(e) => setCobroMetodo(e.target.value)}
+                                              disabled={guardandoCobro}
+                                              className="detalle-cobro-select"
+                                            >
+                                              <option value="efectivo">Efectivo</option>
+                                              <option value="transferencia">Transferencia</option>
+                                              <option value="qr">QR</option>
+                                            </select>
+                                            <select
+                                              value={cobroCuentaId}
+                                              onChange={(e) => setCobroCuentaId(e.target.value)}
+                                              required
+                                              disabled={guardandoCobro}
+                                              className="detalle-cobro-select"
+                                            >
+                                              <option value="">Caja/Banco</option>
+                                              {cuentasCobro.map((c) => (
+                                                <option key={c.id} value={c.id}>
+                                                  {c.codigo} — {c.nombre}
+                                                </option>
+                                              ))}
+                                            </select>
+                                          </>
+                                        )}
+
+                                        <div style={{ display: 'flex', gap: '0.25rem', flex: 1 }}>
+                                          {!usarAnticipo && (cobroMetodo === 'transferencia' || cobroMetodo === 'qr') && (
+                                            <>
+                                              <input
+                                                type="text"
+                                                placeholder="Banco Origen"
+                                                value={cobroBancoOrigen}
+                                                onChange={(e) => setCobroBancoOrigen(e.target.value)}
+                                                disabled={guardandoCobro}
+                                                className="detalle-cobro-input"
+                                                style={{ flex: 1 }}
+                                              />
+                                              <input
+                                                type="time"
+                                                value={cobroHora}
+                                                onChange={(e) => setCobroHora(e.target.value)}
+                                                disabled={guardandoCobro}
+                                                className="detalle-cobro-input"
+                                                style={{ width: '90px' }}
+                                              />
+                                            </>
+                                          )}
+                                          {!usarAnticipo && (
                                             <input
                                               type="text"
-                                              placeholder="Banco Origen"
-                                              value={cobroBancoOrigen}
-                                              onChange={e => setCobroBancoOrigen(e.target.value)}
+                                              placeholder="Nro. Comprobante"
+                                              value={cobroNroDoc}
+                                              onChange={(e) => setCobroNroDoc(e.target.value)}
                                               disabled={guardandoCobro}
                                               className="detalle-cobro-input"
                                               style={{ flex: 1 }}
                                             />
-                                            <input
-                                              type="time"
-                                              value={cobroHora}
-                                              onChange={e => setCobroHora(e.target.value)}
-                                              disabled={guardandoCobro}
-                                              className="detalle-cobro-input"
-                                              style={{ width: '90px' }}
-                                            />
-                                          </>
-                                        )}
-                                        <input
-                                          type="text"
-                                          placeholder="Nro. Comprobante"
-                                          value={cobroNroDoc}
-                                          onChange={e => setCobroNroDoc(e.target.value)}
+                                          )}
+                                        </div>
+                                        <button
+                                          type="submit"
+                                          className="detalle-cobro-btn"
                                           disabled={guardandoCobro}
-                                          className="detalle-cobro-input"
-                                          style={{ flex: 1 }}
-                                        />
+                                          style={{ background: usarAnticipo ? 'var(--secondary)' : 'var(--primary)' }}
+                                        >
+                                          <Check size={14} /> {guardandoCobro ? '...' : usarAnticipo ? 'Aplicar Saldo' : 'Registrar'}
+                                        </button>
                                       </div>
-                                      <button type="submit" className="detalle-cobro-btn" disabled={guardandoCobro}>
-                                        <Check size={14} /> {guardandoCobro ? '...' : 'Registrar'}
-                                      </button>
                                     </div>
-                                    {cobroError && <div className="form-msg form-msg--error"><AlertCircle size={14} /> {cobroError}</div>}
-                                    {cobroExito && <div className="form-msg form-msg--exito"><Check size={14} /> {cobroExito}</div>}
+                                    {cobroError && (
+                                      <div className="form-msg form-msg--error">
+                                        <AlertCircle size={14} /> {cobroError}
+                                      </div>
+                                    )}
+                                    {cobroExito && (
+                                      <div className="form-msg form-msg--exito">
+                                        <Check size={14} /> {cobroExito}
+                                      </div>
+                                    )}
                                   </form>
                                 </div>
                               </td>
@@ -892,48 +1003,60 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                     })}
                   </tbody>
                 </table>
-            )}
+              )}
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* Modal de edición de Nota */}
-      <NotaServicios
-        visible={!!cxcParaEditar}
-        onCerrar={() => setCxcParaEditar(null)}
-        onCreada={() => {
-          onActualizar();
-          // Recargar CxC de este alumno
-          supabase.from('v_cuentas_cobrar').select('*')
-            .eq('alumno_id', alumno.alumno_id)
-            .order('created_at', { ascending: false })
-            .then(({ data }) => {
-              setCxcs((data as unknown as CuentaCobrar[]) ?? []);
-              setDetalles({}); // Limpiar cache de detalles
-            });
-        }}
-        cxcEditar={cxcParaEditar}
-      />
+        {/* Modales */}
+        <NotaServicios
+          visible={!!cxcParaEditar}
+          onCerrar={() => setCxcParaEditar(null)}
+          onCreada={() => {
+            onActualizar();
+            supabase.from('v_cuentas_cobrar').select('*')
+              .eq('alumno_id', alumno.alumno_id)
+              .order('created_at', { ascending: false })
+              .then(({ data }) => {
+                setCxcs((data as unknown as CuentaCobrar[]) ?? []);
+                setDetalles({}); 
+              });
+          }}
+          cxcEditar={cxcParaEditar}
+        />
 
-      {/* Modal para editar abonos/pagos */}
-      <ModalEditarMovimiento
-        visible={!!movEditar}
-        movimiento={movEditar}
-        cajas={cuentasCobro}
-        onCerrar={() => setMovEditar(null)}
-        onGuardado={() => {
-          setMovEditar(null);
-          onActualizar();
-          if (expandida) {
-            // Recargar detalles y cobros de la nota actual (si está expandida)
-            cargarDetalle(expandida);
-            // Hacer que se reabra el detalle porque cargarDetalle es un toggle
-            setExpandida(expandida); 
-          }
-        }}
-      />
-    </>
-  );
-};
 
-export default DetalleAlumnoCxc;
+        <ModalEditarMovimiento
+          visible={!!movEditar}
+          movimiento={movEditar}
+          cajas={cuentasCobro}
+          onCerrar={() => setMovEditar(null)}
+          onGuardado={() => {
+            setMovEditar(null);
+            onActualizar();
+            if (expandida) {
+              cargarDetalle(expandida);
+              setExpandida(expandida); 
+            }
+          }}
+        />
+
+        <NotaServicios
+          visible={mostrarNotaAnticipo}
+          onCerrar={() => setMostrarNotaAnticipo(false)}
+          onCreada={() => {
+            setMostrarNotaAnticipo(false);
+            onActualizar();
+            supabase.from('v_cuentas_cobrar').select('*')
+              .eq('alumno_id', alumno.alumno_id)
+              .order('created_at', { ascending: false })
+              .then(({ data }) => setCxcs((data as unknown as CuentaCobrar[]) ?? []));
+          }}
+          alumnoPreseleccionado={{ id: alumno.alumno_id, nombre: `${alumno.nombres} ${alumno.apellidos}` }}
+          esAnticipo={true}
+        />
+      </>
+    );
+  };
+
+  export default DetalleAlumnoCxc;

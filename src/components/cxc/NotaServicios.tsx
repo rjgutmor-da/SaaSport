@@ -19,6 +19,7 @@ interface NotaServiciosProps {
   onCerrar: () => void;
   onCreada: () => void;
   alumnoPreseleccionado?: { id: string; nombre: string } | null;
+  esAnticipo?: boolean;
   /** Modo edición: pasa los datos de la CxC existente */
   cxcEditar?: {
     id: string;
@@ -64,19 +65,21 @@ const lineaVacia = (): LineaNota => ({
 
 
 const NotaServicios: React.FC<NotaServiciosProps> = ({
-  visible, onCerrar, onCreada, alumnoPreseleccionado, cxcEditar
+  visible, onCerrar, onCreada, alumnoPreseleccionado, cxcEditar, esAnticipo = false
 }) => {
   // Datos
   const [alumnos, setAlumnos] = useState<{ id: string; nombres: string; apellidos: string }[]>([]);
   const [catalogo, setCatalogo] = useState<CatalogoItem[]>([]);
   const [cuentasCobro, setCuentasCobro] = useState<{ id: string; codigo: string; nombre: string }[]>([]);
   const [cuentasIngreso, setCuentasIngreso] = useState<{ id: string; codigo: string; nombre: string }[]>([]);
+  const [cuentasMaestras, setCuentasMaestras] = useState<{ id: string; codigo: string }[]>([]);
 
   // Formulario
   const [alumnoId, setAlumnoId] = useState('');
   const [lineas, setLineas] = useState<LineaNota[]>([lineaVacia()]);
   const [observaciones, setObservaciones] = useState('');
   const [vencimiento, setVencimiento] = useState('');
+  const [fechaEmision, setFechaEmision] = useState(new Date().toISOString().split('T')[0]);
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [exito, setExito] = useState<string | null>(null);
@@ -122,18 +125,25 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
         qCuentas = qCuentas.or(`sucursal_id.eq.${userSucursal},sucursal_id.is.null`);
       }
 
-      const [resAlum, resCat, resCuentas, resIngresos] = await Promise.all([
+      const [resAlum, resCat, resCuentas, resIngresos, resMaestras] = await Promise.all([
         supabase.from('alumnos').select('id, nombres, apellidos')
           .eq('archivado', false).order('nombres', { ascending: true }),
         supabase.from('catalogo_items').select('*')
           .eq('activo', true).eq('es_ingreso', true).order('nombre'),
         qCuentas.order('codigo'),
-        supabase.from('plan_cuentas').select('id, codigo, nombre').eq('es_transaccional', true).in('tipo', ['ingreso', 'pasivo']).order('nombre'),
+        supabase.from('plan_cuentas').select('id, codigo, nombre')
+          .eq('es_transaccional', true).in('tipo', ['ingreso', 'pasivo'])
+          .or(`escuela_id.eq.${usr.escuela_id},escuela_id.is.null`)
+          .order('nombre'),
+        supabase.from('plan_cuentas').select('id, codigo')
+          .in('codigo', ['2.1.5', '1.1.2'])
+          .or(`escuela_id.eq.${usr.escuela_id},escuela_id.is.null`),
       ]);
       setAlumnos(resAlum.data ?? []);
       setCatalogo(resCat.data ?? []);
       setCuentasCobro(resCuentas.data ?? []);
       setCuentasIngreso(resIngresos.data ?? []);
+      setCuentasMaestras(resMaestras.data ?? []);
     };
     cargar();
 
@@ -178,6 +188,7 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
       setLineas([lineaVacia()]);
       setObservaciones('');
       setVencimiento('');
+      setFechaEmision(new Date().toISOString().split('T')[0]);
     }
     setPagarAlCrear(false);
     setMetodoPago('efectivo');
@@ -187,10 +198,22 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
     setNroRecibo('');
     setCobroOriginalAsientoId(null);
     setCobroMovimientoId(null);
-    setError(null);
     setExito(null);
     setMensajeWA(null);
-  }, [visible, alumnoPreseleccionado, cxcEditar]);
+
+    if (esAnticipo) {
+      setPagarAlCrear(true);
+      setObservaciones('Cobro Anticipado - Saldo a Favor Alumno');
+      setLineas([{
+        ...lineaVacia(),
+        nombre: 'Crédito / Saldo a Favor',
+        detalle_personalizado: 'Anticipo para futuras mensualidades/servicios'
+      }]);
+    }
+    if (cxcEditar) {
+      setFechaEmision((cxcEditar as any).fecha_emision || new Date().toISOString().split('T')[0]);
+    }
+  }, [visible, alumnoPreseleccionado, cxcEditar, esAnticipo]);
 
   // Total calculado
   const total = useMemo(() =>
@@ -407,10 +430,11 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
     // MODO CREACIÓN
     // ==============================
 
-    // Buscar cuenta contable de CxC (1.1.3)
+    // Buscar cuenta contable de CxC (1.1.3) o Anticipos (2.1.5)
+    let codigoCta = esAnticipo ? '2.1.5' : '1.1.3';
     const { data: ctaCxc } = await supabase
-      .from('plan_cuentas').select('id').eq('codigo', '1.1.3').single();
-    if (!ctaCxc) { setError('No se encontró la cuenta contable 1.1.3 (CxC).'); setGuardando(false); return; }
+      .from('plan_cuentas').select('id').eq('codigo', codigoCta).single();
+    if (!ctaCxc) { setError(`No se encontró la cuenta contable ${codigoCta}.`); setGuardando(false); return; }
 
     // 1. Crear la cuenta por cobrar
     const { data: nuevaCxc, error: errCxc } = await supabase.from('cuentas_cobrar').insert({
@@ -422,7 +446,9 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
       descripcion: descripcionAuto,
       observaciones: observaciones || null,
       fecha_vencimiento: vencimiento || null,
+      fecha_emision: fechaEmision,
       estado: 'pendiente',
+      es_anticipo: esAnticipo,
     }).select('id').single();
 
     if (errCxc || !nuevaCxc) {
@@ -476,7 +502,11 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
       // 1. Calcular Ingresos y Costos de Inventario
       lineasValidas.forEach(l => {
           const dbItem = catalogo.find(c => c.id === l.catalogo_item_id);
-          const idCtaIngreso = dbItem?.cuenta_ingreso_id || l.cuenta_ingreso_id || (cuentasCobro.find(c => c.codigo.startsWith('4.1'))?.id || ctaCxc.id);
+          // Si es anticipo, el HABER va a Cobros Anticipados (2.1.5)
+          const idCtaIngreso = esAnticipo 
+            ? (cuentasMaestras.find(c => c.codigo === '2.1.5')?.id || '18148a18-ef57-4f37-b5cd-bf02a858f0be')
+            : (dbItem?.cuenta_ingreso_id || l.cuenta_ingreso_id || (cuentasCobro.find(c => c.codigo.startsWith('4.1'))?.id || ctaCxc.id));
+          
           haberesMap.set(idCtaIngreso, (haberesMap.get(idCtaIngreso) || 0) + l.subtotal);
           
           if (l.tipo === 'producto' && l.costo_unitario && l.costo_unitario > 0) {
@@ -521,7 +551,7 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
         escuela_id: ctx.escuela_id,
         sucursal_id: ctx.sucursal_id,
         usuario_id: ctx.id,
-        descripcion: `Venta: ${descripcionAuto}`,
+        descripcion: esAnticipo ? `Cobro Anticipado: ${nombreAlum}` : `Venta: ${descripcionAuto}`,
         metodo_pago: pagarAlCrear ? metodoPago : 'efectivo', 
         movimientos: movimientosVenta
       };
@@ -537,7 +567,10 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
          }
       }
       
-      const { error: errAsiento } = await supabase.rpc('rpc_procesar_transaccion_financiera', { p_payload: payloadVenta });
+      const { data: vAsientoId, error: errAsiento } = await supabase.rpc('rpc_procesar_transaccion_financiera', { p_payload: payloadVenta });
+      if (vAsientoId) {
+         await supabase.from('cuentas_cobrar').update({ asiento_id: vAsientoId }).eq('id', nuevaCxc.id);
+      }
       
       if (errAsiento) {
           setError(`Error generando comprobante contable: ${errAsiento.message}`);
@@ -618,9 +651,11 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
               <FileText size={20} />
             </div>
             <div>
-              <h2 style={{ margin: 0, fontSize: '1.25rem' }}>{esEdicion ? 'Editar Nota de Servicio' : 'Nueva Nota de Servicio'}</h2>
+              <h2 style={{ margin: 0, fontSize: '1.25rem' }}>
+                {esAnticipo ? 'Registrar Cobro Anticipado (Saldo a Favor)' : (esEdicion ? 'Editar Nota de Servicio' : 'Nueva Nota de Servicio')}
+              </h2>
               <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-tertiary)' }}>
-                {esEdicion ? 'Modifica los ítems y condiciones de la factura' : 'Genera una nueva cuenta por cobrar para el alumno'}
+                {esAnticipo ? 'Carga saldo a favor del alumno para futuros pagos' : (esEdicion ? 'Modifica los ítems y condiciones de la factura' : 'Genera una nueva cuenta por cobrar para el alumno')}
               </p>
             </div>
           </div>
@@ -667,6 +702,18 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
                 </div>
 
                 <div className="form-campo">
+                    <label style={{ color: 'var(--primary)', fontWeight: 700 }}><Calendar size={14} /> Fecha de Emisión *</label>
+                    <input 
+                        type="date" 
+                        value={fechaEmision}
+                        onChange={e => setFechaEmision(e.target.value)}
+                        required
+                        disabled={guardando}
+                        style={{ borderColor: 'var(--primary)', background: 'rgba(59, 130, 246, 0.05)' }}
+                    />
+                </div>
+
+                <div className="form-campo">
                   <label><Calendar size={14} /> Fecha de vencimiento (Opcional)</label>
                   <input
                     type="date" value={vencimiento}
@@ -685,7 +732,9 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
                         disabled={guardando}
                     />
                 </div>
+              </div>
 
+              <div className="modal-form-grid" style={{ marginBottom: '2rem' }}>
                 <div className="form-campo">
                     <label><Hash size={14} /> Nro. Transacción / Recibo</label>
                     <input 
@@ -719,7 +768,7 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
                       <div key={idx} style={{ background: 'var(--bg-glass)', borderRadius: '12px', border: '1px solid var(--border)', padding: '1rem', overflow: 'hidden' }}>
                         {/* Labels de columnas solo en la primera línea */}
                         {idx === 0 && (
-                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px 120px 120px 40px', gap: '1rem', marginBottom: '0.5rem' }}>
+                          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(200px, 2fr) 80px 140px 140px 40px', gap: '1rem', marginBottom: '0.5rem' }}>
                             <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-tertiary)', textTransform: 'uppercase' }}>Ítem</span>
                             <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-tertiary)', textTransform: 'uppercase', textAlign: 'center' }}>Cant.</span>
                             <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-tertiary)', textTransform: 'uppercase', textAlign: 'right' }}>P. Unitario</span>
@@ -727,17 +776,17 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
                             <span></span>
                           </div>
                         )}
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px 120px 120px 40px', gap: '1rem', alignItems: 'center' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(200px, 2fr) 80px 140px 140px 40px', gap: '1rem', alignItems: 'center' }}>
                           <div className="form-campo" style={{ marginBottom: 0 }}>
                             <select
                               value={linea.catalogo_item_id}
                               onChange={e => seleccionarItem(idx, e.target.value)}
                               disabled={guardando}
-                              style={{ border: 'none', background: 'transparent', padding: '0.5rem 0', fontWeight: 600, fontSize: '1rem' }}
+                              style={{ border: 'none', background: 'transparent', padding: '0.5rem 0', fontWeight: 600, fontSize: '1rem', color: '#fff', width: '100%' }}
                             >
-                              <option value="">— Seleccionar ítem —</option>
+                              <option value="" style={{ background: '#1e293b' }}>— Seleccionar ítem —</option>
                               {catalogo.map(c => (
-                                <option key={c.id} value={c.id}>{c.nombre}</option>
+                                <option key={c.id} value={c.id} style={{ background: '#1e293b' }}>{c.nombre}</option>
                               ))}
                             </select>
                           </div>
@@ -755,7 +804,8 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
                                 borderRadius: '8px',
                                 padding: '0.6rem',
                                 width: '100%',
-                                fontSize: '1rem',
+                                fontSize: '1.1rem',
+                                fontWeight: 600,
                                 color: 'var(--text-primary)'
                               }}
                             />
@@ -772,12 +822,12 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
                                 textAlign: 'right', 
                                 border: '1px solid var(--border)', 
                                 background: 'rgba(255,255,255,0.07)', 
-                                borderRadius: '8px', 
+                                borderRadius: '10px', 
                                 fontWeight: 700,
                                 padding: '0.6rem',
                                 width: '100%',
-                                fontSize: '1rem',
-                                color: 'var(--text-primary)',
+                                fontSize: '1.1rem',
+                                color: 'var(--primary)',
                                 outline: 'none',
                                 transition: 'all 0.2s'
                               }}
@@ -785,8 +835,8 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
                             />
                           </div>
 
-                          <div style={{ textAlign: 'right', fontWeight: 800, color: 'var(--success)', fontSize: '1.1rem' }}>
-                             Bs {fmtMonto(linea.subtotal)}
+                          <div style={{ textAlign: 'right', fontWeight: 800, color: '#fff', fontSize: '1.1rem' }}>
+                             {fmtMonto(linea.subtotal)}
                           </div>
 
                           <button
@@ -928,12 +978,12 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
                   <input
                     type="checkbox"
                     checked={pagarAlCrear}
-                    onChange={e => !cobroOriginalAsientoId && setPagarAlCrear(e.target.checked)}
-                    disabled={guardando || !!cobroOriginalAsientoId}
+                    onChange={e => !cobroOriginalAsientoId && setPagarAlCrear(true)} // Siempre true si es anticipo
+                    disabled={guardando || !!cobroOriginalAsientoId || esAnticipo}
                   />
                   <CreditCard size={16} />
                   <span style={{ fontWeight: 700 }}>
-                    {cobroOriginalAsientoId ? 'Información del Pago Registrado' : '¿Registrar pago inmediato?'}
+                    {esAnticipo ? 'Cobro Obligatorio (Anticipo)' : (cobroOriginalAsientoId ? 'Información del Pago Registrado' : '¿Registrar pago inmediato?')}
                   </span>
                 </label>
 

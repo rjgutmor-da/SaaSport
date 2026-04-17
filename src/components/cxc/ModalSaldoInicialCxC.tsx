@@ -16,12 +16,15 @@ interface Props {
   visible: boolean;
   onCerrar: () => void;
   onCreado: () => void;
+  edicionItem?: any;
 }
 
-const ModalSaldoInicialCxC: React.FC<Props> = ({ visible, onCerrar, onCreado }) => {
+const ModalSaldoInicialCxC: React.FC<Props> = ({ visible, onCerrar, onCreado, edicionItem }) => {
   const [alumnos, setAlumnos] = useState<{ id: string; nombres: string; apellidos: string }[]>([]);
+  const [naturalezaSaldo, setNaturalezaSaldo] = useState<'deuda' | 'anticipo'>('deuda');
   const [alumnoId, setAlumnoId] = useState('');
   const [monto, setMonto] = useState('');
+  const [fecha, setFecha] = useState(new Date().toISOString().split('T')[0]);
   const [descripcion, setDescripcion] = useState('Saldo inicial de deuda');
 
   const [guardando, setGuardando] = useState(false);
@@ -30,8 +33,18 @@ const ModalSaldoInicialCxC: React.FC<Props> = ({ visible, onCerrar, onCreado }) 
 
   useEffect(() => {
     if (!visible) return;
-    setAlumnoId(''); setMonto(''); setDescripcion('Saldo inicial de deuda');
-    setError(null); setExito(null);
+
+    if (edicionItem) {
+      setAlumnoId(edicionItem.alumno_id || '');
+      setMonto(String(edicionItem.monto_total || ''));
+      setFecha(edicionItem.fecha_emision || new Date().toISOString().split('T')[0]);
+      setDescripcion(edicionItem.descripcion || '');
+      setNaturalezaSaldo((edicionItem.observaciones || '').includes('SIA-') ? 'anticipo' : 'deuda');
+      setError(null); setExito(null);
+    } else {
+      setAlumnoId(''); setMonto(''); setFecha(new Date().toISOString().split('T')[0]); setDescripcion('Saldo inicial de deuda');
+      setError(null); setExito(null);
+    }
 
     const cargar = async () => {
       const { data } = await supabase.from('alumnos')
@@ -41,7 +54,7 @@ const ModalSaldoInicialCxC: React.FC<Props> = ({ visible, onCerrar, onCreado }) 
       setAlumnos(data ?? []);
     };
     cargar();
-  }, [visible]);
+  }, [visible, edicionItem]);
 
   if (!visible) return null;
 
@@ -56,6 +69,21 @@ const ModalSaldoInicialCxC: React.FC<Props> = ({ visible, onCerrar, onCreado }) 
     setGuardando(true);
 
     try {
+      if (edicionItem) {
+        const { error: editErr } = await supabase.rpc('rpc_editar_saldo_inicial_cxc', {
+          p_payload: {
+            cxc_id: edicionItem.id,
+            monto: valorMonto,
+            fecha,
+            descripcion: descripcion.trim()
+          }
+        });
+        if (editErr) throw editErr;
+        setExito(`✅ Saldo inicial actualizado correctamente.`);
+        setTimeout(() => { onCreado(); }, 1500);
+        return;
+      }
+
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('No hay sesión activa.');
       const { data: ctx } = await supabase.from('usuarios')
@@ -63,11 +91,14 @@ const ModalSaldoInicialCxC: React.FC<Props> = ({ visible, onCerrar, onCreado }) 
         .eq('id', user.id).single();
       if (!ctx) throw new Error('Error de contexto.');
 
+      const esAnticipo = naturalezaSaldo === 'anticipo';
+
       // Buscar cuentas necesarias
-      const { data: ctaCxc } = await supabase.from('plan_cuentas').select('id').eq('codigo', '1.1.3').single();
+      const codigoCxc = esAnticipo ? '2.1.5' : '1.1.3';
+      const { data: ctaCxc } = await supabase.from('plan_cuentas').select('id').eq('codigo', codigoCxc).single();
       const { data: ctaCapital } = await supabase.from('plan_cuentas').select('id').eq('codigo', '3.2.1').single();
       
-      if (!ctaCxc) throw new Error('No se encontró la cuenta 1.1.3 (Cuentas por Cobrar).');
+      if (!ctaCxc) throw new Error(`No se encontró la cuenta ${codigoCxc}.`);
       if (!ctaCapital) throw new Error('No se encontró la cuenta 3.2.1 (Capital Social Ajustes).');
 
       // 1. Crear registro en cuentas_cobrar
@@ -77,26 +108,38 @@ const ModalSaldoInicialCxC: React.FC<Props> = ({ visible, onCerrar, onCreado }) 
         alumno_id: alumnoId,
         cuenta_contable_id: ctaCxc.id,
         monto_total: valorMonto,
-        descripcion: descripcion.trim() || 'Saldo inicial de deuda',
-        observaciones: 'Saldo inicial - ajuste contable',
-        estado: 'pendiente',
+        fecha_emision: fecha,
+        descripcion: descripcion.trim() || (esAnticipo ? 'Saldo inicial de anticipo' : 'Saldo inicial de deuda'),
+        observaciones: (esAnticipo ? 'SIA-' : 'Saldo inicial - ajuste contable'),
+        estado: 'pendiente', // se mata abajo con el pago si es anticipo
       }).select('id').single();
 
       if (errCxc || !nuevaCxc) throw new Error(`Error al crear CxC: ${errCxc?.message || 'desconocido'}`);
 
-      // 2. Crear asiento contable: DEBE CxC, HABER Capital
+      // 2. Crear asiento contable
+      const movimientos = esAnticipo ? [
+        { cuenta_contable_id: ctaCapital.id, debe: valorMonto, haber: 0 },
+        { cuenta_contable_id: ctaCxc.id, debe: 0, haber: valorMonto },
+      ] : [
+        { cuenta_contable_id: ctaCxc.id, debe: valorMonto, haber: 0 },
+        { cuenta_contable_id: ctaCapital.id, debe: 0, haber: valorMonto },
+      ];
+
+      const cobros = esAnticipo ? [
+        { cuenta_cobrar_id: nuevaCxc.id, monto_aplicado: valorMonto }
+      ] : undefined;
+
       const { error: rpcErr } = await supabase.rpc('rpc_procesar_transaccion_financiera', {
         p_payload: {
           escuela_id: ctx.escuela_id,
           sucursal_id: ctx.sucursal_id,
           usuario_id: ctx.id,
-          descripcion: `Saldo Inicial CxC: ${descripcion.trim()}`,
+          descripcion: `Saldo Inicial CxC${esAnticipo ? ' (Anticipo)' : ''}: ${descripcion.trim()}`,
           metodo_pago: 'efectivo',
           nro_transaccion: null,
-          movimientos: [
-            { cuenta_contable_id: ctaCxc.id, debe: valorMonto, haber: 0 },
-            { cuenta_contable_id: ctaCapital.id, debe: 0, haber: valorMonto },
-          ],
+          fecha,
+          movimientos,
+          cobros
         }
       });
 
@@ -147,6 +190,31 @@ const ModalSaldoInicialCxC: React.FC<Props> = ({ visible, onCerrar, onCreado }) 
 
         <form onSubmit={handleSubmit} className="cxc-modal-form">
           <div className="modal-form-grid" style={{ padding: '0.5rem 0' }}>
+            {/* Naturaleza del Saldo */}
+            <div className="form-campo full-width" style={{ marginBottom: '1rem' }}>
+              <label>Naturaleza del Saldo *</label>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <button type="button" onClick={() => setNaturalezaSaldo('deuda')}
+                  style={{
+                    flex: 1, padding: '0.6rem', borderRadius: '8px', border: '1px solid',
+                    borderColor: naturalezaSaldo === 'deuda' ? 'var(--warning)' : 'var(--border)',
+                    background: naturalezaSaldo === 'deuda' ? 'var(--warning)' : 'transparent',
+                    color: naturalezaSaldo === 'deuda' ? 'white' : 'var(--text-secondary)',
+                    fontWeight: 600, cursor: 'pointer'
+                  }}
+                >Deuda (El alumno nos debe)</button>
+                <button type="button" onClick={() => setNaturalezaSaldo('anticipo')}
+                  style={{
+                    flex: 1, padding: '0.6rem', borderRadius: '8px', border: '1px solid',
+                    borderColor: naturalezaSaldo === 'anticipo' ? 'var(--success)' : 'var(--border)',
+                    background: naturalezaSaldo === 'anticipo' ? 'var(--success)' : 'transparent',
+                    color: naturalezaSaldo === 'anticipo' ? 'white' : 'var(--text-secondary)',
+                    fontWeight: 600, cursor: 'pointer'
+                  }}
+                >Anticipo (Nos pagó adelantado)</button>
+              </div>
+            </div>
+
             <div className="form-campo full-width">
               <label><Users size={14} /> Alumno / Cliente *</label>
               <select value={alumnoId} onChange={e => setAlumnoId(e.target.value)} required disabled={guardando}>
@@ -155,16 +223,29 @@ const ModalSaldoInicialCxC: React.FC<Props> = ({ visible, onCerrar, onCreado }) 
               </select>
             </div>
 
-            <div className="form-campo full-width">
-              <label><DollarSign size={14} /> Monto de la Deuda Inicial (Bs) *</label>
-              <input
-                type="number" step="0.01" min="0.01"
-                value={monto}
-                onChange={e => setMonto(e.target.value)}
-                required disabled={guardando}
-                placeholder="0.00"
-                style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--warning)' }}
-              />
+            <div style={{ display: 'flex', gap: '1rem' }} className="full-width">
+              <div className="form-campo" style={{ flex: 1 }}>
+                <label><DollarSign size={14} /> Monto del Saldo Inicial (Bs) *</label>
+                <input
+                  type="number" step="0.01" min="0.01"
+                  value={monto}
+                  onChange={e => setMonto(e.target.value)}
+                  required disabled={guardando}
+                  placeholder="0.00"
+                  style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--warning)' }}
+                />
+              </div>
+
+              <div className="form-campo" style={{ flex: 1 }}>
+                <label>Fecha de Emisión *</label>
+                <input
+                  type="date"
+                  value={fecha}
+                  onChange={e => setFecha(e.target.value)}
+                  required disabled={guardando}
+                  style={{ fontSize: '1.2rem' }}
+                />
+              </div>
             </div>
 
             <div className="form-campo full-width">
@@ -181,7 +262,11 @@ const ModalSaldoInicialCxC: React.FC<Props> = ({ visible, onCerrar, onCreado }) 
 
           <div style={{ background: 'rgba(245, 158, 11, 0.08)', borderRadius: '8px', padding: '0.75rem 1rem', margin: '1rem 0', border: '1px solid rgba(245, 158, 11, 0.15)' }}>
             <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-tertiary)', lineHeight: 1.5 }}>
-              <strong style={{ color: '#f59e0b' }}>Asiento automático:</strong> DEBE → 1.1.3 (CxC) | HABER → 3.2.1 (Capital Social Ajustes)
+              {naturalezaSaldo === 'deuda' ? (
+                <><strong style={{ color: '#f59e0b' }}>Asiento automático:</strong> DEBE → 1.1.3 (CxC) | HABER → 3.2.1 (Capital Social Ajustes)</>
+              ) : (
+                <><strong style={{ color: '#00D26A' }}>Asiento automático:</strong> DEBE → 3.2.1 (Capital Social Ajustes) | HABER → 2.1.5 (Cobros Anticipados)</>
+              )}
             </p>
           </div>
 
@@ -209,9 +294,9 @@ const ModalSaldoInicialCxC: React.FC<Props> = ({ visible, onCerrar, onCreado }) 
             <button type="submit" className="btn-guardar-cuenta" disabled={guardando || !!exito}
               style={{ padding: '0.6rem 2rem', background: '#f59e0b', borderColor: '#f59e0b' }}>
               {guardando ? (
-                <> <RefreshCw size={16} className="spin" /> Registrando... </>
+                <> <RefreshCw size={16} className="spin" /> {edicionItem ? 'Actualizando...' : 'Registrando...'} </>
               ) : (
-                <> <Check size={16} /> Registrar Saldo Inicial </>
+                <> <Check size={16} /> {edicionItem ? 'Guardar Cambios' : 'Registrar Saldo Inicial'} </>
               )}
             </button>
           </div>
