@@ -12,6 +12,7 @@ import {
   RefreshCw, Pencil
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { getHoyISO, formatFecha } from '../../lib/dateUtils';
 import ModalEditarMovimiento from '../../components/cajas-bancos/ModalEditarMovimiento';
 
 interface MovimientoExtendido {
@@ -56,11 +57,6 @@ interface LineaForm {
 const formatMonto = (n: number): string =>
   n.toLocaleString('es-BO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-const formatFecha = (iso: string): string => {
-  const d = new Date(iso);
-  return d.toLocaleDateString('es-BO', { day: '2-digit', month: '2-digit', year: 'numeric' });
-};
-
 const LibroDiario: React.FC = () => {
   const navigate = useNavigate();
   const [asientos, setAsientos] = useState<Asiento[]>([]);
@@ -70,7 +66,7 @@ const LibroDiario: React.FC = () => {
 
   const [mostrarForm, setMostrarForm] = useState(false);
   const [formDesc, setFormDesc] = useState('');
-  const [formFecha, setFormFecha] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [formFecha, setFormFecha] = useState<string>(getHoyISO());
   const [formNroTransaccion, setFormNroTransaccion] = useState('');
   const [formLineas, setFormLineas] = useState<LineaForm[]>([
     { cuenta_contable_id: '', debe: '', haber: '' },
@@ -131,7 +127,7 @@ const LibroDiario: React.FC = () => {
     }
     setAsientoEditandoId(a.id);
     setFormDesc(a.descripcion);
-    setFormFecha(a.fecha ? new Date(a.fecha).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]);
+    setFormFecha(a.fecha ? a.fecha.split('T')[0] : getHoyISO());
     setFormNroTransaccion(a.nro_transaccion || '');
     setFormLineas(a.movimientos_contables.map(m => ({
       cuenta_contable_id: m.cuenta_contable_id,
@@ -187,7 +183,7 @@ const LibroDiario: React.FC = () => {
 
     setFormDesc('');
     setFormNroTransaccion('');
-    setFormFecha(new Date().toISOString().split('T')[0]);
+    setFormFecha(getHoyISO());
     setFormLineas([{ cuenta_contable_id: '', debe: '', haber: '' }, { cuenta_contable_id: '', debe: '', haber: '' }]);
     setAsientoEditandoId(null);
     setMostrarForm(false);

@@ -195,109 +195,111 @@ const CuentasCobrar: React.FC = () => {
 
   return (
     <main className="main-content cxc-main">
-      {/* ─── Header ─── */}
-      <div className="cxc-header-bar">
-        <div className="cxc-header-izq">
-          <button className="btn-volver" onClick={() => navigate('/')} title="Volver">
-            <ChevronLeft size={20} />
-          </button>
-          <div>
-            <h1 className="cxc-titulo-principal">Cuentas por Cobrar</h1>
+      <div className="sticky-header-container">
+        {/* ─── Header ─── */}
+        <div className="cxc-header-bar" style={{ marginBottom: 0, borderRadius: '12px 12px 0 0', borderBottom: '1px solid var(--border-light)' }}>
+          <div className="cxc-header-izq">
+            <button className="btn-volver" onClick={() => navigate('/')} title="Volver">
+              <ChevronLeft size={20} />
+            </button>
+            <div>
+              <h1 className="cxc-titulo-principal">Cuentas por Cobrar</h1>
+            </div>
+          </div>
+          <div className="cxc-header-acciones">
+            <button
+              className="btn-nueva-cuenta btn-nuevo-cobro"
+              onClick={() => { setAlumnoParaCobro(null); setMostrarCobroRapido(true); }}
+            >
+              <CreditCard size={16} /> Nuevo Cobro
+            </button>
+            <button
+              className="btn-nueva-cuenta"
+              onClick={() => { setAlumnoParaNota(null); setMostrarNota(true); }}
+            >
+              <Plus size={16} /> Nueva Nota
+            </button>
+            <button className="btn-refrescar" onClick={cargarDatos} disabled={cargando}>
+              <RefreshCw size={18} className={cargando ? 'spin' : ''} />
+            </button>
           </div>
         </div>
-        <div className="cxc-header-acciones">
-          <button
-            className="btn-nueva-cuenta btn-nuevo-cobro"
-            onClick={() => { setAlumnoParaCobro(null); setMostrarCobroRapido(true); }}
-          >
-            <CreditCard size={16} /> Nuevo Cobro
-          </button>
-          <button
-            className="btn-nueva-cuenta"
-            onClick={() => { setAlumnoParaNota(null); setMostrarNota(true); }}
-          >
-            <Plus size={16} /> Nueva Nota
-          </button>
-          <button className="btn-refrescar" onClick={cargarDatos} disabled={cargando}>
-            <RefreshCw size={18} className={cargando ? 'spin' : ''} />
-          </button>
-        </div>
-      </div>
 
-      {/* ─── Barra de Control: Filtros + Stats en una sola línea ─── */}
-      <div className="cxc-barra-control">
-        {/* Filtros de primer nivel (izquierda, toma el espacio sobrante) */}
-        <div className="cxc-filtros-inline">
-          <FiltrosCxc
-            sucursalId={filtroSucursal}
-            entrenadorId={filtroEntrenador}
-            canchaId={filtroCancha}
-            horarioId={filtroHorario}
-            onChangeSucursal={setFiltroSucursal}
-            onChangeEntrenador={setFiltroEntrenador}
-            onChangeCancha={setFiltroCancha}
-            onChangeHorario={setFiltroHorario}
-            onLimpiar={limpiarFiltros}
-            compact
-          />
-        </div>
+        {/* ─── Barra de Control: Filtros + Stats en una sola línea ─── */}
+        <div className="cxc-barra-control" style={{ borderRadius: 0, borderBottom: '1px solid var(--border-light)', marginBottom: 0 }}>
+          {/* Filtros de primer nivel (izquierda, toma el espacio sobrante) */}
+          <div className="cxc-filtros-inline">
+            <FiltrosCxc
+              sucursalId={filtroSucursal}
+              entrenadorId={filtroEntrenador}
+              canchaId={filtroCancha}
+              horarioId={filtroHorario}
+              onChangeSucursal={setFiltroSucursal}
+              onChangeEntrenador={setFiltroEntrenador}
+              onChangeCancha={setFiltroCancha}
+              onChangeHorario={setFiltroHorario}
+              onLimpiar={limpiarFiltros}
+              compact
+            />
+          </div>
 
-        {/* Tarjetas de stats compactas (derecha) */}
-        <div className="cxc-stats-inline">
-          {/* Tarjeta Alumnos — limpia filtro "Con Deuda" */}
-          <button
-            className={`cxc-mini-stat ${!soloConDeuda ? 'cxc-mini-stat--activo' : ''}`}
-            onClick={() => setSoloConDeuda(false)}
-            title="Mostrar todos los alumnos"
-          >
-            <Users size={15} />
-            <span className="cxc-mini-num">{statsGlobales.totalAlumnos}</span>
-            <span className="cxc-mini-label">Alumnos</span>
-          </button>
+          {/* Tarjetas de stats compactas (derecha) */}
+          <div className="cxc-stats-inline">
+            {/* Tarjeta Alumnos — limpia filtro "Con Deuda" */}
+            <button
+              className={`cxc-mini-stat ${!soloConDeuda ? 'cxc-mini-stat--activo' : ''}`}
+              onClick={() => setSoloConDeuda(false)}
+              title="Mostrar todos los alumnos"
+            >
+              <Users size={15} />
+              <span className="cxc-mini-num">{statsGlobales.totalAlumnos}</span>
+              <span className="cxc-mini-label">Alumnos</span>
+            </button>
 
-          {/* Tarjeta Con Deuda — filtro rápido */}
-          <button
-            className={`cxc-mini-stat cxc-mini-stat--deuda ${soloConDeuda ? 'cxc-mini-stat--activo' : ''}`}
-            onClick={() => setSoloConDeuda(!soloConDeuda)}
-            title={soloConDeuda ? 'Clic para mostrar todos' : 'Clic para filtrar deudores'}
-          >
-            <AlertTriangle size={15} />
-            <span className="cxc-mini-num cxc-mini-num--warn">{statsGlobales.conDeuda}</span>
-            <span className="cxc-mini-label">{soloConDeuda ? '⊘ Con Deuda' : 'Con Deuda'}</span>
-          </button>
+            {/* Tarjeta Con Deuda — filtro rápido */}
+            <button
+              className={`cxc-mini-stat cxc-mini-stat--deuda ${soloConDeuda ? 'cxc-mini-stat--activo' : ''}`}
+              onClick={() => setSoloConDeuda(!soloConDeuda)}
+              title={soloConDeuda ? 'Clic para mostrar todos' : 'Clic para filtrar deudores'}
+            >
+              <AlertTriangle size={15} />
+              <span className="cxc-mini-num cxc-mini-num--warn">{statsGlobales.conDeuda}</span>
+              <span className="cxc-mini-label">{soloConDeuda ? '⊘ Con Deuda' : 'Con Deuda'}</span>
+            </button>
 
-          {/* Tarjeta Total Pendiente */}
-          <div className="cxc-mini-stat cxc-mini-stat--total">
-            <DollarSign size={15} />
-            <span className="cxc-mini-num cxc-mini-num--danger">Bs {fmtMonto(statsGlobales.totalPendiente)}</span>
-            <span className="cxc-mini-label">Total Pend.</span>
+            {/* Tarjeta Total Pendiente */}
+            <div className="cxc-mini-stat cxc-mini-stat--total">
+              <DollarSign size={15} />
+              <span className="cxc-mini-num cxc-mini-num--danger">Bs {fmtMonto(statsGlobales.totalPendiente)}</span>
+              <span className="cxc-mini-label">Total Pend.</span>
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* ─── Barra de búsqueda ─── */}
-      <div className="cxc-busqueda-bar">
-        <div className="pc-busqueda">
-          <Search size={16} className="pc-busqueda-icono" />
-          <input
-            type="text"
-            placeholder="Buscar alumno por nombre..."
-            value={busqueda}
-            onChange={e => setBusqueda(e.target.value)}
-            className="pc-busqueda-input"
-          />
+        {/* ─── Barra de búsqueda ─── */}
+        <div className="cxc-busqueda-bar" style={{ borderRadius: '0 0 12px 12px', border: '1px solid var(--border)', borderTop: 'none', background: 'var(--bg-card)', padding: '0.5rem 1.5rem' }}>
+          <div className="pc-busqueda">
+            <Search size={16} className="pc-busqueda-icono" />
+            <input
+              type="text"
+              placeholder="Buscar alumno por nombre..."
+              value={busqueda}
+              onChange={e => setBusqueda(e.target.value)}
+              className="pc-busqueda-input"
+            />
+          </div>
+          {busqueda && (
+            <button
+              className="cxc-limpiar-busqueda"
+              onClick={() => setBusqueda('')}
+            >
+              ✕
+            </button>
+          )}
+          <span className="cxc-conteo-resultado">
+            {alumnosFiltrados.length} resultado{alumnosFiltrados.length !== 1 ? 's' : ''}
+          </span>
         </div>
-        {busqueda && (
-          <button
-            className="cxc-limpiar-busqueda"
-            onClick={() => setBusqueda('')}
-          >
-            ✕
-          </button>
-        )}
-        <span className="cxc-conteo-resultado">
-          {alumnosFiltrados.length} resultado{alumnosFiltrados.length !== 1 ? 's' : ''}
-        </span>
       </div>
 
       {/* ─── Error ─── */}
@@ -348,7 +350,7 @@ const CuentasCobrar: React.FC = () => {
                 return (
                   <tr
                     key={alumno.alumno_id}
-                    className={`cxc-tr ${tieneDeuda ? 'cxc-tr--deuda' : ''}`}
+                    className={`cxc-tr cxc-tr-clickable ${tieneDeuda ? 'cxc-tr--deuda' : ''}`}
                     onClick={() => setAlumnoSeleccionado(alumno)}
                     title="Clic para ver detalle de movimientos"
                   >

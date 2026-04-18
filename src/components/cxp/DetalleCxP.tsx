@@ -10,6 +10,8 @@ import {
   X, DollarSign, Calendar, Package, RefreshCw,
   AlertCircle, Check, CreditCard, CheckCircle2, Edit
 } from 'lucide-react';
+import { formatFecha, formatFechaHora } from '../../lib/dateUtils';
+import ModalDetalleMovimiento from '../cajas-bancos/ModalDetalleMovimiento';
 
 interface CxPItem {
   id: string;
@@ -58,10 +60,7 @@ interface Props {
 const fmtMonto = (n: number) =>
   n.toLocaleString('es-BO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-const fmtFecha = (f: string) => {
-  const d = new Date(f);
-  return d.toLocaleDateString('es-BO', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-};
+const fmtFechaLocal = (f: string) => formatFechaHora(f);
 
 const BADGE_ESTADOS: Record<string, { label: string; color: string }> = {
   pendiente: { label: 'Pendiente', color: '#facc15' },
@@ -89,6 +88,9 @@ const DetalleCxP: React.FC<Props> = ({ nota, visible, onCerrar, onActualizar }) 
   const [anticipoId, setAnticipoId] = useState('');
   const [errorPago, setErrorPago] = useState<string | null>(null);
   const [exitoPago, setExitoPago] = useState<string | null>(null);
+
+  // Detalle de movimiento (Asiento)
+  const [movDetalleId, setMovDetalleId] = useState<string | null>(null);
 
 
   useEffect(() => {
@@ -256,7 +258,7 @@ const DetalleCxP: React.FC<Props> = ({ nota, visible, onCerrar, onActualizar }) 
             <div className="cxc-cobro-resumen" style={{ marginBottom: '1.25rem' }}>
               <p style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '0.4rem' }}>{nombreEntidad}</p>
               <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', fontSize: '0.87rem', color: '#94a3b8' }}>
-                <span><Calendar size={13} style={{ marginRight: '0.3rem' }} />{nota.fecha_emision}</span>
+                <span><Calendar size={13} style={{ marginRight: '0.3rem' }} />{formatFecha(nota.fecha_emision)}</span>
                 {nota.fecha_vencimiento && <span>Vence: {nota.fecha_vencimiento}</span>}
                 <span style={{ color: badge.color, fontWeight: 600 }}>{badge.label}</span>
               </div>
@@ -317,13 +319,18 @@ const DetalleCxP: React.FC<Props> = ({ nota, visible, onCerrar, onActualizar }) 
                   HISTORIAL DE PAGOS
                 </p>
                 {pagosRealizados.map(p => (
-                  <div key={p.id} style={{
-                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                    padding: '0.4rem 0.6rem', borderRadius: '6px',
-                    background: 'rgba(74,222,128,0.06)', marginBottom: '0.3rem',
-                    fontSize: '0.85rem'
-                  }}>
-                    <span style={{ color: '#94a3b8' }}>{fmtFecha(p.fecha)}</span>
+                  <div 
+                    key={p.id} 
+                    className="cxc-tr-clickable"
+                    onClick={() => setMovDetalleId(p.asiento_id)}
+                    style={{
+                      display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                      padding: '0.4rem 0.6rem', borderRadius: '6px',
+                      background: 'rgba(74,222,128,0.06)', marginBottom: '0.3rem',
+                      fontSize: '0.85rem'
+                    }}
+                  >
+                    <span style={{ color: '#94a3b8' }}>{fmtFechaLocal(p.fecha)}</span>
                     <span style={{ color: '#4ade80', fontWeight: 700 }}>
                       <CheckCircle2 size={12} style={{ marginRight: '0.3rem' }} />
                       Bs {fmtMonto(Number(p.monto_aplicado))}
@@ -382,7 +389,7 @@ const DetalleCxP: React.FC<Props> = ({ nota, visible, onCerrar, onActualizar }) 
                           <option value="">— Seleccionar Anticipo —</option>
                           {anticiposDisponibles.map(a => (
                             <option key={a.id} value={a.id}>
-                              {fmtFecha(a.fecha_emision)} — {a.descripcion} (Bs {fmtMonto(a.deuda_restante)})
+                              {formatFecha(a.fecha_emision)} — {a.descripcion} (Bs {fmtMonto(a.deuda_restante)})
                             </option>
                           ))}
                         </select>
@@ -485,6 +492,12 @@ const DetalleCxP: React.FC<Props> = ({ nota, visible, onCerrar, onActualizar }) 
           </div>
         )}
       </div>
+
+      <ModalDetalleMovimiento
+        visible={!!movDetalleId}
+        asientoId={movDetalleId}
+        onCerrar={() => setMovDetalleId(null)}
+      />
 
     </div>
   );

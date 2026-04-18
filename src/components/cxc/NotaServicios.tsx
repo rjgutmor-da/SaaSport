@@ -12,6 +12,7 @@ import {
   X, Plus, Check, Trash2, Calendar, AlertCircle,
   CreditCard, MessageCircle, FileText, Users, RefreshCw, Info, Hash
 } from 'lucide-react';
+import { getHoyISO } from '../../lib/dateUtils';
 
 /** Props del componente */
 interface NotaServiciosProps {
@@ -79,7 +80,7 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
   const [lineas, setLineas] = useState<LineaNota[]>([lineaVacia()]);
   const [observaciones, setObservaciones] = useState('');
   const [vencimiento, setVencimiento] = useState('');
-  const [fechaEmision, setFechaEmision] = useState(new Date().toISOString().split('T')[0]);
+  const [fechaEmision, setFechaEmision] = useState(getHoyISO());
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [exito, setExito] = useState<string | null>(null);
@@ -191,7 +192,7 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
       setLineas([lineaVacia()]);
       setObservaciones('');
       setVencimiento('');
-      setFechaEmision(new Date().toISOString().split('T')[0]);
+      setFechaEmision(getHoyISO());
     }
     setPagarAlCrear(false);
     setMetodoPago('efectivo');
@@ -214,7 +215,7 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
       }]);
     }
     if (cxcEditar) {
-      setFechaEmision((cxcEditar as any).fecha_emision || new Date().toISOString().split('T')[0]);
+      setFechaEmision((cxcEditar as any).fecha_emision || getHoyISO());
     }
   }, [visible, alumnoPreseleccionado, cxcEditar, esAnticipo]);
 
@@ -416,7 +417,7 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
                 movimiento_id: cobroMovimientoId,
                 cuenta_id: cuentaCobroId,
                 monto: parseFloat(montoPago),
-                fecha: vencimiento || new Date().toISOString().split('T')[0],
+                fecha: fechaEmision,
                 descripcion: `Pago Recibo: ${descripcionAuto}`,
                 nro_transaccion: cobroNroDoc || null
             }
@@ -556,6 +557,7 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
         usuario_id: ctx.id,
         descripcion: esAnticipo ? `Cobro Anticipado: ${nombreAlum}` : `Venta: ${descripcionAuto}`,
         metodo_pago: pagarAlCrear ? metodoPago : 'efectivo', 
+        fecha: fechaEmision,
         movimientos: movimientosVenta
       };
 

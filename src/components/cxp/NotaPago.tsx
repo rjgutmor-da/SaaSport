@@ -14,6 +14,7 @@ import {
   X, Plus, Check, Trash2, AlertCircle, CreditCard, Package,
   Users, FileText, Calendar, RefreshCw, Info, Hash
 } from 'lucide-react';
+import { getHoyISO } from '../../lib/dateUtils';
 
 interface LineaNotaPago {
   catalogo_item_id: string;
@@ -54,7 +55,7 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, esAnticipo = false, o
   const [proveedorId, setProveedorId] = useState('');
   const [personalId, setPersonalId] = useState('');
   const [descripcion, setDescripcion] = useState('');
-  const [fechaEmision, setFechaEmision] = useState(new Date().toISOString().split('T')[0]);
+  const [fechaEmision, setFechaEmision] = useState(getHoyISO());
   const [vencimiento, setVencimiento] = useState('');
   const [observaciones, setObservaciones] = useState('');
   const [lineas, setLineas] = useState<LineaNotaPago[]>([lineaVacia()]);
@@ -123,7 +124,7 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, esAnticipo = false, o
     setProveedorId('');
     setPersonalId('');
     setDescripcion('');
-    setFechaEmision(new Date().toISOString().split('T')[0]);
+    setFechaEmision(getHoyISO());
     setVencimiento('');
     setObservaciones('');
     setLineas([lineaVacia()]);
@@ -204,6 +205,17 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, esAnticipo = false, o
     const montoTotal = lineasValidas.reduce((s, l) => s + l.subtotal, 0);
     const descAuto = lineasValidas.map(l => l.nombre).join(', ');
 
+    // Identificar sujeto para la glosa
+    let nombreSujeto = '';
+    if (tipoGasto === 'personal' && personalId) {
+      const p = personal.find(x => x.id === personalId);
+      if (p) nombreSujeto = `${p.nombres} ${p.apellidos}`;
+    } else if (tipoGasto === 'proveedor' && proveedorId) {
+      const p = proveedores.find(x => x.id === proveedorId);
+      if (p) nombreSujeto = p.nombre;
+    }
+
+    // Clasificación de cuenta de pasivo (deuda)
     let cuentaPasivoId = lineasValidas[0]?.cuenta_gasto_id || '';
     if (tipoGasto === 'proveedor') {
       cuentaPasivoId = cuentasMaestras.find(c => c.codigo === '2.1.1')?.id || cuentaPasivoId;
@@ -211,7 +223,7 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, esAnticipo = false, o
       cuentaPasivoId = cuentasMaestras.find(c => c.codigo === '2.1.2')?.id || cuentaPasivoId;
     }
 
-    // 1. Crear la Nota de Pago (CxP)
+    // 1. Crear la Nota de Pago (CxP) en la base de datos
     const { data: nuevaCxP, error: errCxP } = await supabase.from('cuentas_pagar').insert({
       escuela_id: ctx.escuela_id,
       sucursal_id: ctx.sucursal_id || null,
@@ -234,7 +246,7 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, esAnticipo = false, o
       return;
     }
 
-    // 2. Insertar detalle de ítems (los triggers de stock se activarán automáticamente)
+    // 2. Insertar detalle de ítems
     const detalles = lineasValidas.map(l => ({
       escuela_id: ctx.escuela_id,
       cuenta_pagar_id: nuevaCxP.id,
@@ -251,7 +263,7 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, esAnticipo = false, o
       return;
     }
 
-    // 2.5 Generar Asiento Contable por la Adquisición del Gasto/Inventario y la Deuda
+    // 2.5 Construir Asiento Contable (Único asiento compuesto si hay pago)
     const movs = [];
     const agrupado = new Map<string, number>();
     lineasValidas.forEach(l => {
@@ -260,75 +272,86 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, esAnticipo = false, o
       }
     });
 
+    // DEBITOS: Gastos o Activos
     agrupado.forEach((monto, idCta) => {
-      // Si es anticipo, la cuenta de débito es la de Anticipos (1.1.6 / 1.1.7)
       let ctaDebitoId = idCta;
       if (esAnticipo) {
         ctaDebitoId = tipoGasto === 'proveedor' 
           ? (cuentasMaestras.find(c => c.codigo === '1.1.6')?.id || ctaDebitoId)
           : (cuentasMaestras.find(c => c.codigo === '1.1.7')?.id || ctaDebitoId);
       }
-      movs.push({ cuenta_contable_id: ctaDebitoId, debe: monto, haber: 0 }); // DEBE
+      movs.push({ cuenta_contable_id: ctaDebitoId, debe: monto, haber: 0 });
     });
     
-    // Si es anticipo, el pasivo no se usa en el asiento de compra porque no es una deuda, es un crédito
-    // Pero en nuestro sistema, la CxP record representa el crédito.
-    // En el asiento de "Compra" (obligación), registramos el derecho.
-    const ctaContraId = esAnticipo ? (tipoGasto === 'proveedor' ? '51f87f60-6855-4dcd-959e-3904821f90b9' : 'bd72965b-69d4-4d92-9ef5-e53a6f216e84') : cuentaPasivoId;
-    
-    // Si es normal: Gasto (D) a CxP (H).
-    // Si es anticipo: Anticipo (D) a CxP_Anticipo (H)? No.
-    // Si es anticipo: El asiento de obligacion seria: Anticipo (D) a "Cuentas por Pagar" (H).
-    // Y luego el pago: "Cuentas por Pagar" (D) a Caja (H).
-    // Así la CxP queda en 0 y el saldo queda en la cuenta de Anticipo.
-    
-    movs.push({ cuenta_contable_id: cuentaPasivoId, debe: 0, haber: montoTotal }); // HABER
+    // HABERES: Caja/Banco y/o Pasivo
+    const mp = pagarAlCrear ? parseFloat(montoPago) : 0;
+    const saldoRestante = montoTotal - mp;
 
-    const payloadCompra = {
+    if (mp > 0) {
+      const ctaPagoContableId = cajasBancos.find(c => c.id === cuentaPagoId)?.cuenta_contable_id;
+      if (ctaPagoContableId) {
+        movs.push({ cuenta_contable_id: ctaPagoContableId, debe: 0, haber: mp });
+      }
+    }
+
+    if (saldoRestante > 0.009) {
+      movs.push({ cuenta_contable_id: cuentaPasivoId, debe: 0, haber: saldoRestante });
+    }
+
+    // Generar Glosa adaptada al requerimiento para Bonos
+    const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+    const fechaPartes = fechaEmision.split('-');
+    const mes = MESES[parseInt(fechaPartes[1]) - 1];
+    
+    let glosaFinal = descripcion || descAuto;
+    const esBono = lineasValidas.some(l => l.nombre.toLowerCase().includes('bono'));
+    
+    if (esBono && tipoGasto === 'personal') {
+      const sufijo = mp >= montoTotal ? 'Pago total' : 'Pago parcial';
+      const concepto = descripcion || 'bono';
+      glosaFinal = `${sufijo} de ${concepto} correspondiente al mes de ${mes} - ${nombreSujeto}`;
+    } else if (pagarAlCrear) {
+      glosaFinal = `Pago al crear: ${glosaFinal} - ${nombreSujeto}`;
+    }
+
+    // 3. Procesar Transacción Contable Unificada
+    const payloadContable = {
       escuela_id: ctx.escuela_id,
       sucursal_id: ctx.sucursal_id,
       usuario_id: ctx.id,
-      descripcion: `Obligación por: ${descripcion || descAuto}`,
-      metodo_pago: 'efectivo',
-      fecha: fechaEmision, // Usar la misma fecha de emision para el asiento
-      movimientos: movs
+      descripcion: glosaFinal,
+      metodo_pago: metodoPago,
+      nro_transaccion: nroComprobante.trim() || null,
+      fecha: fechaEmision,
+      movimientos: movs,
+      // Vincular el pago si existe
+      pagos: mp > 0 ? [{ 
+        cuenta_pagar_id: nuevaCxP.id, 
+        monto_aplicado: mp 
+      }] : []
     };
     
-    const { data: vAsientoId, error: errAsientoBase } = await supabase.rpc('rpc_procesar_transaccion_financiera', { p_payload: payloadCompra });
-    if (errAsientoBase) {
-      console.warn('Asiento base de compra no pudo ser generado:', errAsientoBase.message);
-    } else if (vAsientoId) {
-      await supabase.from('cuentas_pagar').update({ asiento_id: vAsientoId }).eq('id', nuevaCxP.id);
+    const { data: vAsientoId, error: errAsiento } = await supabase.rpc('rpc_procesar_transaccion_financiera', { p_payload: payloadContable });
+    
+    if (errAsiento) {
+      console.error('Error al generar asiento:', errAsiento.message);
+      setError(`Nota creada pero error contable: ${errAsiento.message}`);
+      setGuardando(false);
+      return;
     }
 
-    // 3. Si se eligió pagar al crear, ejecutar RPC de pago
-    if (pagarAlCrear) {
-      const mp = parseFloat(montoPago);
-      const { error: rpcErr } = await supabase.rpc('rpc_registrar_pago_cxp', {
-        p_payload: {
-          cuenta_pagar_id: nuevaCxP.id,
-          monto: mp,
-          metodo_pago: metodoPago,
-          cuenta_pago_id: cuentaPagoId, // caja/banco que paga
-          escuela_id: ctx.escuela_id,
-          sucursal_id: ctx.sucursal_id,
-          usuario_id: ctx.id,
-          descripcion: `Pago al crear: ${descAuto}`,
-          nro_comprobante: nroComprobante.trim() || null,
-          fecha: fechaEmision
-        }
-      });
+    // 4. Actualizar estado de la CxP según el pago
+    const nuevoEstado = mp >= (montoTotal - 0.009) ? 'pagada' : (mp > 0 ? 'parcial' : 'pendiente');
+    await supabase.from('cuentas_pagar').update({ 
+      asiento_id: vAsientoId,
+      monto_pagado: mp,
+      estado: nuevoEstado
+    }).eq('id', nuevaCxP.id);
 
-      if (rpcErr) {
-        setError(`Nota creada pero error al registrar pago: ${rpcErr.message}`);
-        setGuardando(false);
-        return;
-      }
-
-      setExito(`✅ Nota de Pago creada y pago de Bs ${fmtMonto(mp)} registrado correctamente.`);
-    } else {
-      setExito('✅ Nota de Pago creada correctamente.');
-    }
+    setExito(mp > 0 
+      ? `✅ Nota creada y pago de Bs ${fmtMonto(mp)} registrado con éxito.` 
+      : '✅ Nota de Deuda creada correctamente.'
+    );
 
     setGuardando(false);
     setTimeout(() => { onCreada(); }, 1500);
