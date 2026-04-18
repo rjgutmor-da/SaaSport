@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import { X, ArrowRightLeft, DollarSign, Calendar, Hash, AlignLeft, Building2, AlertCircle, Save, RefreshCw } from 'lucide-react';
+import { getHoyISO } from '../../lib/dateUtils';
 import type { CuentaContable } from '../../types/finanzas';
 
 interface Props {
@@ -15,7 +16,7 @@ const ModalTransferencia: React.FC<Props> = ({ visible, cajas, onCerrar, onCread
   const [origenId, setOrigenId] = useState('');
   const [destinoId, setDestinoId] = useState('');
   const [monto, setMonto] = useState('');
-  const [fecha, setFecha] = useState(new Date().toISOString().split('T')[0]);
+  const [fecha, setFecha] = useState(getHoyISO());
   const [descripcion, setDescripcion] = useState('Transferencia interna');
   const [nroTransaccion, setNroTransaccion] = useState('');
   

@@ -34,6 +34,7 @@ const ModalPagoRapidoCxP: React.FC<Props> = ({ entidadInicial, entidades, visibl
   const [metodo, setMetodo] = useState('efectivo');
   const [cuentaId, setCuentaId] = useState('');
   const [nroDoc, setNroDoc] = useState('');
+  const [fechaPago, setFechaPago] = useState(new Date().toISOString().split('T')[0]);
 
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -172,7 +173,8 @@ const ModalPagoRapidoCxP: React.FC<Props> = ({ entidadInicial, entidades, visibl
         sucursal_id: ctx.sucursal_id,
         usuario_id: ctx.id,
         nro_comprobante: nroDoc.trim() || null,
-        referencia: 'Pago Rápido'
+        referencia: 'Pago Rápido',
+        fecha: fechaPago
       }
     });
 
@@ -295,6 +297,11 @@ const ModalPagoRapidoCxP: React.FC<Props> = ({ entidadInicial, entidades, visibl
                     placeholder="0.00"
                     style={{ fontSize: '1.1rem', fontWeight: 700, color: '#FF6B35' }}
                   />
+                </div>
+
+                <div className="form-campo">
+                  <label><Calendar size={14} /> Fecha de Pago *</label>
+                  <input type="date" value={fechaPago} onChange={e => setFechaPago(e.target.value)} required disabled={guardando} />
                 </div>
 
                 <div className="form-campo">

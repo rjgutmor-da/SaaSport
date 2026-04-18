@@ -8,6 +8,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import { X, DollarSign, Users, AlignLeft, AlertCircle, Check, RefreshCw, BookOpen } from 'lucide-react';
+import { getHoyISO } from '../../lib/dateUtils';
 
 const fmtMonto = (n: number) =>
   n.toLocaleString('es-BO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -24,7 +25,7 @@ const ModalSaldoInicialCxC: React.FC<Props> = ({ visible, onCerrar, onCreado, ed
   const [naturalezaSaldo, setNaturalezaSaldo] = useState<'deuda' | 'anticipo'>('deuda');
   const [alumnoId, setAlumnoId] = useState('');
   const [monto, setMonto] = useState('');
-  const [fecha, setFecha] = useState(new Date().toISOString().split('T')[0]);
+  const [fecha, setFecha] = useState(getHoyISO());
   const [descripcion, setDescripcion] = useState('Saldo inicial de deuda');
 
   const [guardando, setGuardando] = useState(false);
@@ -37,12 +38,12 @@ const ModalSaldoInicialCxC: React.FC<Props> = ({ visible, onCerrar, onCreado, ed
     if (edicionItem) {
       setAlumnoId(edicionItem.alumno_id || '');
       setMonto(String(edicionItem.monto_total || ''));
-      setFecha(edicionItem.fecha_emision || new Date().toISOString().split('T')[0]);
+      setFecha(edicionItem.fecha_emision || getHoyISO());
       setDescripcion(edicionItem.descripcion || '');
       setNaturalezaSaldo((edicionItem.observaciones || '').includes('SIA-') ? 'anticipo' : 'deuda');
       setError(null); setExito(null);
     } else {
-      setAlumnoId(''); setMonto(''); setFecha(new Date().toISOString().split('T')[0]); setDescripcion('Saldo inicial de deuda');
+      setAlumnoId(''); setMonto(''); setFecha(getHoyISO()); setDescripcion('Saldo inicial de deuda');
       setError(null); setExito(null);
     }
 

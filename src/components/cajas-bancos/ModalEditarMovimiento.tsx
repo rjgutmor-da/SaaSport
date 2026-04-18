@@ -6,6 +6,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import { X, Pencil, DollarSign, Calendar, Hash, AlignLeft, Building2, AlertCircle, Save, RefreshCw, Check } from 'lucide-react';
+import { getHoyISO } from '../../lib/dateUtils';
 import type { CuentaContable } from '../../types/finanzas';
 
 interface MovimientoExtendido {
@@ -49,7 +50,7 @@ const ModalEditarMovimiento: React.FC<Props> = ({ visible, movimiento, cajas, on
       setDescripcion(movimiento.descripcion);
       const montoOriginal = movimiento.debe > 0 ? movimiento.debe : movimiento.haber;
       setMonto(String(montoOriginal));
-      setFecha(movimiento.fecha ? new Date(movimiento.fecha).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]);
+      setFecha(movimiento.fecha ? movimiento.fecha.split('T')[0] : getHoyISO());
       setNroTransaccion(movimiento.nro_transaccion || '');
       setCajaId(movimiento.cuenta_id);
       setError(null);

@@ -12,6 +12,7 @@ import type { CuentaContable } from '../../types/finanzas';
 import { AlertCircle, Check, CreditCard, Pencil, Ban, MessageCircle, X, Calendar } from 'lucide-react';
 import NotaServicios from './NotaServicios';
 import ModalEditarMovimiento from '../cajas-bancos/ModalEditarMovimiento';
+import ModalDetalleMovimiento from '../cajas-bancos/ModalDetalleMovimiento';
 import { LEGACY_DATA } from '../../lib/legacyData';
 
 /** Props del componente */
@@ -29,7 +30,10 @@ const fmtMonto = (n: number): string =>
 /** Formatea fecha legible */
 const fmtFecha = (iso: string | null): string => {
   if (!iso) return '—';
-  return new Date(iso).toLocaleDateString('es-BO', { day: '2-digit', month: 'short', year: 'numeric' });
+  // Evitar el desplazamiento de fecha por zona horaria
+  const [year, month, day] = iso.split('T')[0].split('-').map(Number);
+  const d = new Date(year, month - 1, day);
+  return d.toLocaleDateString('es-BO', { day: '2-digit', month: 'short', year: 'numeric' });
 };
 
 const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
@@ -51,6 +55,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
   const [cobroCuentaId, setCobroCuentaId] = useState('');
   const [cobroBancoOrigen, setCobroBancoOrigen] = useState('');
   const [cobroHora, setCobroHora] = useState('');
+  const [cobroFecha, setCobroFecha] = useState(new Date().toISOString().split('T')[0]);
   const [guardandoCobro, setGuardandoCobro] = useState(false);
   const [cobroError, setCobroError] = useState<string | null>(null);
   const [cobroExito, setCobroExito] = useState<string | null>(null);
@@ -85,6 +90,9 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
   const [usarAnticipo, setUsarAnticipo] = useState(false);
   const [anticipoId, setAnticipoId] = useState('');
   const [mostrarNotaAnticipo, setMostrarNotaAnticipo] = useState(false);
+
+  // Detalle de movimiento (Asiento)
+  const [movDetalleId, setMovDetalleId] = useState<string | null>(null);
 
 
 
@@ -248,6 +256,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
     // Reset estados
     setCobroBancoOrigen('');
     setCobroHora('');
+    setCobroFecha(new Date().toISOString().split('T')[0]);
     setCobroNroDoc('');
     setCobroCxcId(null);
     setExpandida(null);
@@ -377,6 +386,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                 sucursal_id: ctx.sucursal_id,
                 usuario_id: ctx.id,
                 nro_comprobante: concatDoc || null,
+                fecha: cobroFecha,
             }
         });
         resultData = data;
@@ -830,6 +840,15 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                                               <option value="transferencia">Transferencia</option>
                                               <option value="qr">QR</option>
                                             </select>
+                                            <input
+                                              type="date"
+                                              value={cobroFecha}
+                                              onChange={(e) => setCobroFecha(e.target.value)}
+                                              disabled={guardandoCobro}
+                                              className="detalle-cobro-input"
+                                              style={{ width: '130px' }}
+                                              required
+                                            />
                                             <select
                                               value={cobroCuentaId}
                                               onChange={(e) => setCobroCuentaId(e.target.value)}
@@ -948,11 +967,15 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                                         {cobros.map(cobro => {
                                           return (
                                             <div key={cobro.id} style={{ background: 'var(--input-bg)', padding: '0.75rem', borderRadius: '6px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap' }}>
-                                              <div style={{flex: 1}}>
+                                              <div 
+                                                style={{ flex: 1, cursor: 'pointer' }}
+                                                onClick={() => setMovDetalleId(cobro.asiento_id)}
+                                                className="cxc-tr-clickable"
+                                              >
                                                 <strong style={{ display: 'block', fontSize: '0.85rem' }}>Bs {fmtMonto(Number(cobro.monto_aplicado))}</strong>
                                                 <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                                                  {fmtFecha(cobro.fecha)} — {cobro.asientos_contables?.metodo_pago}
-                                                  {cobro.asientos_contables?.documento_referencia ? ` | ${cobro.asientos_contables.documento_referencia}` : ''}
+                                                   {fmtFecha(cobro.fecha)} — {cobro.metodo_pago || cobro.asientos_contables?.metodo_pago}
+                                                   {cobro.documento_referencia || cobro.asientos_contables?.documento_referencia ? ` | ${cobro.documento_referencia || cobro.asientos_contables.documento_referencia}` : ''}
                                                 </span>
                                               </div>
                                               {(userRol === 'SuperAdministrador' || userRol === 'Dueño' || userRol === 'Administrador' || userRol === 'admin') && (
@@ -961,7 +984,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                                                     // 1. Obtener la contrapartida de caja (donde hubo el debe > 0 en ese asiento)
                                                     const { data: mvData } = await supabase.from('movimientos_contables')
                                                       .select('*, cuenta:plan_cuentas(nombre)')
-                                                      .eq('asiento_id', cobro.asientos_contables.id)
+                                                      .eq('asiento_id', cobro.asiento_id)
                                                       .gt('debe', 0)
                                                       .limit(1)
                                                       .single();
@@ -971,10 +994,10 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                                                         id: mvData.id,
                                                         debe: Number(mvData.debe),
                                                         haber: Number(mvData.haber),
-                                                        fecha: cobro.asientos_contables.fecha,
-                                                        descripcion: cobro.asientos_contables.descripcion || '',
-                                                        nro_transaccion: cobro.asientos_contables.nro_transaccion || cobro.asientos_contables.documento_referencia || '',
-                                                        asiento_id: cobro.asientos_contables.id,
+                                                        fecha: cobro.fecha || cobro.asientos_contables?.fecha,
+                                                        descripcion: cobro.descripcion || cobro.asientos_contables?.descripcion || '',
+                                                        nro_transaccion: cobro.documento_referencia || cobro.asientos_contables?.nro_transaccion || cobro.asientos_contables?.documento_referencia || '',
+                                                        asiento_id: cobro.asiento_id,
                                                         cuenta_id: mvData.cuenta_contable_id,
                                                         cuenta_nombre: mvData.cuenta?.nombre || '',
                                                         conciliado: mvData.conciliado || false
@@ -1059,6 +1082,12 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
           }}
           alumnoPreseleccionado={{ id: alumno.alumno_id, nombre: `${alumno.nombres} ${alumno.apellidos}` }}
           esAnticipo={true}
+        />
+
+        <ModalDetalleMovimiento
+          visible={!!movDetalleId}
+          asientoId={movDetalleId}
+          onCerrar={() => setMovDetalleId(null)}
         />
       </>
     );

@@ -8,6 +8,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import { X, DollarSign, Users, AlignLeft, AlertCircle, Check, RefreshCw, BookOpen, Tag } from 'lucide-react';
+import { getHoyISO } from '../../lib/dateUtils';
 
 const fmtMonto = (n: number) =>
   n.toLocaleString('es-BO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -30,7 +31,7 @@ const ModalSaldoInicialCxP: React.FC<Props> = ({ visible, onCerrar, onCreado, ed
   const [personalId, setPersonalId] = useState('');
   const [cuentaPasivoId, setCuentaPasivoId] = useState('');
   const [monto, setMonto] = useState('');
-  const [fecha, setFecha] = useState(new Date().toISOString().split('T')[0]);
+  const [fecha, setFecha] = useState(getHoyISO());
   const [descripcion, setDescripcion] = useState('Saldo inicial de deuda');
 
   const [guardando, setGuardando] = useState(false);
@@ -47,12 +48,12 @@ const ModalSaldoInicialCxP: React.FC<Props> = ({ visible, onCerrar, onCreado, ed
       setPersonalId(edicionItem.personal_id || '');
       setCuentaPasivoId(edicionItem.cuenta_contable_id || '');
       setMonto(String(edicionItem.monto_total || ''));
-      setFecha(edicionItem.fecha_emision || new Date().toISOString().split('T')[0]);
+      setFecha(edicionItem.fecha_emision || getHoyISO());
       setDescripcion(edicionItem.descripcion || '');
       setError(null); setExito(null);
     } else {
       setProveedorId(''); setPersonalId(''); setCuentaPasivoId('');
-      setMonto(''); setFecha(new Date().toISOString().split('T')[0]); setDescripcion('Saldo inicial de deuda');
+      setMonto(''); setFecha(getHoyISO()); setDescripcion('Saldo inicial de deuda');
       setError(null); setExito(null);
     }
 

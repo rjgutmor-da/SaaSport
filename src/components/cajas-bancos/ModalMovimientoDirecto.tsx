@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import { X, ArrowDownRight, ArrowUpRight, DollarSign, Calendar, Hash, AlignLeft, Building2, Tag, AlertCircle, Save, RefreshCw } from 'lucide-react';
+import { getHoyISO } from '../../lib/dateUtils';
 import type { CuentaContable } from '../../types/finanzas';
 
 interface Props {
@@ -19,7 +20,7 @@ const ModalMovimientoDirecto: React.FC<Props> = ({ visible, tipo, cajas, onCerra
   const [cajaId, setCajaId] = useState('');
   const [contraCuentaId, setContraCuentaId] = useState('');
   const [monto, setMonto] = useState('');
-  const [fecha, setFecha] = useState(new Date().toISOString().split('T')[0]);
+  const [fecha, setFecha] = useState(getHoyISO());
   const [descripcion, setDescripcion] = useState('');
   const [nroTransaccion, setNroTransaccion] = useState('');
 

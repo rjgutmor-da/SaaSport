@@ -6,9 +6,13 @@ import type { CuentaContable, MovimientoContable, AsientoContable } from '../../
 import ModalTransferencia from '../../components/cajas-bancos/ModalTransferencia';
 import ModalMovimientoDirecto from '../../components/cajas-bancos/ModalMovimientoDirecto';
 import ModalEditarMovimiento from '../../components/cajas-bancos/ModalEditarMovimiento';
+import ModalDetalleMovimiento from '../../components/cajas-bancos/ModalDetalleMovimiento';
+import { formatFecha } from '../../lib/dateUtils';
 
 const fmtMonto = (n: number) =>
   n.toLocaleString('es-BO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+const fmtFechaLocal = (iso: string): string => formatFecha(iso);
 
 interface MovimientoExtendido {
   id: string;
@@ -46,6 +50,7 @@ const CajasBancos: React.FC = () => {
 
   // Estado para edición de movimientos
   const [movEditar, setMovEditar] = useState<MovimientoExtendido | null>(null);
+  const [movDetalle, setMovDetalle] = useState<MovimientoExtendido | null>(null);
 
   const obtenerEscuelaId = useCallback(async (): Promise<string | null> => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -158,7 +163,11 @@ const CajasBancos: React.FC = () => {
         cuenta_nombre: listCajas.find((c: any) => c.id === m.cuenta_contable_id)?.nombre || 'Desconocida',
         conciliado: m.conciliado || false
       };
-    }).sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime());
+    }).sort((a, b) => {
+      const db = a.fecha ? new Date(a.fecha).getTime() : 0;
+      const da = b.fecha ? new Date(b.fecha).getTime() : 0;
+      return da - db;
+    });
 
     setMovimientos(movsList);
     setCargando(false);
@@ -248,136 +257,138 @@ const CajasBancos: React.FC = () => {
 
   return (
     <main className="main-content cxc-main">
-      {/* 1. Header Card */}
-      <div className="cxc-header-bar" style={{ borderRadius: '12px 12px 0 0', borderBottom: '1px solid var(--border-light)' }}>
-        <div className="cxc-header-izq">
-          <button className="btn-volver" onClick={() => navigate('/')} title="Volver">
-            <ChevronLeft size={20} />
-          </button>
-          <div>
-            <h1 className="cxc-titulo-principal" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              Caja y Bancos
-            </h1>
+      <div className="sticky-header-container">
+        {/* 1. Header Card */}
+        <div className="cxc-header-bar" style={{ borderRadius: '12px 12px 0 0', borderBottom: '1px solid var(--border-light)', marginBottom: 0 }}>
+          <div className="cxc-header-izq">
+            <button className="btn-volver" onClick={() => navigate('/')} title="Volver">
+              <ChevronLeft size={20} />
+            </button>
+            <div>
+              <h1 className="cxc-titulo-principal" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                Caja y Bancos
+              </h1>
+            </div>
+          </div>
+          <div className="cxc-header-acciones">
+            <button 
+              className="cxc-accion-btn" 
+              onClick={() => toggleForm('ingreso')} 
+              title="Registrar un ingreso directo"
+              style={{ 
+                fontWeight: 600, 
+                padding: '0.5rem 1rem', 
+                background: activeForm === 'ingreso' ? '#008b46' : '#00D26A', 
+                color: 'white', border: 'none', borderRadius: '8px', 
+                boxShadow: activeForm === 'ingreso' ? 'inset 0 2px 4px rgba(0,0,0,0.2)' : '0 2px 4px rgba(0,210,106,0.2)' 
+              }}
+            >
+              <ArrowDownRight size={18} /> {activeForm === 'ingreso' ? 'Cerrar Ingreso' : 'Nuevo Ingreso'}
+            </button>
+            
+            <button 
+              className="cxc-accion-btn" 
+              onClick={() => toggleForm('salida')} 
+              title="Registrar un gasto/salida directa"
+              style={{ 
+                fontWeight: 600, 
+                padding: '0.5rem 1rem', 
+                background: activeForm === 'salida' ? '#bd4b22' : '#FF6B35', 
+                color: 'white', border: 'none', borderRadius: '8px', 
+                boxShadow: activeForm === 'salida' ? 'inset 0 2px 4px rgba(0,0,0,0.2)' : '0 2px 4px rgba(255,107,53,0.2)' 
+              }}
+            >
+              <ArrowUpRight size={18} /> {activeForm === 'salida' ? 'Cerrar Salida' : 'Nueva Salida'}
+            </button>
+
+            <button 
+              className="cxc-accion-btn" 
+              onClick={() => toggleForm('transferencia')} 
+              title="Transferir dinero entre dos cajas/bancos"
+              style={{ 
+                fontWeight: 600, 
+                padding: '0.5rem 1rem', 
+                background: activeForm === 'transferencia' ? '#075db3' : '#0A84FF', 
+                color: 'white', border: 'none', borderRadius: '8px', 
+                boxShadow: activeForm === 'transferencia' ? 'inset 0 2px 4px rgba(0,0,0,0.2)' : '0 4px 6px rgba(10,132,255,0.2)' 
+              }}
+            >
+              <ArrowRightLeft size={16} /> {activeForm === 'transferencia' ? 'Cerrar Transf.' : 'Nueva Transferencia'}
+            </button>
+
+            <button className="btn-refrescar" onClick={cargarDatos} disabled={cargando}>
+              <RefreshCw size={18} className={cargando ? 'spin' : ''} />
+            </button>
           </div>
         </div>
-        <div className="cxc-header-acciones">
-          <button 
-            className="cxc-accion-btn" 
-            onClick={() => toggleForm('ingreso')} 
-            title="Registrar un ingreso directo"
-            style={{ 
-              fontWeight: 600, 
-              padding: '0.5rem 1rem', 
-              background: activeForm === 'ingreso' ? '#008b46' : '#00D26A', 
-              color: 'white', border: 'none', borderRadius: '8px', 
-              boxShadow: activeForm === 'ingreso' ? 'inset 0 2px 4px rgba(0,0,0,0.2)' : '0 2px 4px rgba(0,210,106,0.2)' 
-            }}
-          >
-            <ArrowDownRight size={18} /> {activeForm === 'ingreso' ? 'Cerrar Ingreso' : 'Nuevo Ingreso'}
-          </button>
-          
-          <button 
-            className="cxc-accion-btn" 
-            onClick={() => toggleForm('salida')} 
-            title="Registrar un gasto/salida directa"
-            style={{ 
-              fontWeight: 600, 
-              padding: '0.5rem 1rem', 
-              background: activeForm === 'salida' ? '#bd4b22' : '#FF6B35', 
-              color: 'white', border: 'none', borderRadius: '8px', 
-              boxShadow: activeForm === 'salida' ? 'inset 0 2px 4px rgba(0,0,0,0.2)' : '0 2px 4px rgba(255,107,53,0.2)' 
-            }}
-          >
-            <ArrowUpRight size={18} /> {activeForm === 'salida' ? 'Cerrar Salida' : 'Nueva Salida'}
-          </button>
 
-          <button 
-            className="cxc-accion-btn" 
-            onClick={() => toggleForm('transferencia')} 
-            title="Transferir dinero entre dos cajas/bancos"
-            style={{ 
-              fontWeight: 600, 
-              padding: '0.5rem 1rem', 
-              background: activeForm === 'transferencia' ? '#075db3' : '#0A84FF', 
-              color: 'white', border: 'none', borderRadius: '8px', 
-              boxShadow: activeForm === 'transferencia' ? 'inset 0 2px 4px rgba(0,0,0,0.2)' : '0 4px 6px rgba(10,132,255,0.2)' 
-            }}
-          >
-            <ArrowRightLeft size={16} /> {activeForm === 'transferencia' ? 'Cerrar Transf.' : 'Nueva Transferencia'}
-          </button>
-
-          <button className="btn-refrescar" onClick={cargarDatos} disabled={cargando}>
-            <RefreshCw size={18} className={cargando ? 'spin' : ''} />
-          </button>
+        {/* 2. Filtros de Cajas (Botones) */}
+        <div className="cxc-barra-control" style={{ borderRadius: '0', borderBottom: '1px solid var(--border-light)', minHeight: '60px', padding: '0.75rem 1.5rem', background: 'var(--surface-50)', marginBottom: 0 }}>
+          <div className="cxc-filtros-inline" style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', width: '100%' }}>
+            <button
+              className={`cxc-accion-btn ${filtroCuenta === 'todas' ? 'active-filter' : ''}`}
+              style={{ 
+                background: filtroCuenta === 'todas' ? 'var(--secondary)' : 'var(--bg-card)',
+                color: filtroCuenta === 'todas' ? 'white' : 'var(--text-secondary)',
+                border: '1px solid',
+                borderColor: filtroCuenta === 'todas' ? 'var(--secondary)' : 'var(--border)',
+                borderRadius: '8px',
+                padding: '0.4rem 1rem',
+                fontWeight: 600,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem'
+              }}
+              onClick={() => setFiltroCuenta('todas')}
+            >
+              Todas las Cuentas
+              <strong style={{ fontSize: '0.85rem', opacity: 0.9 }}>Bs {fmtMonto(saldoTotal)}</strong>
+            </button>
+            
+            {cajas.map(c => (
+              <button
+              key={c.id}
+              className={`cxc-accion-btn ${filtroCuenta === c.id ? 'active-filter' : ''}`}
+              style={{ 
+                background: filtroCuenta === c.id ? 'var(--secondary)' : 'var(--bg-card)',
+                color: filtroCuenta === c.id ? 'white' : 'var(--text-secondary)',
+                border: '1px solid',
+                borderColor: filtroCuenta === c.id ? 'var(--secondary)' : 'var(--border)',
+                borderRadius: '8px',
+                padding: '0.4rem 1rem',
+                fontWeight: 500,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem'
+              }}
+              onClick={() => setFiltroCuenta(c.id)}
+            >
+              {c.nombre}
+              <strong style={{ fontSize: '0.85rem' }}>Bs {fmtMonto(saldos[c.id])}</strong>
+            </button>
+            ))}
+          </div>
         </div>
-      </div>
 
-      {/* 2. Filtros de Cajas (Botones) */}
-      <div className="cxc-barra-control" style={{ borderRadius: '0', borderBottom: '1px solid var(--border-light)', minHeight: '60px', padding: '0.75rem 1.5rem', background: 'var(--surface-50)' }}>
-        <div className="cxc-filtros-inline" style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', width: '100%' }}>
-          <button
-            className={`cxc-accion-btn ${filtroCuenta === 'todas' ? 'active-filter' : ''}`}
-            style={{ 
-              background: filtroCuenta === 'todas' ? 'var(--secondary)' : 'var(--bg-card)',
-              color: filtroCuenta === 'todas' ? 'white' : 'var(--text-secondary)',
-              border: '1px solid',
-              borderColor: filtroCuenta === 'todas' ? 'var(--secondary)' : 'var(--border)',
-              borderRadius: '8px',
-              padding: '0.4rem 1rem',
-              fontWeight: 600,
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem'
-            }}
-            onClick={() => setFiltroCuenta('todas')}
-          >
-            Todas las Cuentas
-            <span style={{ fontSize: '0.8rem', opacity: 0.8 }}>Bs {fmtMonto(saldoTotal)}</span>
-          </button>
-          
-          {cajas.map(c => (
-             <button
-             key={c.id}
-             className={`cxc-accion-btn ${filtroCuenta === c.id ? 'active-filter' : ''}`}
-             style={{ 
-               background: filtroCuenta === c.id ? 'var(--secondary)' : 'var(--bg-card)',
-               color: filtroCuenta === c.id ? 'white' : 'var(--text-secondary)',
-               border: '1px solid',
-               borderColor: filtroCuenta === c.id ? 'var(--secondary)' : 'var(--border)',
-               borderRadius: '8px',
-               padding: '0.4rem 1rem',
-               fontWeight: 500,
-               display: 'flex',
-               alignItems: 'center',
-               gap: '0.5rem'
-             }}
-             onClick={() => setFiltroCuenta(c.id)}
-           >
-             {c.nombre}
-             <strong style={{ fontSize: '0.85rem' }}>Bs {fmtMonto(saldos[c.id])}</strong>
-           </button>
-          ))}
+        {/* 3. Buscador */}
+        <div className="cxc-busqueda-bar" style={{ borderRadius: '0 0 12px 12px', marginBottom: '0.5rem', background: 'var(--bg-card)', padding: '0.5rem 1.5rem', border: '1px solid var(--border)', borderTop: 'none' }}>
+          <div className="pc-busqueda">
+            <Search size={16} className="pc-busqueda-icono" />
+            <input
+              type="text"
+              placeholder="Buscar por descripción o nro. transacción..."
+              value={busqueda}
+              onChange={e => setBusqueda(e.target.value)}
+              className="pc-busqueda-input"
+            />
+          </div>
+          {busqueda && (
+            <button className="cxc-limpiar-busqueda" onClick={() => setBusqueda('')}>✕</button>
+          )}
+          <span className="cxc-conteo-resultado">
+            {movimientosFiltrados.length} movimiento{movimientosFiltrados.length !== 1 ? 's' : ''}
+          </span>
         </div>
-      </div>
-
-      {/* 3. Buscador */}
-      <div className="cxc-busqueda-bar" style={{ borderRadius: '0 0 12px 12px', marginBottom: '1.5rem' }}>
-        <div className="pc-busqueda">
-          <Search size={16} className="pc-busqueda-icono" />
-          <input
-            type="text"
-            placeholder="Buscar por descripción o nro. transacción..."
-            value={busqueda}
-            onChange={e => setBusqueda(e.target.value)}
-            className="pc-busqueda-input"
-          />
-        </div>
-        {busqueda && (
-          <button className="cxc-limpiar-busqueda" onClick={() => setBusqueda('')}>✕</button>
-        )}
-        <span className="cxc-conteo-resultado">
-          {movimientosFiltrados.length} movimiento{movimientosFiltrados.length !== 1 ? 's' : ''}
-        </span>
       </div>
 
       {/* 4. Lista de Movimientos */}
@@ -422,9 +433,13 @@ const CajasBancos: React.FC = () => {
                 const esIngreso = mov.debe > 0;
                 
                 return (
-                  <tr key={mov.id} className="cxc-tr">
+                  <tr 
+                    key={mov.id} 
+                    className="cxc-tr cxc-tr-clickable"
+                    onClick={() => setMovDetalle(mov)}
+                  >
                     <td className="cxc-td cxc-td-meta" style={{ whiteSpace: 'nowrap' }}>
-                      {new Date(mov.fecha).toLocaleDateString()}
+                      {fmtFechaLocal(mov.fecha)}
                     </td>
                     <td className="cxc-td" style={{ fontWeight: 500, color: 'var(--text-primary)' }}>
                       {mov.cuenta_nombre}
@@ -457,7 +472,7 @@ const CajasBancos: React.FC = () => {
                     </td>
                     <td className="cxc-td cxc-td-center">
                       <button 
-                        onClick={() => toggleConciliar(mov.id, mov.conciliado)}
+                        onClick={(e) => { e.stopPropagation(); toggleConciliar(mov.id, mov.conciliado); }}
                         style={{ background: 'none', border: 'none', cursor: 'pointer', color: mov.conciliado ? 'var(--success)' : 'var(--text-tertiary)' }}
                         title={mov.conciliado ? "Marcar como no conciliado" : "Marcar como conciliado en Banco"}
                       >
@@ -467,7 +482,7 @@ const CajasBancos: React.FC = () => {
                     <td className="cxc-td cxc-td-center">
                       {!mov.conciliado && (
                         <button
-                          onClick={() => setMovEditar(mov)}
+                          onClick={(e) => { e.stopPropagation(); setMovEditar(mov); }}
                           style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--secondary)' }}
                           title="Editar movimiento"
                         >
@@ -517,6 +532,13 @@ const CajasBancos: React.FC = () => {
         cajas={cajas}
         onCerrar={() => setMovEditar(null)}
         onGuardado={() => { setMovEditar(null); cargarDatos(); }}
+      />
+
+      {/* Modal: Detalle de movimiento */}
+      <ModalDetalleMovimiento
+        visible={!!movDetalle}
+        asientoId={movDetalle?.asiento_id || null}
+        onCerrar={() => setMovDetalle(null)}
       />
 
     </main>

@@ -28,7 +28,12 @@ export function calcularRango(
   const año = hoy.getFullYear();
   const mes = hoy.getMonth(); // 0-indexed
 
-  const fmt = (d: Date): string => d.toISOString().split('T')[0];
+  const fmt = (d: Date): string => {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  };
 
   switch (intervalo) {
     case 'este-mes': {

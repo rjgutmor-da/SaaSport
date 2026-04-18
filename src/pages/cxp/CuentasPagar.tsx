@@ -262,97 +262,99 @@ const CuentasPagar: React.FC = () => {
   return (
     <main className="main-content cxc-main">
 
-      {/* ─── Header ─── */}
-      <div className="cxc-header-bar">
-        <div className="cxc-header-izq">
-          <button className="btn-volver" onClick={() => navigate('/')} title="Volver">
-            <ChevronLeft size={20} />
-          </button>
-          <div>
-            <h1 className="cxc-titulo-principal">Cuentas x Pagar</h1>
+      <div className="sticky-header-container">
+        {/* ─── Header ─── */}
+        <div className="cxc-header-bar" style={{ marginBottom: 0, borderRadius: '12px 12px 0 0', borderBottom: '1px solid var(--border-light)' }}>
+          <div className="cxc-header-izq">
+            <button className="btn-volver" onClick={() => navigate('/')} title="Volver">
+              <ChevronLeft size={20} />
+            </button>
+            <div>
+              <h1 className="cxc-titulo-principal">Cuentas x Pagar</h1>
+            </div>
+          </div>
+          <div className="cxc-header-acciones">
+            <button
+              className="btn-nueva-cuenta btn-nuevo-cobro"
+              onClick={() => { setEntidadParaPagoRapido(null); setMostrarPagoRapido(true); }}
+            >
+              <CreditCard size={16} /> Nuevo Pago
+            </button>
+            <button
+              className="btn-nueva-cuenta"
+              onClick={() => { setEntidadParaNota(null); setTipoNotaInicial('proveedor'); setMostrarNota(true); }}
+            >
+              <Plus size={16} /> Nueva Nota de Deuda
+            </button>
+            <button className="btn-refrescar" onClick={cargarDatos} disabled={cargando}>
+              <RefreshCw size={18} className={cargando ? 'spin' : ''} />
+            </button>
           </div>
         </div>
-        <div className="cxc-header-acciones">
-          <button
-            className="btn-nueva-cuenta btn-nuevo-cobro"
-            onClick={() => { setEntidadParaPagoRapido(null); setMostrarPagoRapido(true); }}
-          >
-            <CreditCard size={16} /> Nuevo Pago
-          </button>
-          <button
-            className="btn-nueva-cuenta"
-            onClick={() => { setEntidadParaNota(null); setTipoNotaInicial('proveedor'); setMostrarNota(true); }}
-          >
-            <Plus size={16} /> Nueva Nota de Deuda
-          </button>
-          <button className="btn-refrescar" onClick={cargarDatos} disabled={cargando}>
-            <RefreshCw size={18} className={cargando ? 'spin' : ''} />
-          </button>
-        </div>
-      </div>
 
-      {/* ─── Barra de Control: Filtros + Stats ─── */}
-      <div className="cxc-barra-control">
-        {/* Filtros a la izquierda */}
-        <div className="cxc-filtros-inline">
-          <FiltrosCxP
-            categoria={filtroCategoria}
-            antiguedad={filtroAntiguedad}
-            onChangeCategoria={setFiltroCategoria}
-            onChangeAntiguedad={setFiltroAntiguedad}
-            onLimpiar={limpiarFiltros}
-            compact
-          />
-        </div>
-
-        {/* Stats + botón Agregar a la derecha */}
-        <div className="cxc-stats-inline">
-          {/* Total Pendiente */}
-          <div className="cxc-mini-stat cxc-mini-stat--total">
-            <DollarSign size={15} />
-            <span className="cxc-mini-num cxc-mini-num--danger">
-              Bs {fmtMonto(statsGlobales.totalPendiente)}
-            </span>
-            <span className="cxc-mini-label">Total Pendiente</span>
+        {/* ─── Barra de Control: Filtros + Stats ─── */}
+        <div className="cxc-barra-control" style={{ borderRadius: 0, borderBottom: '1px solid var(--border-light)', marginBottom: 0 }}>
+          {/* Filtros a la izquierda */}
+          <div className="cxc-filtros-inline">
+            <FiltrosCxP
+              categoria={filtroCategoria}
+              antiguedad={filtroAntiguedad}
+              onChangeCategoria={setFiltroCategoria}
+              onChangeAntiguedad={setFiltroAntiguedad}
+              onLimpiar={limpiarFiltros}
+              compact
+            />
           </div>
 
-          {/* Con deuda */}
-          <div className="cxc-mini-stat cxc-mini-stat--deuda">
-            <AlertTriangle size={15} />
-            <span className="cxc-mini-num cxc-mini-num--warn">{statsGlobales.conDeuda}</span>
-            <span className="cxc-mini-label">Con Deuda</span>
+          {/* Stats + botón Agregar a la derecha */}
+          <div className="cxc-stats-inline">
+            {/* Total Pendiente */}
+            <div className="cxc-mini-stat cxc-mini-stat--total">
+              <DollarSign size={15} />
+              <span className="cxc-mini-num cxc-mini-num--danger">
+                Bs {fmtMonto(statsGlobales.totalPendiente)}
+              </span>
+              <span className="cxc-mini-label">Total Pendiente</span>
+            </div>
+
+            {/* Con deuda */}
+            <div className="cxc-mini-stat cxc-mini-stat--deuda">
+              <AlertTriangle size={15} />
+              <span className="cxc-mini-num cxc-mini-num--warn">{statsGlobales.conDeuda}</span>
+              <span className="cxc-mini-label">Con Deuda</span>
+            </div>
+
+            {/* Botón Agregar Proveedor */}
+            <button
+              className="btn-nueva-cuenta"
+              style={{ flexShrink: 0, padding: '0.4rem 0.85rem', fontSize: '0.82rem' }}
+              onClick={() => setMostrarAdmin(true)}
+              title="Agregar o editar proveedores y personal"
+            >
+              <UserPlus size={15} /> Agregar Proveedor
+            </button>
           </div>
-
-          {/* Botón Agregar Proveedor */}
-          <button
-            className="btn-nueva-cuenta"
-            style={{ flexShrink: 0, padding: '0.4rem 0.85rem', fontSize: '0.82rem' }}
-            onClick={() => setMostrarAdmin(true)}
-            title="Agregar o editar proveedores y personal"
-          >
-            <UserPlus size={15} /> Agregar Proveedor
-          </button>
         </div>
-      </div>
 
-      {/* ─── Barra de búsqueda ─── */}
-      <div className="cxc-busqueda-bar">
-        <div className="pc-busqueda">
-          <Search size={16} className="pc-busqueda-icono" />
-          <input
-            type="text"
-            placeholder="Buscar proveedor por nombre..."
-            value={busqueda}
-            onChange={e => setBusqueda(e.target.value)}
-            className="pc-busqueda-input"
-          />
+        {/* ─── Barra de búsqueda ─── */}
+        <div className="cxc-busqueda-bar" style={{ borderRadius: '0 0 12px 12px', border: '1px solid var(--border)', borderTop: 'none', background: 'var(--bg-card)', padding: '0.5rem 1.5rem' }}>
+          <div className="pc-busqueda">
+            <Search size={16} className="pc-busqueda-icono" />
+            <input
+              type="text"
+              placeholder="Buscar proveedor por nombre..."
+              value={busqueda}
+              onChange={e => setBusqueda(e.target.value)}
+              className="pc-busqueda-input"
+            />
+          </div>
+          {busqueda && (
+            <button className="cxc-limpiar-busqueda" onClick={() => setBusqueda('')}>✕</button>
+          )}
+          <span className="cxc-conteo-resultado">
+            {entidadesFiltradas.length} resultado{entidadesFiltradas.length !== 1 ? 's' : ''}
+          </span>
         </div>
-        {busqueda && (
-          <button className="cxc-limpiar-busqueda" onClick={() => setBusqueda('')}>✕</button>
-        )}
-        <span className="cxc-conteo-resultado">
-          {entidadesFiltradas.length} resultado{entidadesFiltradas.length !== 1 ? 's' : ''}
-        </span>
       </div>
 
       {/* ─── Error ─── */}
@@ -412,7 +414,7 @@ const CuentasPagar: React.FC = () => {
                 return (
                   <tr
                     key={entidad.id}
-                    className={`cxc-tr ${tieneDeuda ? 'cxc-tr--deuda' : ''}`}
+                    className={`cxc-tr cxc-tr-clickable ${tieneDeuda ? 'cxc-tr--deuda' : ''}`}
                     onClick={() => abrirDetalle(entidad)}
                     title="Clic para ver movimientos del proveedor"
                   >
