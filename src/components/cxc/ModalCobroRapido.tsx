@@ -229,7 +229,7 @@ const ModalCobroRapido: React.FC<Props> = ({ alumnoInicial, visible, onCerrar, o
   const saldoCxc = cxcSel ? Number(cxcSel.saldo_pendiente) : 0;
 
   return (
-    <div className="cxc-modal-overlay" onClick={() => !guardando && onCerrar()}>
+    <div className="cxc-modal-overlay">
       <div className="cxc-modal cxc-modal--cobro-rapido" onClick={e => e.stopPropagation()} style={{ maxWidth: '680px' }}>
         <div className="cxc-modal-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>

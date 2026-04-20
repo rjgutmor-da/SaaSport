@@ -68,7 +68,7 @@ export const AuthProviderSaaSport = ({ children }: { children: ReactNode }) => {
 
       // Timeout de 8 segundos para evitar bloqueos infinitos
       const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Timeout al cargar perfil')), 8000)
+        setTimeout(() => reject(new Error('Timeout al cargar perfil')), 15000)
       );
 
       const { data, error } = await Promise.race([queryPromise, timeoutPromise]) as any;

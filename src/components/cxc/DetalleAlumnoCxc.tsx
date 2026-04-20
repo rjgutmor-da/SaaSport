@@ -9,11 +9,12 @@ import { supabase } from '../../lib/supabaseClient';
 import type { AlumnoDeuda, CuentaCobrar, CxcDetalle, LineaNota } from '../../types/cxc';
 // Componente DetalleAlumnoCxc
 import type { CuentaContable } from '../../types/finanzas';
-import { AlertCircle, Check, CreditCard, Pencil, Ban, MessageCircle, X, Calendar } from 'lucide-react';
+import { AlertCircle, Check, CreditCard, Pencil, Ban, MessageCircle, X, Calendar, Eye, Hash } from 'lucide-react';
 import NotaServicios from './NotaServicios';
 import ModalEditarMovimiento from '../cajas-bancos/ModalEditarMovimiento';
 import ModalDetalleMovimiento from '../cajas-bancos/ModalDetalleMovimiento';
 import { LEGACY_DATA } from '../../lib/legacyData';
+import { getHoraLocal, getHoyISO } from '../../lib/dateUtils';
 
 /** Props del componente */
 interface DetalleAlumnoProps {
@@ -42,10 +43,12 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
   const [cxcs, setCxcs] = useState<CuentaCobrar[]>([]);
   const [detalles, setDetalles] = useState<Record<string, CxcDetalle[]>>({});
   const [cargando, setCargando] = useState(false);
+  // Estados de control de la UI
   const [expandida, setExpandida] = useState<string | null>(null);
+  const [modalNotaVisible, setModalNotaVisible] = useState(false);
+  const [modoModal, setModoModal] = useState<'ver' | 'editar' | 'crear'>('crear');
+  const [cxcParaEditar, setCxcParaEditar] = useState<any>(null);
   const [cuentasCobro, setCuentasCobro] = useState<CuentaContable[]>([]);
-
-  // Rol del usuario (para controlar edición/anulación)
   const [userRol, setUserRol] = useState('');
 
   // Modal de cobro inline
@@ -54,17 +57,14 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
   const [cobroMetodo, setCobroMetodo] = useState('efectivo');
   const [cobroCuentaId, setCobroCuentaId] = useState('');
   const [cobroBancoOrigen, setCobroBancoOrigen] = useState('');
-  const [cobroHora, setCobroHora] = useState('');
-  const [cobroFecha, setCobroFecha] = useState(new Date().toISOString().split('T')[0]);
+  const [cobroHora, setCobroHora] = useState(getHoraLocal());
+  const [cobroFecha, setCobroFecha] = useState(getHoyISO());
   const [guardandoCobro, setGuardandoCobro] = useState(false);
   const [cobroError, setCobroError] = useState<string | null>(null);
   const [cobroExito, setCobroExito] = useState<string | null>(null);
-
+  
   // Mensaje WhatsApp de recibo de pago
   const [mensajePagoWA, setMensajePagoWA] = useState<{ texto: string; telefono: string } | null>(null);
-
-  // Modal de edición
-  const [cxcParaEditar, setCxcParaEditar] = useState<any>(null);
 
   // Historial de cobros por CxC
   const [historialCobros, setHistorialCobros] = useState<Record<string, any[]>>({});
@@ -185,11 +185,22 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
         const dataLegacy = LEGACY_DATA[nombreCompleto];
 
         // Primera mensualidad y cantidad de meses en SaaSport
+        // Evitar consulta si no hay CxCs
+        if (dataCxc.length === 0) {
+          setDatosAdicionales({
+            fechaInicio: alumBase?.fecha_inicio ? fmtFecha(alumBase.fecha_inicio) : (dataLegacy?.fechaInicio ? fmtFecha(dataLegacy.fechaInicio) : (alumBase?.created_at ? fmtFecha(alumBase.created_at) : '—')),
+            cantidadMeses: (Number(alumBase?.meses_permanencia_inicial) || 0) + (dataLegacy?.mesesActividad || 0),
+            totalHistorico: (Number(alumBase?.ingresos_iniciales) || 0) + (dataLegacy?.totalIngresos || 0) + totalHistoricoSaaSport,
+            fechaNacimiento: alumBase?.fecha_nacimiento || alumno.fecha_nacimiento || ''
+          });
+          return;
+        }
+
         const { data: detMensualidades } = await supabase
           .from('cxc_detalle')
           .select(`
             periodo_meses, 
-            cuenta_cobrar!inner(fecha_emision),
+            cuentas_cobrar!inner(fecha_emision),
             catalogo_items!inner(nombre)
           `)
           .in('cuenta_cobrar_id', dataCxc.map(c => c.id))
@@ -199,7 +210,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
         let mesesUnicosSaaSport = new Set<string>();
 
         (detMensualidades ?? []).forEach((d: any) => {
-          const fecha = new Date(d.cuenta_cobrar.fecha_emision);
+          const fecha = new Date(d.cuentas_cobrar.fecha_emision);
           if (!primeraFechaSaaSport || fecha < primeraFechaSaaSport) primeraFechaSaaSport = fecha;
           
           if (d.periodo_meses && Array.isArray(d.periodo_meses)) {
@@ -255,8 +266,8 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
 
     // Reset estados
     setCobroBancoOrigen('');
-    setCobroHora('');
-    setCobroFecha(new Date().toISOString().split('T')[0]);
+    setCobroHora(getHoraLocal());
+    setCobroFecha(getHoyISO());
     setCobroNroDoc('');
     setCobroCxcId(null);
     setExpandida(null);
@@ -380,13 +391,13 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
             p_payload: {
                 cuenta_cobrar_id: cobroCxcId,
                 monto,
-                metodo_pago: cobroMetodo,
+                metodo_pago: (cuentasCobro.find(c => c.id === cobroCuentaId)?.codigo.startsWith('1.1.1') ? 'efectivo' : 'transferencia'),
                 cuenta_cobro_id: cobroCuentaId,
                 escuela_id: ctx.escuela_id,
                 sucursal_id: ctx.sucursal_id,
                 usuario_id: ctx.id,
                 nro_comprobante: concatDoc || null,
-                fecha: cobroFecha,
+                fecha: `${cobroFecha}T${cobroHora || '00:00'}:00`,
             }
         });
         resultData = data;
@@ -531,7 +542,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
   };
 
   // Preparar edición de una CxC
-  const prepararEdicion = async (cxc: CuentaCobrar) => {
+  const prepararEdicion = async (cxc: CuentaCobrar, modo: 'ver' | 'editar' = 'editar') => {
     // Cargar detalle para pre-llenar
     const { data } = await supabase
       .from('cxc_detalle')
@@ -545,17 +556,22 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
       cantidad: d.cantidad,
       precio_unitario: Number(d.precio_unitario),
       periodo_meses: d.periodo_meses || [],
+      detalle_personalizado: d.detalle_extra || '',
       subtotal: d.cantidad * Number(d.precio_unitario),
     }));
 
+    setModoModal(modo);
     setCxcParaEditar({
       id: cxc.id,
       alumno_id: cxc.alumno_id,
       alumno_nombre: `${cxc.alumno_nombres} ${cxc.alumno_apellidos}`,
       observaciones: cxc.observaciones || '',
       vencimiento: cxc.fecha_vencimiento || '',
+      fecha_emision: cxc.fecha_emision,
+      nro_recibo: (cxc as any).nro_recibo || '',
       lineas,
     });
+    setModalNotaVisible(true);
   };
 
   // Enviar WhatsApp cobranza
@@ -592,7 +608,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
 
   return (
     <>
-      <div className="cxc-modal-overlay" onClick={() => { if (!guardandoCobro) onCerrar(); }}>
+      <div className="cxc-modal-overlay">
         <div className="cxc-modal cxc-modal--detalle cxc-modal--wide" onClick={e => e.stopPropagation()}>
           <div className="cxc-modal-header" style={{ borderLeft: '8px solid var(--primary)', paddingLeft: '1.5rem' }}>
             <div className="cxc-modal-header-info" style={{ display: 'flex', alignItems: 'center', gap: '1.2rem', overflow: 'hidden' }}>
@@ -742,8 +758,16 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                               ) : (
                                 <div style={{ display: 'flex', gap: '0.25rem', justifyContent: 'center' }}>
                                   <button
+                                    className="cxc-btn-editar-visible"
+                                    onClick={() => prepararEdicion(cxc, 'ver')}
+                                    title="Ver detalle de la nota"
+                                    style={{ color: 'var(--primary)', borderColor: 'var(--primary)' }}
+                                  >
+                                    <Eye size={13} />
+                                  </button>
+                                  <button
                                     className={`cxc-btn-editar-visible ${cxc.estado === 'pagada' ? 'cxc-btn-editar-visible--dim' : ''}`}
-                                    onClick={() => prepararEdicion(cxc)}
+                                    onClick={() => prepararEdicion(cxc, 'editar')}
                                     title={
                                       cxc.estado === 'pagada'
                                         ? 'Esta nota ya está pagada'
@@ -776,7 +800,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                                 <div style={{ padding: '1rem', background: 'var(--input-bg)' }}>
                                   <form className="detalle-cobro-form" onSubmit={registrarCobro} onClick={e => e.stopPropagation()}>
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '0.5rem' }}>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem' }}>
                                         <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.85rem' }}>
                                           <input
                                             type="checkbox"
@@ -830,16 +854,14 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                                         />
                                         {!usarAnticipo && (
                                           <>
-                                            <select
-                                              value={cobroMetodo}
-                                              onChange={(e) => setCobroMetodo(e.target.value)}
+                                            <input
+                                              type="time"
+                                              value={cobroHora}
+                                              onChange={(e) => setCobroHora(e.target.value)}
                                               disabled={guardandoCobro}
-                                              className="detalle-cobro-select"
-                                            >
-                                              <option value="efectivo">Efectivo</option>
-                                              <option value="transferencia">Transferencia</option>
-                                              <option value="qr">QR</option>
-                                            </select>
+                                              className="detalle-cobro-input"
+                                              required
+                                            />
                                             <input
                                               type="date"
                                               value={cobroFecha}
@@ -929,10 +951,10 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                           {/* Detalle de items de la CxC y pagos adicionales */}
                           {isExp && !isCobro && detalles[cxc.id] && (
                             <tr>
-                              <td colSpan={7} style={{padding: 0, borderBottom: '1px solid var(--border-color)'}}>
-                                <div style={{padding: '1rem', background: 'var(--hover-bg)'}}>
+                              <td colSpan={7} style={{padding: 0, borderBottom: '1px solid var(--border)'}}>
+                                <div style={{padding: '1rem', background: 'var(--bg-card-hover)'}}>
                                   {detalles[cxc.id].length > 0 ? (
-                                    <table className="detalle-items-tabla" style={{background:'var(--card-bg)'}}>
+                                    <table className="detalle-items-tabla" style={{background:'var(--bg-card)'}}>
                                       <thead>
                                         <tr><th>Ítem</th><th>Cant.</th><th>Precio</th><th>Subtotal</th></tr>
                                       </thead>
@@ -941,12 +963,15 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                                           <tr key={d.id}>
                                             <td>
                                               {d.item_nombre}
-                                              {d.periodo_meses && d.periodo_meses.length > 0 && (
-                                                <small style={{ display: 'block', color: 'var(--text-muted)', fontSize: '0.75rem' }}>
-                                                  {d.periodo_meses.filter((m: string) => !m.startsWith('custom:')).join(', ')}
-                                                  {d.periodo_meses.filter((m: string) => m.startsWith('custom:')).map((m: string) => m.replace('custom:', '')).join(', ')}
+                                              {(d.periodo_meses && d.periodo_meses.length > 0) || d.detalle_extra ? (
+                                                <small style={{ display: 'block', color: 'var(--text-secondary)', fontSize: '0.75rem' }}>
+                                                  {[
+                                                    ...(d.periodo_meses || []).filter((m: string) => !m.startsWith('custom:')),
+                                                    ...(d.periodo_meses || []).filter((m: string) => m.startsWith('custom:')).map((m: string) => m.replace('custom:', '')),
+                                                    d.detalle_extra
+                                                  ].filter(Boolean).join(', ')}
                                                 </small>
-                                              )}
+                                              ) : null}
                                             </td>
                                             <td>{d.cantidad}</td>
                                             <td>Bs {fmtMonto(Number(d.precio_unitario))}</td>
@@ -961,19 +986,19 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
 
                                   {/* Historial de Pagos con edición de admin */}
                                   {cobros && cobros.length > 0 && (
-                                    <div style={{ marginTop: '1rem', borderTop: '1px solid var(--border-color)', paddingTop: '0.75rem' }}>
-                                      <h4 style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.5rem', textTransform: 'uppercase' }}>Historial de Pagos</h4>
+                                    <div style={{ marginTop: '1rem', borderTop: '1px solid var(--border)', paddingTop: '0.75rem' }}>
+                                      <h4 style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '0.5rem', textTransform: 'uppercase' }}>Historial de Pagos</h4>
                                       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                                         {cobros.map(cobro => {
                                           return (
-                                            <div key={cobro.id} style={{ background: 'var(--input-bg)', padding: '0.75rem', borderRadius: '6px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap' }}>
+                                            <div key={cobro.id} style={{ background: 'var(--bg-input)', padding: '0.75rem', borderRadius: '6px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap' }}>
                                               <div 
                                                 style={{ flex: 1, cursor: 'pointer' }}
                                                 onClick={() => setMovDetalleId(cobro.asiento_id)}
                                                 className="cxc-tr-clickable"
                                               >
                                                 <strong style={{ display: 'block', fontSize: '0.85rem' }}>Bs {fmtMonto(Number(cobro.monto_aplicado))}</strong>
-                                                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                                                <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
                                                    {fmtFecha(cobro.fecha)} — {cobro.metodo_pago || cobro.asientos_contables?.metodo_pago}
                                                    {cobro.documento_referencia || cobro.asientos_contables?.documento_referencia ? ` | ${cobro.documento_referencia || cobro.asientos_contables.documento_referencia}` : ''}
                                                 </span>
@@ -1019,6 +1044,10 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                                     </div>
                                   )}
 
+                                  {(cxc as any).nro_recibo && (
+                                    <p className="detalle-obs" style={{ marginTop: '0.75rem', color: 'var(--secondary)' }}>📑 Recibo: {(cxc as any).nro_recibo}</p>
+                                  )}
+
                                   {cxc.observaciones && (
                                     <p className="detalle-obs" style={{ marginTop: '0.75rem' }}>📝 {cxc.observaciones}</p>
                                   )}
@@ -1051,6 +1080,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
               });
           }}
           cxcEditar={cxcParaEditar}
+          modoInicial={modoModal}
         />
 
 

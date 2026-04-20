@@ -211,7 +211,7 @@ const ModalSaldoInicialCxP: React.FC<Props> = ({ visible, onCerrar, onCreado, ed
   };
 
   return (
-    <div className="cxc-modal-overlay" onClick={onCerrar}>
+    <div className="cxc-modal-overlay">
       <div className="cxc-modal cxc-modal--entidad" onClick={e => e.stopPropagation()} style={{ maxWidth: '580px' }}>
         <div className="cxc-modal-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>

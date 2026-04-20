@@ -204,7 +204,7 @@ const ModalPagoRapidoCxP: React.FC<Props> = ({ entidadInicial, entidades, visibl
   const saldoCxp = cxpSel ? Number(cxpSel.deuda_restante) : 0;
 
   return (
-    <div className="cxc-modal-overlay" onClick={() => !guardando && onCerrar()}>
+    <div className="cxc-modal-overlay">
       <div className="cxc-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '650px' }}>
         <div className="cxc-modal-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
