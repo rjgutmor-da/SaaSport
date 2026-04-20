@@ -233,7 +233,7 @@ const DetalleCxP: React.FC<Props> = ({ nota, visible, onCerrar, onActualizar }) 
   const yaPagada = nota.estado === 'pagada';
 
   return (
-    <div className="cxc-modal-overlay" onClick={() => { if (!registrandoPago && !exitoPago) onCerrar(); }}>
+    <div className="cxc-modal-overlay">
       <div
         className="cxc-modal"
         style={{ maxWidth: '640px', maxHeight: '90vh', overflowY: 'auto' }}

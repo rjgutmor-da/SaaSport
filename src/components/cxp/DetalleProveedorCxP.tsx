@@ -159,7 +159,7 @@ const DetalleProveedorCxP: React.FC<Props> = ({ entidad, visible, onCerrar, onAc
   const tipoGastoInicial = entidad.tipo === 'proveedor' ? 'proveedor' : 'personal';
 
   return (
-    <div className="cxc-modal-overlay" onClick={() => { if (!mostrarNuevaNota && !notaSeleccionada) onCerrar(); }}>
+    <div className="cxc-modal-overlay">
       <div
         className="cxc-modal"
         style={{ maxWidth: '800px', width: '95vw', maxHeight: '90vh', overflowY: 'auto' }}

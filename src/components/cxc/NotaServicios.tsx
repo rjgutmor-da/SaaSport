@@ -10,9 +10,9 @@ import type { CatalogoItem, LineaNota } from '../../types/cxc';
 import { MESES_ANIO } from '../../types/cxc';
 import {
   X, Plus, Check, Trash2, Calendar, AlertCircle,
-  CreditCard, MessageCircle, FileText, Users, RefreshCw, Info, Hash
+  CreditCard, MessageCircle, FileText, Users, RefreshCw, Info, Hash, Eye, Pencil
 } from 'lucide-react';
-import { getHoyISO } from '../../lib/dateUtils';
+import { getHoyISO, getHoraLocal } from '../../lib/dateUtils';
 
 /** Props del componente */
 interface NotaServiciosProps {
@@ -28,8 +28,12 @@ interface NotaServiciosProps {
     alumno_nombre: string;
     observaciones: string;
     vencimiento: string;
+    fecha_emision?: string;
+    nro_recibo?: string;
     lineas: LineaNota[];
   } | null;
+  /** Permite abrir directamente en modo 'ver', 'editar' o 'crear' */
+  modoInicial?: 'ver' | 'editar' | 'crear';
 }
 
 /** Formatea un número como moneda (Bs) */
@@ -66,8 +70,10 @@ const lineaVacia = (): LineaNota => ({
 
 
 const NotaServicios: React.FC<NotaServiciosProps> = ({
-  visible, onCerrar, onCreada, alumnoPreseleccionado, cxcEditar, esAnticipo = false
+  visible, onCerrar, onCreada, alumnoPreseleccionado, cxcEditar, esAnticipo = false, modoInicial
 }) => {
+  // Estados de control
+  const [modo, setModo] = useState<'ver' | 'editar' | 'crear'>('crear');
   // Datos
   const [alumnos, setAlumnos] = useState<{ id: string; nombres: string; apellidos: string }[]>([]);
   const [catalogo, setCatalogo] = useState<CatalogoItem[]>([]);
@@ -92,6 +98,7 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
   const [montoPago, setMontoPago] = useState('');
   const [cobroNroDoc, setCobroNroDoc] = useState('');
   const [nroRecibo, setNroRecibo] = useState('');
+  const [horaPago, setHoraPago] = useState(getHoraLocal());
   const [cobroOriginalAsientoId, setCobroOriginalAsientoId] = useState<string | null>(null);
   const [cobroMovimientoId, setCobroMovimientoId] = useState<string | null>(null);
 
@@ -153,10 +160,13 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
 
     // Resetear formulario
     if (cxcEditar) {
+      setModo(modoInicial || 'ver');
       setAlumnoId(cxcEditar.alumno_id);
       setLineas(cxcEditar.lineas.length > 0 ? cxcEditar.lineas : [lineaVacia()]);
       setObservaciones(cxcEditar.observaciones || '');
       setVencimiento(cxcEditar.vencimiento || '');
+      setFechaEmision(cxcEditar.fecha_emision || getHoyISO());
+      setNroRecibo(cxcEditar.nro_recibo || '');
 
       // CARGAR COBRO SI EXISTE
       const cargarCobro = async () => {
@@ -188,12 +198,14 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
       };
       cargarCobro();
     } else {
+      setModo('crear');
       setAlumnoId(alumnoPreseleccionado?.id || '');
       setLineas([lineaVacia()]);
       setObservaciones('');
       setVencimiento('');
       setFechaEmision(getHoyISO());
     }
+    setHoraPago(getHoraLocal());
     setPagarAlCrear(false);
     setMetodoPago('efectivo');
     setCuentaCobroId('');
@@ -213,9 +225,6 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
         nombre: 'Crédito / Saldo a Favor',
         detalle_personalizado: 'Anticipo para futuras mensualidades/servicios'
       }]);
-    }
-    if (cxcEditar) {
-      setFechaEmision((cxcEditar as any).fecha_emision || getHoyISO());
     }
   }, [visible, alumnoPreseleccionado, cxcEditar, esAnticipo]);
 
@@ -380,6 +389,8 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
         descripcion: descripcionAuto,
         observaciones: observaciones || null,
         fecha_vencimiento: vencimiento || null,
+        fecha_emision: fechaEmision,
+        nro_recibo: nroRecibo || null,
         editado: true,
         editado_por: ctx.id,
         editado_at: new Date().toISOString(),
@@ -451,6 +462,7 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
       observaciones: observaciones || null,
       fecha_vencimiento: vencimiento || null,
       fecha_emision: fechaEmision,
+      nro_recibo: nroRecibo || null,
       estado: 'pendiente',
       es_anticipo: esAnticipo,
     }).select('id').single();
@@ -556,8 +568,10 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
         sucursal_id: ctx.sucursal_id,
         usuario_id: ctx.id,
         descripcion: esAnticipo ? `Cobro Anticipado: ${nombreAlum}` : `Venta: ${descripcionAuto}`,
-        metodo_pago: pagarAlCrear ? metodoPago : 'efectivo', 
-        fecha: fechaEmision,
+        metodo_pago: pagarAlCrear ? 
+          (cuentasCobro.find(c => c.id === cuentaCobroId)?.codigo.startsWith('1.1.1') ? 'efectivo' : 'transferencia') 
+          : 'efectivo', 
+        fecha: `${fechaEmision}T${horaPago}:00`,
         movimientos: movimientosVenta
       };
 
@@ -645,7 +659,7 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
   if (!visible) return null;
 
   return (
-    <div className="cxc-modal-overlay" onClick={() => { if (!guardando && !mensajeWA) onCerrar(); }}>
+    <div className="cxc-modal-overlay">
       <div className="cxc-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '850px' }}>
         <div className="cxc-modal-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
@@ -696,7 +710,7 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
                     value={alumnoId}
                     onChange={e => setAlumnoId(e.target.value)}
                     required
-                    disabled={guardando || !!alumnoPreseleccionado || esEdicion}
+                    disabled={guardando || !!alumnoPreseleccionado || modo === 'ver' || esEdicion}
                     style={{ fontSize: '1rem', padding: '0.8rem' }}
                   >
                     <option value="">— Seleccionar alumno —</option>
@@ -713,7 +727,7 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
                         value={fechaEmision}
                         onChange={e => setFechaEmision(e.target.value)}
                         required
-                        disabled={guardando}
+                        disabled={guardando || modo === 'ver'}
                         style={{ borderColor: 'var(--primary)', background: 'rgba(59, 130, 246, 0.05)' }}
                     />
                 </div>
@@ -723,7 +737,7 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
                   <input
                     type="date" value={vencimiento}
                     onChange={e => setVencimiento(e.target.value)}
-                    disabled={guardando}
+                    disabled={guardando || modo === 'ver'}
                   />
                 </div>
 
@@ -734,23 +748,12 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
                         placeholder="Ej: Mensualidad Abril..." 
                         value={observaciones}
                         onChange={e => setObservaciones(e.target.value)}
-                        disabled={guardando}
+                        disabled={guardando || modo === 'ver'}
                     />
                 </div>
               </div>
 
-              <div className="modal-form-grid" style={{ marginBottom: '2rem' }}>
-                <div className="form-campo">
-                    <label><Hash size={14} /> Nro. Transacción / Recibo</label>
-                    <input 
-                        type="text" 
-                        placeholder="Ej: REC-001, 00123..." 
-                        value={nroRecibo}
-                        onChange={e => setNroRecibo(e.target.value)}
-                        disabled={guardando}
-                    />
-                </div>
-              </div>
+
 
               {/* Detalle de Items */}
               <div style={{ marginBottom: '2rem' }}>
@@ -786,8 +789,8 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
                             <select
                               value={linea.catalogo_item_id}
                               onChange={e => seleccionarItem(idx, e.target.value)}
-                              disabled={guardando}
-                              style={{ border: 'none', background: 'transparent', padding: '0.5rem 0', fontWeight: 600, fontSize: '1rem', color: '#fff', width: '100%' }}
+                              disabled={guardando || modo === 'ver'}
+                              style={{ border: 'none', background: 'transparent', padding: '0.5rem 0', fontWeight: 600, fontSize: '1rem', color: 'var(--text-primary)', width: '100%' }}
                             >
                               <option value="" style={{ background: '#1e293b' }}>— Seleccionar ítem —</option>
                               {catalogo.map(c => (
@@ -799,13 +802,13 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
                           <div className="form-campo" style={{ marginBottom: 0 }}>
                             <input
                               type="number" min="1" max="99"
-                              value={linea.cantidad}
+                               value={linea.cantidad}
                               onChange={e => actualizarLinea(idx, { cantidad: parseInt(e.target.value) || 1 })}
-                              disabled={guardando || esMensualidad}
+                              disabled={guardando || esMensualidad || modo === 'ver'}
                               style={{ 
                                 textAlign: 'center', 
                                 border: '1px solid var(--border)', 
-                                background: 'rgba(255,255,255,0.07)', 
+                                background: 'var(--bg-input)', 
                                 borderRadius: '8px',
                                 padding: '0.6rem',
                                 width: '100%',
@@ -819,14 +822,14 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
                           <div className="form-campo" style={{ marginBottom: 0 }}>
                             <input
                               type="number" step="0.10" min="0"
-                              value={linea.precio_unitario || ''}
+                               value={linea.precio_unitario || ''}
                               onChange={e => actualizarLinea(idx, { precio_unitario: parseFloat(e.target.value) || 0 })}
-                              disabled={guardando}
+                              disabled={guardando || modo === 'ver'}
                               placeholder="0.00"
                               style={{ 
                                 textAlign: 'right', 
                                 border: '1px solid var(--border)', 
-                                background: 'rgba(255,255,255,0.07)', 
+                                background: 'var(--bg-input)', 
                                 borderRadius: '10px', 
                                 fontWeight: 700,
                                 padding: '0.6rem',
@@ -840,15 +843,15 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
                             />
                           </div>
 
-                          <div style={{ textAlign: 'right', fontWeight: 800, color: '#fff', fontSize: '1.1rem' }}>
+                          <div style={{ textAlign: 'right', fontWeight: 800, color: 'var(--text-primary)', fontSize: '1.1rem' }}>
                              {fmtMonto(linea.subtotal)}
                           </div>
 
                           <button
-                            type="button"
+                             type="button"
                             onClick={() => eliminarLinea(idx)}
-                            disabled={guardando || lineas.length <= 1}
-                            style={{ background: 'transparent', border: 'none', color: 'var(--danger)', cursor: 'pointer', opacity: guardando ? 0.5 : 1 }}
+                            disabled={guardando || lineas.length <= 1 || modo === 'ver'}
+                            style={{ background: 'transparent', border: 'none', color: 'var(--danger)', cursor: 'pointer', opacity: (guardando || modo === 'ver') ? 0.5 : 1 }}
                           >
                             <Trash2 size={20} />
                           </button>
@@ -878,7 +881,7 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
                                           border: '1px solid',
                                           borderColor: activo ? 'var(--secondary)' : 'var(--border)',
                                           background: activo ? 'var(--secondary)' : 'transparent',
-                                          color: activo ? 'white' : 'var(--text-tertiary)',
+                                          color: activo ? 'var(--bg-card)' : 'var(--text-tertiary)',
                                           cursor: 'pointer',
                                           fontWeight: activo ? 700 : 500,
                                           transition: 'all 0.2s'
@@ -895,7 +898,7 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
                             {(esTorneo || esMensualidad) && (
                               <div style={{ flex: 1, minWidth: '200px' }}>
                                 <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-tertiary)', textTransform: 'uppercase', marginBottom: '0.5rem' }}>
-                                  <AlertCircle size={12} /> {esTorneo ? 'Seleccionar Torneo' : 'Periodo Custom'}
+                                  <AlertCircle size={12} /> {esTorneo ? 'Seleccionar Torneo' : 'Periodo Especifico'}
                                 </label>
                                 
                                 {esTorneo ? (
@@ -994,17 +997,21 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
 
                                 {pagarAlCrear && (
                                     <div style={{ marginTop: '1rem', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
-                                        <div className="form-campo">
+                                         <div className="form-campo">
                                             <label>Monto</label>
-                                            <input type="number" step="0.01" value={montoPago} onChange={e => setMontoPago(e.target.value)} />
+                                            <input type="number" step="0.01" value={montoPago} onChange={e => setMontoPago(e.target.value)} disabled={modo === 'ver'} />
                                         </div>
                                         <div className="form-campo">
                                             <label><Hash size={14} /> Nro. Transacción</label>
-                                            <input type="text" value={cobroNroDoc} onChange={e => setCobroNroDoc(e.target.value)} placeholder="Ej: 00123..." />
+                                            <input type="text" value={cobroNroDoc} onChange={e => setCobroNroDoc(e.target.value)} placeholder="Ej: 00123..." disabled={modo === 'ver'} />
                                         </div>
-                                        <div className="form-campo full-width">
+                                        <div className="form-campo">
+                                            <label><Calendar size={14} /> Hora del Pago</label>
+                                            <input type="time" value={horaPago} onChange={e => setHoraPago(e.target.value)} disabled={modo === 'ver'} />
+                                        </div>
+                                        <div className="form-campo">
                                             <label>Caja o Banco de Ingreso</label>
-                                            <select value={cuentaCobroId} onChange={e => setCuentaCobroId(e.target.value)} required>
+                                            <select value={cuentaCobroId} onChange={e => setCuentaCobroId(e.target.value)} required disabled={modo === 'ver'}>
                                                 <option value="">— Seleccionar Destino —</option>
                                                 {cuentasCobro.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
                                             </select>
@@ -1016,7 +1023,7 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
 
                     <div style={{ textAlign: 'right' }}>
                         <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '0.5rem' }}>Total a Facturar</span>
-                        <div style={{ fontSize: '2.5rem', fontWeight: 900, color: 'white', lineHeight: 1 }}>
+                        <div style={{ fontSize: '2.5rem', fontWeight: 900, color: 'var(--text-primary)', lineHeight: 1 }}>
                             <span style={{ fontSize: '1rem', color: 'var(--text-tertiary)', marginRight: '0.2rem' }}>Bs</span>
                             {fmtMonto(total)}
                         </div>
@@ -1025,7 +1032,7 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
 
                 {error && <div className="form-msg form-msg--error" style={{ marginTop: '1.5rem' }}><AlertCircle size={18} /> {error}</div>}
                 
-                <div className="cxc-modal-footer" style={{ marginTop: '1.5rem', paddingTop: '1.5rem', borderTop: '1px solid rgba(255,255,255,0.06)', display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
+                <div className="cxc-modal-footer" style={{ marginTop: '1.5rem', paddingTop: '1.5rem', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
                     <button type="button" className="btn-refrescar" onClick={onCerrar} disabled={guardando} style={{ borderRadius: '8px', padding: '0 1.5rem', width: 'auto' }}>
                         Cancelar
                     </button>

@@ -362,7 +362,7 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, esAnticipo = false, o
   const hayProductos = lineas.some(l => l.tipo === 'producto' && l.catalogo_item_id);
 
   return (
-    <div className="cxc-modal-overlay" onClick={() => { if (!guardando && !exito) onCerrar(); }}>
+    <div className="cxc-modal-overlay">
       <div className="cxc-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '850px' }}>
         <div className="cxc-modal-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
@@ -528,7 +528,17 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, esAnticipo = false, o
                           value={linea.cantidad}
                           onChange={e => actualizarLinea(idx, { cantidad: parseInt(e.target.value) || 1 })}
                           disabled={guardando}
-                          style={{ textAlign: 'center', border: 'none', background: 'rgba(255,255,255,0.03)', borderRadius: '10px', padding: '0.6rem 0', color: 'white' }}
+                          style={{ 
+                            textAlign: 'center', 
+                            border: '1px solid var(--border)', 
+                            background: 'rgba(255,255,255,0.07)', 
+                            borderRadius: '8px',
+                            padding: '0.6rem',
+                            width: '100%',
+                            fontSize: '1.1rem',
+                            fontWeight: 600,
+                            color: 'var(--text-primary)'
+                          }}
                         />
                       </div>
 
@@ -539,12 +549,24 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, esAnticipo = false, o
                           onChange={e => actualizarLinea(idx, { precio_unitario: parseFloat(e.target.value) || 0 })}
                           disabled={guardando}
                           placeholder="0.00"
-                          style={{ textAlign: 'right', border: 'none', background: 'rgba(255,255,255,0.03)', borderRadius: '10px', fontWeight: 700, padding: '0.6rem 0.8rem', color: 'white' }}
+                          style={{ 
+                            textAlign: 'right', 
+                            border: '1px solid var(--border)', 
+                            background: 'rgba(255,255,255,0.07)', 
+                            borderRadius: '10px', 
+                            fontWeight: 700,
+                            padding: '0.6rem',
+                            width: '100%',
+                            fontSize: '1.1rem',
+                            color: 'var(--primary)',
+                            outline: 'none',
+                            transition: 'all 0.2s'
+                          }}
+                          className="input-precio-unitario"
                         />
                       </div>
 
-                      <div style={{ textAlign: 'right', fontWeight: 800, color: '#f59e0b', fontSize: '1.1rem', whiteSpace: 'nowrap' }}>
-                         <span style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', marginRight: '4px' }}>Bs</span>
+                      <div style={{ textAlign: 'right', fontWeight: 800, color: '#f59e0b', fontSize: '1.1rem' }}>
                          {fmtMonto(linea.subtotal)}
                       </div>
 

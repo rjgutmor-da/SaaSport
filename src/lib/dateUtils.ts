@@ -15,6 +15,16 @@ export const getHoyISO = (): string => {
 };
 
 /**
+ * Retorna la hora actual en formato HH:mm.
+ */
+export const getHoraLocal = (): string => {
+  const ahora = new Date();
+  const hh = String(ahora.getHours()).padStart(2, '0');
+  const mm = String(ahora.getMinutes()).padStart(2, '0');
+  return `${hh}:${mm}`;
+};
+
+/**
  * Formatea una fecha ISO (YYYY-MM-DD o ISO8601) a formato legible local (DD/MM/YYYY).
  * Evita el error de "un día antes" al no interpretar el string como UTC absoluto.
  */
