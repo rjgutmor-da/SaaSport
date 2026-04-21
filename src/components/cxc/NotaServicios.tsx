@@ -572,7 +572,10 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
           (cuentasCobro.find(c => c.id === cuentaCobroId)?.codigo.startsWith('1.1.1') ? 'efectivo' : 'transferencia') 
           : 'efectivo', 
         fecha: `${fechaEmision}T${horaPago}:00`,
-        movimientos: movimientosVenta
+        movimientos: movimientosVenta,
+        // Trazabilidad bidireccional asiento ↔ CxC
+        origen_tipo: 'cxc',
+        origen_id: nuevaCxc.id,
       };
 
       // Si hubo pago al crear, enlazar el pago a la CxC en la tabla cobros_aplicados

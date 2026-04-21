@@ -328,7 +328,10 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, esAnticipo = false, o
       pagos: mp > 0 ? [{ 
         cuenta_pagar_id: nuevaCxP.id, 
         monto_aplicado: mp 
-      }] : []
+      }] : [],
+      // Trazabilidad bidireccional asiento ↔ CxP
+      origen_tipo: 'cxp',
+      origen_id: nuevaCxP.id,
     };
     
     const { data: vAsientoId, error: errAsiento } = await supabase.rpc('rpc_procesar_transaccion_financiera', { p_payload: payloadContable });

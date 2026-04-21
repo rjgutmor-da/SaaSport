@@ -43,8 +43,20 @@ interface Asiento {
   descripcion: string;
   nro_transaccion: string;
   created_at: string;
+  origen_tipo: string | null;
+  origen_id: string | null;
   movimientos_contables: Movimiento[];
 }
+
+/** Etiquetas y colores para cada tipo de origen */
+const ORIGEN_BADGE: Record<string, { label: string; color: string; bg: string }> = {
+  cxp:           { label: 'CxP',          color: '#f59e0b', bg: 'rgba(245,158,11,0.12)' },
+  cxc:           { label: 'CxC',          color: '#3b82f6', bg: 'rgba(59,130,246,0.12)' },
+  cobro:         { label: 'Cobro CxC',    color: '#10b981', bg: 'rgba(16,185,129,0.12)' },
+  pago:          { label: 'Pago CxP',     color: '#ef4444', bg: 'rgba(239,68,68,0.12)' },
+  banco_directo: { label: 'Cajas/Bancos', color: '#8b5cf6', bg: 'rgba(139,92,246,0.12)' },
+  manual:        { label: 'Manual',       color: '#64748b', bg: 'rgba(100,116,139,0.12)' },
+};
 
 interface LineaForm {
   cuenta_contable_id: string;
@@ -91,6 +103,7 @@ const LibroDiario: React.FC = () => {
       .from('asientos_contables')
       .select(`
         id, fecha, descripcion, nro_transaccion, created_at,
+        origen_tipo, origen_id,
         movimientos_contables (
           id, cuenta_contable_id, debe, haber, conciliado,
           cuenta:plan_cuentas ( id, codigo, nombre, tipo )
@@ -175,6 +188,7 @@ const LibroDiario: React.FC = () => {
          metodo_pago: 'efectivo',
          nro_transaccion: formNroTransaccion.trim() || null,
          movimientos: movsValidos,
+         origen_tipo: 'manual',
        };
        const { error: rpcErr } = await supabase.rpc('rpc_procesar_transaccion_financiera', { p_payload: payload });
        if (rpcErr) { setFormError(rpcErr.message); setGuardando(false); return; }
@@ -296,7 +310,7 @@ const LibroDiario: React.FC = () => {
             ) : (
               asientos.map((a, idx) => (
                 <React.Fragment key={a.id}>
-                  {/* Fila Encabezado Asiento - Intercalado Azul y Blanco */}
+                  {/* Fila Encabezado Asiento - con badge de origen */}
                   <tr style={{ background: 'rgba(255,255,255,0.02)', fontWeight: 800 }}>
                     <td className="excel-td">{formatFecha(a.fecha)}</td>
                     <td className="excel-td" colSpan={2} style={{ color: idx % 2 === 0 ? 'var(--secondary)' : 'var(--text-primary)' }}>
@@ -306,6 +320,28 @@ const LibroDiario: React.FC = () => {
                           (Nro: {a.nro_transaccion})
                         </span>
                       )}
+                      {/* Badge de origen del asiento */}
+                      {a.origen_tipo && (() => {
+                        const badge = ORIGEN_BADGE[a.origen_tipo] || ORIGEN_BADGE.manual;
+                        return (
+                          <span style={{
+                            marginLeft: '0.75rem',
+                            display: 'inline-block',
+                            padding: '0.15rem 0.5rem',
+                            borderRadius: '4px',
+                            fontSize: '0.65rem',
+                            fontWeight: 700,
+                            letterSpacing: '0.03em',
+                            color: badge.color,
+                            background: badge.bg,
+                            border: `1px solid ${badge.color}30`,
+                            textTransform: 'uppercase',
+                            verticalAlign: 'middle'
+                          }}>
+                            {badge.label}
+                          </span>
+                        );
+                      })()}
                     </td>
                     <td className="excel-td excel-monto"></td>
                     <td className="excel-td excel-monto"></td>
@@ -314,7 +350,7 @@ const LibroDiario: React.FC = () => {
                         <button
                           onClick={() => handleEditarAsiento(a)}
                           style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--secondary)', opacity: 0.7 }}
-                          title="Editar Asiento Manual"
+                          title="Editar Asiento"
                         >
                           <Pencil size={15} />
                         </button>
