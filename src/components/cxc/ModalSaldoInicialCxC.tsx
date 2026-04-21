@@ -130,7 +130,7 @@ const ModalSaldoInicialCxC: React.FC<Props> = ({ visible, onCerrar, onCreado, ed
         { cuenta_cobrar_id: nuevaCxc.id, monto_aplicado: valorMonto }
       ] : undefined;
 
-      const { error: rpcErr } = await supabase.rpc('rpc_procesar_transaccion_financiera', {
+      const { data: vAsientoId, error: rpcErr } = await supabase.rpc('rpc_procesar_transaccion_financiera', {
         p_payload: {
           escuela_id: ctx.escuela_id,
           sucursal_id: ctx.sucursal_id,
@@ -140,11 +140,18 @@ const ModalSaldoInicialCxC: React.FC<Props> = ({ visible, onCerrar, onCreado, ed
           nro_transaccion: null,
           fecha,
           movimientos,
-          cobros
+          cobros,
+          origen_tipo: 'cxc',
+          origen_id: nuevaCxc.id,
         }
       });
 
       if (rpcErr) throw new Error(`Error en asiento contable: ${rpcErr.message}`);
+
+      // Vincular asiento_id de vuelta a la CxC para trazabilidad bidireccional
+      if (vAsientoId) {
+        await supabase.from('cuentas_cobrar').update({ asiento_id: vAsientoId }).eq('id', nuevaCxc.id);
+      }
 
       // 3. Auditoría
       const alumObj = alumnos.find(a => a.id === alumnoId);

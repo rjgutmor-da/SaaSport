@@ -182,7 +182,9 @@ const ModalSaldoInicialCxP: React.FC<Props> = ({ visible, onCerrar, onCreado, ed
           nro_transaccion: null,
           fecha,
           movimientos,
-          pagos
+          pagos,
+          origen_tipo: 'cxp',
+          origen_id: nuevaCxp.id,
         }
       });
 
