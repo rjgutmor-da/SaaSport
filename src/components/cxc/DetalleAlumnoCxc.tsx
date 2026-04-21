@@ -9,10 +9,14 @@ import { supabase } from '../../lib/supabaseClient';
 import type { AlumnoDeuda, CuentaCobrar, CxcDetalle, LineaNota } from '../../types/cxc';
 // Componente DetalleAlumnoCxc
 import type { CuentaContable } from '../../types/finanzas';
-import { AlertCircle, Check, CreditCard, Pencil, Ban, MessageCircle, X, Calendar, Eye, Hash } from 'lucide-react';
+import { 
+  AlertCircle, Check, CreditCard, Pencil, Ban, MessageCircle, X, 
+  Calendar, Eye, Hash, Wallet, DollarSign, Plus, ChevronDown
+} from 'lucide-react';
 import NotaServicios from './NotaServicios';
 import ModalEditarMovimiento from '../cajas-bancos/ModalEditarMovimiento';
 import ModalDetalleMovimiento from '../cajas-bancos/ModalDetalleMovimiento';
+import FichaAnticiposCxC from './FichaAnticiposCxC';
 import { LEGACY_DATA } from '../../lib/legacyData';
 import { getHoraLocal, getHoyISO } from '../../lib/dateUtils';
 
@@ -53,6 +57,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
 
   // Modal de cobro inline
   const [cobroCxcId, setCobroCxcId] = useState<string | null>(null);
+  const [mostrarNuevaNotaManual, setMostrarNuevaNotaManual] = useState(false);
   const [cobroMonto, setCobroMonto] = useState('');
   const [cobroMetodo, setCobroMetodo] = useState('efectivo');
   const [cobroCuentaId, setCobroCuentaId] = useState('');
@@ -90,9 +95,13 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
   const [usarAnticipo, setUsarAnticipo] = useState(false);
   const [anticipoId, setAnticipoId] = useState('');
   const [mostrarNotaAnticipo, setMostrarNotaAnticipo] = useState(false);
+  const [mostrarFichaAnticipos, setMostrarFichaAnticipos] = useState(false);
 
   // Detalle de movimiento (Asiento)
   const [movDetalleId, setMovDetalleId] = useState<string | null>(null);
+
+  // Menú de anticipos
+  const [showAnticiposMenu, setShowAnticiposMenu] = useState(false);
 
 
 
@@ -516,7 +525,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
     if (!ctx) return;
 
     const { error: err } = await supabase.rpc('rpc_anular_cuenta_cobrar', {
-      p_cuenta_cobrar_id: cxcId,
+      p_id: cxcId,
       p_usuario_id: ctx.id
     });
 
@@ -629,15 +638,119 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                 </div>
               </div>
             </div>
-            <div style={{ display: 'flex', gap: '0.5rem' }}>
-              <button 
-                onClick={() => setMostrarNotaAnticipo(true)} 
-                className="btn-guardar-cuenta" 
-                style={{ background: 'var(--secondary)', fontSize: '0.8rem', padding: '0.4rem 0.8rem', width: 'auto' }}
+            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', justifyContent: 'flex-end', alignItems: 'center' }}>
+              <button
+                className="btn-premium-square"
+                onClick={() => setMostrarNuevaNotaManual(true)}
+                style={{ flexShrink: 0, background: 'var(--secondary)', borderRadius: '4px' }}
+                title="Crear una nueva nota de servicio"
               >
-                <CreditCard size={14} style={{ marginRight: '0.3rem' }} /> Registrar Saldo a Favor
+                <Plus size={15} /> Nueva Nota
               </button>
-              <button onClick={onCerrar} disabled={guardandoCobro}><X size={20} /></button>
+
+              <button
+                className="btn-premium-square"
+                onClick={() => {
+                  const pendiente = [...cxcs]
+                    .filter(c => !c.anulada && c.estado !== 'pagada')
+                    .sort((a, b) => new Date(a.fecha_emision).getTime() - new Date(b.fecha_emision).getTime())[0];
+                  
+                  if (pendiente) {
+                    setCobroCxcId(pendiente.id);
+                    setCobroMonto(String(pendiente.saldo_pendiente));
+                    setExpandida(pendiente.id);
+                  }
+                }}
+                style={{ flexShrink: 0, background: 'linear-gradient(135deg, #10b981, #059669)', borderRadius: '4px' }}
+                title="Pagar la deuda más antigua"
+              >
+                <DollarSign size={15} /> Pagar
+              </button>
+
+              <div style={{ position: 'relative' }}>
+                <button 
+                  onClick={() => setShowAnticiposMenu(!showAnticiposMenu)} 
+                  className="btn-premium-square"
+                  style={{ 
+                    flexShrink: 0, 
+                    background: 'rgba(168, 85, 247, 0.1)', 
+                    color: '#a855f7', 
+                    borderColor: 'rgba(168, 85, 247, 0.3)',
+                    borderRadius: '4px'
+                  }}
+                >
+                  <Wallet size={15} /> Anticipos <ChevronDown size={14} style={{ marginLeft: '4px', transform: showAnticiposMenu ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
+                </button>
+
+                {showAnticiposMenu && (
+                  <div style={{
+                    position: 'absolute',
+                    top: 'calc(100% + 5px)',
+                    right: 0,
+                    background: 'var(--bg-card)',
+                    border: '1px solid var(--border)',
+                    borderRadius: '8px',
+                    boxShadow: '0 10px 25px rgba(0,0,0,0.5)',
+                    zIndex: 100,
+                    minWidth: '200px',
+                    overflow: 'hidden',
+                    animation: 'fadeIn 0.2s ease-out'
+                  }}>
+                    <button
+                      className="dropdown-item"
+                      style={{
+                        width: '100%',
+                        padding: '0.75rem 1rem',
+                        textAlign: 'left',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.75rem',
+                        color: 'var(--text-primary)',
+                        fontSize: '0.85rem',
+                        fontWeight: '600',
+                        transition: 'background 0.2s'
+                      }}
+                      onClick={() => {
+                        setMostrarNotaAnticipo(true);
+                        setShowAnticiposMenu(false);
+                      }}
+                    >
+                      <Plus size={14} /> Registrar anticipo
+                    </button>
+                    <button
+                      className="dropdown-item"
+                      style={{
+                        width: '100%',
+                        padding: '0.75rem 1rem',
+                        textAlign: 'left',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.75rem',
+                        color: 'var(--text-primary)',
+                        fontSize: '0.85rem',
+                        fontWeight: '600',
+                        transition: 'background 0.2s',
+                        borderTop: '1px solid var(--border)'
+                      }}
+                      onClick={() => {
+                        setMostrarFichaAnticipos(true);
+                        setShowAnticiposMenu(false);
+                      }}
+                    >
+                      <Eye size={14} /> Anticipos sin aplicar
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              <button 
+                onClick={onCerrar} 
+                disabled={guardandoCobro} 
+                className="btn-refrescar" 
+                style={{ width: '38px', height: '38px', borderRadius: '8px' }}
+              >
+                <X size={20} />
+              </button>
             </div>
           </div>
 
@@ -765,19 +878,33 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                                   >
                                     <Eye size={13} />
                                   </button>
-                                  <button
-                                    className={`cxc-btn-editar-visible ${cxc.estado === 'pagada' ? 'cxc-btn-editar-visible--dim' : ''}`}
-                                    onClick={() => prepararEdicion(cxc, 'editar')}
-                                    title={
-                                      cxc.estado === 'pagada'
-                                        ? 'Esta nota ya está pagada'
-                                        : (puedeEditar(cxc) || puedeReEditar())
-                                          ? 'Editar nota de servicio'
-                                          : 'Sin permisos para editar'
-                                    }
-                                  >
-                                    <Pencil size={13} />
-                                  </button>
+                                  {(puedeEditar(cxc) || puedeReEditar()) && (
+                                    <button
+                                      className={`cxc-btn-editar-visible ${cxc.estado === 'pagada' ? 'cxc-btn-editar-visible--dim' : ''}`}
+                                      onClick={() => prepararEdicion(cxc, 'editar')}
+                                      title={
+                                        cxc.estado === 'pagada'
+                                          ? 'Esta nota ya está pagada'
+                                          : 'Editar nota de servicio'
+                                      }
+                                    >
+                                      <Pencil size={13} />
+                                    </button>
+                                  )}
+                                  {cxc.estado !== 'pagada' && !cxc.anulada && (
+                                    <button
+                                      className="cxc-btn-editar-visible"
+                                      onClick={() => {
+                                        setCobroCxcId(cxc.id);
+                                        setCobroMonto(String(cxc.saldo_pendiente));
+                                        setExpandida(cxc.id);
+                                      }}
+                                      title="Registrar pago / cobro"
+                                      style={{ color: 'var(--secondary)', borderColor: 'var(--secondary)' }}
+                                    >
+                                      <DollarSign size={13} />
+                                    </button>
+                                  )}
                                   {puedeAnular() && !cxc.anulada && (
                                     <button
                                       className="cxc-btn-editar-visible"
@@ -866,6 +993,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                                               type="date"
                                               value={cobroFecha}
                                               onChange={(e) => setCobroFecha(e.target.value)}
+                                              min={cxc.fecha_emision.split('T')[0]}
                                               disabled={guardandoCobro}
                                               className="detalle-cobro-input"
                                               style={{ width: '130px' }}
@@ -1118,6 +1246,35 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
           visible={!!movDetalleId}
           asientoId={movDetalleId}
           onCerrar={() => setMovDetalleId(null)}
+        />
+
+        {/* Ficha de Saldos a Favor del alumno */}
+        <FichaAnticiposCxC
+          visible={mostrarFichaAnticipos}
+          onCerrar={() => setMostrarFichaAnticipos(false)}
+          onActualizar={() => {
+            onActualizar();
+            supabase.from('v_cuentas_cobrar').select('*')
+              .eq('alumno_id', alumno.alumno_id)
+              .order('created_at', { ascending: false })
+              .then(({ data }) => setCxcs((data as unknown as CuentaCobrar[]) ?? []));
+          }}
+          alumnoId={alumno.alumno_id}
+          alumnoNombre={`${alumno.nombres} ${alumno.apellidos}`}
+        />
+
+        <NotaServicios
+          visible={mostrarNuevaNotaManual}
+          onCerrar={() => setMostrarNuevaNotaManual(false)}
+          onCreada={() => {
+            setMostrarNuevaNotaManual(false);
+            onActualizar();
+            supabase.from('v_cuentas_cobrar').select('*')
+              .eq('alumno_id', alumno.alumno_id)
+              .order('created_at', { ascending: false })
+              .then(({ data }) => setCxcs((data as unknown as CuentaCobrar[]) ?? []));
+          }}
+          alumnoPreseleccionado={{ id: alumno.alumno_id, nombre: `${alumno.nombres} ${alumno.apellidos}` }}
         />
       </>
     );
