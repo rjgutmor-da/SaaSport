@@ -440,14 +440,26 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
         .single();
 
       if (cxcFull?.asiento_id) {
-        // 1. Obtener pagos vinculados a este mismo asiento para mantener consistencia
+        // 1. Obtener cobros vinculados a este asiento
         const { data: cobrosVinculados } = await supabase
           .from('cobros_aplicados')
-          .select('monto_aplicado, asientos_contables(metodo_pago, cuenta_cobro_id)')
+          .select('monto_aplicado, asiento_id')
           .eq('asiento_id', cxcFull.asiento_id);
         
         const montoPagadoInicial = (cobrosVinculados || []).reduce((sum, c) => sum + Number(c.monto_aplicado), 0);
-        const pagoInicial = cobrosVinculados?.[0]; // Tomamos el primero si hay varios vinculados al asiento original
+        
+        // 1.1 Obtener la cuenta de caja/banco original (el DEBE del asiento de pago)
+        let cuentaCobroEfectiva = '';
+        if (montoPagadoInicial > 0 && cxcFull.asiento_id) {
+          const { data: mvPago } = await supabase
+            .from('movimientos_contables')
+            .select('cuenta_contable_id')
+            .eq('asiento_id', cxcFull.asiento_id)
+            .gt('debe', 0)
+            .limit(1)
+            .single();
+          if (mvPago) cuentaCobroEfectiva = mvPago.cuenta_contable_id;
+        }
 
         // 2. Reconstruir movimientos
         const movimientosVenta: { cuenta_id: string; debe: number; haber: number }[] = [];
@@ -467,10 +479,10 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
           if (monto > 0) movimientosVenta.push({ cuenta_id: idCta, debe: 0, haber: monto });
         });
 
-        // DEBE: Pago Inicial (si existía)
-        if (montoPagadoInicial > 0 && pagoInicial?.asientos_contables?.cuenta_cobro_id) {
+        // DEBE: Pago Inicial (si existía y tenemos la cuenta)
+        if (montoPagadoInicial > 0 && cuentaCobroEfectiva) {
           movimientosVenta.push({ 
-            cuenta_id: pagoInicial.asientos_contables.cuenta_cobro_id, 
+            cuenta_id: cuentaCobroEfectiva, 
             debe: montoPagadoInicial, 
             haber: 0 
           });
