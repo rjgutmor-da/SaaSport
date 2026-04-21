@@ -144,6 +144,7 @@ const ModalSaldoInicialCxP: React.FC<Props> = ({ visible, onCerrar, onCreado, ed
         observaciones: (esAnticipo ? 'SIA-' : 'SI-') + Date.now().toString().slice(-6),
         monto_total: valorMonto,
         fecha_emision: fecha,
+        es_anticipo: esAnticipo,
         estado: 'pendiente', 
       }).select('id').single();
 

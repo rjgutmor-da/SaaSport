@@ -112,6 +112,7 @@ const ModalSaldoInicialCxC: React.FC<Props> = ({ visible, onCerrar, onCreado, ed
         fecha_emision: fecha,
         descripcion: descripcion.trim() || (esAnticipo ? 'Saldo inicial de anticipo' : 'Saldo inicial de deuda'),
         observaciones: (esAnticipo ? 'SIA-' : 'Saldo inicial - ajuste contable'),
+        es_anticipo: esAnticipo,
         estado: 'pendiente', // se mata abajo con el pago si es anticipo
       }).select('id').single();
 

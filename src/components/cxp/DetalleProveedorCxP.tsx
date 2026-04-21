@@ -9,10 +9,11 @@ import { supabase } from '../../lib/supabaseClient';
 import {
   X, DollarSign, Calendar, RefreshCw,
   AlertCircle, Check, CreditCard, CheckCircle2,
-  FileText, TrendingDown, Edit2
+  FileText, TrendingDown, Edit2, Wallet
 } from 'lucide-react';
 import NotaPago from './NotaPago';
 import DetalleCxP from './DetalleCxP';
+import FichaAnticiposCxP from './FichaAnticiposCxP';
 import { CATEGORIAS_PROVEEDOR } from './FiltrosCxP';
 
 /** Tipos */
@@ -72,6 +73,7 @@ const DetalleProveedorCxP: React.FC<Props> = ({ entidad, visible, onCerrar, onAc
   // Modales internos
   const [mostrarNuevaNota, setMostrarNuevaNota] = useState(false);
   const [notaSeleccionada, setNotaSeleccionada] = useState<any>(null);
+  const [mostrarFichaAnticipos, setMostrarFichaAnticipos] = useState(false);
 
   /** Carga las notas del proveedor/personal */
   const cargarNotas = async () => {
@@ -214,7 +216,7 @@ const DetalleProveedorCxP: React.FC<Props> = ({ entidad, visible, onCerrar, onAc
           </div>
 
           {/* ── Barra de acciones y filtro ── */}
-          <div style={{ display: 'flex', gap: '0.6rem', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: '0.8rem', alignItems: 'center', marginBottom: '1.2rem', flexWrap: 'wrap' }}>
             <button
               className="btn-nueva-cuenta"
               onClick={() => setMostrarNuevaNota(true)}
@@ -222,22 +224,12 @@ const DetalleProveedorCxP: React.FC<Props> = ({ entidad, visible, onCerrar, onAc
             >
               <FileText size={15} /> Nueva Nota
             </button>
-            <button
-              className="btn-refrescar"
-              onClick={() => {
-                // Abrir formulario de nota pero forzando modo anticipo
-                setMostrarNuevaNota(true);
-                setModoAnticipo(true);
-              }}
-              style={{ flexShrink: 0, color: '#a855f7', borderColor: '#a855f7' }}
-            >
-              <DollarSign size={15} /> Registrar Anticipo
-            </button>
+
             <select
               value={filtroEstado}
               onChange={e => setFiltroEstado(e.target.value)}
               className="cxc-filtro-select"
-              style={{ flex: 1, minWidth: '140px' }}
+              style={{ flex: 1, minWidth: '180px' }}
             >
               <option value="">Todos los estados</option>
               <option value="pendiente">Pendiente</option>
@@ -246,7 +238,28 @@ const DetalleProveedorCxP: React.FC<Props> = ({ entidad, visible, onCerrar, onAc
               <option value="vencida">Vencida</option>
               <option value="anticipo">Anticipos</option>
             </select>
-            <span style={{ fontSize: '0.8rem', color: 'var(--text-tertiary)', marginLeft: 'auto' }}>
+
+            <button
+              className="btn-anticipo"
+              onClick={() => {
+                // Abrir formulario de nota pero forzando modo anticipo
+                setMostrarNuevaNota(true);
+                setModoAnticipo(true);
+              }}
+              style={{ flexShrink: 0 }}
+            >
+              <DollarSign size={15} /> Registrar Anticipo
+            </button>
+
+            <button
+              className="btn-anticipo"
+              onClick={() => setMostrarFichaAnticipos(true)}
+              style={{ flexShrink: 0 }}
+            >
+              <Wallet size={15} /> Ver Anticipos
+            </button>
+
+            <span style={{ fontSize: '0.85rem', color: 'var(--text-tertiary)', marginLeft: '0.5rem', whiteSpace: 'nowrap' }}>
               {notasFiltradas.length} nota{notasFiltradas.length !== 1 ? 's' : ''}
             </span>
           </div>
@@ -392,6 +405,13 @@ const DetalleProveedorCxP: React.FC<Props> = ({ entidad, visible, onCerrar, onAc
         nota={notaSeleccionada}
         visible={!!notaSeleccionada}
         onCerrar={() => setNotaSeleccionada(null)}
+        onActualizar={() => { cargarNotas(); onActualizar(); }}
+      />
+
+      {/* Ficha de Anticipos a Proveedores */}
+      <FichaAnticiposCxP
+        visible={mostrarFichaAnticipos}
+        onCerrar={() => setMostrarFichaAnticipos(false)}
         onActualizar={() => { cargarNotas(); onActualizar(); }}
       />
     </div>

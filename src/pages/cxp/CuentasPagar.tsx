@@ -23,6 +23,7 @@ import NotaPago from '../../components/cxp/NotaPago';
 import DetalleProveedorCxP from '../../components/cxp/DetalleProveedorCxP';
 import AdminEntidadesCxP from '../../components/cxp/AdminEntidadesCxP';
 import ModalPagoRapidoCxP from '../../components/cxp/ModalPagoRapidoCxP';
+import ModalSaldoInicialCxP from '../../components/cxp/ModalSaldoInicialCxP';
 
 /** Formato de moneda boliviana */
 const fmtMonto = (n: number) =>
@@ -64,6 +65,7 @@ const CuentasPagar: React.FC = () => {
 
   const [mostrarPagoRapido, setMostrarPagoRapido]       = useState(false);
   const [entidadParaPagoRapido, setEntidadParaPagoRapido] = useState<EntidadCxP | null>(null);
+  const [mostrarSaldoInicial, setMostrarSaldoInicial]   = useState(false);
 
   // ── Entidad para pago rápido ──
   const [entidadParaNota, setEntidadParaNota]           = useState<EntidadCxP | null>(null);
@@ -285,6 +287,14 @@ const CuentasPagar: React.FC = () => {
               onClick={() => { setEntidadParaNota(null); setTipoNotaInicial('proveedor'); setMostrarNota(true); }}
             >
               <Plus size={16} /> Nueva Nota de Deuda
+            </button>
+            <button
+              className="btn-refrescar"
+              onClick={() => setMostrarSaldoInicial(true)}
+              title="Registrar saldos iniciales (migración)"
+              style={{ background: 'rgba(168, 85, 247, 0.15)', color: '#A855F7', border: '1px solid rgba(168, 85, 247, 0.3)' }}
+            >
+              <BookOpen size={16} />
             </button>
             <button className="btn-refrescar" onClick={cargarDatos} disabled={cargando}>
               <RefreshCw size={18} className={cargando ? 'spin' : ''} />
@@ -538,6 +548,15 @@ const CuentasPagar: React.FC = () => {
         visible={!!entidadSeleccionada}
         onCerrar={() => setEntidadSeleccionada(null)}
         onActualizar={cargarDatos}
+      />
+
+      <ModalSaldoInicialCxP
+        visible={mostrarSaldoInicial}
+        onCerrar={() => setMostrarSaldoInicial(false)}
+        onCreado={() => {
+          setMostrarSaldoInicial(false);
+          cargarDatos();
+        }}
       />
 
     </main>
