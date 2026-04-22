@@ -183,16 +183,16 @@ select option {
 }
 
 .sidebar-brand {
-  font-size: 24px;
+  font-size: 30px;
   font-weight: 900;
   color: var(--primary);
   margin-bottom: 2.5rem;
   padding: 0 0.5rem;
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  text-transform: uppercase;
-  letter-spacing: 1px;
+  justify-content: space-between;
+  letter-spacing: -0.032em;
+  line-height: 1;
 }
 
 .sidebar-nav {
@@ -2170,11 +2170,11 @@ input[type=number] {
 }
 
 .login-titulo {
-  font-size: 2.25rem;
+  font-size: 3.5rem;
   font-weight: 900;
-  color: #FFFFFF;
+  color: var(--primary);
   letter-spacing: -0.04em;
-  line-height: 1.1;
+  line-height: 1;
 }
 
 .login-subtitulo {
