@@ -158,7 +158,10 @@ const Login: React.FC<LoginProps> = ({ onLoginExitoso }) => {
 
         {/* Logo / Brand */}
         <div className="login-brand">
-          <h1 className="login-titulo">SaaSport</h1>
+          <h1 className="login-titulo" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '1.5rem' }}>
+            SaaSport
+            <img src="/saasport-app-icon-v3.png" alt="Logo" style={{ width: '80px', height: '80px' }} />
+          </h1>
           <p className="login-subtitulo">Gestión financiera de tu academia deportiva</p>
         </div>
 

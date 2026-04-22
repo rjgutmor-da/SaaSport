@@ -51,7 +51,10 @@ const Sidebar: React.FC<SidebarProps> = ({ onLogout, theme, onCycleTheme, extra 
 
   return (
     <aside className="sidebar">
-      <div className="sidebar-brand">SaaSport</div>
+      <div className="sidebar-brand">
+        SaaSport
+        <img src="/saasport-app-icon-v3.png" alt="Logo" style={{ width: '42px', height: '42px' }} />
+      </div>
       
       <nav className="sidebar-nav">
         <div className="sidebar-item-group">
@@ -179,7 +182,10 @@ const AppRouter: React.FC<AppRouterProps> = ({ onLogout, theme, onCycleTheme }) 
     return (
       <div className="login-container">
         <div className="login-card" style={{ textAlign: 'center' }}>
-          <h1 className="login-titulo">SaaSport</h1>
+          <h1 className="login-titulo" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '1.5rem' }}>
+            SaaSport
+            <img src="/saasport-app-icon-v3.png" alt="Logo" style={{ width: '72px', height: '72px' }} />
+          </h1>
           <p style={{ color: 'var(--text-secondary)', marginTop: '1rem' }}>Verificando permisos...</p>
         </div>
       </div>
@@ -238,7 +244,10 @@ function AppInterna() {
     return (
       <div className="login-container">
         <div className="login-card" style={{ textAlign: 'center' }}>
-          <h1 className="login-titulo">SaaSport</h1>
+          <h1 className="login-titulo" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '1.5rem' }}>
+            SaaSport
+            <img src="/saasport-app-icon-v3.png" alt="Logo" style={{ width: '72px', height: '72px' }} />
+          </h1>
           <p style={{ color: 'var(--text-secondary)', marginTop: '1rem' }}>Verificando sesión...</p>
         </div>
       </div>
