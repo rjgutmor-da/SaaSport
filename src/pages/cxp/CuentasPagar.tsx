@@ -27,6 +27,8 @@ import DetalleProveedorCxP from '../../components/cxp/DetalleProveedorCxP';
 import AdminEntidadesCxP from '../../components/cxp/AdminEntidadesCxP';
 import ModalPagoRapidoCxP from '../../components/cxp/ModalPagoRapidoCxP';
 import ModalSaldoInicialCxP from '../../components/cxp/ModalSaldoInicialCxP';
+import { EntidadCxP } from '../../types/cxp';
+
 
 /** Formato de moneda boliviana */
 const fmtMonto = (n: number) =>

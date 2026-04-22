@@ -1,20 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import type { CuentaContable } from '../../types/finanzas';
+import { EntidadCxP } from '../../types/cxp';
 import { X, CreditCard, AlertCircle, Check, MessageCircle, FileText, Users, RefreshCw, DollarSign, Building2, Hash, Calendar } from 'lucide-react';
 
 const fmtMonto = (n: number): string =>
   n.toLocaleString('es-BO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-interface EntidadCxP {
-  id: string;
-  tipo: 'proveedor' | 'personal';
-  nombre: string;
-  categoria: string;
-  cargo?: string;
-  telefono?: string;
-  saldo_pendiente: number;
-}
 
 interface Props {
   entidadInicial: EntidadCxP | null;
