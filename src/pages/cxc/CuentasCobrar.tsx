@@ -18,6 +18,9 @@ import {
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
+import { SidebarContext } from '../../App';
+import { useContext } from 'react';
+
 // Componentes del módulo
 import FiltrosCxc from '../../components/cxc/FiltrosCxc';
 import NotaServicios from '../../components/cxc/NotaServicios';
@@ -25,20 +28,24 @@ import DetalleAlumnoCxc from '../../components/cxc/DetalleAlumnoCxc';
 import ModalCobroRapido from '../../components/cxc/ModalCobroRapido';
 import ModalSaldoInicialCxC from '../../components/cxc/ModalSaldoInicialCxC';
 
+import { useDebounce } from '../../hooks/useDebounce';
+
 /** Formatea un número como moneda (Bs) */
 const fmtMonto = (n: number): string =>
   n.toLocaleString('es-BO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 const CuentasCobrar: React.FC = () => {
   const navigate = useNavigate();
+  const { setExtra } = useContext(SidebarContext);
 
   // Datos principales
   const [alumnosDeuda, setAlumnosDeuda] = useState<AlumnoDeuda[]>([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Búsqueda
+  // Búsqueda con Debounce
   const [busqueda, setBusqueda] = useState('');
+  const debouncedBusqueda = useDebounce(busqueda, 500);
 
   // Filtro rápido: solo con deuda
   const [soloConDeuda, setSoloConDeuda] = useState(false);
@@ -48,6 +55,14 @@ const CuentasCobrar: React.FC = () => {
   const [filtroEntrenador, setFiltroEntrenador] = useState('');
   const [filtroCancha, setFiltroCancha] = useState('');
   const [filtroHorario, setFiltroHorario] = useState('');
+
+  // Paginación
+  const [pagina, setPagina] = useState(1);
+  const [totalResultados, setTotalResultados] = useState(0);
+  const itemsPorPagina = 20;
+
+  // Stats globales (estos sí podrían necesitar una carga aparte o calcularse sobre el total sin paginar)
+  const [stats, setStats] = useState({ totalAlumnos: 0, conDeuda: 0, totalPendiente: 0 });
 
   // Modales
   const [mostrarNota, setMostrarNota] = useState(false);
@@ -81,7 +96,7 @@ const CuentasCobrar: React.FC = () => {
     return data?.escuela_id ?? null;
   };
 
-  // Cargar datos
+  // Cargar datos con filtrado en servidor
   const cargarDatos = async () => {
     setCargando(true);
     setError(null);
@@ -93,69 +108,72 @@ const CuentasCobrar: React.FC = () => {
       return;
     }
 
-    const { data, error: err } = await supabase
+    let query = supabase
       .from('v_alumnos_deuda')
-      .select('*, fecha_nacimiento')
+      .select('*, fecha_nacimiento', { count: 'exact' })
       .eq('escuela_id', escuelaId);
+
+    // Aplicar filtros en servidor
+    if (filtroSucursal) query = query.eq('sucursal_id', filtroSucursal);
+    if (filtroEntrenador) query = query.eq('entrenador_id', filtroEntrenador);
+    if (filtroCancha) query = query.eq('cancha_id', filtroCancha);
+    if (filtroHorario) query = query.eq('horario_id', filtroHorario);
+    if (soloConDeuda) query = query.gt('saldo_pendiente', 0);
+    
+    if (debouncedBusqueda.trim()) {
+      const q = `%${debouncedBusqueda.trim()}%`;
+      query = query.or(`nombres.ilike.${q},apellidos.ilike.${q}`);
+    }
+
+    // Paginación
+    const desde = (pagina - 1) * itemsPorPagina;
+    const hasta = desde + itemsPorPagina - 1;
+    
+    const { data, error: err, count } = await query
+      .order('nombres', { ascending: true })
+      .range(desde, hasta);
 
     if (err) {
       setError(`Error al cargar: ${err.message}`);
-      setCargando(false);
-      return;
+    } else {
+      setAlumnosDeuda((data as unknown as AlumnoDeuda[]) ?? []);
+      setTotalResultados(count || 0);
+      
+      // Para las estadísticas globales, si queremos el total real, 
+      // a veces es mejor otra query ligera o usar el count si no hay filtros.
+      // Aquí usamos el count del query filtrado para los alumnos visibles.
+      if (count !== null) {
+          // Nota: Las stats de 'totalPendiente' requieren sumar todos los registros.
+          // Si el dataset es muy grande, esto debería ser un RPC.
+          // Por ahora, si hay menos de 1000 alumnos, podemos traer los saldos en una query aparte.
+          const { data: sums } = await supabase
+            .from('v_alumnos_deuda')
+            .select('saldo_pendiente')
+            .eq('escuela_id', escuelaId);
+          
+          const totalPend = (sums || []).reduce((s, a) => s + Number(a.saldo_pendiente), 0);
+          const conDeudaCount = (sums || []).filter(a => Number(a.saldo_pendiente) > 0).length;
+
+          setStats({
+            totalAlumnos: count,
+            conDeuda: conDeudaCount,
+            totalPendiente: totalPend
+          });
+      }
     }
-    setAlumnosDeuda((data as unknown as AlumnoDeuda[]) ?? []);
     setCargando(false);
   };
 
-  useEffect(() => { cargarDatos(); }, []);
+  // Recargar cuando cambian los filtros o la búsqueda
+  useEffect(() => {
+    setPagina(1); // Volver a la primera página al filtrar
+    cargarDatos();
+  }, [filtroSucursal, filtroEntrenador, filtroCancha, filtroHorario, debouncedBusqueda, soloConDeuda]);
 
-  // Estadísticas sobre los alumnos con filtros de primer nivel aplicados
-  const statsGlobales = useMemo(() => {
-    let lista = alumnosDeuda;
-    if (filtroSucursal) lista = lista.filter(a => a.sucursal_id === filtroSucursal);
-    if (filtroEntrenador) lista = lista.filter(a => a.entrenador_id === filtroEntrenador);
-    if (filtroCancha) lista = lista.filter(a => a.cancha_id === filtroCancha);
-    if (filtroHorario) lista = lista.filter(a => a.horario_id === filtroHorario);
-    if (busqueda.trim()) {
-      const q = busqueda.toLowerCase();
-      lista = lista.filter(a =>
-        a.nombres.toLowerCase().includes(q) ||
-        a.apellidos.toLowerCase().includes(q)
-      );
-    }
-    return {
-      totalAlumnos: lista.length,
-      conDeuda: lista.filter(a => Number(a.saldo_pendiente) > 0).length,
-      totalPendiente: lista.reduce((s, a) => s + Number(a.saldo_pendiente), 0),
-    };
-  }, [alumnosDeuda, filtroSucursal, filtroEntrenador, filtroCancha, filtroHorario, busqueda]);
-
-  // Filtrar y ordenar alumnos
-  const alumnosFiltrados = useMemo(() => {
-    let lista = alumnosDeuda;
-    if (filtroSucursal) lista = lista.filter(a => a.sucursal_id === filtroSucursal);
-    if (filtroEntrenador) lista = lista.filter(a => a.entrenador_id === filtroEntrenador);
-    if (filtroCancha) lista = lista.filter(a => a.cancha_id === filtroCancha);
-    if (filtroHorario) lista = lista.filter(a => a.horario_id === filtroHorario);
-    if (soloConDeuda) lista = lista.filter(a => Number(a.saldo_pendiente) > 0);
-    if (busqueda.trim()) {
-      const q = busqueda.toLowerCase();
-      lista = lista.filter(a =>
-        a.nombres.toLowerCase().includes(q) ||
-        a.apellidos.toLowerCase().includes(q)
-      );
-    }
-    return lista.sort((a, b) =>
-      `${a.nombres} ${a.apellidos}`.localeCompare(`${b.nombres} ${b.apellidos}`)
-    );
-  }, [alumnosDeuda, filtroSucursal, filtroEntrenador, filtroCancha, filtroHorario, busqueda, soloConDeuda]);
-
-  // Limpiar todos los filtros
-  const limpiarFiltros = () => {
-    setFiltroSucursal(''); setFiltroEntrenador('');
-    setFiltroCancha(''); setFiltroHorario('');
-    setSoloConDeuda(false);
-  };
+  // Recargar solo cuando cambia la página
+  useEffect(() => {
+    cargarDatos();
+  }, [pagina]);
 
   // Abrir nota para un alumno específico
   const abrirNotaParaAlumno = (e: React.MouseEvent, alumno: AlumnoDeuda) => {
@@ -197,118 +215,87 @@ const CuentasCobrar: React.FC = () => {
 
   return (
     <main className="main-content cxc-main">
-      <div className="sticky-header-container">
-        {/* ─── Header ─── */}
-        <div className="cxc-header-bar" style={{ marginBottom: 0, borderRadius: '12px 12px 0 0', borderBottom: '1px solid var(--border-light)' }}>
-          <div className="cxc-header-izq">
-            <button className="btn-volver" onClick={() => navigate('/')} title="Volver">
-              <ChevronLeft size={20} />
-            </button>
-            <div>
-              <h1 className="cxc-titulo-principal">Cuentas por Cobrar</h1>
-            </div>
-          </div>
-          <div className="cxc-header-acciones">
+      <div className="cxc-excel-header">
+        {/* ─── Fila Superior: Filtros + Acciones ─── */}
+        <div className="cxc-header-row">
+          <FiltrosCxc
+            sucursalId={filtroSucursal}
+            entrenadorId={filtroEntrenador}
+            canchaId={filtroCancha}
+            horarioId={filtroHorario}
+            onChangeSucursal={setFiltroSucursal}
+            onChangeEntrenador={setFiltroEntrenador}
+            onChangeCancha={setFiltroCancha}
+            onChangeHorario={setFiltroHorario}
+            onLimpiar={() => {
+              setFiltroSucursal(''); setFiltroEntrenador('');
+              setFiltroCancha(''); setFiltroHorario('');
+            }}
+            compact
+          />
+
+          <div className="cxc-divider" />
+
+          <div className="cxc-header-acciones-compact">
             <button
-              className="btn-nueva-cuenta btn-nuevo-cobro"
+              className="btn-excel btn-cobro"
               onClick={() => { setAlumnoParaCobro(null); setMostrarCobroRapido(true); }}
+              title="Nuevo Cobro"
             >
-              <CreditCard size={16} /> Nuevo Cobro
+              <CreditCard size={14} /> <span>Cobro</span>
             </button>
             <button
-              className="btn-nueva-cuenta"
+              className="btn-excel btn-nota"
               onClick={() => { setAlumnoParaNota(null); setMostrarNota(true); }}
+              title="Nueva Nota"
             >
-              <Plus size={16} /> Nueva Nota
+              <Plus size={14} /> <span>Nota</span>
             </button>
             <button
-              className="btn-refrescar"
+              className="btn-excel-icon"
               onClick={() => setMostrarSaldoInicial(true)}
-              title="Registrar saldos iniciales (migración)"
-              style={{ background: 'rgba(245, 158, 11, 0.15)', color: '#f59e0b', border: '1px solid rgba(245, 158, 11, 0.3)' }}
+              title="Migración"
             >
-              <BookOpen size={16} />
+              <BookOpen size={14} />
             </button>
-            <button className="btn-refrescar" onClick={cargarDatos} disabled={cargando}>
-              <RefreshCw size={18} className={cargando ? 'spin' : ''} />
+            <button className="btn-excel-icon" onClick={cargarDatos} disabled={cargando} title="Actualizar">
+              <RefreshCw size={14} className={cargando ? 'spin' : ''} />
             </button>
           </div>
         </div>
 
-        {/* ─── Barra de Control: Filtros + Stats en una sola línea ─── */}
-        <div className="cxc-barra-control" style={{ borderRadius: 0, borderBottom: '1px solid var(--border-light)', marginBottom: 0 }}>
-          {/* Filtros de primer nivel (izquierda, toma el espacio sobrante) */}
-          <div className="cxc-filtros-inline">
-            <FiltrosCxc
-              sucursalId={filtroSucursal}
-              entrenadorId={filtroEntrenador}
-              canchaId={filtroCancha}
-              horarioId={filtroHorario}
-              onChangeSucursal={setFiltroSucursal}
-              onChangeEntrenador={setFiltroEntrenador}
-              onChangeCancha={setFiltroCancha}
-              onChangeHorario={setFiltroHorario}
-              onLimpiar={limpiarFiltros}
-              compact
-            />
-          </div>
-
-          {/* Tarjetas de stats compactas (derecha) */}
-          <div className="cxc-stats-inline">
-            {/* Tarjeta Alumnos — limpia filtro "Con Deuda" */}
-            <button
-              className={`cxc-mini-stat ${!soloConDeuda ? 'cxc-mini-stat--activo' : ''}`}
-              onClick={() => setSoloConDeuda(false)}
-              title="Mostrar todos los alumnos"
-            >
-              <Users size={15} />
-              <span className="cxc-mini-num">{statsGlobales.totalAlumnos}</span>
-              <span className="cxc-mini-label">Alumnos</span>
-            </button>
-
-            {/* Tarjeta Con Deuda — filtro rápido */}
-            <button
-              className={`cxc-mini-stat cxc-mini-stat--deuda ${soloConDeuda ? 'cxc-mini-stat--activo' : ''}`}
-              onClick={() => setSoloConDeuda(!soloConDeuda)}
-              title={soloConDeuda ? 'Clic para mostrar todos' : 'Clic para filtrar deudores'}
-            >
-              <AlertTriangle size={15} />
-              <span className="cxc-mini-num cxc-mini-num--warn">{statsGlobales.conDeuda}</span>
-              <span className="cxc-mini-label">{soloConDeuda ? '⊘ Con Deuda' : 'Con Deuda'}</span>
-            </button>
-
-            {/* Tarjeta Total Pendiente */}
-            <div className="cxc-mini-stat cxc-mini-stat--total">
-              <DollarSign size={15} />
-              <span className="cxc-mini-num cxc-mini-num--danger">Bs {fmtMonto(statsGlobales.totalPendiente)}</span>
-              <span className="cxc-mini-label">Total Pend.</span>
-            </div>
-          </div>
-        </div>
-
-        {/* ─── Barra de búsqueda ─── */}
-        <div className="cxc-busqueda-bar" style={{ borderRadius: '0 0 12px 12px', border: '1px solid var(--border)', borderTop: 'none', background: 'var(--bg-card)', padding: '0.5rem 1.5rem' }}>
-          <div className="pc-busqueda">
-            <Search size={16} className="pc-busqueda-icono" />
+        {/* ─── Fila Inferior: Búsqueda + Stats ─── */}
+        <div className="cxc-search-row">
+          <div className="cxc-search-container">
+            <Search size={14} className="cxc-search-icon" />
             <input
               type="text"
-              placeholder="Buscar alumno por nombre..."
+              placeholder="Filtrar por nombre del alumno..."
               value={busqueda}
               onChange={e => setBusqueda(e.target.value)}
-              className="pc-busqueda-input"
+              className="cxc-search-input"
             />
+            {busqueda && (
+              <button className="cxc-search-clear" onClick={() => setBusqueda('')}>✕</button>
+            )}
           </div>
-          {busqueda && (
-            <button
-              className="cxc-limpiar-busqueda"
-              onClick={() => setBusqueda('')}
-            >
-              ✕
-            </button>
-          )}
-          <span className="cxc-conteo-resultado">
-            {alumnosFiltrados.length} resultado{alumnosFiltrados.length !== 1 ? 's' : ''}
-          </span>
+
+          <div className="cxc-stats-horizontal">
+            <div className="cxc-stat-pill" onClick={() => setSoloConDeuda(!soloConDeuda)}>
+              <span className="cxc-pill-label">Deudores</span>
+              <span className={`cxc-pill-value ${soloConDeuda ? 'text-warn' : ''}`}>
+                {stats.conDeuda}
+              </span>
+            </div>
+            <div className="cxc-stat-pill cxc-stat-pill--danger">
+              <span className="cxc-pill-label">Pendiente</span>
+              <span className="cxc-pill-value">Bs {fmtMonto(stats.totalPendiente)}</span>
+            </div>
+            <span className="cxc-divider-mini" />
+            <span className="cxc-result-count">
+              {totalResultados} alumnos
+            </span>
+          </div>
         </div>
       </div>
 
@@ -326,7 +313,7 @@ const CuentasCobrar: React.FC = () => {
           <RefreshCw size={32} className="spin" />
           <p>Cargando alumnos...</p>
         </div>
-      ) : alumnosFiltrados.length === 0 ? (
+      ) : alumnosDeuda.length === 0 ? (
         <div className="arbol-vacio">
           <Users size={40} style={{ marginBottom: '0.75rem', opacity: 0.4 }} />
           <p>{soloConDeuda ? 'No hay alumnos con deuda en los filtros actuales.' : 'No se encontraron alumnos con los filtros actuales.'}</p>
@@ -345,17 +332,17 @@ const CuentasCobrar: React.FC = () => {
             <thead>
               <tr>
                 <th className="cxc-th cxc-th-alumno">Alumno</th>
-                <th className="cxc-th">Sucursal</th>
-                <th className="cxc-th cxc-th-center">Entrenador</th>
-                <th className="cxc-th cxc-th-center">Asist. {mesAnteriorStr}</th>
-                <th className="cxc-th cxc-th-center">Asist. {mesActualStr}</th>
+                <th className="cxc-th cxc-th-sucursal">Sucursal</th>
+                <th className="cxc-th cxc-th-center">Sub</th>
+                <th className="cxc-th cxc-th-center">{mesAnteriorStr}</th>
+                <th className="cxc-th cxc-th-center">{mesActualStr}</th>
                 <th className="cxc-th cxc-th-right">CxC Pend.</th>
-                <th className="cxc-th cxc-th-right">Total Deuda</th>
-                <th className="cxc-th cxc-th-center">Acciones</th>
+                <th className="cxc-th cxc-th-right">Deuda</th>
+                <th className="cxc-th cxc-th-acciones">Acciones</th>
               </tr>
             </thead>
             <tbody>
-              {alumnosFiltrados.map(alumno => {
+              {alumnosDeuda.map(alumno => {
                 const tieneDeuda = Number(alumno.saldo_pendiente) > 0;
                 return (
                   <tr
@@ -373,7 +360,7 @@ const CuentasCobrar: React.FC = () => {
                       </div>
                     </td>
                     <td className="cxc-td cxc-td-meta">{alumno.sucursal_nombre || '—'}</td>
-                    <td className="cxc-td cxc-td-center cxc-td-meta">{alumno.entrenador_nombre || '—'}</td>
+                    <td className="cxc-td cxc-td-center cxc-td-meta">{alumno.sub ? `Sub ${alumno.sub}` : '—'}</td>
                     <td className="cxc-td cxc-td-center cxc-td-asist">{alumno.asistencias_anterior || 0}</td>
                     <td className="cxc-td cxc-td-center cxc-td-asist cxc-td-asist--actual">{alumno.asistencias_actual || 0}</td>
                     <td className="cxc-td cxc-td-right">
@@ -421,6 +408,27 @@ const CuentasCobrar: React.FC = () => {
               })}
             </tbody>
           </table>
+
+          {/* Paginación */}
+          {totalResultados > itemsPorPagina && (
+            <div className="cxc-paginacion">
+              <button 
+                className="btn-pagi" 
+                disabled={pagina === 1} 
+                onClick={() => setPagina(p => p - 1)}
+              >
+                Anterior
+              </button>
+              <span className="pagi-info">Página {pagina} de {Math.ceil(totalResultados / itemsPorPagina)}</span>
+              <button 
+                className="btn-pagi" 
+                disabled={pagina >= Math.ceil(totalResultados / itemsPorPagina)} 
+                onClick={() => setPagina(p => p + 1)}
+              >
+                Siguiente
+              </button>
+            </div>
+          )}
         </div>
       )}
 

@@ -25,8 +25,8 @@ interface FiltrosProps {
   onChangeCancha: (id: string) => void;
   onChangeHorario: (id: string) => void;
   onLimpiar: () => void;
-  /** Modo compacto: sin tarjeta contenedora, para integrar en barras horizontales */
   compact?: boolean;
+  sidebar?: boolean;
 }
 
 /** Datos crudos del alumno para construir relaciones */
@@ -40,7 +40,7 @@ interface AlumnoRel {
 const FiltrosCxc: React.FC<FiltrosProps> = ({
   sucursalId, entrenadorId, canchaId, horarioId,
   onChangeSucursal, onChangeEntrenador, onChangeCancha, onChangeHorario,
-  onLimpiar, compact = false,
+  onLimpiar, compact = false, sidebar = false,
 }) => {
   // Catálogos base
   const [sucursales, setSucursales] = useState<OpcionFiltro[]>([]);
@@ -100,7 +100,52 @@ const FiltrosCxc: React.FC<FiltrosProps> = ({
 
   const hayFiltros = sucursalId || entrenadorId || canchaId || horarioId;
 
-  // Selectores compartidos entre modos
+  // Render para Sidebar
+  if (sidebar) {
+    return (
+      <div className="sidebar-filters-grid">
+        <div className="sidebar-filter-item">
+          <label className="sidebar-filter-label">Sucursal</label>
+          <select value={sucursalId} onChange={e => onChangeSucursal(e.target.value)} className="sidebar-select">
+            <option value="">Todas</option>
+            {filtrarOpciones.sucursalesFilt.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
+          </select>
+        </div>
+
+        <div className="sidebar-filter-item">
+          <label className="sidebar-filter-label">Entrenador</label>
+          <select value={entrenadorId} onChange={e => onChangeEntrenador(e.target.value)} className="sidebar-select">
+            <option value="">Todos</option>
+            {filtrarOpciones.entrenadoresFilt.map(e => <option key={e.id} value={e.id}>{e.nombre}</option>)}
+          </select>
+        </div>
+
+        <div className="sidebar-filter-item">
+          <label className="sidebar-filter-label">Cancha</label>
+          <select value={canchaId} onChange={e => onChangeCancha(e.target.value)} className="sidebar-select">
+            <option value="">Todas</option>
+            {filtrarOpciones.canchasFilt.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+          </select>
+        </div>
+
+        <div className="sidebar-filter-item">
+          <label className="sidebar-filter-label">Horario</label>
+          <select value={horarioId} onChange={e => onChangeHorario(e.target.value)} className="sidebar-select">
+            <option value="">Todos</option>
+            {filtrarOpciones.horariosFilt.map(h => <option key={h.id} value={h.id}>{h.nombre}</option>)}
+          </select>
+        </div>
+
+        {hayFiltros && (
+          <button className="cxc-filtro-limpiar" onClick={onLimpiar} style={{ width: '100%', marginTop: '0.5rem', justifyContent: 'center' }}>
+            <X size={14} /> Limpiar Filtros
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  // Selectores compartidos para otros modos
   const selectores = (
     <>
       <select

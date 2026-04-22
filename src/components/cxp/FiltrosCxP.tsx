@@ -33,14 +33,49 @@ interface Props {
   onLimpiar: () => void;
   /** Modo compacto: sin tarjeta contenedora, para integrar en barras */
   compact?: boolean;
+  /** Modo sidebar: vertical para integrar en menú izquierdo */
+  sidebar?: boolean;
 }
 
 const FiltrosCxP: React.FC<Props> = ({
   categoria, antiguedad,
   onChangeCategoria, onChangeAntiguedad,
-  onLimpiar, compact = false,
+  onLimpiar, compact = false, sidebar = false,
 }) => {
   const hayFiltros = categoria || antiguedad;
+
+  // Render para Sidebar
+  if (sidebar) {
+    return (
+      <div className="sidebar-filters-grid">
+        <div className="sidebar-filter-item">
+          <label className="sidebar-filter-label">Categoría</label>
+          <select value={categoria} onChange={e => onChangeCategoria(e.target.value)} className="sidebar-select">
+            <option value="">Todas</option>
+            {CATEGORIAS_PROVEEDOR.filter(c => c.value !== 'todas').map(c => (
+              <option key={c.value} value={c.value}>{c.label}</option>
+            ))}
+          </select>
+        </div>
+
+        <div className="sidebar-filter-item">
+          <label className="sidebar-filter-label">Antigüedad</label>
+          <select value={antiguedad} onChange={e => onChangeAntiguedad(e.target.value)} className="sidebar-select">
+            <option value="">Cualquiera</option>
+            {OPCIONES_ANTIGUEDAD.map(o => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
+          </select>
+        </div>
+
+        {hayFiltros && (
+          <button className="cxc-filtro-limpiar" onClick={onLimpiar} style={{ width: '100%', marginTop: '0.5rem', justifyContent: 'center' }}>
+            <X size={14} /> Limpiar Filtros
+          </button>
+        )}
+      </div>
+    );
+  }
 
   const selectores = (
     <>

@@ -9,6 +9,9 @@ import ModalEditarMovimiento from '../../components/cajas-bancos/ModalEditarMovi
 import ModalDetalleMovimiento from '../../components/cajas-bancos/ModalDetalleMovimiento';
 import { formatFecha } from '../../lib/dateUtils';
 
+import { SidebarContext } from '../../App';
+import { useContext } from 'react';
+
 const fmtMonto = (n: number) =>
   n.toLocaleString('es-BO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
@@ -29,6 +32,7 @@ interface MovimientoExtendido {
 
 const CajasBancos: React.FC = () => {
   const navigate = useNavigate();
+  const { setExtra } = useContext(SidebarContext);
 
   // Estados
   const [cajas, setCajas] = useState<CuentaContable[]>([]);
@@ -76,7 +80,7 @@ const CajasBancos: React.FC = () => {
     }
     if (!escuelaId) setEscuelaId(eid);
 
-    // 1. Cargar las cuentas que sean Cajas o Bancos (tipo activo, transaccional, empieza con 1.1)
+    // 1. Cargar las cuentas que sean Cajas o Bancos
     const { data: dataCuentas, error: errCuentas } = await supabase
       .from('plan_cuentas')
       .select('*')
@@ -92,7 +96,6 @@ const CajasBancos: React.FC = () => {
       return;
     }
     
-    // Si no usamos like 1.1.1.%, podríamos traer todas las transaccionales
     const listCajas = dataCuentas ?? [];
     setCajas(listCajas);
 
@@ -103,7 +106,7 @@ const CajasBancos: React.FC = () => {
 
     const idsCajas = listCajas.map((c: any) => c.id);
 
-    // 2. Cargar movimientos de esas cuentas con detalles de alumnos/proveedores
+    // 2. Cargar movimientos
     const { data: dataMovs, error: errMovs } = await supabase
       .from('movimientos_contables')
       .select(`
@@ -136,13 +139,10 @@ const CajasBancos: React.FC = () => {
       const asiento = m.asientos_contables;
       let descDinamica = asiento?.descripcion || 'Sin descripción';
 
-      // 1. Verificar si es un Cobro (Alumno)
       const cobro = asiento?.cobros_aplicados?.[0]?.cuenta_cobrar;
       if (cobro?.alumno) {
         descDinamica = `Pago de: ${cobro.alumno.nombres} ${cobro.alumno.apellidos}`;
-      } 
-      // 2. Verificar si es un Pago (Proveedor o Personal)
-      else {
+      } else {
         const pago = asiento?.pagos_aplicados?.[0]?.cuenta_pagar;
         if (pago?.proveedor) {
           descDinamica = `Pago a: ${pago.proveedor.nombre}`;
@@ -184,13 +184,11 @@ const CajasBancos: React.FC = () => {
       setFormDirty(false);
       return;
     }
-
     if (activeForm && formDirty) {
       if (!window.confirm('Tienes cambios sin guardar en el formulario actual. ¿Deseas descartarlos y cambiar de operación?')) {
         return;
       }
     }
-
     setActiveForm(type);
     setFormDirty(false);
   };
@@ -209,12 +207,10 @@ const CajasBancos: React.FC = () => {
     cargarDatos();
   }, [cargarDatos]);
 
-  // Cálculos de saldo de cada caja
+  // Cálculos de saldo
   const saldos = useMemo(() => {
     const s: Record<string, number> = {};
     for (const c of cajas) s[c.id] = 0;
-    
-    // Para activo, saldo = debe - haber (ingresos - egresos)
     for (const m of movimientos) {
       if (s[m.cuenta_id] !== undefined) {
         s[m.cuenta_id] += (m.debe - m.haber);
@@ -227,14 +223,47 @@ const CajasBancos: React.FC = () => {
     return Object.values(saldos).reduce((sum, val) => sum + val, 0);
   }, [saldos]);
 
+  // Actualizar Sidebar dinámicamente
+  useEffect(() => {
+    setExtra(
+      <>
+        <div className="sidebar-stats-grid">
+          <div className="sidebar-stat-item" onClick={() => setFiltroCuenta('todas')} style={{ cursor: 'pointer' }}>
+            <span className="sidebar-stat-label">Saldo Consolidado</span>
+            <span className="sidebar-stat-value">Bs {fmtMonto(saldoTotal)}</span>
+          </div>
+          {filtroCuenta !== 'todas' && (
+            <div className="sidebar-stat-item">
+              <span className="sidebar-stat-label">Saldo {cajas.find(c => c.id === filtroCuenta)?.nombre}</span>
+              <span className="sidebar-stat-value sidebar-stat-value--warn">Bs {fmtMonto(saldos[filtroCuenta] || 0)}</span>
+            </div>
+          )}
+        </div>
+
+        <div className="sidebar-filters-grid">
+          <div className="sidebar-filter-item">
+            <label className="sidebar-filter-label">Cuenta Seleccionada</label>
+            <select 
+              value={filtroCuenta} 
+              onChange={e => setFiltroCuenta(e.target.value)} 
+              className="sidebar-select"
+            >
+              <option value="todas">Todas las Cuentas</option>
+              {cajas.map(c => (
+                <option key={c.id} value={c.id}>{c.nombre} (Bs {fmtMonto(saldos[c.id])})</option>
+              ))}
+            </select>
+          </div>
+        </div>
+      </>
+    );
+    return () => setExtra(null);
+  }, [saldoTotal, saldos, cajas, filtroCuenta, setExtra]);
+
   // Filtros cruzados
   const movimientosFiltrados = useMemo(() => {
     let list = movimientos;
-    
-    if (filtroCuenta !== 'todas') {
-      list = list.filter(m => m.cuenta_id === filtroCuenta);
-    }
-
+    if (filtroCuenta !== 'todas') list = list.filter(m => m.cuenta_id === filtroCuenta);
     if (busqueda.trim()) {
       const q = busqueda.toLowerCase();
       list = list.filter(m => 
@@ -244,8 +273,6 @@ const CajasBancos: React.FC = () => {
     }
     return list;
   }, [movimientos, filtroCuenta, busqueda]);
-
-
 
   const toggleConciliar = async (id: string, valorActual: boolean) => {
     const newVal = !valorActual;
@@ -261,14 +288,9 @@ const CajasBancos: React.FC = () => {
         {/* 1. Header Card */}
         <div className="cxc-header-bar" style={{ borderRadius: '12px 12px 0 0', borderBottom: '1px solid var(--border-light)', marginBottom: 0 }}>
           <div className="cxc-header-izq">
-            <button className="btn-volver" onClick={() => navigate('/')} title="Volver">
-              <ChevronLeft size={20} />
-            </button>
-            <div>
-              <h1 className="cxc-titulo-principal" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                Caja y Bancos
-              </h1>
-            </div>
+            <h1 className="cxc-titulo-principal" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              Caja y Bancos
+            </h1>
           </div>
           <div className="cxc-header-acciones">
             <button 
@@ -319,54 +341,6 @@ const CajasBancos: React.FC = () => {
             <button className="btn-refrescar" onClick={cargarDatos} disabled={cargando}>
               <RefreshCw size={18} className={cargando ? 'spin' : ''} />
             </button>
-          </div>
-        </div>
-
-        {/* 2. Filtros de Cajas (Botones) */}
-        <div className="cxc-barra-control" style={{ borderRadius: '0', borderBottom: '1px solid var(--border-light)', minHeight: '60px', padding: '0.75rem 1.5rem', background: 'var(--surface-50)', marginBottom: 0 }}>
-          <div className="cxc-filtros-inline" style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', width: '100%' }}>
-            <button
-              className={`cxc-accion-btn ${filtroCuenta === 'todas' ? 'active-filter' : ''}`}
-              style={{ 
-                background: filtroCuenta === 'todas' ? 'var(--secondary)' : 'var(--bg-card)',
-                color: filtroCuenta === 'todas' ? 'white' : 'var(--text-secondary)',
-                border: '1px solid',
-                borderColor: filtroCuenta === 'todas' ? 'var(--secondary)' : 'var(--border)',
-                borderRadius: '8px',
-                padding: '0.4rem 1rem',
-                fontWeight: 600,
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.5rem'
-              }}
-              onClick={() => setFiltroCuenta('todas')}
-            >
-              Todas las Cuentas
-              <strong style={{ fontSize: '0.85rem', opacity: 0.9 }}>Bs {fmtMonto(saldoTotal)}</strong>
-            </button>
-            
-            {cajas.map(c => (
-              <button
-              key={c.id}
-              className={`cxc-accion-btn ${filtroCuenta === c.id ? 'active-filter' : ''}`}
-              style={{ 
-                background: filtroCuenta === c.id ? 'var(--secondary)' : 'var(--bg-card)',
-                color: filtroCuenta === c.id ? 'white' : 'var(--text-secondary)',
-                border: '1px solid',
-                borderColor: filtroCuenta === c.id ? 'var(--secondary)' : 'var(--border)',
-                borderRadius: '8px',
-                padding: '0.4rem 1rem',
-                fontWeight: 500,
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.5rem'
-              }}
-              onClick={() => setFiltroCuenta(c.id)}
-            >
-              {c.nombre}
-              <strong style={{ fontSize: '0.85rem' }}>Bs {fmtMonto(saldos[c.id])}</strong>
-            </button>
-            ))}
           </div>
         </div>
 
