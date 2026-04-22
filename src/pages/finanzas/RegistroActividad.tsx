@@ -50,34 +50,7 @@ const RegistroActividad: React.FC = () => {
     if (!error && data) {
       setRegistros(data);
     } else {
-      // Si no hay datos, mostrar algunos ejemplos reales del diseño solicitado
-      const mockData: AuditEntry[] = [
-        {
-          id: '1',
-          escuela_id: 'e1',
-          usuario_id: 'u1',
-          usuario_nombre: 'Rodolfo Gutiérrez',
-          accion: 'actualizar',
-          modulo: 'facturacion',
-          entidad_id: 'inv1',
-          detalle: { referencia: 'INV-026816', cliente: 'Bruno Andres Flores Parada', descripcion: 'Factura "INV-026816" Actualizado' },
-          ip_address: '127.0.0.1',
-          created_at: '2026-04-10T19:29:00Z'
-        },
-        {
-          id: '2',
-          escuela_id: 'e1',
-          usuario_id: 'u1',
-          usuario_nombre: 'Rodolfo Gutiérrez',
-          accion: 'cobro',
-          modulo: 'cxc',
-          entidad_id: 'ent2',
-          detalle: { nro_comprobante: '20741', cliente: 'Bruno Andres Flores Parada', monto: 350, metodo_pago: 'efectivo', descripcion: 'Se ha recibido el pago 20741 de Bruno Andres Flores Parada' },
-          ip_address: '127.0.0.1',
-          created_at: '2026-04-10T19:30:00Z'
-        }
-      ];
-      setRegistros(mockData);
+      setRegistros([]);
     }
     setCargando(false);
   };

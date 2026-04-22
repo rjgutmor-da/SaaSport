@@ -17,6 +17,9 @@ import {
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
+import { SidebarContext } from '../../App';
+import { useContext } from 'react';
+
 // Componentes del módulo
 import FiltrosCxP, { CATEGORIAS_PROVEEDOR, OPCIONES_ANTIGUEDAD } from '../../components/cxp/FiltrosCxP';
 import NotaPago from '../../components/cxp/NotaPago';
@@ -29,22 +32,9 @@ import ModalSaldoInicialCxP from '../../components/cxp/ModalSaldoInicialCxP';
 const fmtMonto = (n: number) =>
   n.toLocaleString('es-BO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-/** Entidad CxP unificada (Proveedor o Personal) */
-interface EntidadCxP {
-  id: string;
-  tipo: 'proveedor' | 'personal';
-  nombre: string;
-  categoria: string;
-  cargo?: string;
-  telefono?: string;
-  saldo_pendiente: number;
-  notas_pendientes: number;
-  /** Fecha más antigua de nota pendiente (para calcular antigüedad) */
-  fecha_mas_antigua: string | null;
-}
-
 const CuentasPagar: React.FC = () => {
   const navigate = useNavigate();
+  const { setExtra } = useContext(SidebarContext);
 
   // ── Estado principal ──
   const [entidades, setEntidades]     = useState<EntidadCxP[]>([]);
@@ -211,6 +201,12 @@ const CuentasPagar: React.FC = () => {
     totalPendiente:   entidades.reduce((s, e) => s + e.saldo_pendiente, 0),
   }), [entidades]);
 
+  // Sidebar limpio para este módulo (según requerimiento)
+  useEffect(() => {
+    setExtra(null);
+    return () => setExtra(null);
+  }, [setExtra]);
+
   // ── Lista filtrada ──
   const entidadesFiltradas = useMemo(() => {
     let lista = entidades;
@@ -237,11 +233,6 @@ const CuentasPagar: React.FC = () => {
     return lista;
   }, [entidades, filtroCategoria, filtroAntiguedad, busqueda]);
 
-  const limpiarFiltros = () => {
-    setFiltroCategoria('');
-    setFiltroAntiguedad('');
-  };
-
   /** Abrir nota para una entidad específica */
   const abrirNotaParaEntidad = (e: React.MouseEvent, entidad: EntidadCxP) => {
     e.stopPropagation();
@@ -264,106 +255,87 @@ const CuentasPagar: React.FC = () => {
   return (
     <main className="main-content cxc-main">
 
-      <div className="sticky-header-container">
-        {/* ─── Header ─── */}
-        <div className="cxc-header-bar" style={{ marginBottom: 0, borderRadius: '12px 12px 0 0', borderBottom: '1px solid var(--border-light)' }}>
-          <div className="cxc-header-izq">
-            <button className="btn-volver" onClick={() => navigate('/')} title="Volver">
-              <ChevronLeft size={20} />
-            </button>
-            <div>
-              <h1 className="cxc-titulo-principal">Cuentas x Pagar</h1>
-            </div>
-          </div>
-          <div className="cxc-header-acciones">
+      <div className="cxc-excel-header">
+        {/* ─── Fila Superior: Filtros + Acciones ─── */}
+        <div className="cxc-header-row">
+          <FiltrosCxP
+            categoria={filtroCategoria}
+            antiguedad={filtroAntiguedad}
+            onChangeCategoria={setFiltroCategoria}
+            onChangeAntiguedad={setFiltroAntiguedad}
+            onLimpiar={() => { setFiltroCategoria(''); setFiltroAntiguedad(''); }}
+            compact
+          />
+
+          <div className="cxc-divider" />
+
+          <div className="cxc-header-acciones-compact">
             <button
-              className="btn-nueva-cuenta btn-nuevo-cobro"
+              className="btn-excel btn-cobro"
               onClick={() => { setEntidadParaPagoRapido(null); setMostrarPagoRapido(true); }}
+              title="Nuevo Pago"
             >
-              <CreditCard size={16} /> Nuevo Pago
+              <CreditCard size={14} /> <span>Pago</span>
             </button>
             <button
-              className="btn-nueva-cuenta"
+              className="btn-excel btn-nota"
               onClick={() => { setEntidadParaNota(null); setTipoNotaInicial('proveedor'); setMostrarNota(true); }}
+              title="Nueva Nota"
             >
-              <Plus size={16} /> Nueva Nota de Deuda
+              <Plus size={14} /> <span>Nota</span>
             </button>
             <button
-              className="btn-refrescar"
-              onClick={() => setMostrarSaldoInicial(true)}
-              title="Registrar saldos iniciales (migración)"
-              style={{ background: 'rgba(168, 85, 247, 0.15)', color: '#A855F7', border: '1px solid rgba(168, 85, 247, 0.3)' }}
-            >
-              <BookOpen size={16} />
-            </button>
-            <button className="btn-refrescar" onClick={cargarDatos} disabled={cargando}>
-              <RefreshCw size={18} className={cargando ? 'spin' : ''} />
-            </button>
-          </div>
-        </div>
-
-        {/* ─── Barra de Control: Filtros + Stats ─── */}
-        <div className="cxc-barra-control" style={{ borderRadius: 0, borderBottom: '1px solid var(--border-light)', marginBottom: 0 }}>
-          {/* Filtros a la izquierda */}
-          <div className="cxc-filtros-inline">
-            <FiltrosCxP
-              categoria={filtroCategoria}
-              antiguedad={filtroAntiguedad}
-              onChangeCategoria={setFiltroCategoria}
-              onChangeAntiguedad={setFiltroAntiguedad}
-              onLimpiar={limpiarFiltros}
-              compact
-            />
-          </div>
-
-          {/* Stats + botón Agregar a la derecha */}
-          <div className="cxc-stats-inline">
-            {/* Total Pendiente */}
-            <div className="cxc-mini-stat cxc-mini-stat--total">
-              <DollarSign size={15} />
-              <span className="cxc-mini-num cxc-mini-num--danger">
-                Bs {fmtMonto(statsGlobales.totalPendiente)}
-              </span>
-              <span className="cxc-mini-label">Total Pendiente</span>
-            </div>
-
-            {/* Con deuda */}
-            <div className="cxc-mini-stat cxc-mini-stat--deuda">
-              <AlertTriangle size={15} />
-              <span className="cxc-mini-num cxc-mini-num--warn">{statsGlobales.conDeuda}</span>
-              <span className="cxc-mini-label">Con Deuda</span>
-            </div>
-
-            {/* Botón Agregar Proveedor */}
-            <button
-              className="btn-nueva-cuenta"
-              style={{ flexShrink: 0, padding: '0.4rem 0.85rem', fontSize: '0.82rem' }}
+              className="btn-excel-icon"
               onClick={() => setMostrarAdmin(true)}
-              title="Agregar o editar proveedores y personal"
+              title="Administrar Entidades"
             >
-              <UserPlus size={15} /> Agregar Proveedor
+              <UserPlus size={14} />
+            </button>
+            <button
+              className="btn-excel-icon"
+              onClick={() => setMostrarSaldoInicial(true)}
+              title="Migración"
+            >
+              <BookOpen size={14} />
+            </button>
+            <button className="btn-excel-icon" onClick={cargarDatos} disabled={cargando} title="Actualizar">
+              <RefreshCw size={14} className={cargando ? 'spin' : ''} />
             </button>
           </div>
         </div>
 
-        {/* ─── Barra de búsqueda ─── */}
-        <div className="cxc-busqueda-bar" style={{ borderRadius: '0 0 12px 12px', border: '1px solid var(--border)', borderTop: 'none', background: 'var(--bg-card)', padding: '0.5rem 1.5rem' }}>
-          <div className="pc-busqueda">
-            <Search size={16} className="pc-busqueda-icono" />
+        {/* ─── Fila Inferior: Búsqueda + Stats ─── */}
+        <div className="cxc-search-row">
+          <div className="cxc-search-container">
+            <Search size={14} className="cxc-search-icon" />
             <input
               type="text"
-              placeholder="Buscar proveedor por nombre..."
+              placeholder="Buscar proveedor o personal por nombre..."
               value={busqueda}
               onChange={e => setBusqueda(e.target.value)}
-              className="pc-busqueda-input"
+              className="cxc-search-input"
             />
+            {busqueda && (
+              <button className="cxc-search-clear" onClick={() => setBusqueda('')}>✕</button>
+            )}
           </div>
-          {busqueda && (
-            <button className="cxc-limpiar-busqueda" onClick={() => setBusqueda('')}>✕</button>
-          )}
-          <span className="cxc-conteo-resultado">
-            {entidadesFiltradas.length} resultado{entidadesFiltradas.length !== 1 ? 's' : ''}
-          </span>
+
+          <div className="cxc-stats-horizontal">
+            <div className="cxc-stat-pill">
+              <span className="cxc-pill-label">Con Deuda</span>
+              <span className="cxc-pill-value text-warn">
+                {statsGlobales.conDeuda}
+              </span>
+            </div>
+            <div className="cxc-stat-pill cxc-stat-pill--danger">
+              <span className="cxc-pill-label">Pendiente</span>
+              <span className="cxc-pill-value">Bs {fmtMonto(statsGlobales.totalPendiente)}</span>
+            </div>
+            <span className="cxc-divider-mini" />
+            <span className="cxc-result-count">
+              {entidadesFiltradas.length} entidades
+            </span>
+          </div>
         </div>
       </div>
 
@@ -406,12 +378,11 @@ const CuentasPagar: React.FC = () => {
             <thead>
               <tr>
                 <th className="cxc-th cxc-th-alumno">Proveedor</th>
-                <th className="cxc-th">Categoría</th>
                 <th className="cxc-th cxc-th-center">Contacto</th>
                 <th className="cxc-th cxc-th-center">Notas Pend.</th>
                 <th className="cxc-th cxc-th-center">Antigüedad</th>
                 <th className="cxc-th cxc-th-right">Total Deuda</th>
-                <th className="cxc-th cxc-th-center">Acciones</th>
+                <th className="cxc-th cxc-th-acciones">Acciones</th>
               </tr>
             </thead>
             <tbody>
@@ -446,19 +417,6 @@ const CuentasPagar: React.FC = () => {
                       </div>
                     </td>
 
-                    {/* Categoría */}
-                    <td className="cxc-td cxc-td-meta">
-                      <span style={{
-                        fontSize: '0.8rem',
-                        background: 'var(--secondary-glow)',
-                        color: 'var(--secondary)',
-                        borderRadius: '12px',
-                        padding: '2px 8px',
-                        whiteSpace: 'nowrap',
-                      }}>
-                        {labelCat}
-                      </span>
-                    </td>
 
                     {/* Teléfono */}
                     <td className="cxc-td cxc-td-center cxc-td-meta">

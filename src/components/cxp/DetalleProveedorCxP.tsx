@@ -288,7 +288,7 @@ const DetalleProveedorCxP: React.FC<Props> = ({ entidad, visible, onCerrar, onAc
                       <th className="cxc-th cxc-th-right">Total</th>
                       <th className="cxc-th cxc-th-right">Pagado</th>
                       <th className="cxc-th cxc-th-right">Saldo</th>
-                      <th className="cxc-th cxc-th-center">Acciones</th>
+                      <th className="cxc-th cxc-th-acciones">Acciones</th>
                     </tr>
                   </thead>
                   <tbody>

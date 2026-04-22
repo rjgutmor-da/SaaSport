@@ -17,7 +17,6 @@ import NotaServicios from './NotaServicios';
 import ModalEditarMovimiento from '../cajas-bancos/ModalEditarMovimiento';
 import ModalDetalleMovimiento from '../cajas-bancos/ModalDetalleMovimiento';
 import FichaAnticiposCxC from './FichaAnticiposCxC';
-import { LEGACY_DATA } from '../../lib/legacyData';
 import { getHoraLocal, getHoyISO } from '../../lib/dateUtils';
 
 /** Props del componente */
@@ -173,103 +172,13 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
 
       setCargando(false);
 
-      // Cargar datos adicionales (Primera mensualidad, cantidad de meses, total ingresos)
-      const cargarAdicionales = async () => {
-        // Total histórico de ingresos
-        const { data: resIngresos } = await supabase
-          .from('cobros_aplicados')
-          .select('monto_aplicado')
-          .in('cuenta_cobrar_id', dataCxc.map(c => c.id));
-
-        const totalHistoricoSaaSport = (resIngresos ?? []).reduce((acc, curr) => acc + Number(curr.monto_aplicado), 0);
-
-        // Obtener datos base del alumno de la DB
-        const { data: alumBase } = await supabase.from('alumnos')
-          .select('fecha_inicio, created_at, ingresos_iniciales, meses_permanencia_inicial, fecha_nacimiento')
-          .eq('id', alumno.alumno_id)
-          .single();
-
-        // Buscar en datos Legacy (Manuales pasados por el usuario)
-        const nombreCompleto = `${alumno.nombres} ${alumno.apellidos}`.toLowerCase().trim();
-        const dataLegacy = LEGACY_DATA[nombreCompleto];
-
-        // Primera mensualidad y cantidad de meses en SaaSport
-        // Evitar consulta si no hay CxCs
-        if (dataCxc.length === 0) {
-          setDatosAdicionales({
-            fechaInicio: alumBase?.fecha_inicio ? fmtFecha(alumBase.fecha_inicio) : (dataLegacy?.fechaInicio ? fmtFecha(dataLegacy.fechaInicio) : (alumBase?.created_at ? fmtFecha(alumBase.created_at) : '—')),
-            cantidadMeses: (Number(alumBase?.meses_permanencia_inicial) || 0) + (dataLegacy?.mesesActividad || 0),
-            totalHistorico: (Number(alumBase?.ingresos_iniciales) || 0) + (dataLegacy?.totalIngresos || 0) + totalHistoricoSaaSport,
-            fechaNacimiento: alumBase?.fecha_nacimiento || alumno.fecha_nacimiento || ''
-          });
-          return;
-        }
-
-        const { data: detMensualidades } = await supabase
-          .from('cxc_detalle')
-          .select(`
-            periodo_meses, 
-            cuentas_cobrar!inner(fecha_emision),
-            catalogo_items!inner(nombre)
-          `)
-          .in('cuenta_cobrar_id', dataCxc.map(c => c.id))
-          .ilike('catalogo_items.nombre', '%mensualidad%');
-
-        let primeraFechaSaaSport: Date | null = null;
-        let mesesUnicosSaaSport = new Set<string>();
-
-        (detMensualidades ?? []).forEach((d: any) => {
-          const fecha = new Date(d.cuentas_cobrar.fecha_emision);
-          if (!primeraFechaSaaSport || fecha < primeraFechaSaaSport) primeraFechaSaaSport = fecha;
-          
-          if (d.periodo_meses && Array.isArray(d.periodo_meses)) {
-            d.periodo_meses.forEach((m: string) => mesesUnicosSaaSport.add(m));
-          }
-        });
-
-        // Lógica de Prioridad para Fecha de Inicio:
-        // 1. Datos Legacy proporcionados por el usuario.
-        // 2. Campo fecha_inicio manual en la ficha del alumno.
-        // 3. Fecha de creación en AsiSport (created_at).
-        // 4. Primera mensualidad registrada en SaaSport.
-        let fInicioFinal = '—';
-        if (alumBase?.fecha_inicio) {
-          fInicioFinal = fmtFecha(alumBase.fecha_inicio);
-        } else if (dataLegacy?.fechaInicio) {
-          fInicioFinal = fmtFecha(dataLegacy.fechaInicio);
-        } else if (alumBase?.created_at) {
-          fInicioFinal = fmtFecha(alumBase.created_at);
-        } else if (primeraFechaSaaSport) {
-          fInicioFinal = fmtFecha((primeraFechaSaaSport as any).toISOString());
-        }
-
-        // Lógica para Meses de Actividad:
-        // Prioridad absoluta a la DB si el valor es > 0
-        const mesesPermanenciaDB = Number(alumBase?.meses_permanencia_inicial) || 0;
-        const mesesLegacy = mesesPermanenciaDB > 0 ? 0 : (dataLegacy?.mesesActividad || 0);
-        const mesesSaaSport = mesesUnicosSaaSport.size;
-
-        // Lógica para Total Ingresos:
-        // Prioridad absoluta a la DB si el valor es > 0
-        const ingresosBaseDB = Number(alumBase?.ingresos_iniciales) || 0;
-        const ingresosLegacy = ingresosBaseDB > 0 ? ingresosBaseDB : (dataLegacy?.totalIngresos || 0);
-        
-        console.log('DEBUG CXC:', { 
-          alumno: nombreCompleto,
-          ingresosDB: ingresosBaseDB, 
-          mesesDB: mesesPermanenciaDB,
-          totalSaaSport: totalHistoricoSaaSport 
-        });
-
-        setDatosAdicionales({
-          fechaInicio: fInicioFinal,
-          cantidadMeses: mesesLegacy + mesesPermanenciaDB + mesesSaaSport,
-          totalHistorico: ingresosLegacy + totalHistoricoSaaSport,
-          fechaNacimiento: alumBase?.fecha_nacimiento || alumno.fecha_nacimiento || ''
-        });
-      };
-
-      cargarAdicionales();
+      // Cargar datos adicionales (Desde la vista optimizada v_alumnos_deuda)
+      setDatosAdicionales({
+        fechaInicio: alumno.fecha_inicio_consolidada ? fmtFecha(alumno.fecha_inicio_consolidada) : '—',
+        cantidadMeses: alumno.cantidad_meses_actividad || 0,
+        totalHistorico: alumno.total_ingresos_historico || 0,
+        fechaNacimiento: alumno.fecha_nacimiento || ''
+      });
     };
     cargar();
 

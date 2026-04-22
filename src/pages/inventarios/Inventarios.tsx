@@ -584,7 +584,7 @@ const Inventarios: React.FC = () => {
                     <th className="cxc-th cxc-th-center">Saldo</th>
                     <th className="cxc-th cxc-th-right">Ventas Mes (Actual)</th>
                     <th className="cxc-th cxc-th-right">Ventas Mes (Pasado)</th>
-                    <th className="cxc-th cxc-th-center">Acciones</th>
+                    <th className="cxc-th cxc-th-acciones">Acciones</th>
                   </tr>
                 </thead>
                 <tbody>

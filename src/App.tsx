@@ -9,16 +9,14 @@
  */
 import React, { useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, NavLink } from 'react-router-dom';
-import { Settings, Sun, Moon, Monitor, LogOut } from 'lucide-react';
+import { 
+  Settings, Sun, Moon, Monitor, LogOut, 
+  HandCoins, PieChart, Landmark, BookOpen, Package
+} from 'lucide-react';
 import { supabase } from './lib/supabaseClient';
 import { AuthProviderSaaSport, useAuthSaaSport } from './lib/authHelper';
 import Dashboard from './pages/Dashboard';
 import Login from './pages/Login';
-import ContabilidadHub from './pages/finanzas/ContabilidadHub';
-import PlanCuentas from './pages/finanzas/PlanCuentas';
-import LibroDiario from './pages/finanzas/LibroDiario';
-import RegistroActividad from './pages/finanzas/RegistroActividad';
-import Estadisticas from './pages/finanzas/estadisticas/Estadisticas';
 import CuentasCobrar from './pages/cxc/CuentasCobrar';
 import CuentasPagar from './pages/cxp/CuentasPagar';
 import Inventarios from './pages/inventarios/Inventarios';
@@ -29,90 +27,86 @@ import CajasBancos from './pages/cajas-bancos/CajasBancos';
 
 const ASISPORT_URL = 'https://asisport.saasport.pro';
 
-// ─── Navbar ────────────────────────────────────────────────────────────────
+// ─── Sidebar Context ─────────────────────────────────────────────────────────
 
-interface NavbarProps {
+export const SidebarContext = React.createContext<{
+  setExtra: (content: React.ReactNode) => void;
+}>({ setExtra: () => {} });
+
+// ─── Sidebar ────────────────────────────────────────────────────────────────
+
+interface SidebarProps {
   onLogout: () => void;
   theme: string;
   onCycleTheme: () => void;
+  extra?: React.ReactNode;
 }
 
-const Navbar: React.FC<NavbarProps> = ({ onLogout, theme, onCycleTheme }) => {
+const Sidebar: React.FC<SidebarProps> = ({ onLogout, theme, onCycleTheme, extra }) => {
   const getThemeIcon = () => {
-    if (theme === 'light') return <Sun size={20} />;
-    if (theme === 'dark') return <Moon size={20} />;
-    return <Monitor size={20} />;
-  };
-
-  const getThemeTitle = () => {
-    if (theme === 'light') return 'Modo Claro';
-    if (theme === 'dark') return 'Modo Oscuro';
-    return 'Predeterminado del Sistema';
+    if (theme === 'light') return <Sun size={18} />;
+    if (theme === 'dark') return <Moon size={18} />;
+    return <Monitor size={18} />;
   };
 
   return (
-    <nav className="navbar">
-      <div className="nav-brand">SaaSport</div>
-      <ul className="nav-links">
-        <li>
-          <NavLink to="/" className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')} end>
-            Inicio
+    <aside className="sidebar">
+      <div className="sidebar-brand">SaaSport</div>
+      
+      <nav className="sidebar-nav">
+        <div className="sidebar-item-group">
+          <NavLink to="/cxc" className={({ isActive }) => (isActive ? 'sidebar-link active' : 'sidebar-link')}>
+            <HandCoins size={20} strokeWidth={1.5} />
+            <span>Alumnos (CxC)</span>
           </NavLink>
-        </li>
-        <li>
-          <NavLink to="/cxc" className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}>CxC</NavLink>
-        </li>
-        <li>
-          <NavLink to="/cxp" className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}>CxP</NavLink>
-        </li>
-        <li>
-          <NavLink to="/cajas-bancos" className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}>
-            Cajas y Bancos
+        </div>
+        
+        <div className="sidebar-item-group">
+          <NavLink to="/cxp" className={({ isActive }) => (isActive ? 'sidebar-link active' : 'sidebar-link')}>
+            <PieChart size={20} strokeWidth={1.5} />
+            <span>Proveedores (CxP)</span>
           </NavLink>
-        </li>
-        <li>
-          <NavLink to="/inventarios" className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}>
-            Inventarios
+        </div>
+        
+        <div className="sidebar-item-group">
+          <NavLink to="/cajas-bancos" className={({ isActive }) => (isActive ? 'sidebar-link active' : 'sidebar-link')}>
+            <Landmark size={20} strokeWidth={1.5} />
+            <span>Cajas y Bancos</span>
           </NavLink>
-        </li>
-        <li>
-          <NavLink to="/contabilidad" className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}>
-            Contabilidad
+        </div>
+
+        <div className="sidebar-item-group">
+          <NavLink to="/inventarios" className={({ isActive }) => (isActive ? 'sidebar-link active' : 'sidebar-link')}>
+            <Package size={20} strokeWidth={1.5} />
+            <span>Inventarios</span>
           </NavLink>
-        </li>
-      </ul>
-      <div className="nav-acciones" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-        {/* Selector de tema */}
-        <button
-          className="nav-theme-toggle"
-          onClick={onCycleTheme}
-          title={getThemeTitle()}
-          style={{ color: 'var(--text-primary)', display: 'flex', alignItems: 'center' }}
-        >
+        </div>
+
+        {/* Sección de filtros/stats imbuidos */}
+        {extra && (
+          <div className="sidebar-extra">
+            {extra}
+          </div>
+        )}
+      </nav>
+
+      <div className="sidebar-footer">
+        <button className="sidebar-link" onClick={onCycleTheme} title="Cambiar tema">
           {getThemeIcon()}
+          <span>Tema: {theme === 'system' ? 'Sistema' : theme === 'light' ? 'Claro' : 'Oscuro'}</span>
         </button>
 
-        {/* Configuraciones → navega a /configuraciones */}
-        <NavLink
-          to="/configuraciones"
-          className="nav-config"
-          title="Configuraciones"
-          style={{ display: 'flex', alignItems: 'center' }}
-        >
-          <Settings size={22} strokeWidth={1.5} />
+        <NavLink to="/configuraciones" className={({ isActive }) => (isActive ? 'sidebar-link active' : 'sidebar-link')}>
+          <Settings size={20} strokeWidth={1.5} />
+          <span>Configuraciones</span>
         </NavLink>
 
-        {/* Cerrar sesión (separado) */}
-        <button
-          className="nav-config"
-          onClick={onLogout}
-          title="Cerrar sesión"
-          style={{ display: 'flex', alignItems: 'center', color: 'var(--text-secondary)' }}
-        >
+        <button className="sidebar-link" onClick={onLogout} style={{ color: 'var(--danger)' }}>
           <LogOut size={20} strokeWidth={1.5} />
+          <span>Cerrar Sesión</span>
         </button>
       </div>
-    </nav>
+    </aside>
   );
 };
 
@@ -125,12 +119,20 @@ interface LayoutProps {
   onCycleTheme: () => void;
 }
 
-const Layout: React.FC<LayoutProps> = ({ children, onLogout, theme, onCycleTheme }) => (
-  <div className="app-container">
-    <Navbar onLogout={onLogout} theme={theme} onCycleTheme={onCycleTheme} />
-    {children}
-  </div>
-);
+const Layout: React.FC<LayoutProps> = ({ children, onLogout, theme, onCycleTheme }) => {
+  const [extra, setExtra] = useState<React.ReactNode>(null);
+
+  return (
+    <SidebarContext.Provider value={{ setExtra }}>
+      <div className="app-container">
+        <Sidebar onLogout={onLogout} theme={theme} onCycleTheme={onCycleTheme} extra={extra} />
+        <div className="main-wrapper">
+          {children}
+        </div>
+      </div>
+    </SidebarContext.Provider>
+  );
+};
 
 // ─── Pantalla de acceso denegado por rol ─────────────────────────────────────
 
@@ -193,17 +195,9 @@ const AppRouter: React.FC<AppRouterProps> = ({ onLogout, theme, onCycleTheme }) 
     <BrowserRouter>
       <Layout onLogout={onLogout} theme={theme} onCycleTheme={onCycleTheme}>
         <Routes>
-          {/* Dashboard principal */}
-          <Route path="/" element={<Dashboard />} />
+          {/* Al abrir se ve siempre primero Alumnos */}
+          <Route path="/" element={<CuentasCobrar />} />
 
-          {/* Módulo Contabilidad (sub-rutas) */}
-          <Route path="/contabilidad" element={<ContabilidadHub />} />
-          <Route path="/contabilidad/plan-cuentas" element={<PlanCuentas />} />
-          <Route path="/contabilidad/libro-diario" element={<LibroDiario />} />
-          <Route path="/contabilidad/registro-actividad" element={<RegistroActividad />} />
-          <Route path="/contabilidad/estadisticas" element={<Estadisticas />} />
-
-          {/* Módulos financieros */}
           <Route path="/cxc" element={<CuentasCobrar />} />
           <Route path="/cxp" element={<CuentasPagar />} />
           <Route path="/inventarios" element={<Inventarios />} />
