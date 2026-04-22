@@ -15,7 +15,7 @@ import NotaPago from './NotaPago';
 import DetalleCxP from './DetalleCxP';
 import FichaAnticiposCxP from './FichaAnticiposCxP';
 import { CATEGORIAS_PROVEEDOR } from './FiltrosCxP';
-import { EntidadCxP, NotaResumenCxP as NotaResumen } from '../../types/cxp';
+import type { EntidadCxP, NotaResumenCxP as NotaResumen } from '../../types/cxp';
 
 
 
