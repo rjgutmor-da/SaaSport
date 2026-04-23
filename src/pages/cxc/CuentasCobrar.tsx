@@ -40,7 +40,7 @@ const CuentasCobrar: React.FC = () => {
 
   // Datos principales
   const [alumnosDeuda, setAlumnosDeuda] = useState<AlumnoDeuda[]>([]);
-  const [cargando, setCargando] = useState(true);
+  const [cargando, setCargando] = useState(() => !localStorage.getItem('saasport_cxc_cache'));
   const [error, setError] = useState<string | null>(null);
 
   // Búsqueda con Debounce
@@ -97,8 +97,24 @@ const CuentasCobrar: React.FC = () => {
   };
 
   // Cargar datos con filtrado en servidor
-  const cargarDatos = async () => {
-    setCargando(true);
+  const cargarDatos = async (usarCache = true) => {
+    if (usarCache && pagina === 1 && !filtroSucursal && !filtroEntrenador && !filtroCancha && !filtroHorario && !debouncedBusqueda && !soloConDeuda) {
+      const cache = localStorage.getItem('saasport_cxc_cache');
+      if (cache) {
+        try {
+          const parsed = JSON.parse(cache);
+          setAlumnosDeuda(parsed.alumnos);
+          setTotalResultados(parsed.count);
+          setStats(parsed.stats);
+        } catch (e) {
+          console.error("Error al leer caché", e);
+        }
+      } else {
+        setCargando(true);
+      }
+    } else {
+      setCargando(true);
+    }
     setError(null);
 
     const escuelaId = await obtenerEscuelaId();
@@ -154,11 +170,16 @@ const CuentasCobrar: React.FC = () => {
           const totalPend = (sums || []).reduce((s, a) => s + Number(a.saldo_pendiente), 0);
           const conDeudaCount = (sums || []).filter(a => Number(a.saldo_pendiente) > 0).length;
 
-          setStats({
+          const newStats = {
             totalAlumnos: count,
             conDeuda: conDeudaCount,
             totalPendiente: totalPend
-          });
+          };
+          setStats(newStats);
+          
+          if (pagina === 1 && !filtroSucursal && !filtroEntrenador && !filtroCancha && !filtroHorario && !debouncedBusqueda && !soloConDeuda) {
+            localStorage.setItem('saasport_cxc_cache', JSON.stringify({ alumnos: data, count, stats: newStats }));
+          }
       }
     }
     setCargando(false);
@@ -167,12 +188,13 @@ const CuentasCobrar: React.FC = () => {
   // Recargar cuando cambian los filtros o la búsqueda
   useEffect(() => {
     setPagina(1); // Volver a la primera página al filtrar
-    cargarDatos();
+    cargarDatos(false);
   }, [filtroSucursal, filtroEntrenador, filtroCancha, filtroHorario, debouncedBusqueda, soloConDeuda]);
 
   // Recargar solo cuando cambia la página
   useEffect(() => {
-    cargarDatos();
+    const sinFiltros = !filtroSucursal && !filtroEntrenador && !filtroCancha && !filtroHorario && !debouncedBusqueda && !soloConDeuda;
+    cargarDatos(pagina === 1 && sinFiltros);
   }, [pagina]);
 
   // Abrir nota para un alumno específico
@@ -214,29 +236,40 @@ const CuentasCobrar: React.FC = () => {
   };
 
   return (
-    <main className="main-content cxc-main">
-      <div className="cxc-excel-header">
-        {/* ─── Fila Superior: Filtros + Acciones ─── */}
-        <div className="cxc-header-row">
-          <FiltrosCxc
-            sucursalId={filtroSucursal}
-            entrenadorId={filtroEntrenador}
-            canchaId={filtroCancha}
-            horarioId={filtroHorario}
-            onChangeSucursal={setFiltroSucursal}
-            onChangeEntrenador={setFiltroEntrenador}
-            onChangeCancha={setFiltroCancha}
-            onChangeHorario={setFiltroHorario}
-            onLimpiar={() => {
-              setFiltroSucursal(''); setFiltroEntrenador('');
-              setFiltroCancha(''); setFiltroHorario('');
-            }}
-            compact
-          />
+    <main className="main-content cxc-main-sticky" style={{ 
+      paddingTop: 0, 
+      paddingBottom: '1rem', 
+      paddingLeft: '1.5rem', 
+      paddingRight: '1.5rem', 
+      margin: 0,
+      display: 'flex',
+      flexDirection: 'column',
+      justifyContent: 'flex-start',
+      alignItems: 'stretch',
+      minHeight: 'auto'
+    }}>
+      {/* ─── Barra de Control Simplificada ─── */}
+      <div className="cxc-barra-control" style={{ margin: 0, padding: '0.5rem 1.25rem' }}>
+        <div className="cxc-filtros-inline" style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+            <FiltrosCxc
+              sucursalId={filtroSucursal}
+              entrenadorId={filtroEntrenador}
+              canchaId={filtroCancha}
+              horarioId={filtroHorario}
+              onChangeSucursal={setFiltroSucursal}
+              onChangeEntrenador={setFiltroEntrenador}
+              onChangeCancha={setFiltroCancha}
+              onChangeHorario={setFiltroHorario}
+              onLimpiar={() => {
+                setFiltroSucursal(''); setFiltroEntrenador('');
+                setFiltroCancha(''); setFiltroHorario('');
+              }}
+              compact
+            />
+          </div>
 
-          <div className="cxc-divider" />
-
-          <div className="cxc-header-acciones-compact">
+          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
             <button
               className="btn-excel btn-cobro"
               onClick={() => { setAlumnoParaCobro(null); setMostrarCobroRapido(true); }}
@@ -258,44 +291,43 @@ const CuentasCobrar: React.FC = () => {
             >
               <BookOpen size={14} />
             </button>
-            <button className="btn-excel-icon" onClick={cargarDatos} disabled={cargando} title="Actualizar">
+            <button className="btn-excel-icon" onClick={() => cargarDatos(false)} disabled={cargando} title="Actualizar">
               <RefreshCw size={14} className={cargando ? 'spin' : ''} />
             </button>
           </div>
         </div>
+      </div>
 
-        {/* ─── Fila Inferior: Búsqueda + Stats ─── */}
-        <div className="cxc-search-row">
-          <div className="cxc-search-container">
-            <Search size={14} className="cxc-search-icon" />
-            <input
-              type="text"
-              placeholder="Filtrar por nombre del alumno..."
-              value={busqueda}
-              onChange={e => setBusqueda(e.target.value)}
-              className="cxc-search-input"
-            />
-            {busqueda && (
-              <button className="cxc-search-clear" onClick={() => setBusqueda('')}>✕</button>
-            )}
-          </div>
+      <div className="cxc-search-row" style={{ margin: '0 0 0.5rem 0', padding: '0 1.25rem', border: 'none', background: 'transparent' }}>
+        <div className="cxc-search-container" style={{ background: 'var(--bg-card)' }}>
+          <Search size={14} className="cxc-search-icon" />
+          <input
+            type="text"
+            placeholder="Filtrar por nombre del alumno..."
+            value={busqueda}
+            onChange={e => setBusqueda(e.target.value)}
+            className="cxc-search-input"
+          />
+          {busqueda && (
+            <button className="cxc-search-clear" onClick={() => setBusqueda('')}>✕</button>
+          )}
+        </div>
 
-          <div className="cxc-stats-horizontal">
-            <div className="cxc-stat-pill" onClick={() => setSoloConDeuda(!soloConDeuda)}>
-              <span className="cxc-pill-label">Deudores</span>
-              <span className={`cxc-pill-value ${soloConDeuda ? 'text-warn' : ''}`}>
-                {stats.conDeuda}
-              </span>
-            </div>
-            <div className="cxc-stat-pill cxc-stat-pill--danger">
-              <span className="cxc-pill-label">Pendiente</span>
-              <span className="cxc-pill-value">Bs {fmtMonto(stats.totalPendiente)}</span>
-            </div>
-            <span className="cxc-divider-mini" />
-            <span className="cxc-result-count">
-              {totalResultados} alumnos
+        <div className="cxc-stats-horizontal">
+          <div className="cxc-stat-pill" onClick={() => setSoloConDeuda(!soloConDeuda)} style={{ cursor: 'pointer' }}>
+            <span className="cxc-pill-label">Deudores</span>
+            <span className={`cxc-pill-value ${soloConDeuda ? 'text-warn' : ''}`}>
+              {stats.conDeuda}
             </span>
           </div>
+          <div className="cxc-stat-pill cxc-stat-pill--danger">
+            <span className="cxc-pill-label">Pendiente</span>
+            <span className="cxc-pill-value">Bs {fmtMonto(stats.totalPendiente)}</span>
+          </div>
+          <span className="cxc-divider-mini" />
+          <span className="cxc-result-count">
+            {totalResultados} alumnos
+          </span>
         </div>
       </div>
 
@@ -328,16 +360,16 @@ const CuentasCobrar: React.FC = () => {
         </div>
       ) : (
         <div className="cxc-tabla-wrapper">
-          <table className="cxc-tabla">
+          <table className="cxc-tabla cxc-tabla-fixed">
             <thead>
               <tr>
                 <th className="cxc-th cxc-th-alumno">Alumno</th>
                 <th className="cxc-th cxc-th-sucursal">Sucursal</th>
-                <th className="cxc-th cxc-th-center">Sub</th>
-                <th className="cxc-th cxc-th-center">{mesAnteriorStr}</th>
-                <th className="cxc-th cxc-th-center">{mesActualStr}</th>
-                <th className="cxc-th cxc-th-right">CxC Pend.</th>
-                <th className="cxc-th cxc-th-right">Deuda</th>
+                <th className="cxc-th cxc-th-sm">Sub</th>
+                <th className="cxc-th cxc-th-sm">{mesAnteriorStr}</th>
+                <th className="cxc-th cxc-th-sm">{mesActualStr}</th>
+                <th className="cxc-th cxc-th-monto">CxC Pend.</th>
+                <th className="cxc-th cxc-th-monto">Deuda Total</th>
                 <th className="cxc-th cxc-th-acciones">Acciones</th>
               </tr>
             </thead>
@@ -352,9 +384,6 @@ const CuentasCobrar: React.FC = () => {
                     title="Clic para ver detalle de movimientos"
                   >
                     <td className="cxc-td cxc-td-alumno">
-                      <span className="cxc-alumno-avatar">
-                        {alumno.nombres[0]}{alumno.apellidos[0]}
-                      </span>
                       <div className="cxc-alumno-info">
                         <span className="cxc-alumno-nombre">{alumno.nombres} {alumno.apellidos}</span>
                       </div>
@@ -376,32 +405,34 @@ const CuentasCobrar: React.FC = () => {
                     </td>
                     {/* Acciones por alumno */}
                     <td className="cxc-td cxc-td-acciones" onClick={e => e.stopPropagation()}>
-                      <button
-                        className="cxc-accion-btn cxc-accion-btn--nota"
-                        onClick={e => abrirNotaParaAlumno(e, alumno)}
-                        title="Crear Nota de Servicio"
-                      >
-                        <FileText size={13} />
-                        <span>Nota</span>
-                      </button>
-                      {tieneDeuda && (
+                      <div className="cxc-acciones-wrap">
                         <button
-                          className="cxc-accion-btn cxc-accion-btn--cobro"
-                          onClick={e => abrirCobroRapido(e, alumno)}
-                          title="Registrar Pago"
+                          className="cxc-accion-btn cxc-accion-btn--nota"
+                          onClick={e => abrirNotaParaAlumno(e, alumno)}
+                          title="Crear Nota de Servicio"
                         >
-                          <CreditCard size={13} />
-                          <span>Cobrar</span>
+                          <FileText size={13} />
+                          <span>Nota</span>
                         </button>
-                      )}
-                      <button
-                        className="cxc-accion-btn cxc-accion-btn--wa"
-                        onClick={e => enviarWhatsApp(e, alumno)}
-                        title="Enviar mensaje WhatsApp"
-                      >
-                        <MessageCircle size={13} />
-                        <span>WA</span>
-                      </button>
+                        {tieneDeuda && (
+                          <button
+                            className="cxc-accion-btn cxc-accion-btn--cobro"
+                            onClick={e => abrirCobroRapido(e, alumno)}
+                            title="Registrar Pago"
+                          >
+                            <CreditCard size={13} />
+                            <span>Cobrar</span>
+                          </button>
+                        )}
+                        <button
+                          className="cxc-accion-btn cxc-accion-btn--wa"
+                          onClick={e => enviarWhatsApp(e, alumno)}
+                          title="Enviar mensaje WhatsApp"
+                        >
+                          <MessageCircle size={13} />
+                          <span>WA</span>
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );

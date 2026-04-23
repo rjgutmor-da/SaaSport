@@ -11,6 +11,14 @@ import {
   Edit2, Save, ArrowUpCircle, ArrowDownCircle, Package
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useAuthSaaSport } from '../../lib/authHelper';
+
+const obtenerCtx = async () => {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+  const { data } = await supabase.from('usuarios').select('escuela_id').eq('id', user.id).single();
+  return data ? { escuela_id: data.escuela_id, usuario_id: user.id } : null;
+};
 
 /** Formatea un número como moneda (Bs) */
 const fmtMonto = (n: number | null | undefined): string =>
@@ -72,20 +80,7 @@ const Inventarios: React.FC = () => {
   const [guardandoMov, setGuardandoMov] = useState(false);
   const [msgMov, setMsgMov] = useState<string | null>(null);
 
-  // Obtener contexto
-  const obtenerCtx = async () => {
-    // Intentamos obtener escuela_id del localStorage para rapidez absoluta
-    const cached = localStorage.getItem('saasport_escuela_id');
-    if (cached) return { escuela_id: cached };
-
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return null;
-    const { data } = await supabase.from('usuarios').select('id, escuela_id').eq('id', user.id).single();
-    if (data?.escuela_id) {
-      localStorage.setItem('saasport_escuela_id', data.escuela_id);
-    }
-    return data;
-  };
+  const { escuelaId } = useAuthSaaSport();
 
   // Cargar datos con Estrategia Caché (Instantánea)
   const cargarDatos = async (usarCache = true) => {
@@ -108,8 +103,7 @@ const Inventarios: React.FC = () => {
     
     setError(null);
 
-    const ctx = await obtenerCtx();
-    if (!ctx) {
+    if (!escuelaId) {
       setError('Error de contexto. Por favor reinicia sesión.');
       setCargando(false);
       return;
@@ -120,7 +114,7 @@ const Inventarios: React.FC = () => {
       const { data: invData, error: invErr } = await supabase
         .from('v_inventario')
         .select('*')
-        .eq('escuela_id', ctx.escuela_id)
+        .eq('escuela_id', escuelaId)
         .order('nombre');
 
       if (invErr) throw invErr;
@@ -154,8 +148,10 @@ const Inventarios: React.FC = () => {
   };
 
   useEffect(() => {
-    cargarDatos();
-  }, []);
+    if (escuelaId) {
+      cargarDatos();
+    }
+  }, [escuelaId]);
 
   // Lista Filtrada
   const itemsFiltrados = useMemo(() => {
