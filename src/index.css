@@ -20,6 +20,9 @@
   --secondary: #0A84FF;
   --secondary-glow: rgba(10, 132, 255, 0.3);
   
+  --bg-table-header: #111111;
+  --text-table-header: #A0A0A0;
+  
   --success: #00D26A;
   --success-bg: rgba(0, 210, 106, 0.1);
   
@@ -60,6 +63,9 @@
   --border: #E2E8F0;
   --border-focus: var(--primary);
   
+  --bg-table-header: #F1F5F9;
+  --text-table-header: #475569;
+  
   --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
   --shadow-md: 0 10px 15px -3px rgba(0, 0, 0, 0.08);
   --shadow-glow: 0 0 20px -5px rgba(255, 107, 53, 0.1);
@@ -82,6 +88,9 @@
     --border: #E2E8F0;
     --border-focus: var(--primary);
     
+    --bg-table-header: #F1F5F9;
+    --text-table-header: #475569;
+    
     --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
     --shadow-md: 0 10px 15px -3px rgba(0, 0, 0, 0.08);
     --shadow-glow: 0 0 20px -5px rgba(255, 107, 53, 0.1);
@@ -102,6 +111,8 @@
   --text-tertiary: #6B7280;
 
   --border: #2D2D2D;
+  --bg-table-header: #111111;
+  --text-table-header: #A0A0A0;
 }
 
 * {
@@ -896,10 +907,10 @@ input[type=number] {
   text-align: center !important;
   font-size: 0.75rem;
   font-weight: 800;
-  color: var(--text-primary);
+  color: var(--text-table-header);
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  background: #111 !important; /* Fondo sólido opaco */
+  background: var(--bg-table-header) !important; /* Fondo dinámico según tema */
   border-bottom: 2px solid var(--border);
   border-right: 1px solid var(--border);
   position: sticky;
@@ -1885,15 +1896,14 @@ input[type=number] {
   min-width: 600px;
 }
 .est-th {
-  padding: 0.65rem 1rem;
-  text-align: left;
-  font-size: 0.72rem;
-  font-weight: 800;
-  color: var(--text-tertiary);
+  background-color: var(--bg-table-header);
+  color: var(--text-table-header);
   text-transform: uppercase;
-  letter-spacing: 0.5px;
-  background: rgba(0,0,0,0.2);
-  border-bottom: 1px solid var(--border);
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  padding: 0.8rem 1rem;
+  border-bottom: 2px solid var(--border);
   white-space: nowrap;
 }
 .est-th-num { width: 48px; text-align: center; }
@@ -2571,9 +2581,9 @@ input[type=number] {
   margin: 0 0.5rem;
 }
 
-/* Ajuste de padding para compensar el header fijo */
+/* Ajuste de padding - Removido para alineación superior */
 .cxc-main {
-  padding-top: 100px !important;
+  padding-top: 0;
 }
 
 /* Fix para FiltrosCxc en modo compact */
