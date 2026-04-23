@@ -291,7 +291,7 @@ const CuentasCobrar: React.FC = () => {
             >
               <BookOpen size={14} />
             </button>
-            <button className="btn-excel-icon" onClick={() => cargarDatos(false)} disabled={cargando} title="Actualizar">
+            <button className="btn-refrescar" onClick={() => cargarDatos(false)} disabled={cargando} title="Actualizar">
               <RefreshCw size={14} className={cargando ? 'spin' : ''} />
             </button>
           </div>
@@ -335,7 +335,7 @@ const CuentasCobrar: React.FC = () => {
       {error && (
         <div className="pc-error">
           <p>⚠️ {error}</p>
-          <button onClick={cargarDatos}>Reintentar</button>
+          <button onClick={() => cargarDatos(false)}>Reintentar</button>
         </div>
       )}
 
