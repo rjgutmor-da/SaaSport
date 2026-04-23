@@ -297,7 +297,7 @@ const CuentasPagar: React.FC = () => {
       {error && (
         <div className="pc-error">
           <p>⚠️ {error}</p>
-          <button onClick={cargarDatos}>Reintentar</button>
+          <button onClick={() => cargarDatos(false)}>Reintentar</button>
         </div>
       )}
 
