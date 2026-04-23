@@ -40,7 +40,7 @@ const CuentasPagar: React.FC = () => {
 
   // ── Estado principal ──
   const [entidades, setEntidades]     = useState<EntidadCxP[]>([]);
-  const [cargando, setCargando]       = useState(true);
+  const [cargando, setCargando]       = useState(() => !localStorage.getItem('saasport_cxp_cache'));
   const [error, setError]             = useState<string | null>(null);
   const [escuelaId, setEscuelaId]     = useState<string | null>(null);
 
@@ -83,8 +83,21 @@ const CuentasPagar: React.FC = () => {
   };
 
   /** Carga proveedores y personal con sus saldos pendientes */
-  const cargarDatos = useCallback(async () => {
-    setCargando(true);
+  const cargarDatos = useCallback(async (usarCache = true) => {
+    if (usarCache) {
+      const cache = localStorage.getItem('saasport_cxp_cache');
+      if (cache) {
+        try {
+          setEntidades(JSON.parse(cache));
+        } catch (e) {
+          console.error("Error al leer caché", e);
+        }
+      } else {
+        setCargando(true);
+      }
+    } else {
+      setCargando(true);
+    }
     setError(null);
 
     const eid = escuelaId || await obtenerEscuelaId();
@@ -95,94 +108,20 @@ const CuentasPagar: React.FC = () => {
     }
     if (!escuelaId) setEscuelaId(eid);
 
-    // Cargar todos los movimientos pendientes de CxP
-    const { data: dataCxP, error: errCxP } = await supabase
-      .from('v_estado_cuentas_pagar')
-      .select(`
-        id, proveedor_id, personal_id, tipo_gasto, estado,
-        monto_total, monto_pagado, deuda_restante, fecha_emision
-      `)
+    // Cargar consolidado de backend
+    const { data: dataCxp, error: errCxp } = await supabase
+      .from('v_cxp_consolidado')
+      .select('*')
       .eq('escuela_id', eid)
-      .neq('estado', 'pagada');
+      .eq('activo', true);
 
-    if (errCxP) {
-      setError(`Error al cargar datos: ${errCxP.message}`);
+    if (errCxp) {
+      setError(`Error al cargar datos: ${errCxp.message}`);
       setCargando(false);
       return;
     }
 
-    const cxpRows = (dataCxP ?? []) as any[];
-
-    // ── Agrupar por proveedor y por personal ──
-    const saldoProv: Record<string, { saldo: number; notas: number; fechaAntigua: string | null }> = {};
-    const saldoPers: Record<string, { saldo: number; notas: number; fechaAntigua: string | null }> = {};
-
-    for (const row of cxpRows) {
-      const saldo = Number(row.deuda_restante);
-      if (row.proveedor_id) {
-        if (!saldoProv[row.proveedor_id]) saldoProv[row.proveedor_id] = { saldo: 0, notas: 0, fechaAntigua: null };
-        saldoProv[row.proveedor_id].saldo += saldo;
-        saldoProv[row.proveedor_id].notas++;
-        if (!saldoProv[row.proveedor_id].fechaAntigua || row.fecha_emision < saldoProv[row.proveedor_id].fechaAntigua!) {
-          saldoProv[row.proveedor_id].fechaAntigua = row.fecha_emision;
-        }
-      }
-      if (row.personal_id) {
-        if (!saldoPers[row.personal_id]) saldoPers[row.personal_id] = { saldo: 0, notas: 0, fechaAntigua: null };
-        saldoPers[row.personal_id].saldo += saldo;
-        saldoPers[row.personal_id].notas++;
-        if (!saldoPers[row.personal_id].fechaAntigua || row.fecha_emision < saldoPers[row.personal_id].fechaAntigua!) {
-          saldoPers[row.personal_id].fechaAntigua = row.fecha_emision;
-        }
-      }
-    }
-
-    // Cargar proveedores
-    const { data: dataProveedores } = await supabase
-      .from('proveedores')
-      .select('id, nombre, categoria, telefono, activo')
-      .eq('escuela_id', eid)
-      .eq('activo', true)
-      .order('nombre');
-
-    // Cargar personal
-    const { data: dataPersonal } = await supabase
-      .from('personal')
-      .select('id, nombres, apellidos, cargo, telefono, activo')
-      .eq('escuela_id', eid)
-      .eq('activo', true)
-      .order('nombres');
-
-    const lista: EntidadCxP[] = [];
-
-    for (const p of (dataProveedores ?? [])) {
-      const sg = saldoProv[p.id] ?? { saldo: 0, notas: 0, fechaAntigua: null };
-      lista.push({
-        id: p.id,
-        tipo: 'proveedor',
-        nombre: p.nombre,
-        categoria: p.categoria || 'otro',
-        telefono: p.telefono,
-        saldo_pendiente: sg.saldo,
-        notas_pendientes: sg.notas,
-        fecha_mas_antigua: sg.fechaAntigua,
-      });
-    }
-
-    for (const p of (dataPersonal ?? [])) {
-      const sg = saldoPers[p.id] ?? { saldo: 0, notas: 0, fechaAntigua: null };
-      lista.push({
-        id: p.id,
-        tipo: 'personal',
-        nombre: `${p.nombres} ${p.apellidos}`,
-        categoria: 'personal_interno',
-        cargo: p.cargo,
-        telefono: p.telefono,
-        saldo_pendiente: sg.saldo,
-        notas_pendientes: sg.notas,
-        fecha_mas_antigua: sg.fechaAntigua,
-      });
-    }
+    const lista = (dataCxp || []) as EntidadCxP[];
 
     // Ordenar: primero con saldo, después por nombre
     lista.sort((a, b) => {
@@ -191,6 +130,7 @@ const CuentasPagar: React.FC = () => {
     });
 
     setEntidades(lista);
+    localStorage.setItem('saasport_cxp_cache', JSON.stringify(lista));
     setCargando(false);
   }, [escuelaId, obtenerEscuelaId]);
 
@@ -248,6 +188,8 @@ const CuentasPagar: React.FC = () => {
     setEntidadSeleccionada(entidad);
   };
 
+
+
   // ── Vista: Panel de administración ──
   if (mostrarAdmin) {
     return <AdminEntidadesCxP onVolver={() => { setMostrarAdmin(false); cargarDatos(); }} />;
@@ -255,23 +197,34 @@ const CuentasPagar: React.FC = () => {
 
   // ── Vista: Módulo principal ──
   return (
-    <main className="main-content cxc-main">
+    <main className="main-content cxc-main-sticky" style={{ 
+      paddingTop: 0, 
+      paddingBottom: '1rem', 
+      paddingLeft: '1.5rem', 
+      paddingRight: '1.5rem', 
+      margin: 0,
+      display: 'flex',
+      flexDirection: 'column',
+      justifyContent: 'flex-start',
+      alignItems: 'stretch',
+      minHeight: 'auto'
+    }}>
 
-      <div className="cxc-excel-header">
-        {/* ─── Fila Superior: Filtros + Acciones ─── */}
-        <div className="cxc-header-row">
-          <FiltrosCxP
-            categoria={filtroCategoria}
-            antiguedad={filtroAntiguedad}
-            onChangeCategoria={setFiltroCategoria}
-            onChangeAntiguedad={setFiltroAntiguedad}
-            onLimpiar={() => { setFiltroCategoria(''); setFiltroAntiguedad(''); }}
-            compact
-          />
+      {/* ─── Barra de Control Simplificada ─── */}
+      <div className="cxc-barra-control" style={{ margin: 0, padding: '0.5rem 1.25rem' }}>
+        <div className="cxc-filtros-inline" style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+            <FiltrosCxP
+              categoria={filtroCategoria}
+              antiguedad={filtroAntiguedad}
+              onChangeCategoria={setFiltroCategoria}
+              onChangeAntiguedad={setFiltroAntiguedad}
+              onLimpiar={() => { setFiltroCategoria(''); setFiltroAntiguedad(''); }}
+              compact
+            />
+          </div>
 
-          <div className="cxc-divider" />
-
-          <div className="cxc-header-acciones-compact">
+          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
             <button
               className="btn-excel btn-cobro"
               onClick={() => { setEntidadParaPagoRapido(null); setMostrarPagoRapido(true); }}
@@ -300,44 +253,43 @@ const CuentasPagar: React.FC = () => {
             >
               <BookOpen size={14} />
             </button>
-            <button className="btn-excel-icon" onClick={cargarDatos} disabled={cargando} title="Actualizar">
+            <button className="btn-excel-icon" onClick={() => cargarDatos(false)} disabled={cargando} title="Actualizar">
               <RefreshCw size={14} className={cargando ? 'spin' : ''} />
             </button>
           </div>
         </div>
+      </div>
 
-        {/* ─── Fila Inferior: Búsqueda + Stats ─── */}
-        <div className="cxc-search-row">
-          <div className="cxc-search-container">
-            <Search size={14} className="cxc-search-icon" />
-            <input
-              type="text"
-              placeholder="Buscar proveedor o personal por nombre..."
-              value={busqueda}
-              onChange={e => setBusqueda(e.target.value)}
-              className="cxc-search-input"
-            />
-            {busqueda && (
-              <button className="cxc-search-clear" onClick={() => setBusqueda('')}>✕</button>
-            )}
-          </div>
+      <div className="cxc-search-row" style={{ margin: '0 0 0.5rem 0', padding: '0 1.25rem', border: 'none', background: 'transparent' }}>
+        <div className="cxc-search-container" style={{ background: 'var(--bg-card)' }}>
+          <Search size={14} className="cxc-search-icon" />
+          <input
+            type="text"
+            placeholder="Buscar proveedor o personal por nombre..."
+            value={busqueda}
+            onChange={e => setBusqueda(e.target.value)}
+            className="cxc-search-input"
+          />
+          {busqueda && (
+            <button className="cxc-search-clear" onClick={() => setBusqueda('')}>✕</button>
+          )}
+        </div>
 
-          <div className="cxc-stats-horizontal">
-            <div className="cxc-stat-pill">
-              <span className="cxc-pill-label">Con Deuda</span>
-              <span className="cxc-pill-value text-warn">
-                {statsGlobales.conDeuda}
-              </span>
-            </div>
-            <div className="cxc-stat-pill cxc-stat-pill--danger">
-              <span className="cxc-pill-label">Pendiente</span>
-              <span className="cxc-pill-value">Bs {fmtMonto(statsGlobales.totalPendiente)}</span>
-            </div>
-            <span className="cxc-divider-mini" />
-            <span className="cxc-result-count">
-              {entidadesFiltradas.length} entidades
+        <div className="cxc-stats-horizontal">
+          <div className="cxc-stat-pill">
+            <span className="cxc-pill-label">Con Deuda</span>
+            <span className="cxc-pill-value text-warn">
+              {statsGlobales.conDeuda}
             </span>
           </div>
+          <div className="cxc-stat-pill cxc-stat-pill--danger">
+            <span className="cxc-pill-label">Pendiente</span>
+            <span className="cxc-pill-value">Bs {fmtMonto(statsGlobales.totalPendiente)}</span>
+          </div>
+          <span className="cxc-divider-mini" />
+          <span className="cxc-result-count">
+            {entidadesFiltradas.length} entidades
+          </span>
         </div>
       </div>
 
@@ -376,10 +328,10 @@ const CuentasPagar: React.FC = () => {
         </div>
       ) : (
         <div className="cxc-tabla-wrapper">
-          <table className="cxc-tabla">
+          <table className="cxc-tabla cxc-tabla-fixed">
             <thead>
               <tr>
-                <th className="cxc-th cxc-th-alumno">Proveedor</th>
+                <th className="cxc-th cxp-th-alumno">Proveedor</th>
                 <th className="cxc-th cxc-th-center">Contacto</th>
                 <th className="cxc-th cxc-th-center">Notas Pend.</th>
                 <th className="cxc-th cxc-th-center">Antigüedad</th>
@@ -402,13 +354,7 @@ const CuentasPagar: React.FC = () => {
                     title="Clic para ver movimientos del proveedor"
                   >
                     {/* Nombre */}
-                    <td className="cxc-td cxc-td-alumno">
-                      <span className="cxc-alumno-avatar">
-                        {entidad.tipo === 'proveedor'
-                          ? <Truck size={15} />
-                          : <Users size={15} />
-                        }
-                      </span>
+                    <td className="cxc-td cxp-th-alumno">
                       <div className="cxc-alumno-info">
                         <span className="cxc-alumno-nombre">{entidad.nombre}</span>
                         {entidad.cargo && (
@@ -453,29 +399,33 @@ const CuentasPagar: React.FC = () => {
 
                     {/* Acciones inline */}
                     <td className="cxc-td cxc-td-acciones" onClick={e => e.stopPropagation()}>
-                      {/* Nueva nota para esta entidad */}
-                      <button
-                        className="cxc-accion-btn cxc-accion-btn--nota"
-                        onClick={e => abrirNotaParaEntidad(e, entidad)}
-                        title="Crear Nota de Pago"
-                      >
-                        <FileText size={13} />
-                        <span>Nota</span>
-                      </button>
+                      <div className="cxc-acciones-wrap">
+                        {/* Nueva nota para esta entidad */}
+                        <button
+                          className="cxc-accion-btn cxc-accion-btn--nota"
+                          onClick={e => abrirNotaParaEntidad(e, entidad)}
+                          title="Crear Nota de Pago"
+                        >
+                          <FileText size={13} />
+                          <span>Nota</span>
+                        </button>
 
-                      {/* Pago rápido / Anticipo */}
-                      <button
-                        className="cxc-accion-btn cxc-accion-btn--cobro"
-                        onClick={e => {
-                          e.stopPropagation();
-                          setEntidadParaPagoRapido(entidad);
-                          setMostrarPagoRapido(true);
-                        }}
-                        title="Ver y registrar pago o anticipo"
-                      >
-                        <CreditCard size={13} />
-                        <span>Pagar</span>
-                      </button>
+                        {/* Pago rápido / Anticipo */}
+                        <button
+                          className="cxc-accion-btn cxc-accion-btn--cobro"
+                          onClick={e => {
+                            e.stopPropagation();
+                            setEntidadParaPagoRapido(entidad);
+                            setMostrarPagoRapido(true);
+                          }}
+                          title="Ver y registrar pago o anticipo"
+                        >
+                          <CreditCard size={13} />
+                          <span>Pagar</span>
+                        </button>
+
+
+                      </div>
                     </td>
                   </tr>
                 );
