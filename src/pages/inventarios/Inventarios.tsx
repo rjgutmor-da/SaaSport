@@ -387,7 +387,7 @@ const Inventarios: React.FC = () => {
                 </button>
               </>
             )}
-            <button className="btn-refrescar" onClick={cargarDatos} disabled={cargando}>
+            <button className="btn-refrescar" onClick={() => cargarDatos(false)} disabled={cargando}>
               <RefreshCw size={16} className={cargando ? 'spin' : ''} />
             </button>
           </div>
