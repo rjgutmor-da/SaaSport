@@ -25,6 +25,7 @@ interface ItemConsolidado {
   saldo: number;
   ventasMesPresente: number;
   ventasMesPasado: number;
+  ventasTotales: number; // Nueva columna
   stock_id?: string;
   costo_unitario?: number | null;
   cuenta_ingreso_id?: string | null;
@@ -38,7 +39,7 @@ const Inventarios: React.FC = () => {
 
   // Datos
   const [items, setItems] = useState<ItemConsolidado[]>([]);
-  const [cargando, setCargando] = useState(true);
+  const [cargando, setCargando] = useState(() => !localStorage.getItem('saasport_inventario_cache'));
   const [error, setError] = useState<string | null>(null);
 
   const [cuentasIngreso, setCuentasIngreso] = useState<{ id: string; codigo: string; nombre: string }[]>([]);
@@ -73,15 +74,38 @@ const Inventarios: React.FC = () => {
 
   // Obtener contexto
   const obtenerCtx = async () => {
+    // Intentamos obtener escuela_id del localStorage para rapidez absoluta
+    const cached = localStorage.getItem('saasport_escuela_id');
+    if (cached) return { escuela_id: cached };
+
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return null;
     const { data } = await supabase.from('usuarios').select('id, escuela_id').eq('id', user.id).single();
+    if (data?.escuela_id) {
+      localStorage.setItem('saasport_escuela_id', data.escuela_id);
+    }
     return data;
   };
 
-  // Cargar datos
-  const cargarDatos = async () => {
-    setCargando(true);
+  // Cargar datos con Estrategia Caché (Instantánea)
+  const cargarDatos = async (usarCache = true) => {
+    // Si hay caché, lo mostramos de inmediato para que sea instantáneo
+    if (usarCache) {
+      const cache = localStorage.getItem('saasport_inventario_cache');
+      if (cache) {
+        try {
+          setItems(JSON.parse(cache));
+          // No ponemos cargando en true si ya tenemos datos, para no mostrar el spinner
+        } catch (e) {
+          console.error("Error al leer caché", e);
+        }
+      } else {
+        setCargando(true);
+      }
+    } else {
+      setCargando(true);
+    }
+    
     setError(null);
 
     const ctx = await obtenerCtx();
@@ -91,75 +115,47 @@ const Inventarios: React.FC = () => {
       return;
     }
 
-    const [resItems, resStock, resMovs, resCtasIngreso, resCtasGasto] = await Promise.all([
-      supabase.from('catalogo_items').select('*').eq('activo', true).eq('escuela_id', ctx.escuela_id).order('nombre'),
-      supabase.from('stock_productos').select('id, catalogo_item_id, cantidad_disponible').eq('escuela_id', ctx.escuela_id),
-      supabase.from('movimientos_stock').select('catalogo_item_id, cantidad, tipo, created_at').eq('escuela_id', ctx.escuela_id),
-      supabase.from('plan_cuentas').select('id, codigo, nombre').like('codigo', '4.%').eq('es_transaccional', true).or(`escuela_id.eq.${ctx.escuela_id},escuela_id.is.null`).order('codigo'),
-      supabase.from('plan_cuentas').select('id, codigo, nombre').like('codigo', '5.%').eq('es_transaccional', true).or(`escuela_id.eq.${ctx.escuela_id},escuela_id.is.null`).order('codigo')
-    ]);
+    try {
+      // Solo cargamos el inventario, ya no necesitamos plan_cuentas (mucho más rápido)
+      const { data: invData, error: invErr } = await supabase
+        .from('v_inventario')
+        .select('*')
+        .eq('escuela_id', ctx.escuela_id)
+        .order('nombre');
 
-    if (resItems.error) {
-      setError(resItems.error.message);
-      setCargando(false);
-      return;
-    }
+      if (invErr) throw invErr;
 
-    setCuentasIngreso(resCtasIngreso.data as any || []);
-    setCuentasGasto(resCtasGasto.data as any || []);
-
-    const catalogItems = resItems.data as CatalogoItem[];
-    const allStock = resStock.data || [];
-    const movimientos = resMovs.data || [];
-
-    const hoy = new Date();
-    const mesPresInicio = new Date(hoy.getFullYear(), hoy.getMonth(), 1).toISOString();
-    const mesPasInicio = new Date(hoy.getFullYear(), hoy.getMonth() - 1, 1).toISOString();
-    const mesPasFin = new Date(hoy.getFullYear(), hoy.getMonth(), 0, 23, 59, 59, 999).toISOString();
-
-    const mapVentasPres = new Map<string, number>();
-    const mapVentasPas = new Map<string, number>();
-
-    // Para "ventas", consideramos la salida de productos, multiplicada por precio de venta
-    // Si son servicios, quizás no se facturan a través de movimientos de stock actualmente.
-    // Usaremos salidas de stock para productos.
-    for (const mov of movimientos) {
-      if (mov.tipo === 'salida') {
-        const item = catalogItems.find(i => i.id === mov.catalogo_item_id);
-        const monto = mov.cantidad * (item?.precio_venta || 0);
-
-        if (mov.created_at >= mesPresInicio) {
-          mapVentasPres.set(mov.catalogo_item_id, (mapVentasPres.get(mov.catalogo_item_id) || 0) + monto);
-        } else if (mov.created_at >= mesPasInicio && mov.created_at <= mesPasFin) {
-          mapVentasPas.set(mov.catalogo_item_id, (mapVentasPas.get(mov.catalogo_item_id) || 0) + monto);
-        }
-      }
-    }
-
-    const itemsProcesados: ItemConsolidado[] = catalogItems.map(item => {
-      const st = allStock.find((s: any) => s.catalogo_item_id === item.id);
-      return {
+      const itemsProcesados: ItemConsolidado[] = (invData || []).map((item: any) => ({
         id: item.id,
         nombre: item.nombre,
         tipo: item.tipo,
         precio_venta: item.precio_venta,
-        costo_unitario: (item as any).costo_unitario,
-        saldo: st?.cantidad_disponible || 0,
-        stock_id: st?.id,
-        cuenta_ingreso_id: (item as any).cuenta_ingreso_id,
-        cuenta_gasto_id: (item as any).cuenta_gasto_id,
-        es_ingreso: (item as any).es_ingreso ?? true,
-        es_gasto: (item as any).es_gasto ?? false,
-        ventasMesPresente: mapVentasPres.get(item.id) || 0,
-        ventasMesPasado: mapVentasPas.get(item.id) || 0,
-      };
-    });
+        costo_unitario: item.costo_unitario,
+        saldo: item.saldo || 0,
+        stock_id: item.stock_id,
+        cuenta_ingreso_id: item.cuenta_ingreso_id,
+        cuenta_gasto_id: item.cuenta_gasto_id,
+        es_ingreso: item.es_ingreso,
+        es_gasto: item.es_gasto,
+        ventasMesPresente: item.ventas_mes_actual || 0,
+        ventasMesPasado: item.ventas_mes_anterior || 0,
+        ventasTotales: item.ventas_totales || 0,
+      }));
 
-    setItems(itemsProcesados);
-    setCargando(false);
+      // Guardamos en estado y en caché
+      setItems(itemsProcesados);
+      localStorage.setItem('saasport_inventario_cache', JSON.stringify(itemsProcesados));
+    } catch (e: any) {
+      console.error(e);
+      if (!items.length) setError(e.message);
+    } finally {
+      setCargando(false);
+    }
   };
 
-  useEffect(() => { cargarDatos(); }, []);
+  useEffect(() => {
+    cargarDatos();
+  }, []);
 
   // Lista Filtrada
   const itemsFiltrados = useMemo(() => {
@@ -348,50 +344,53 @@ const Inventarios: React.FC = () => {
   };
 
   return (
-    <main className="main-content cxc-main">
-      {/* ─── Header: Tarjeta de Arriba ─── */}
-      <div className="cxc-header-bar">
-        <div className="cxc-header-izq">
-          <button className="btn-volver" onClick={() => navigate('/')} title="Volver">
-            <ChevronLeft size={20} />
-          </button>
-          <div>
-            <h1 className="cxc-titulo-principal">Inventario</h1>
+    <main className="main-content cxc-main" style={{ 
+      paddingTop: 0, 
+      paddingBottom: '1rem', 
+      paddingLeft: '1.5rem', 
+      paddingRight: '1.5rem', 
+      margin: 0,
+      display: 'flex',
+      flexDirection: 'column',
+      justifyContent: 'flex-start',
+      alignItems: 'stretch',
+      minHeight: 'auto'
+    }}>
+      {/* ─── Barra de Control Simplificada ─── */}
+      <div className="cxc-barra-control" style={{ margin: 0, padding: '0.5rem 1.25rem' }}>
+        <div className="cxc-filtros-inline" style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <select
+              className="cxc-filtro-select"
+              value={filtroTipo}
+              onChange={e => setFiltroTipo(e.target.value)}
+              style={{ margin: 0 }}
+            >
+              <option value="">Todos los Tipos</option>
+              <option value="producto">Producto</option>
+              <option value="servicio">Servicio</option>
+            </select>
           </div>
-        </div>
-        <div className="cxc-header-acciones">
-          {!editando ? (
-            <button className="btn-nueva-cuenta" onClick={iniciarEdicion}>
-              <Edit2 size={16} /> Editar Catálogo
-            </button>
-          ) : (
-            <>
-              <button className="btn-guardar-cuenta" onClick={guardarCatalogo} disabled={guardandoItems}>
-                <Save size={16} /> {guardandoItems ? 'Guardando...' : 'Guardar'}
-              </button>
-              <button className="btn-refrescar" onClick={() => setEditando(false)} title="Cancelar">
-                <X size={16} />
-              </button>
-            </>
-          )}
-          <button className="btn-refrescar" onClick={cargarDatos} disabled={cargando}>
-            <RefreshCw size={18} className={cargando ? 'spin' : ''} />
-          </button>
-        </div>
-      </div>
 
-      {/* ─── Tarjeta 2: Filtros ─── */}
-      <div className="cxc-barra-control">
-        <div className="cxc-filtros-inline" style={{ width: '100%' }}>
-          <select
-            className="cxc-filtro-select"
-            value={filtroTipo}
-            onChange={e => setFiltroTipo(e.target.value)}
-          >
-            <option value="">Todos los Tipos</option>
-            <option value="producto">Producto</option>
-            <option value="servicio">Servicio</option>
-          </select>
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            {!editando ? (
+              <button className="btn-nueva-cuenta" onClick={iniciarEdicion} style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem' }}>
+                <Edit2 size={14} /> Editar Catálogo
+              </button>
+            ) : (
+              <>
+                <button className="btn-guardar-cuenta" onClick={guardarCatalogo} disabled={guardandoItems} style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem' }}>
+                  <Save size={14} /> {guardandoItems ? '...' : 'Guardar'}
+                </button>
+                <button className="btn-refrescar" onClick={() => setEditando(false)} title="Cancelar">
+                  <X size={14} />
+                </button>
+              </>
+            )}
+            <button className="btn-refrescar" onClick={cargarDatos} disabled={cargando}>
+              <RefreshCw size={16} className={cargando ? 'spin' : ''} />
+            </button>
+          </div>
         </div>
       </div>
 
@@ -403,163 +402,154 @@ const Inventarios: React.FC = () => {
 
       {/* Edición de Catálogo in-line (se reemplaza si estamos editando) */}
       {editando ? (
-        <div className="cxc-tabla-wrapper" style={{ padding: '1rem', background: 'var(--bg-primary)', border: '1px solid var(--border-color)', borderRadius: '12px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '1rem' }}>
-              <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', background: 'var(--bg-secondary)', padding: '0.25rem 0.75rem', borderRadius: '20px', fontWeight: 600 }}>
-                {itemsEditables.length} ítems en catálogo
-              </span>
-            </div>
-
-            {/* Encabezados de Columna */}
-            <div style={{ 
-              display: 'grid', 
-              gridTemplateColumns: '1.5fr 90px 70px 70px 1.2fr 1.2fr 90px 32px', 
-              gap: '0.4rem', 
-              padding: '0 0.4rem 0.4rem 0.4rem',
-              borderBottom: '1px solid var(--border-color)',
-              marginBottom: '0.5rem',
-              color: 'var(--text-secondary)',
-              fontSize: '0.65rem',
-              fontWeight: 700,
-              textTransform: 'uppercase',
-              letterSpacing: '0.05em'
-            }}>
-              <div>Nombre</div>
-              <div>Tipo</div>
-              <div style={{ textAlign: 'right' }}>Venta</div>
-              <div style={{ textAlign: 'right' }}>Costo</div>
-              <div>Cuenta Ingreso</div>
-              <div>Cuenta Egreso</div>
-              <div style={{ textAlign: 'center' }}>Clasif.</div>
-              <div></div>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+        <div className="cxc-tabla-wrapper">
+          <table className="cxc-tabla">
+            <thead>
+              <tr>
+                <th className="cxc-th" style={{ width: '40%' }}>Nombre del Ítem</th>
+                <th className="cxc-th" style={{ width: '15%' }}>Tipo</th>
+                <th className="cxc-th cxc-th-center" style={{ width: '15%' }}>P. Venta (Bs)</th>
+                <th className="cxc-th cxc-th-center" style={{ width: '15%' }}>Costo U. (Bs)</th>
+                <th className="cxc-th" style={{ width: '50px' }}></th>
+              </tr>
+            </thead>
+            <tbody>
               {itemsEditables.map((item, idx) => (
-                <div key={idx} style={{ 
-                  display: 'grid', 
-                  gridTemplateColumns: '1.5fr 90px 70px 70px 1.2fr 1.2fr 90px 32px', 
-                  gap: '0.4rem', 
-                  alignItems: 'center', 
-                  background: 'rgba(255,255,255,0.02)', 
-                  padding: '0.3rem 0.4rem', 
-                  borderRadius: '6px',
-                  border: '1px solid rgba(255,255,255,0.04)'
-                }}>
-                  <input
-                    type="text"
-                    value={item.nombre}
-                    onChange={e => actualizarItemEditable(idx, 'nombre', e.target.value)}
-                    placeholder="Ej. Polera"
-                    style={{ background: '#111', border: '1px solid #333', padding: '0.4rem', borderRadius: '4px', fontSize: '0.85rem', color: '#fff' }}
-                    disabled={guardandoItems}
-                  />
-                  <select
-                    value={item.tipo}
-                    onChange={e => actualizarItemEditable(idx, 'tipo', e.target.value)}
-                    style={{ background: '#111', border: '1px solid #333', padding: '0.4rem', borderRadius: '4px', fontSize: '0.85rem', color: '#fff' }}
-                    disabled={guardandoItems}
-                  >
-                    <option value="servicio">Servicio</option>
-                    <option value="producto">Producto</option>
-                  </select>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={item.precio_venta}
-                    onChange={e => actualizarItemEditable(idx, 'precio_venta', e.target.value)}
-                    placeholder="0.00"
-                    style={{ background: '#111', border: '1px solid #333', padding: '0.3rem', borderRadius: '4px', fontSize: '0.8rem', color: '#fff', textAlign: 'right', width: '100%' }}
-                    disabled={guardandoItems}
-                  />
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={item.costo_unitario}
-                    onChange={e => actualizarItemEditable(idx, 'costo_unitario', e.target.value)}
-                    placeholder="0.00"
-                    style={{ background: '#111', border: '1px solid #333', padding: '0.3rem', borderRadius: '4px', fontSize: '0.8rem', color: '#fff', textAlign: 'right', width: '100%' }}
-                    disabled={guardandoItems}
-                  />
-                  <select
-                    value={item.cuenta_ingreso_id}
-                    onChange={e => actualizarItemEditable(idx, 'cuenta_ingreso_id', e.target.value)}
-                    style={{ background: '#111', border: '1px solid #333', padding: '0.4rem', borderRadius: '4px', fontSize: '0.8rem', color: '#fff', maxWidth: '100%' }}
-                    disabled={guardandoItems}
-                  >
-                    <option value="" style={{ background: '#222' }}>(Ingreso)</option>
-                    {cuentasIngreso.map(c => <option key={c.id} value={c.id} style={{ background: '#222' }}>{c.codigo} {c.nombre}</option>)}
-                  </select>
-                  <select
-                    value={item.cuenta_gasto_id}
-                    onChange={e => actualizarItemEditable(idx, 'cuenta_gasto_id', e.target.value)}
-                    style={{ background: '#111', border: '1px solid #333', padding: '0.4rem', borderRadius: '4px', fontSize: '0.8rem', color: '#fff', maxWidth: '100%' }}
-                    disabled={guardandoItems}
-                  >
-                    <option value="" style={{ background: '#222' }}>(Gasto)</option>
-                    {cuentasGasto.map(c => <option key={c.id} value={c.id} style={{ background: '#222' }}>{c.codigo} {c.nombre}</option>)}
-                  </select>
-
-                  <div style={{ display: 'flex', gap: '2px', justifyContent: 'center' }}>
-                    <button
-                      type="button"
-                      onClick={() => actualizarItemEditable(idx, 'es_ingreso', (!item.es_ingreso) as any)}
-                      style={{
-                        flex: 1,
-                        padding: '6px 0',
-                        fontSize: '0.6rem',
-                        fontWeight: 800,
-                        borderRadius: '3px',
-                        border: '1px solid ' + (item.es_ingreso ? '#10b981' : '#333'),
-                        background: item.es_ingreso ? 'rgba(16, 185, 129, 0.2)' : '#000',
-                        color: item.es_ingreso ? '#10b981' : '#555',
-                        cursor: 'pointer'
+                <tr key={idx} className="cxc-tr">
+                  <td className="cxc-td" style={{ padding: 0 }}>
+                    <input
+                      type="text"
+                      value={item.nombre}
+                      onChange={e => actualizarItemEditable(idx, 'nombre', e.target.value)}
+                      placeholder="Ej. Polera"
+                      style={{ 
+                        width: '100%', 
+                        height: '100%', 
+                        background: 'transparent', 
+                        border: 'none', 
+                        padding: '0.75rem', 
+                        color: 'var(--text-primary)',
+                        fontSize: 'inherit'
                       }}
-                      title="Item de Ingreso"
-                    >
-                      ING
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => actualizarItemEditable(idx, 'es_gasto', (!item.es_gasto) as any)}
-                      style={{
-                        flex: 1,
-                        padding: '6px 0',
-                        fontSize: '0.6rem',
-                        fontWeight: 800,
-                        borderRadius: '3px',
-                        border: '1px solid ' + (item.es_gasto ? '#ef4444' : '#333'),
-                        background: item.es_gasto ? 'rgba(239, 68, 68, 0.2)' : '#000',
-                        color: item.es_gasto ? '#ef4444' : '#555',
-                        cursor: 'pointer'
+                      disabled={guardandoItems}
+                    />
+                  </td>
+                  <td className="cxc-td" style={{ padding: 0 }}>
+                    <select
+                      value={item.tipo}
+                      onChange={e => actualizarItemEditable(idx, 'tipo', e.target.value)}
+                      style={{ 
+                        width: '100%', 
+                        height: '100%', 
+                        background: 'rgba(255,255,255,0.03)', 
+                        border: 'none', 
+                        padding: '0.75rem', 
+                        color: 'var(--text-primary)',
+                        fontSize: 'inherit',
+                        cursor: 'pointer',
+                        appearance: 'none', // Quita la flecha nativa para un look más limpio
+                        textAlign: 'center'
                       }}
-                      title="Item de Gasto"
+                      disabled={guardandoItems}
                     >
-                      GAS
+                      <option value="servicio" style={{ background: '#1a1a1a', color: '#fff' }}>Servicio</option>
+                      <option value="producto" style={{ background: '#1a1a1a', color: '#fff' }}>Producto</option>
+                    </select>
+                  </td>
+                  <td className="cxc-td" style={{ padding: 0 }}>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={item.precio_venta}
+                      onChange={e => actualizarItemEditable(idx, 'precio_venta', e.target.value)}
+                      placeholder="0.00"
+                      style={{ 
+                        width: '100%', 
+                        height: '100%', 
+                        background: 'transparent', 
+                        border: 'none', 
+                        padding: '0.75rem', 
+                        color: 'var(--text-primary)',
+                        fontSize: 'inherit',
+                        textAlign: 'center'
+                      }}
+                      disabled={guardandoItems}
+                    />
+                  </td>
+                  <td className="cxc-td" style={{ padding: 0 }}>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={item.costo_unitario}
+                      onChange={e => actualizarItemEditable(idx, 'costo_unitario', e.target.value)}
+                      placeholder="0.00"
+                      style={{ 
+                        width: '100%', 
+                        height: '100%', 
+                        background: 'transparent', 
+                        border: 'none', 
+                        padding: '0.75rem', 
+                        color: 'var(--text-primary)',
+                        fontSize: 'inherit',
+                        textAlign: 'center'
+                      }}
+                      disabled={guardandoItems}
+                    />
+                  </td>
+                  <td className="cxc-td cxc-td-center" style={{ padding: 0 }}>
+                    <button
+                      onClick={() => eliminarItemEditable(idx)}
+                      disabled={guardandoItems}
+                      style={{ 
+                        background: 'none', 
+                        border: 'none', 
+                        color: 'var(--danger)', 
+                        cursor: 'pointer',
+                        padding: '0.5rem',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        width: '100%'
+                      }}
+                      title="Eliminar ítem"
+                    >
+                      <Trash2 size={16} />
                     </button>
-                  </div>
-
-                  <button
-                    onClick={() => eliminarItemEditable(idx)}
-                    disabled={guardandoItems}
-                    style={{ background: 'rgba(239, 68, 68, 0.15)', color: '#f87171', height: '32px', width: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '4px', border: 'none', cursor: 'pointer' }}
-                    title="Eliminar ítem"
-                  >
-                    <Trash2 size={14} />
-                  </button>
-                </div>
+                  </td>
+                </tr>
               ))}
-            </div>
-            <button
-              onClick={agregarItem}
-              disabled={guardandoItems}
-                style={{ alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--primary)', fontWeight: 600, padding: '0.5rem', marginTop: '0.5rem', cursor: 'pointer', background: 'none' }}
-              >
-                <Plus size={16} /> Agregar ítem nuevo
-              </button>
+              <tr>
+                <td colSpan={5} className="cxc-td" style={{ padding: '0.5rem' }}>
+                  <button
+                    onClick={agregarItem}
+                    disabled={guardandoItems}
+                    style={{ 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      gap: '0.4rem', 
+                      color: 'var(--primary)', 
+                      fontWeight: 600, 
+                      padding: '0.5rem', 
+                      cursor: 'pointer', 
+                      background: 'none',
+                      border: 'none',
+                      fontSize: '0.85rem'
+                    }}
+                  >
+                    <Plus size={16} /> Agregar ítem nuevo
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          <div style={{ padding: '0.75rem', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end', background: 'var(--bg-main)' }}>
+            <span style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', fontWeight: 600 }}>
+              {itemsEditables.length} ítems en catálogo
+            </span>
           </div>
+        </div>
       ) : (
         /* Tarjeta 3: Tabla Correspondiente */
         <>
@@ -581,10 +571,9 @@ const Inventarios: React.FC = () => {
                     <th className="cxc-th">Nombre de Ítem</th>
                     <th className="cxc-th">Tipo</th>
                     <th className="cxc-th cxc-th-center">Precio (Bs)</th>
-                    <th className="cxc-th cxc-th-center">Saldo</th>
                     <th className="cxc-th cxc-th-right">Ventas Mes (Actual)</th>
                     <th className="cxc-th cxc-th-right">Ventas Mes (Pasado)</th>
-                    <th className="cxc-th cxc-th-acciones">Acciones</th>
+                    <th className="cxc-th cxc-th-right">Ventas Totales</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -608,15 +597,6 @@ const Inventarios: React.FC = () => {
                       <td className="cxc-td cxc-td-center">
                         {fmtMonto(item.precio_venta)}
                       </td>
-                      <td className="cxc-td cxc-td-center">
-                        {item.tipo === 'producto' ? (
-                          <span style={{ fontWeight: 600, color: item.saldo <= 0 ? '#ef4444' : 'var(--text-primary)' }}>
-                            {item.saldo}
-                          </span>
-                        ) : (
-                          <span style={{ color: 'var(--text-tertiary)' }}>—</span>
-                        )}
-                      </td>
                       <td className="cxc-td cxc-td-right">
                         Bs {fmtMonto(item.ventasMesPresente)}
                       </td>
@@ -625,29 +605,8 @@ const Inventarios: React.FC = () => {
                           Bs {fmtMonto(item.ventasMesPasado)}
                         </span>
                       </td>
-                      <td className="cxc-td cxc-td-acciones" onClick={e => e.stopPropagation()}>
-                        {item.tipo === 'producto' ? (
-                          <>
-                            <button
-                              className="cxc-accion-btn"
-                              style={{ color: 'var(--success)', background: 'var(--success-bg)' }}
-                              onClick={() => { setMovItemId(item.id); setMovTipo('entrada'); }}
-                              title="Registrar Entrada"
-                            >
-                              <ArrowUpCircle size={14} /> Entrada
-                            </button>
-                            <button
-                              className="cxc-accion-btn"
-                              style={{ color: 'var(--danger)', background: 'var(--danger-bg)' }}
-                              onClick={() => { setMovItemId(item.id); setMovTipo('salida'); }}
-                              title="Registrar Salida"
-                            >
-                              <ArrowDownCircle size={14} /> Salida
-                            </button>
-                          </>
-                        ) : (
-                          <span style={{ fontSize: '0.8rem', color: 'var(--text-tertiary)' }}>Sin acciones</span>
-                        )}
+                      <td className="cxc-td cxc-td-right" style={{ fontWeight: 600, color: 'var(--primary)' }}>
+                        Bs {fmtMonto(item.ventasTotales)}
                       </td>
                     </tr>
                   ))}
