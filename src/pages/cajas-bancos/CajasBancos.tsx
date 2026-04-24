@@ -118,50 +118,28 @@ const CajasBancos: React.FC = () => {
     const { data: entPersonal } = await supabase.from('personal').select('*').eq('escuela_id', eid);
     
     const listEnt: EntidadCxP[] = [
-      ...(entProveedores?.map(p => ({ id: p.id, nombre: p.nombre, tipo: 'proveedor' as const, saldo_pendiente: 0 })) || []),
-      ...(entPersonal?.map(p => ({ id: p.id, nombre: `${p.nombres} ${p.apellidos}`, tipo: 'personal' as const, saldo_pendiente: 0 })) || [])
+      ...(entProveedores?.map(p => ({ 
+        id: p.id, 
+        nombre: p.nombre, 
+        tipo: 'proveedor' as const, 
+        saldo_pendiente: 0,
+        categoria: 'Proveedor',
+        notas_pendientes: 0,
+        fecha_mas_antigua: null
+      })) || []),
+      ...(entPersonal?.map(p => ({ 
+        id: p.id, 
+        nombre: `${p.nombres} ${p.apellidos}`, 
+        tipo: 'personal' as const, 
+        saldo_pendiente: 0,
+        categoria: 'Personal',
+        notas_pendientes: 0,
+        fecha_mas_antigua: null
+      })) || [])
     ];
     setEntidades(listEnt);
 
     setMovimientos([]);
-    setCargando(false);
-    return;
-
-    const movsList: MovimientoExtendido[] = (dataMovs ?? []).map((m: any) => {
-      const asiento = m.asientos_contables;
-      let descDinamica = asiento?.descripcion || 'Sin descripción';
-
-      const cobro = asiento?.cobros_aplicados?.[0]?.cuenta_cobrar;
-      if (cobro?.alumno) {
-        descDinamica = `Pago de: ${cobro.alumno.nombres} ${cobro.alumno.apellidos}`;
-      } else {
-        const pago = asiento?.pagos_aplicados?.[0]?.cuenta_pagar;
-        if (pago?.proveedor) {
-          descDinamica = `Pago a: ${pago.proveedor.nombre}`;
-        } else if (pago?.personal) {
-          descDinamica = `Pago a: ${pago.personal.nombres} ${pago.personal.apellidos}`;
-        }
-      }
-
-      return {
-        id: m.id,
-        debe: Number(m.debe),
-        haber: Number(m.haber),
-        fecha: asiento?.fecha,
-        descripcion: descDinamica,
-        nro_transaccion: asiento?.nro_transaccion || '',
-        asiento_id: asiento?.id,
-        cuenta_id: m.cuenta_contable_id,
-        cuenta_nombre: listCajas.find((c: any) => c.id === m.cuenta_contable_id)?.nombre || 'Desconocida',
-        conciliado: m.conciliado || false
-      };
-    }).sort((a, b) => {
-      const db = a.fecha ? new Date(a.fecha).getTime() : 0;
-      const da = b.fecha ? new Date(b.fecha).getTime() : 0;
-      return da - db;
-    });
-
-    setMovimientos(movsList);
     setCargando(false);
   }, [escuelaId, obtenerEscuelaId]);
 
