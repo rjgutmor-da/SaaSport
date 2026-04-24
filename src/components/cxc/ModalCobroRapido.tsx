@@ -6,7 +6,7 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import type { AlumnoDeuda, CuentaCobrar } from '../../types/cxc';
-import type { CuentaContable } from '../../types/finanzas';
+import type { CajaBanco } from '../../types/finanzas';
 import { X, CreditCard, AlertCircle, Check, MessageCircle, Users, FileText, RefreshCw, DollarSign, Building2, Info, Calendar, Hash } from 'lucide-react';
 
 /** Formatea un número como moneda (Bs) */
@@ -25,7 +25,7 @@ const ModalCobroRapido: React.FC<Props> = ({ alumnoInicial, visible, onCerrar, o
   const [alumnoSel, setAlumnoSel] = useState<AlumnoDeuda | null>(alumnoInicial);
   const [cxcsPendientes, setCxcsPendientes] = useState<CuentaCobrar[]>([]);
   const [cxcSelId, setCxcSelId] = useState('');
-  const [cuentasCobro, setCuentasCobro] = useState<CuentaContable[]>([]);
+  const [cuentasCobro, setCuentasCobro] = useState<CajaBanco[]>([]);
 
   const [monto, setMonto] = useState('');
   const [metodo, setMetodo] = useState('efectivo');
@@ -62,14 +62,12 @@ const ModalCobroRapido: React.FC<Props> = ({ alumnoInicial, visible, onCerrar, o
         .eq('escuela_id', usr.escuela_id);
       setAlumnos((listaAlumnos as unknown as AlumnoDeuda[]) ?? []);
 
-      // Cargar cuentas contables disponibles
-      let q = supabase.from('plan_cuentas').select('*')
-        .eq('es_transaccional', true)
-        .or('codigo.like.1.1.1.%,codigo.like.1.1.2.%');
+      // Cargar cuentas (Cajas y Bancos) disponibles
+      let q = supabase.from('cajas_bancos').select('*').eq('activo', true);
       if (!esAdmin && usr.sucursal_id) {
         q = q.or(`sucursal_id.eq.${usr.sucursal_id},sucursal_id.is.null`);
       }
-      const { data: cuentas } = await q.order('codigo');
+      const { data: cuentas } = await q.order('nombre');
       setCuentasCobro(cuentas ?? []);
       if (cuentas && cuentas.length > 0) setCuentaId(cuentas[0].id);
     };
