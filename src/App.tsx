@@ -19,7 +19,7 @@ import Dashboard from './pages/Dashboard';
 import Login from './pages/Login';
 import CuentasCobrar from './pages/cxc/CuentasCobrar';
 import CuentasPagar from './pages/cxp/CuentasPagar';
-import Inventarios from './pages/inventarios/Inventarios';
+import Cuentas from './pages/cuentas/Cuentas';
 import Configuraciones from './pages/config/Configuraciones';
 import AuditLog from './pages/config/AuditLog';
 import PanelEscuela from './pages/config/PanelEscuela';
@@ -79,9 +79,9 @@ const Sidebar: React.FC<SidebarProps> = ({ onLogout, theme, onCycleTheme, extra 
         </div>
 
         <div className="sidebar-item-group">
-          <NavLink to="/inventarios" className={({ isActive }) => (isActive ? 'sidebar-link active' : 'sidebar-link')}>
-            <Package size={20} strokeWidth={1.5} />
-            <span>Inventarios</span>
+          <NavLink to="/cuentas" className={({ isActive }) => (isActive ? 'sidebar-link active' : 'sidebar-link')}>
+            <BookOpen size={20} strokeWidth={1.5} />
+            <span>Cuentas</span>
           </NavLink>
         </div>
 
@@ -206,7 +206,7 @@ const AppRouter: React.FC<AppRouterProps> = ({ onLogout, theme, onCycleTheme }) 
 
           <Route path="/cxc" element={<CuentasCobrar />} />
           <Route path="/cxp" element={<CuentasPagar />} />
-          <Route path="/inventarios" element={<Inventarios />} />
+          <Route path="/cuentas" element={<Cuentas />} />
           <Route path="/cajas-bancos" element={<CajasBancos />} />
 
           {/* Configuraciones */}

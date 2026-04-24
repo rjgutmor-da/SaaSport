@@ -23,8 +23,8 @@ const ICONOS_TIPO: Record<TipoCuenta, React.ReactNode> = {
 };
 
 /** Formatea un número como moneda (Bs) */
-const fmtMonto = (n: number): string =>
-  n.toLocaleString('es-BO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const fmtMonto = (n: number | null | undefined): string =>
+  n != null ? n.toLocaleString('es-BO', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—';
 
 const PlanCuentas: React.FC = () => {
   const navigate = useNavigate();
@@ -457,7 +457,7 @@ const PlanCuentas: React.FC = () => {
                 <span style={{ color: colores.texto }}>{ICONOS_TIPO[tipo]}</span>
                 <span className="cxc-mini-label" style={{ fontSize: '0.75rem' }}>{ETIQUETAS_TIPO[tipo]}</span>
               </div>
-              <span className="cxc-mini-num" style={{ fontSize: '1.1rem' }}>Bs {total.toFixed(2)}</span>
+              <span className="cxc-mini-num" style={{ fontSize: '1.1rem' }}>Bs {fmtMonto(total)}</span>
               <span style={{ fontSize: '0.65rem', color: 'var(--text-tertiary)' }}>{cantidad} cuentas</span>
             </div>
           );

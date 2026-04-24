@@ -4,19 +4,8 @@
  * Incluye tipos para catálogo de ítems, detalle de notas y vista agrupada.
  */
 
-/** Ítem del catálogo (producto o servicio) */
-export interface CatalogoItem {
-  id: string;
-  escuela_id: string;
-  nombre: string;
-  tipo: 'producto' | 'servicio';
-  precio_venta: number | null;
-  costo_unitario?: number | null;
-  cuenta_ingreso_id?: string | null;
-  cuenta_gasto_id?: string | null;
-  activo: boolean;
-  created_at: string;
-}
+/** Ítem del catálogo (re-exportado desde cuentas para evitar duplicados) */
+export type { CatalogoItem } from './cuentas';
 
 /** Línea de detalle de una Nota de Servicios */
 export interface CxcDetalle {

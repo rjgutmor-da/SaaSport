@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { ClipboardList, HandCoins, PieChart, Shirt, TrendingUp, Landmark } from 'lucide-react';
+import { ClipboardList, HandCoins, PieChart, Shirt, TrendingUp, Landmark, BookOpen } from 'lucide-react';
 import { navegarAAsisport } from '../lib/navegacion';
 
 const Dashboard = () => {
@@ -30,6 +30,14 @@ const Dashboard = () => {
             <Landmark size={100} strokeWidth={1.2} />
           </div>
           <span className="card-title">Cajas y Bancos</span>
+        </button>
+
+        {/* 5. Cuentas (Catálogo) */}
+        <button className="dashboard-hero-card hover-color-blue" onClick={() => navigate('/cuentas')}>
+          <div className="card-icon">
+            <BookOpen size={100} strokeWidth={1.2} />
+          </div>
+          <span className="card-title">Cuentas</span>
         </button>
 
       </div>
