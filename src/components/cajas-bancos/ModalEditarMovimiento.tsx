@@ -7,7 +7,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import { X, Pencil, DollarSign, Calendar, Hash, AlignLeft, Building2, AlertCircle, Save, RefreshCw, Check } from 'lucide-react';
 import { getHoyISO } from '../../lib/dateUtils';
-import type { CuentaContable } from '../../types/finanzas';
+import type { CajaBanco } from '../../types/finanzas';
 
 interface MovimientoExtendido {
   id: string;
@@ -25,7 +25,7 @@ interface MovimientoExtendido {
 interface Props {
   visible: boolean;
   movimiento: MovimientoExtendido | null;
-  cajas: CuentaContable[];
+  cajas: CajaBanco[];
   onCerrar: () => void;
   onGuardado: () => void;
 }
