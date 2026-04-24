@@ -2,12 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import { X, ArrowDownRight, ArrowUpRight, DollarSign, Calendar, Hash, AlignLeft, Building2, Tag, AlertCircle, Save, RefreshCw } from 'lucide-react';
 import { getHoyISO } from '../../lib/dateUtils';
-import type { CuentaContable } from '../../types/finanzas';
+import type { CajaBanco } from '../../types/finanzas';
+import type { CatalogoItem } from '../../types/cuentas';
 
 interface Props {
   visible: boolean;
   tipo: 'ingreso' | 'salida';
-  cajas: CuentaContable[];
+  cajas: CajaBanco[];
   onCerrar: () => void;
   onCreado: () => void;
   setFormDirty: (dirty: boolean) => void;
@@ -24,7 +25,7 @@ const ModalMovimientoDirecto: React.FC<Props> = ({ visible, tipo, cajas, onCerra
   const [descripcion, setDescripcion] = useState('');
   const [nroTransaccion, setNroTransaccion] = useState('');
 
-  const [todasLasCuentas, setTodasLasCuentas] = useState<CuentaContable[]>([]);
+  const [todasLasCuentas, setTodasLasCuentas] = useState<CatalogoItem[]>([]);
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -52,22 +53,22 @@ const ModalMovimientoDirecto: React.FC<Props> = ({ visible, tipo, cajas, onCerra
     const { data: perfil } = await supabase.from('usuarios').select('escuela_id').eq('id', user.id).single();
     if (!perfil?.escuela_id) return;
 
-    // Filtrar cuentas: Ingreso -> tipo 'ingreso', Salida -> tipo 'gasto'
-    let query = supabase
-      .from('plan_cuentas')
-      .select('id, codigo, nombre, tipo')
-      .or(`escuela_id.eq.${perfil.escuela_id},escuela_id.is.null`)
-      .eq('es_transaccional', true);
+    // Filtrar items del catálogo: Ingreso -> tipo_movimiento 'ingreso' o 'ambos', Salida -> 'egreso' o 'ambos'
+    const query = supabase
+      .from('catalogo_items')
+      .select('*')
+      .eq('escuela_id', perfil.escuela_id)
+      .eq('activo', true);
     
     if (isIngreso) {
-      query = query.eq('tipo', 'ingreso');
+      query.in('tipo_movimiento', ['ingreso', 'ambos']);
     } else {
-      query = query.eq('tipo', 'gasto');
+      query.in('tipo_movimiento', ['egreso', 'ambos']);
     }
 
-    const { data } = await query.order('codigo');
+    const { data } = await query.order('nombre');
 
-    if (data) setTodasLasCuentas(data as CuentaContable[]);
+    if (data) setTodasLasCuentas(data as CatalogoItem[]);
   };
 
   if (!visible) return null;
@@ -94,42 +95,75 @@ const ModalMovimientoDirecto: React.FC<Props> = ({ visible, tipo, cajas, onCerra
       const escuelaId = perfil?.escuela_id;
       if (!escuelaId) throw new Error('No se pudo determinar la escuela.');
 
-      // 2. Cabecera (Asiento contable)
-      const { data: asiento, error: errAsiento } = await supabase.from('asientos_contables').insert({
-        escuela_id: escuelaId,
-        usuario_id: user.id,
-        fecha,
-        descripcion,
-        metodo_pago: 'efectivo',
-        nro_transaccion: nroTransaccion.trim() || null
-      }).select().single();
+      // 2. Crear el registro maestro (CxC o CxP)
+      if (isIngreso) {
+        // --- FLUJO INGRESO ---
+        const { data: cxc, error: errCxC } = await supabase.from('cuentas_cobrar').insert({
+          escuela_id: escuelaId,
+          monto_total: valorMonto,
+          estado: 'pagada',
+          descripcion: descripcion,
+          nro_recibo: nroTransaccion.trim() || null,
+          fecha_emision: fecha
+        }).select().single();
 
-      if (errAsiento || !asiento) throw new Error('Error al registrar el comprobante.');
+        if (errCxC || !cxc) throw new Error('Error al registrar la cuenta por cobrar: ' + errCxC?.message);
 
-      // 3. Movimientos (Partida doble)
-      // Ingreso: Caja (Debe) , Contra-cuenta (Haber)
-      // Salida:  Caja (Haber), Contra-cuenta (Debe)
+        // Detalle del ítem
+        await supabase.from('cxc_detalle').insert({
+          escuela_id: escuelaId,
+          cuenta_cobrar_id: cxc.id,
+          catalogo_item_id: contraCuentaId,
+          cantidad: 1,
+          precio_unitario: valorMonto
+        });
+
+        // Aplicar cobro a caja
+        await supabase.from('cobros_aplicados').insert({
+          escuela_id: escuelaId,
+          cuenta_cobrar_id: cxc.id,
+          caja_id: cajaId,
+          monto_aplicado: valorMonto,
+          fecha: new Date(fecha + 'T12:00:00Z').toISOString()
+        });
+
+      } else {
+        // --- FLUJO EGRESO ---
+        const { data: cxp, error: errCxP } = await supabase.from('cuentas_pagar').insert({
+          escuela_id: escuelaId,
+          monto_total: valorMonto,
+          estado: 'pagada',
+          descripcion: descripcion,
+          fecha_emision: fecha,
+          tipo_gasto: 'gasto_corriente'
+        }).select().single();
+
+        if (errCxP || !cxp) throw new Error('Error al registrar la cuenta por pagar: ' + errCxP?.message);
+
+        // Detalle del ítem
+        await supabase.from('cxp_detalle').insert({
+          escuela_id: escuelaId,
+          cuenta_pagar_id: cxp.id,
+          catalogo_item_id: contraCuentaId,
+          cantidad: 1,
+          precio_unitario: valorMonto
+        });
+
+        // Aplicar pago de caja
+        await supabase.from('pagos_aplicados').insert({
+          escuela_id: escuelaId,
+          cuenta_pagar_id: cxp.id,
+          caja_id: cajaId,
+          monto_aplicado: valorMonto,
+          fecha: new Date(fecha + 'T12:00:00Z').toISOString()
+        });
+      }
+
+      // 3. Actualizar Saldo de Caja
+      const { data: cajaData } = await supabase.from('cajas_bancos').select('saldo_actual').eq('id', cajaId).single();
+      const nuevoSaldo = (Number(cajaData?.saldo_actual) || 0) + (isIngreso ? valorMonto : -valorMonto);
       
-      const cajaMov = {
-        escuela_id: escuelaId,
-        asiento_id: asiento.id,
-        cuenta_contable_id: cajaId,
-        debe: isIngreso ? valorMonto : 0,
-        haber: isIngreso ? 0 : valorMonto,
-        conciliado: false
-      };
-
-      const contraMov = {
-        escuela_id: escuelaId,
-        asiento_id: asiento.id,
-        cuenta_contable_id: contraCuentaId,
-        debe: isIngreso ? 0 : valorMonto,
-        haber: isIngreso ? valorMonto : 0,
-        conciliado: false
-      };
-
-      const { error: errMovs } = await supabase.from('movimientos_contables').insert([cajaMov, contraMov]);
-      if (errMovs) throw new Error('Error al registrar los movimientos: ' + errMovs.message);
+      await supabase.from('cajas_bancos').update({ saldo_actual: nuevoSaldo }).eq('id', cajaId);
 
       setFormDirty(false);
       onCreado();
@@ -169,7 +203,7 @@ const ModalMovimientoDirecto: React.FC<Props> = ({ visible, tipo, cajas, onCerra
             <div className="form-campo full-width">
               <label><Building2 size={14} /> Caja o Banco *</label>
               <select value={cajaId} onChange={e => handleInputChange(setCajaId, e.target.value)} required disabled={guardando}>
-                <option value="">Seleccione cuenta transaccional...</option>
+                <option value="">Seleccione</option>
                 {cajas.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
               </select>
             </div>
@@ -178,7 +212,7 @@ const ModalMovimientoDirecto: React.FC<Props> = ({ visible, tipo, cajas, onCerra
             <div className="form-campo">
               <label><Tag size={14} /> Concepto de {isIngreso ? 'Ingreso' : 'Salida'} *</label>
               <select value={contraCuentaId} onChange={e => handleInputChange(setContraCuentaId, e.target.value)} required disabled={guardando}>
-                <option value="">Seleccione concepto...</option>
+                <option value="">Seleccione</option>
                 {todasLasCuentas.map(c => (
                   <option key={c.id} value={c.id}>{c.nombre}</option>
                 ))}
@@ -217,7 +251,7 @@ const ModalMovimientoDirecto: React.FC<Props> = ({ visible, tipo, cajas, onCerra
                 value={nroTransaccion}
                 onChange={e => handleInputChange(setNroTransaccion, e.target.value)}
                 disabled={guardando}
-                placeholder="Ej: 00123, REC-001..."
+                placeholder=""
               />
             </div>
 
@@ -230,7 +264,7 @@ const ModalMovimientoDirecto: React.FC<Props> = ({ visible, tipo, cajas, onCerra
                 disabled={guardando} 
                 placeholder="Descripción del movimiento"
                 maxLength={255}
-                style={{ resize: 'vertical', minHeight: '60px' }}
+                style={{ resize: 'vertical', minHeight: '120px', width: '100%' }}
               />
             </div>
           </div>

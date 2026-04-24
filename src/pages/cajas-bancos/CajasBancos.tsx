@@ -2,12 +2,16 @@ import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import { ChevronLeft, Search, RefreshCw, Landmark, ArrowDownRight, ArrowUpRight, CheckCircle2, ArrowRightLeft, CheckSquare, Square, Pencil } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import type { CuentaContable, MovimientoContable, AsientoContable } from '../../types/finanzas';
+import type { CajaBanco, MovimientoContable, AsientoContable } from '../../types/finanzas';
 import ModalTransferencia from '../../components/cajas-bancos/ModalTransferencia';
 import ModalMovimientoDirecto from '../../components/cajas-bancos/ModalMovimientoDirecto';
 import ModalEditarMovimiento from '../../components/cajas-bancos/ModalEditarMovimiento';
 import ModalDetalleMovimiento from '../../components/cajas-bancos/ModalDetalleMovimiento';
+import ModalNuevaCaja from '../../components/cajas-bancos/ModalNuevaCaja';
+import ModalCobroRapido from '../../components/cxc/ModalCobroRapido';
+import ModalPagoRapidoCxP from '../../components/cxp/ModalPagoRapidoCxP';
 import { formatFecha } from '../../lib/dateUtils';
+import type { EntidadCxP } from '../../types/cxp';
 
 import { SidebarContext } from '../../App';
 import { useContext } from 'react';
@@ -35,7 +39,7 @@ const CajasBancos: React.FC = () => {
   const { setExtra } = useContext(SidebarContext);
 
   // Estados
-  const [cajas, setCajas] = useState<CuentaContable[]>([]);
+  const [cajas, setCajas] = useState<CajaBanco[]>([]);
   const [movimientos, setMovimientos] = useState<MovimientoExtendido[]>([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -49,12 +53,17 @@ const CajasBancos: React.FC = () => {
   const [userRol, setUserRol] = useState<string>('');
   
   // Estados para formularios activos
-  const [activeForm, setActiveForm] = useState<'ingreso' | 'salida' | 'transferencia' | null>(null);
+  const [activeForm, setActiveForm] = useState<'ingreso' | 'salida' | 'transferencia' | 'nueva_caja' | null>(null);
   const [formDirty, setFormDirty] = useState(false);
 
   // Estado para edición de movimientos
   const [movEditar, setMovEditar] = useState<MovimientoExtendido | null>(null);
   const [movDetalle, setMovDetalle] = useState<MovimientoExtendido | null>(null);
+
+  // Estados para Cobros/Pagos rápidos
+  const [showCobro, setShowCobro] = useState(false);
+  const [showPago, setShowPago] = useState(false);
+  const [entidades, setEntidades] = useState<EntidadCxP[]>([]);
 
   const obtenerEscuelaId = useCallback(async (): Promise<string | null> => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -80,18 +89,16 @@ const CajasBancos: React.FC = () => {
     }
     if (!escuelaId) setEscuelaId(eid);
 
-    // 1. Cargar las cuentas que sean Cajas o Bancos
+    // 1. Cargar las cuentas de cajas_bancos
     const { data: dataCuentas, error: errCuentas } = await supabase
-      .from('plan_cuentas')
+      .from('cajas_bancos')
       .select('*')
-      .or(`escuela_id.eq.${eid},escuela_id.is.null`)
-      .eq('tipo', 'activo')
-      .eq('es_transaccional', true)
-      .or('codigo.like.1.1.1.%,codigo.like.1.1.2.%')
-      .order('codigo');
+      .eq('escuela_id', eid)
+      .eq('activo', true)
+      .order('nombre');
 
     if (errCuentas) {
-      setError(`Error al cargar cuentas: ${errCuentas.message}`);
+      setError(`Error al cargar cajas/bancos: ${errCuentas.message}`);
       setCargando(false);
       return;
     }
@@ -106,34 +113,19 @@ const CajasBancos: React.FC = () => {
 
     const idsCajas = listCajas.map((c: any) => c.id);
 
-    // 2. Cargar movimientos
-    const { data: dataMovs, error: errMovs } = await supabase
-      .from('movimientos_contables')
-      .select(`
-        id, debe, haber, cuenta_contable_id, conciliado,
-        asientos_contables(
-          id, fecha, descripcion, nro_transaccion,
-          cobros_aplicados(
-            cuenta_cobrar:cuentas_cobrar(
-              alumno:alumnos(nombres, apellidos)
-            )
-          ),
-          pagos_aplicados(
-            cuenta_pagar:cuentas_pagar(
-              proveedor:proveedores(nombre),
-              personal:personal(nombres, apellidos)
-            )
-          )
-        )
-      `)
-      .in('cuenta_contable_id', idsCajas)
-      .order('created_at', { ascending: false });
+    // 2. Cargar entidades para CxP (si se requiere para el modal de pago rápido)
+    const { data: entProveedores } = await supabase.from('proveedores').select('*').eq('escuela_id', eid);
+    const { data: entPersonal } = await supabase.from('personal').select('*').eq('escuela_id', eid);
+    
+    const listEnt: EntidadCxP[] = [
+      ...(entProveedores?.map(p => ({ id: p.id, nombre: p.nombre, tipo: 'proveedor' as const, saldo_pendiente: 0 })) || []),
+      ...(entPersonal?.map(p => ({ id: p.id, nombre: `${p.nombres} ${p.apellidos}`, tipo: 'personal' as const, saldo_pendiente: 0 })) || [])
+    ];
+    setEntidades(listEnt);
 
-    if (errMovs) {
-      setError(`Error al cargar movimientos: ${errMovs.message}`);
-      setCargando(false);
-      return;
-    }
+    setMovimientos([]);
+    setCargando(false);
+    return;
 
     const movsList: MovimientoExtendido[] = (dataMovs ?? []).map((m: any) => {
       const asiento = m.asientos_contables;
@@ -173,7 +165,7 @@ const CajasBancos: React.FC = () => {
     setCargando(false);
   }, [escuelaId, obtenerEscuelaId]);
 
-  const toggleForm = (type: 'ingreso' | 'salida' | 'transferencia') => {
+  const toggleForm = (type: 'ingreso' | 'salida' | 'transferencia' | 'nueva_caja') => {
     if (activeForm === type) {
       if (formDirty) {
         if (!window.confirm('Tienes cambios sin guardar. ¿Deseas descartarlos y cerrar el formulario?')) {
@@ -210,14 +202,13 @@ const CajasBancos: React.FC = () => {
   // Cálculos de saldo
   const saldos = useMemo(() => {
     const s: Record<string, number> = {};
-    for (const c of cajas) s[c.id] = 0;
-    for (const m of movimientos) {
-      if (s[m.cuenta_id] !== undefined) {
-        s[m.cuenta_id] += (m.debe - m.haber);
-      }
+    for (const c of cajas) {
+      s[c.id] = Number(c.saldo_actual) || 0;
     }
+    // Si en el futuro se vuelven a cargar movimientos dinámicos, se sumarían aquí
     return s;
-  }, [cajas, movimientos]);
+  }, [cajas]);
+
 
   const saldoTotal = useMemo(() => {
     return Object.values(saldos).reduce((sum, val) => sum + val, 0);
@@ -293,49 +284,96 @@ const CajasBancos: React.FC = () => {
             </h1>
           </div>
           <div className="cxc-header-acciones">
+            {/* 1. Cobro */}
+            <button 
+              className="cxc-accion-btn" 
+              onClick={() => setShowCobro(true)} 
+              title="Registrar cobro a un alumno (CxC)"
+              style={{ 
+                fontWeight: 700, padding: '0.5rem 1rem', 
+                background: '#E5E7EB', color: '#000', 
+                border: 'none', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+              }}
+            >
+              <ArrowDownRight size={16} /> Cobro
+            </button>
+
+            {/* 2. Pago */}
+            <button 
+              className="cxc-accion-btn" 
+              onClick={() => setShowPago(true)} 
+              title="Registrar pago a proveedor/personal (CxP)"
+              style={{ 
+                fontWeight: 700, padding: '0.5rem 1rem', 
+                background: '#E5E7EB', color: '#000', 
+                border: 'none', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+              }}
+            >
+              <ArrowUpRight size={16} /> Pago
+            </button>
+
+            {/* 3. Ingreso */}
             <button 
               className="cxc-accion-btn" 
               onClick={() => toggleForm('ingreso')} 
               title="Registrar un ingreso directo"
               style={{ 
-                fontWeight: 600, 
-                padding: '0.5rem 1rem', 
-                background: activeForm === 'ingreso' ? '#008b46' : '#00D26A', 
-                color: 'white', border: 'none', borderRadius: '8px', 
-                boxShadow: activeForm === 'ingreso' ? 'inset 0 2px 4px rgba(0,0,0,0.2)' : '0 2px 4px rgba(0,210,106,0.2)' 
+                fontWeight: 700, padding: '0.5rem 1rem', 
+                background: activeForm === 'ingreso' ? 'var(--primary-glow)' : '#E5E7EB', 
+                color: activeForm === 'ingreso' ? 'var(--primary)' : '#000', 
+                border: activeForm === 'ingreso' ? '1px solid var(--primary)' : 'none', 
+                borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
               }}
             >
-              <ArrowDownRight size={18} /> {activeForm === 'ingreso' ? 'Cerrar Ingreso' : 'Nuevo Ingreso'}
+              <ArrowDownRight size={16} /> {activeForm === 'ingreso' ? 'Cerrar Ingreso' : 'Ingreso'}
             </button>
             
+            {/* 4. Gasto */}
             <button 
               className="cxc-accion-btn" 
               onClick={() => toggleForm('salida')} 
               title="Registrar un gasto/salida directa"
               style={{ 
-                fontWeight: 600, 
-                padding: '0.5rem 1rem', 
-                background: activeForm === 'salida' ? '#bd4b22' : '#FF6B35', 
-                color: 'white', border: 'none', borderRadius: '8px', 
-                boxShadow: activeForm === 'salida' ? 'inset 0 2px 4px rgba(0,0,0,0.2)' : '0 2px 4px rgba(255,107,53,0.2)' 
+                fontWeight: 700, padding: '0.5rem 1rem', 
+                background: activeForm === 'salida' ? 'var(--primary-glow)' : '#E5E7EB', 
+                color: activeForm === 'salida' ? 'var(--primary)' : '#000', 
+                border: activeForm === 'salida' ? '1px solid var(--primary)' : 'none', 
+                borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
               }}
             >
-              <ArrowUpRight size={18} /> {activeForm === 'salida' ? 'Cerrar Salida' : 'Nueva Salida'}
+              <ArrowUpRight size={16} /> {activeForm === 'salida' ? 'Cerrar Gasto' : 'Gasto'}
             </button>
 
+            {/* 5. Transferencia */}
             <button 
               className="cxc-accion-btn" 
               onClick={() => toggleForm('transferencia')} 
               title="Transferir dinero entre dos cajas/bancos"
               style={{ 
-                fontWeight: 600, 
-                padding: '0.5rem 1rem', 
-                background: activeForm === 'transferencia' ? '#075db3' : '#0A84FF', 
-                color: 'white', border: 'none', borderRadius: '8px', 
-                boxShadow: activeForm === 'transferencia' ? 'inset 0 2px 4px rgba(0,0,0,0.2)' : '0 4px 6px rgba(10,132,255,0.2)' 
+                fontWeight: 700, padding: '0.5rem 1rem', 
+                background: activeForm === 'transferencia' ? 'var(--primary-glow)' : '#E5E7EB', 
+                color: activeForm === 'transferencia' ? 'var(--primary)' : '#000', 
+                border: activeForm === 'transferencia' ? '1px solid var(--primary)' : 'none', 
+                borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
               }}
             >
-              <ArrowRightLeft size={16} /> {activeForm === 'transferencia' ? 'Cerrar Transf.' : 'Nueva Transferencia'}
+              <ArrowRightLeft size={16} /> {activeForm === 'transferencia' ? 'Cerrar Transf.' : 'Transferencia'}
+            </button>
+
+            {/* 6. Nueva Caja */}
+            <button 
+              className="cxc-accion-btn" 
+              onClick={() => toggleForm('nueva_caja')} 
+              title="Crear una nueva caja o cuenta bancaria"
+              style={{ 
+                fontWeight: 700, padding: '0.5rem 1rem', 
+                background: activeForm === 'nueva_caja' ? 'var(--primary-glow)' : '#E5E7EB', 
+                color: activeForm === 'nueva_caja' ? 'var(--primary)' : '#000', 
+                border: activeForm === 'nueva_caja' ? '1px solid var(--primary)' : 'none', 
+                borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+              }}
+            >
+              <Landmark size={16} /> {activeForm === 'nueva_caja' ? 'Cerrar Nueva' : 'Nueva Caja'}
             </button>
 
             <button className="btn-refrescar" onClick={cargarDatos} disabled={cargando}>
@@ -345,22 +383,78 @@ const CajasBancos: React.FC = () => {
         </div>
 
         {/* 3. Buscador */}
-        <div className="cxc-busqueda-bar" style={{ borderRadius: '0 0 12px 12px', marginBottom: '0.5rem', background: 'var(--bg-card)', padding: '0.5rem 1.5rem', border: '1px solid var(--border)', borderTop: 'none' }}>
-          <div className="pc-busqueda">
+        <div className="cxc-busqueda-bar" style={{ 
+          borderRadius: '0 0 12px 12px', 
+          marginBottom: '0.5rem', 
+          background: 'var(--bg-card)', 
+          padding: '0.5rem 1.5rem', 
+          border: '1px solid var(--border)', 
+          borderTop: 'none',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '1rem',
+          flexWrap: 'wrap'
+        }}>
+          <div className="pc-busqueda" style={{ flexShrink: 0, width: '300px' }}>
             <Search size={16} className="pc-busqueda-icono" />
             <input
               type="text"
-              placeholder="Buscar por descripción o nro. transacción..."
+              placeholder="Buscar movimientos..."
               value={busqueda}
               onChange={e => setBusqueda(e.target.value)}
               className="pc-busqueda-input"
             />
           </div>
+
+          {/* Tarjetas de Cajas/Bancos (Los recuadros blancos solicitados) */}
+          <div className="cajas-grid-header" style={{ 
+            display: 'flex', 
+            gap: '0.75rem', 
+            flex: 1, 
+            overflowX: 'auto', 
+            padding: '0.25rem 0' 
+          }}>
+            {cajas.map(c => (
+              <div 
+                key={c.id} 
+                onClick={() => setFiltroCuenta(filtroCuenta === c.id ? 'todas' : c.id)}
+                style={{
+                  background: filtroCuenta === c.id ? 'var(--primary-glow)' : 'rgba(255,255,255,0.05)',
+                  border: `2px solid ${filtroCuenta === c.id ? 'var(--primary)' : '#E5E7EB'}`,
+                  borderRadius: '10px',
+                  padding: '0.4rem 1rem',
+                  cursor: 'pointer',
+                  minWidth: '160px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'center',
+                  transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                  boxShadow: filtroCuenta === c.id ? '0 0 15px var(--primary-glow)' : 'none',
+                  position: 'relative',
+                  overflow: 'hidden'
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '2px' }}>
+                  <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    {c.tipo === 'caja_chica' ? 'Caja' : 'Banco'}
+                  </span>
+                  <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: c.activo ? 'var(--success)' : 'var(--danger)' }}></div>
+                </div>
+                <span style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.2 }}>
+                  {c.nombre}
+                </span>
+                <span style={{ fontSize: '1rem', color: 'var(--success)', fontWeight: 900, marginTop: '2px' }}>
+                  Bs {fmtMonto(Number(c.saldo_actual) || 0)}
+                </span>
+              </div>
+            ))}
+          </div>
+
           {busqueda && (
             <button className="cxc-limpiar-busqueda" onClick={() => setBusqueda('')}>✕</button>
           )}
-          <span className="cxc-conteo-resultado">
-            {movimientosFiltrados.length} movimiento{movimientosFiltrados.length !== 1 ? 's' : ''}
+          <span className="cxc-conteo-resultado" style={{ marginLeft: 'auto' }}>
+            {movimientosFiltrados.length} mov.
           </span>
         </div>
       </div>
@@ -499,6 +593,15 @@ const CajasBancos: React.FC = () => {
         }} 
       />
 
+      <ModalNuevaCaja
+        visible={activeForm === 'nueva_caja'}
+        onCerrar={() => setActiveForm(null)}
+        onCreado={() => {
+          setActiveForm(null);
+          cargarDatos();
+        }}
+      />
+
       {/* Modal: Editar movimiento existente */}
       <ModalEditarMovimiento
         visible={!!movEditar}
@@ -513,6 +616,22 @@ const CajasBancos: React.FC = () => {
         visible={!!movDetalle}
         asientoId={movDetalle?.asiento_id || null}
         onCerrar={() => setMovDetalle(null)}
+      />
+
+      {/* Nuevos modales de Cobro y Pago rápidos */}
+      <ModalCobroRapido
+        visible={showCobro}
+        alumnoInicial={null}
+        onCerrar={() => setShowCobro(false)}
+        onCobrado={() => { setShowCobro(false); cargarDatos(); }}
+      />
+
+      <ModalPagoRapidoCxP
+        visible={showPago}
+        entidadInicial={null}
+        entidades={entidades}
+        onCerrar={() => setShowPago(false)}
+        onPagado={() => { setShowPago(false); cargarDatos(); }}
       />
 
     </main>

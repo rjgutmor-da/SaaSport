@@ -341,7 +341,7 @@ select option {
 /* Botones universales */
 .btn-volver, .btn-refrescar, .cxc-btn-nota-rapida {
   background: var(--bg-glass); color: var(--text-secondary); border: 1px solid var(--border);
-  width: 44px; height: 44px; display: flex; align-items: center; justify-content: center;
+  width: auto; min-width: 44px; height: 44px; padding: 0 1rem; display: flex; align-items: center; justify-content: center;
   border-radius: 4px; transition: var(--transition);
 }
 .btn-volver:hover { background: var(--bg-glass-hover); color: var(--text-primary); transform: translateX(-3px); }

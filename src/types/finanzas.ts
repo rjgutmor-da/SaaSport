@@ -21,6 +21,30 @@ export interface CuentaContable {
   created_at: string;
 }
 
+/** Fila de la tabla `cajas_bancos` */
+export interface CajaBanco {
+  id: string;
+  escuela_id: string;
+  sucursal_id: string | null;
+  nombre: string;
+  responsable: string | null;
+  tipo: 'caja_chica' | 'cuenta_bancaria';
+  activo: boolean;
+  saldo_actual: number;
+  created_at: string;
+}
+
+/** Fila de la tabla `sucursales` */
+export interface Sucursal {
+  id: string;
+  nombre: string;
+  direccion: string | null;
+  escuela_id: string | null;
+  created_at: string;
+}
+
+
+
 /** Nodo del árbol jerárquico (agrega hijos calculados en frontend) */
 export interface NodoCuenta extends CuentaContable {
   hijos: NodoCuenta[];
