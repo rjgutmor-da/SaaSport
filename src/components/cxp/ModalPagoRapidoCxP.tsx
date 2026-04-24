@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabaseClient';
-import type { CuentaContable } from '../../types/finanzas';
+import type { CajaBanco } from '../../types/finanzas';
 import type { EntidadCxP } from '../../types/cxp';
 import { X, CreditCard, AlertCircle, Check, MessageCircle, FileText, Users, RefreshCw, DollarSign, Building2, Hash, Calendar } from 'lucide-react';
 
@@ -20,7 +20,7 @@ const ModalPagoRapidoCxP: React.FC<Props> = ({ entidadInicial, entidades, visibl
   const [entidadSel, setEntidadSel] = useState<EntidadCxP | null>(entidadInicial);
   const [cxpsPendientes, setCxpsPendientes] = useState<any[]>([]);
   const [cxpSelId, setCxpSelId] = useState('');
-  const [cuentasPago, setCuentasPago] = useState<CuentaContable[]>([]);
+  const [cuentasPago, setCuentasPago] = useState<CajaBanco[]>([]);
 
   const [monto, setMonto] = useState('');
   const [metodo, setMetodo] = useState('efectivo');
@@ -52,13 +52,11 @@ const ModalPagoRapidoCxP: React.FC<Props> = ({ entidadInicial, entidades, visibl
 
       const esAdmin = usr.rol === 'SuperAdministrador' || usr.rol === 'Dueño';
 
-      let q = supabase.from('plan_cuentas').select('*')
-        .eq('es_transaccional', true)
-        .or('codigo.like.1.1.1.%,codigo.like.1.1.2.%');
+      let q = supabase.from('cajas_bancos').select('*').eq('activo', true);
       if (!esAdmin && usr.sucursal_id) {
         q = q.or(`sucursal_id.eq.${usr.sucursal_id},sucursal_id.is.null`);
       }
-      const { data: cuentas } = await q.order('codigo');
+      const { data: cuentas } = await q.order('nombre');
       setCuentasPago(cuentas ?? []);
       if (cuentas && cuentas.length > 0) setCuentaId(cuentas[0].id);
     };

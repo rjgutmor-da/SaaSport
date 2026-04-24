@@ -8,7 +8,7 @@ import React, { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import type { AlumnoDeuda, CuentaCobrar, CxcDetalle, LineaNota } from '../../types/cxc';
 // Componente DetalleAlumnoCxc
-import type { CuentaContable } from '../../types/finanzas';
+import type { CajaBanco } from '../../types/finanzas';
 import { 
   AlertCircle, Check, CreditCard, Pencil, Ban, MessageCircle, X, 
   Calendar, Eye, Hash, Wallet, DollarSign, Plus, ChevronDown
@@ -51,7 +51,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
   const [modalNotaVisible, setModalNotaVisible] = useState(false);
   const [modoModal, setModoModal] = useState<'ver' | 'editar' | 'crear'>('crear');
   const [cxcParaEditar, setCxcParaEditar] = useState<any>(null);
-  const [cuentasCobro, setCuentasCobro] = useState<CuentaContable[]>([]);
+  const [cuentasCobro, setCuentasCobro] = useState<CajaBanco[]>([]);
   const [userRol, setUserRol] = useState('');
 
   // Modal de cobro inline
@@ -123,9 +123,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
         userSucursal = usr?.sucursal_id || '';
       }
 
-      let qCuentas = supabase.from('plan_cuentas').select('*')
-        .eq('es_transaccional', true)
-        .like('codigo', '1.1.1%');
+      let qCuentas = supabase.from('cajas_bancos').select('*').eq('activo', true);
       
       // Filtrar por sucursal si no es admin global
       if (!esAdmin && userSucursal) {
@@ -136,7 +134,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
         supabase.from('v_cuentas_cobrar').select('*')
           .eq('alumno_id', alumno.alumno_id)
           .order('created_at', { ascending: false }),
-        qCuentas.order('codigo'),
+        qCuentas.order('nombre'),
       ]);
 
       const dataCxc = (resCxc.data as unknown as CuentaCobrar[]) ?? [];
@@ -309,7 +307,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
             p_payload: {
                 cuenta_cobrar_id: cobroCxcId,
                 monto,
-                metodo_pago: (cuentasCobro.find(c => c.id === cobroCuentaId)?.codigo.startsWith('1.1.1') ? 'efectivo' : 'transferencia'),
+                metodo_pago: (cuentasCobro.find(c => c.id === cobroCuentaId)?.tipo === 'caja_chica' ? 'efectivo' : 'transferencia'),
                 cuenta_cobro_id: cobroCuentaId,
                 escuela_id: ctx.escuela_id,
                 sucursal_id: ctx.sucursal_id,
@@ -918,7 +916,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                                               <option value="">Caja/Banco</option>
                                               {cuentasCobro.map((c) => (
                                                 <option key={c.id} value={c.id}>
-                                                  {c.codigo} — {c.nombre}
+                                                  {c.nombre}
                                                 </option>
                                               ))}
                                             </select>
