@@ -10,6 +10,7 @@
  */
 import React, { useEffect, useState, useMemo } from 'react';
 import { supabase } from '../../lib/supabaseClient';
+import type { CatalogoItem } from '../../types/cuentas';
 import {
   X, Plus, Check, Trash2, AlertCircle, CreditCard, Package,
   Users, FileText, Calendar, RefreshCw, Info, Hash
@@ -70,7 +71,7 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, esAnticipo = false, o
   // Datos maestros
   const [proveedores, setProveedores] = useState<{ id: string; nombre: string }[]>([]);
   const [personal, setPersonal] = useState<{ id: string; nombres: string; apellidos: string }[]>([]);
-  const [catalogo, setCatalogo] = useState<{ id: string; nombre: string; tipo: string; precio_venta: number; cuenta_gasto_id?: string }[]>([]);
+  const [catalogo, setCatalogo] = useState<CatalogoItem[]>([]);
   const [cajasBancos, setCajasBancos] = useState<{ id: string; nombre: string; cuenta_contable_id: string }[]>([]);
   const [cuentasGasto, setCuentasGasto] = useState<{ id: string; codigo: string; nombre: string }[]>([]);
   const [cuentasMaestras, setCuentasMaestras] = useState<{ id: string; codigo: string }[]>([]);
@@ -96,7 +97,10 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, esAnticipo = false, o
       const [resProv, persProv, resCat, resCajas, resGastos, resMaestras] = await Promise.all([
         supabase.from('proveedores').select('id, nombre').eq('escuela_id', usr.escuela_id).eq('activo', true).order('nombre'),
         supabase.from('personal').select('id, nombres, apellidos').eq('escuela_id', usr.escuela_id).eq('activo', true).order('nombres'),
-        supabase.from('catalogo_items').select('id, nombre, tipo, precio_venta, cuenta_gasto_id').eq('activo', true).eq('es_gasto', true).order('nombre'),
+        supabase.from('catalogo_items').select('*')
+          .eq('activo', true)
+          .or('tipo_movimiento.eq.egreso,tipo_movimiento.eq.ambos')
+          .order('nombre'),
         supabase.from('plan_cuentas').select('id, codigo, nombre, cuenta_contable_id:id')
           .eq('es_transaccional', true).eq('tipo', 'activo')
           .or('codigo.like.1.1.1.%,codigo.like.1.1.2.%')

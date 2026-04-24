@@ -6,7 +6,8 @@
  */
 import React, { useEffect, useState, useMemo } from 'react';
 import { supabase } from '../../lib/supabaseClient';
-import type { CatalogoItem, LineaNota } from '../../types/cxc';
+import type { CatalogoItem } from '../../types/cuentas';
+import type { LineaNota } from '../../types/cxc';
 import { MESES_ANIO } from '../../types/cxc';
 import {
   X, Plus, Check, Trash2, Calendar, AlertCircle,
@@ -141,7 +142,9 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
         supabase.from('alumnos').select('id, nombres, apellidos')
           .eq('archivado', false).order('nombres', { ascending: true }),
         supabase.from('catalogo_items').select('*')
-          .eq('activo', true).eq('es_ingreso', true).order('nombre'),
+          .eq('activo', true)
+          .or('tipo_movimiento.eq.ingreso,tipo_movimiento.eq.ambos')
+          .order('nombre'),
         qCuentas.order('codigo'),
         supabase.from('plan_cuentas').select('id, codigo, nombre')
           .eq('es_transaccional', true).in('tipo', ['ingreso', 'pasivo'])
@@ -292,7 +295,7 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
       const nuevas = [...prev];
       const actual = nuevas[idx].periodo_meses || [];
       if (actual.includes(mes)) {
-        nuevas[idx] = { ...nuevas[idx], periodo_meses: actual.filter(m => m !== mes) };
+        nuevas[idx] = { ...nuevas[idx], periodo_meses: actual.filter((m: string) => m !== mes) };
       } else {
         nuevas[idx] = { ...nuevas[idx], periodo_meses: [...actual, mes] };
       }

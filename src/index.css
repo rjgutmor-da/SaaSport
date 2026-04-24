@@ -20,8 +20,8 @@
   --secondary: #0A84FF;
   --secondary-glow: rgba(10, 132, 255, 0.3);
   
-  --bg-table-header: #111111;
-  --text-table-header: #A0A0A0;
+  --bg-table-header: #E5E7EB;
+  --text-table-header: #000000;
   
   --success: #00D26A;
   --success-bg: rgba(0, 210, 106, 0.1);
@@ -63,8 +63,8 @@
   --border: #E2E8F0;
   --border-focus: var(--primary);
   
-  --bg-table-header: #F1F5F9;
-  --text-table-header: #475569;
+  --bg-table-header: #000000;
+  --text-table-header: #FFFFFF;
   
   --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
   --shadow-md: 0 10px 15px -3px rgba(0, 0, 0, 0.08);
@@ -88,8 +88,8 @@
     --border: #E2E8F0;
     --border-focus: var(--primary);
     
-    --bg-table-header: #F1F5F9;
-    --text-table-header: #475569;
+    --bg-table-header: #000000;
+    --text-table-header: #FFFFFF;
     
     --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
     --shadow-md: 0 10px 15px -3px rgba(0, 0, 0, 0.08);
@@ -111,8 +111,8 @@
   --text-tertiary: #6B7280;
 
   --border: #2D2D2D;
-  --bg-table-header: #111111;
-  --text-table-header: #A0A0A0;
+  --bg-table-header: #E5E7EB;
+  --text-table-header: #000000;
 }
 
 * {
@@ -1243,8 +1243,8 @@ input[type=number] {
 }
 
 .excel-th {
-  background: rgba(0,0,0,0.3);
-  color: var(--text-tertiary);
+  background: var(--bg-table-header);
+  color: var(--text-table-header);
   font-weight: 700;
   text-transform: uppercase;
   font-size: 0.72rem;

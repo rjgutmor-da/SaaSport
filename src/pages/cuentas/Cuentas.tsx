@@ -1,14 +1,15 @@
 /**
- * Inventarios.tsx
- * Módulo de Inventarios: gestión de catálogo de ítems (productos/servicios).
- * Estructura rediseñada alineada al patrón de Cuentas por Pagar.
+ * Cuentas.tsx
+ * Módulo de Cuentas (ex-Inventarios): gestión de catálogo de ítems (productos, servicios, gastos, otros).
+ * Permite definir si un ítem es de Ingreso, Egreso o Ambos.
  */
 import React, { useEffect, useState, useMemo } from 'react';
 import { supabase } from '../../lib/supabaseClient';
-import type { CatalogoItem } from '../../types/inventarios';
+import type { CatalogoItem } from '../../types/cuentas';
 import {
   ChevronLeft, RefreshCw, Plus, Check, X, Trash2,
-  Edit2, Save, ArrowUpCircle, ArrowDownCircle, Package
+  Edit2, Save, CircleArrowUp, CircleArrowDown, BookOpen, Package, 
+  ShoppingBag, Wrench, Receipt, Layers
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthSaaSport } from '../../lib/authHelper';
@@ -28,92 +29,79 @@ const fmtMonto = (n: number | null | undefined): string =>
 interface ItemConsolidado {
   id: string;
   nombre: string;
-  tipo: 'producto' | 'servicio';
+  categoria: 'producto' | 'servicio' | 'gasto' | 'otro';
+  tipo_movimiento: 'ingreso' | 'egreso' | 'ambos';
   precio_venta: number | null;
+  costo_unitario?: number | null;
   saldo: number;
   ventasMesPresente: number;
   ventasMesPasado: number;
-  ventasTotales: number; // Nueva columna
+  ventasTotales: number;
   stock_id?: string;
-  costo_unitario?: number | null;
   cuenta_ingreso_id?: string | null;
   cuenta_gasto_id?: string | null;
-  es_ingreso?: boolean;
-  es_gasto?: boolean;
 }
 
-const Inventarios: React.FC = () => {
+const Cuentas: React.FC = () => {
   const navigate = useNavigate();
 
   // Datos
-  const [items, setItems] = useState<ItemConsolidado[]>([]);
-  const [cargando, setCargando] = useState(() => !localStorage.getItem('saasport_inventario_cache'));
+  const [items, setItems] = useState<ItemConsolidado[]>(() => {
+    const cache = localStorage.getItem('saasport_cuentas_cache');
+    if (cache) {
+      try {
+        return JSON.parse(cache);
+      } catch (e) {
+        return [];
+      }
+    }
+    return [];
+  });
+  // Si tenemos items en el caché, no mostramos el spinner de pantalla completa, pero igual refrescamos
+  const [cargando, setCargando] = useState(items.length === 0);
   const [error, setError] = useState<string | null>(null);
 
-  const [cuentasIngreso, setCuentasIngreso] = useState<{ id: string; codigo: string; nombre: string }[]>([]);
-  const [cuentasGasto, setCuentasGasto] = useState<{ id: string; codigo: string; nombre: string }[]>([]);
-
   // Filtro
-  const [filtroTipo, setFiltroTipo] = useState('');
+  const [filtroCategoria, setFiltroCategoria] = useState('');
+  const [filtroMovimiento, setFiltroMovimiento] = useState('');
 
   // Edición de catálogo
   const [editando, setEditando] = useState(false);
   const [itemsEditables, setItemsEditables] = useState<{
     id?: string;
     nombre: string;
-    tipo: 'producto' | 'servicio';
+    categoria: 'producto' | 'servicio' | 'gasto' | 'otro';
+    tipo_movimiento: 'ingreso' | 'egreso' | 'ambos';
     precio_venta: string;
     costo_unitario: string;
     cuenta_ingreso_id: string;
     cuenta_gasto_id: string;
-    es_ingreso: boolean;
-    es_gasto: boolean;
     esNuevo: boolean;
   }[]>([]);
   const [guardandoItems, setGuardandoItems] = useState(false);
 
-  // Movimiento de stock
-  const [movItemId, setMovItemId] = useState<string | null>(null);
-  const [movTipo, setMovTipo] = useState<'entrada' | 'salida'>('entrada');
-  const [movCantidad, setMovCantidad] = useState('');
-  const [movMotivo, setMovMotivo] = useState('');
-  const [guardandoMov, setGuardandoMov] = useState(false);
-  const [msgMov, setMsgMov] = useState<string | null>(null);
+  const { escuelaId, cargando: authCargando } = useAuthSaaSport();
 
-  const { escuelaId } = useAuthSaaSport();
-
-  // Cargar datos con Estrategia Caché (Instantánea)
+  // Cargar datos con Estrategia Caché
   const cargarDatos = async (usarCache = true) => {
-    // Si hay caché, lo mostramos de inmediato para que sea instantáneo
-    if (usarCache) {
-      const cache = localStorage.getItem('saasport_inventario_cache');
-      if (cache) {
-        try {
-          setItems(JSON.parse(cache));
-          // No ponemos cargando en true si ya tenemos datos, para no mostrar el spinner
-        } catch (e) {
-          console.error("Error al leer caché", e);
-        }
-      } else {
-        setCargando(true);
-      }
-    } else {
-      setCargando(true);
-    }
-    
     setError(null);
 
     if (!escuelaId) {
-      setError('Error de contexto. Por favor reinicia sesión.');
+      if (authCargando) return;
+      setError('No se pudo cargar el contexto de la escuela. Por favor, asegúrate de tener una sesión activa.');
       setCargando(false);
       return;
     }
 
     try {
-      // Solo cargamos el inventario, ya no necesitamos plan_cuentas (mucho más rápido)
+      // Usamos la vista v_inventario que debe estar actualizada o la tabla directamente
+      // Para este refactor, usaremos la tabla catalogo_items directamente para asegurar que traemos los nuevos campos
       const { data: invData, error: invErr } = await supabase
-        .from('v_inventario')
-        .select('*')
+        .from('catalogo_items')
+        .select(`
+          *,
+          stock:stock_productos(id, cantidad_disponible)
+        `)
         .eq('escuela_id', escuelaId)
         .order('nombre');
 
@@ -122,23 +110,21 @@ const Inventarios: React.FC = () => {
       const itemsProcesados: ItemConsolidado[] = (invData || []).map((item: any) => ({
         id: item.id,
         nombre: item.nombre,
-        tipo: item.tipo,
+        categoria: item.categoria || 'servicio',
+        tipo_movimiento: item.tipo_movimiento || 'ingreso',
         precio_venta: item.precio_venta,
         costo_unitario: item.costo_unitario,
-        saldo: item.saldo || 0,
-        stock_id: item.stock_id,
+        saldo: item.stock?.[0]?.cantidad_disponible || 0,
+        stock_id: item.stock?.[0]?.id,
         cuenta_ingreso_id: item.cuenta_ingreso_id,
         cuenta_gasto_id: item.cuenta_gasto_id,
-        es_ingreso: item.es_ingreso,
-        es_gasto: item.es_gasto,
-        ventasMesPresente: item.ventas_mes_actual || 0,
-        ventasMesPasado: item.ventas_mes_anterior || 0,
-        ventasTotales: item.ventas_totales || 0,
+        ventasMesPresente: 0, // Estos campos requerirían joins más complejos o RPC, los dejamos en 0 por ahora para simplificar el refactor visual
+        ventasMesPasado: 0,
+        ventasTotales: 0,
       }));
 
-      // Guardamos en estado y en caché
       setItems(itemsProcesados);
-      localStorage.setItem('saasport_inventario_cache', JSON.stringify(itemsProcesados));
+      localStorage.setItem('saasport_cuentas_cache', JSON.stringify(itemsProcesados));
     } catch (e: any) {
       console.error(e);
       if (!items.length) setError(e.message);
@@ -156,11 +142,14 @@ const Inventarios: React.FC = () => {
   // Lista Filtrada
   const itemsFiltrados = useMemo(() => {
     let list = items;
-    if (filtroTipo) {
-      list = list.filter(i => i.tipo === filtroTipo);
+    if (filtroCategoria) {
+      list = list.filter(i => i.categoria === filtroCategoria);
+    }
+    if (filtroMovimiento) {
+      list = list.filter(i => i.tipo_movimiento === filtroMovimiento || i.tipo_movimiento === 'ambos');
     }
     return list;
-  }, [items, filtroTipo]);
+  }, [items, filtroCategoria, filtroMovimiento]);
 
   // Edición
   const iniciarEdicion = () => {
@@ -168,13 +157,12 @@ const Inventarios: React.FC = () => {
       items.map(i => ({
         id: i.id,
         nombre: i.nombre,
-        tipo: i.tipo,
-        precio_venta: i.precio_venta != null ? String(i.precio_venta) : '',
-        costo_unitario: i.costo_unitario != null ? String(i.costo_unitario) : '',
+        categoria: i.categoria,
+        tipo_movimiento: i.tipo_movimiento,
+        precio_venta: i.precio_venta != null ? i.precio_venta.toFixed(2) : '',
+        costo_unitario: i.costo_unitario != null ? i.costo_unitario.toFixed(2) : '',
         cuenta_ingreso_id: i.cuenta_ingreso_id || '',
         cuenta_gasto_id: i.cuenta_gasto_id || '',
-        es_ingreso: i.es_ingreso ?? true,
-        es_gasto: i.es_gasto ?? false,
         esNuevo: false,
       }))
     );
@@ -184,13 +172,12 @@ const Inventarios: React.FC = () => {
   const agregarItem = () => {
     setItemsEditables(prev => [...prev, {
       nombre: '',
-      tipo: 'servicio',
+      categoria: 'servicio',
+      tipo_movimiento: 'ingreso',
       precio_venta: '',
       costo_unitario: '',
       cuenta_ingreso_id: '',
       cuenta_gasto_id: '',
-      es_ingreso: true,
-      es_gasto: false,
       esNuevo: true,
     }]);
   };
@@ -199,7 +186,7 @@ const Inventarios: React.FC = () => {
     setItemsEditables(prev => prev.filter((_, i) => i !== idx));
   };
 
-  const actualizarItemEditable = (idx: number, campo: string, valor: string) => {
+  const actualizarItemEditable = (idx: number, campo: string, valor: any) => {
     setItemsEditables(prev => {
       const nuevos = [...prev];
       (nuevos[idx] as any)[campo] = valor;
@@ -226,13 +213,15 @@ const Inventarios: React.FC = () => {
       for (const item of validos.filter(i => !i.esNuevo && i.id)) {
         const { error } = await supabase.from('catalogo_items').update({
           nombre: item.nombre,
-          tipo: item.tipo,
+          categoria: item.categoria,
+          tipo_movimiento: item.tipo_movimiento,
+          tipo: item.categoria === 'producto' ? 'producto' : 'servicio', // Compatibilidad
           precio_venta: item.precio_venta ? parseFloat(item.precio_venta) : null,
           costo_unitario: item.costo_unitario ? parseFloat(item.costo_unitario) : null,
           cuenta_ingreso_id: item.cuenta_ingreso_id || null,
           cuenta_gasto_id: item.cuenta_gasto_id || null,
-          es_ingreso: !!item.es_ingreso,
-          es_gasto: !!item.es_gasto,
+          es_ingreso: item.tipo_movimiento === 'ingreso' || item.tipo_movimiento === 'ambos',
+          es_gasto: item.tipo_movimiento === 'egreso' || item.tipo_movimiento === 'ambos',
         }).eq('id', item.id!);
 
         if (error) {
@@ -247,23 +236,25 @@ const Inventarios: React.FC = () => {
         const inserts = nuevos.map(i => ({
           escuela_id: ctx.escuela_id,
           nombre: i.nombre,
-          tipo: i.tipo,
+          categoria: i.categoria,
+          tipo_movimiento: i.tipo_movimiento,
+          tipo: i.categoria === 'producto' ? 'producto' : 'servicio', // Compatibilidad
           precio_venta: i.precio_venta ? parseFloat(i.precio_venta) : null,
           costo_unitario: i.costo_unitario ? parseFloat(i.costo_unitario) : null,
           cuenta_ingreso_id: i.cuenta_ingreso_id || null,
           cuenta_gasto_id: i.cuenta_gasto_id || null,
-          es_ingreso: !!i.es_ingreso,
-          es_gasto: !!i.es_gasto,
+          es_ingreso: i.tipo_movimiento === 'ingreso' || i.tipo_movimiento === 'ambos',
+          es_gasto: i.tipo_movimiento === 'egreso' || i.tipo_movimiento === 'ambos',
         }));
 
         const { data: insertados, error: errIns } = await supabase
-          .from('catalogo_items').insert(inserts).select('id, tipo');
+          .from('catalogo_items').insert(inserts).select('id, categoria');
 
         if (errIns) {
           console.error("Error insertando ítems:", errIns);
           errorOcurrido = true;
         } else if (insertados) {
-          const productosNuevos = insertados.filter(i => i.tipo === 'producto');
+          const productosNuevos = insertados.filter(i => i.categoria === 'producto');
           if (productosNuevos.length > 0) {
             const { error: errStock } = await supabase.from('stock_productos').insert(
               productosNuevos.map(p => ({
@@ -281,7 +272,7 @@ const Inventarios: React.FC = () => {
         alert('Hubo problemas al guardar algunos ítems. Por favor revisa la consola o intenta de nuevo.');
       } else {
         setEditando(false);
-        cargarDatos();
+        cargarDatos(false);
       }
     } catch (err) {
       console.error("Falla crítica al guardar:", err);
@@ -291,52 +282,25 @@ const Inventarios: React.FC = () => {
     }
   };
 
-  const registrarMovimiento = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!movItemId) return;
-
-    const cant = parseInt(movCantidad);
-    if (!cant || cant <= 0) { setMsgMov('Cantidad inválida.'); return; }
-
-    setGuardandoMov(true);
-    const ctx = await obtenerCtx();
-    if (!ctx) { setMsgMov('Error de contexto.'); setGuardandoMov(false); return; }
-
-    const { error: errMov } = await supabase.from('movimientos_stock').insert({
-      escuela_id: ctx.escuela_id,
-      catalogo_item_id: movItemId,
-      tipo: movTipo,
-      cantidad: cant,
-      motivo: movMotivo || (movTipo === 'entrada' ? 'Ingreso de stock' : 'Salida de stock'),
-    });
-
-    if (errMov) { setMsgMov(`Error: ${errMov.message}`); setGuardandoMov(false); return; }
-
-    const itemObj = items.find(s => s.id === movItemId);
-    if (itemObj) {
-      const nuevaCant = movTipo === 'entrada'
-        ? itemObj.saldo + cant
-        : itemObj.saldo - cant;
-        
-      if (itemObj.stock_id) {
-        await supabase.from('stock_productos').update({
-          cantidad_disponible: nuevaCant,
-          updated_at: new Date().toISOString(),
-        }).eq('id', itemObj.stock_id);
-      } else {
-        await supabase.from('stock_productos').insert({
-          escuela_id: ctx.escuela_id,
-          catalogo_item_id: movItemId,
-          cantidad_disponible: nuevaCant
-        });
-      }
+  const getCategoriaBadge = (cat: string) => {
+    const defaultStyle = { bg: 'rgba(255, 255, 255, 0.05)', color: 'var(--text-secondary)' };
+    switch (cat) {
+      case 'producto': return { ...defaultStyle, label: 'PRODUCTO', icon: <ShoppingBag size={12} /> };
+      case 'servicio': return { ...defaultStyle, label: 'SERVICIO', icon: <Wrench size={12} /> };
+      case 'gasto': return { ...defaultStyle, label: 'GASTO', icon: <Receipt size={12} /> };
+      case 'otro': return { ...defaultStyle, label: 'OTRO', icon: <Layers size={12} /> };
+      default: return { ...defaultStyle, label: 'SERVICIO', icon: <Wrench size={12} /> };
     }
+  };
 
-    setGuardandoMov(false);
-    setMovItemId(null);
-    setMovCantidad('');
-    setMovMotivo('');
-    cargarDatos();
+  const getMovimientoBadge = (mov: string) => {
+    const color = 'var(--text-secondary)';
+    switch (mov) {
+      case 'ingreso': return { label: 'INGRESO', color };
+      case 'egreso': return { label: 'EGRESO', color };
+      case 'ambos': return { label: 'AMBOS', color };
+      default: return { label: 'INGRESO', color };
+    }
   };
 
   return (
@@ -352,19 +316,32 @@ const Inventarios: React.FC = () => {
       alignItems: 'stretch',
       minHeight: 'auto'
     }}>
-      {/* ─── Barra de Control Simplificada ─── */}
+      {/* ─── Barra de Control ─── */}
       <div className="cxc-barra-control" style={{ margin: 0, padding: '0.5rem 1.25rem' }}>
         <div className="cxc-filtros-inline" style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <select
               className="cxc-filtro-select"
-              value={filtroTipo}
-              onChange={e => setFiltroTipo(e.target.value)}
+              value={filtroCategoria}
+              onChange={e => setFiltroCategoria(e.target.value)}
               style={{ margin: 0 }}
             >
-              <option value="">Todos los Tipos</option>
-              <option value="producto">Producto</option>
-              <option value="servicio">Servicio</option>
+              <option value="">Todas las Categorías</option>
+              <option value="producto">Productos</option>
+              <option value="servicio">Servicios</option>
+              <option value="gasto">Gastos</option>
+              <option value="otro">Otros</option>
+            </select>
+            <select
+              className="cxc-filtro-select"
+              value={filtroMovimiento}
+              onChange={e => setFiltroMovimiento(e.target.value)}
+              style={{ margin: 0 }}
+            >
+              <option value="">Cualquier Movimiento</option>
+              <option value="ingreso">Ingresos</option>
+              <option value="egreso">Egresos</option>
+              <option value="ambos">Ambos</option>
             </select>
           </div>
 
@@ -396,16 +373,17 @@ const Inventarios: React.FC = () => {
         </div>
       )}
 
-      {/* Edición de Catálogo in-line (se reemplaza si estamos editando) */}
+      {/* Edición de Catálogo in-line */}
       {editando ? (
         <div className="cxc-tabla-wrapper">
           <table className="cxc-tabla">
             <thead>
               <tr>
-                <th className="cxc-th" style={{ width: '40%' }}>Nombre del Ítem</th>
-                <th className="cxc-th" style={{ width: '15%' }}>Tipo</th>
-                <th className="cxc-th cxc-th-center" style={{ width: '15%' }}>P. Venta (Bs)</th>
-                <th className="cxc-th cxc-th-center" style={{ width: '15%' }}>Costo U. (Bs)</th>
+                <th className="cxc-th" style={{ width: '30%' }}>Nombre del Ítem</th>
+                <th className="cxc-th" style={{ width: '20%' }}>Categoría</th>
+                <th className="cxc-th" style={{ width: '20%' }}>Movimiento</th>
+                <th className="cxc-th cxc-th-center" style={{ width: '15%' }}>Precio (Bs)</th>
+                <th className="cxc-th cxc-th-center" style={{ width: '15%' }}>Costo (Bs)</th>
                 <th className="cxc-th" style={{ width: '50px' }}></th>
               </tr>
             </thead>
@@ -417,7 +395,7 @@ const Inventarios: React.FC = () => {
                       type="text"
                       value={item.nombre}
                       onChange={e => actualizarItemEditable(idx, 'nombre', e.target.value)}
-                      placeholder="Ej. Polera"
+                      placeholder="Ej. Polera o Alquiler"
                       style={{ 
                         width: '100%', 
                         height: '100%', 
@@ -432,8 +410,8 @@ const Inventarios: React.FC = () => {
                   </td>
                   <td className="cxc-td" style={{ padding: 0 }}>
                     <select
-                      value={item.tipo}
-                      onChange={e => actualizarItemEditable(idx, 'tipo', e.target.value)}
+                      value={item.categoria}
+                      onChange={e => actualizarItemEditable(idx, 'categoria', e.target.value)}
                       style={{ 
                         width: '100%', 
                         height: '100%', 
@@ -443,13 +421,36 @@ const Inventarios: React.FC = () => {
                         color: 'var(--text-primary)',
                         fontSize: 'inherit',
                         cursor: 'pointer',
-                        appearance: 'none', // Quita la flecha nativa para un look más limpio
                         textAlign: 'center'
                       }}
                       disabled={guardandoItems}
                     >
-                      <option value="servicio" style={{ background: '#1a1a1a', color: '#fff' }}>Servicio</option>
-                      <option value="producto" style={{ background: '#1a1a1a', color: '#fff' }}>Producto</option>
+                      <option value="producto">Producto</option>
+                      <option value="servicio">Servicio</option>
+                      <option value="gasto">Gasto</option>
+                      <option value="otro">Otro</option>
+                    </select>
+                  </td>
+                  <td className="cxc-td" style={{ padding: 0 }}>
+                    <select
+                      value={item.tipo_movimiento}
+                      onChange={e => actualizarItemEditable(idx, 'tipo_movimiento', e.target.value)}
+                      style={{ 
+                        width: '100%', 
+                        height: '100%', 
+                        background: 'rgba(255,255,255,0.03)', 
+                        border: 'none', 
+                        padding: '0.75rem', 
+                        color: 'var(--text-primary)',
+                        fontSize: 'inherit',
+                        cursor: 'pointer',
+                        textAlign: 'center'
+                      }}
+                      disabled={guardandoItems}
+                    >
+                      <option value="ingreso">Ingreso</option>
+                      <option value="egreso">Egreso</option>
+                      <option value="ambos">Ambos</option>
                     </select>
                   </td>
                   <td className="cxc-td" style={{ padding: 0 }}>
@@ -517,7 +518,7 @@ const Inventarios: React.FC = () => {
                 </tr>
               ))}
               <tr>
-                <td colSpan={5} className="cxc-td" style={{ padding: '0.5rem' }}>
+                <td colSpan={6} className="cxc-td" style={{ padding: '0.5rem' }}>
                   <button
                     onClick={agregarItem}
                     disabled={guardandoItems}
@@ -540,24 +541,19 @@ const Inventarios: React.FC = () => {
               </tr>
             </tbody>
           </table>
-          <div style={{ padding: '0.75rem', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end', background: 'var(--bg-main)' }}>
-            <span style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', fontWeight: 600 }}>
-              {itemsEditables.length} ítems en catálogo
-            </span>
-          </div>
         </div>
       ) : (
-        /* Tarjeta 3: Tabla Correspondiente */
+        /* Vista de Tabla */
         <>
-          {cargando ? (
+          { (cargando || authCargando) && items.length === 0 ? (
             <div className="pc-cargando">
               <RefreshCw size={32} className="spin" />
-              <p>Cargando inventarios...</p>
+              <p>Cargando catálogo...</p>
             </div>
           ) : itemsFiltrados.length === 0 ? (
             <div className="arbol-vacio">
-              <Package size={40} style={{ marginBottom: '0.75rem', opacity: 0.4 }} />
-              <p>No se encontraron ítems con los filtros vigentes.</p>
+              <BookOpen size={40} style={{ marginBottom: '0.75rem', opacity: 0.4 }} />
+              <p>No se encontraron ítems en esta categoría.</p>
             </div>
           ) : (
             <div className="cxc-tabla-wrapper">
@@ -565,97 +561,72 @@ const Inventarios: React.FC = () => {
                 <thead>
                   <tr>
                     <th className="cxc-th">Nombre de Ítem</th>
-                    <th className="cxc-th">Tipo</th>
+                    <th className="cxc-th">Categoría</th>
+                    <th className="cxc-th">Movimiento</th>
                     <th className="cxc-th cxc-th-center">Precio (Bs)</th>
-                    <th className="cxc-th cxc-th-right">Ventas Mes (Actual)</th>
-                    <th className="cxc-th cxc-th-right">Ventas Mes (Pasado)</th>
-                    <th className="cxc-th cxc-th-right">Ventas Totales</th>
+                    <th className="cxc-th cxc-th-center">Costo (Bs)</th>
+                    <th className="cxc-th cxc-th-center">Saldo</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {itemsFiltrados.map(item => (
-                    <tr key={item.id} className="cxc-tr">
-                      <td className="cxc-td" style={{ fontWeight: 500, color: 'var(--text-primary)' }}>
-                        {item.nombre}
-                      </td>
-                      <td className="cxc-td">
-                        <span style={{
-                          fontSize: '0.78rem',
-                          padding: '0.2rem 0.5rem',
-                          borderRadius: '12px',
-                          background: item.tipo === 'producto' ? 'rgba(10, 132, 255, 0.1)' : 'rgba(0, 210, 106, 0.1)',
-                          color: item.tipo === 'producto' ? 'var(--secondary)' : 'var(--success)',
-                          whiteSpace: 'nowrap'
-                        }}>
-                          {item.tipo.toUpperCase()}
-                        </span>
-                      </td>
-                      <td className="cxc-td cxc-td-center">
-                        {fmtMonto(item.precio_venta)}
-                      </td>
-                      <td className="cxc-td cxc-td-right">
-                        Bs {fmtMonto(item.ventasMesPresente)}
-                      </td>
-                      <td className="cxc-td cxc-td-right">
-                        <span style={{ color: 'var(--text-secondary)' }}>
-                          Bs {fmtMonto(item.ventasMesPasado)}
-                        </span>
-                      </td>
-                      <td className="cxc-td cxc-td-right" style={{ fontWeight: 600, color: 'var(--primary)' }}>
-                        Bs {fmtMonto(item.ventasTotales)}
-                      </td>
-                    </tr>
-                  ))}
+                  {itemsFiltrados.map(item => {
+                    const catInfo = getCategoriaBadge(item.categoria);
+                    const movInfo = getMovimientoBadge(item.tipo_movimiento);
+                    return (
+                      <tr key={item.id} className="cxc-tr">
+                        <td className="cxc-td" style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
+                          {item.nombre}
+                        </td>
+                        <td className="cxc-td">
+                          <span style={{
+                            fontSize: '0.75rem',
+                            padding: '0.25rem 0.6rem',
+                            borderRadius: '12px',
+                            background: catInfo.bg,
+                            color: catInfo.color,
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.4rem',
+                            fontWeight: 600
+                          }}>
+                            {catInfo.icon}
+                            {catInfo.label}
+                          </span>
+                        </td>
+                        <td className="cxc-td">
+                          <span style={{
+                            fontSize: '0.75rem',
+                            fontWeight: 700,
+                            color: movInfo.color
+                          }}>
+                            {movInfo.label}
+                          </span>
+                        </td>
+                        <td className="cxc-td cxc-td-center">
+                          {fmtMonto(item.precio_venta)}
+                        </td>
+                        <td className="cxc-td cxc-td-center" style={{ color: 'var(--text-secondary)' }}>
+                          {fmtMonto(item.costo_unitario)}
+                        </td>
+                        <td className="cxc-td cxc-td-center">
+                          <span style={{ 
+                            color: item.saldo > 0 ? 'var(--success)' : item.saldo < 0 ? 'var(--danger)' : 'var(--text-tertiary)',
+                            fontWeight: item.saldo !== 0 ? 700 : 400
+                          }}>
+                            {item.saldo}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
           )}
         </>
       )}
-
-      {/* Modal Envío Movimiento */}
-      {movItemId && (
-        <div className="cxc-modal-overlay" onClick={() => { if(!guardandoMov) setMovItemId(null); }}>
-          <div className="cxc-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '400px' }}>
-            <div className="cxc-modal-header">
-              <h2 style={{ fontSize: '1.25rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--text-primary)' }}>
-                {movTipo === 'entrada' ? <ArrowUpCircle color="#10b981" /> : <ArrowDownCircle color="#ef4444" />}
-                {movTipo === 'entrada' ? 'Ingreso de Stock' : 'Salida de Stock'}
-              </h2>
-              <button onClick={() => setMovItemId(null)} disabled={guardandoMov}><X size={20} /></button>
-            </div>
-            <form onSubmit={registrarMovimiento} style={{ display: 'flex', flexDirection: 'column', gap: '1rem', padding: '1rem 0 0 0' }}>
-              <div className="form-campo">
-                <label>Producto</label>
-                <input type="text" value={items.find(i => i.id === movItemId)?.nombre || ''} disabled style={{ background: '#f8fafc', color: '#64748b' }} />
-              </div>
-              <div className="form-campo">
-                <label>Cantidad</label>
-                <input
-                  type="number" min="1"
-                  value={movCantidad} onChange={e => setMovCantidad(e.target.value)}
-                  required disabled={guardandoMov} placeholder="Ej: 5"
-                />
-              </div>
-              <div className="form-campo">
-                <label>Motivo</label>
-                <input
-                  type="text" value={movMotivo} onChange={e => setMovMotivo(e.target.value)}
-                  disabled={guardandoMov} placeholder={movTipo === 'entrada' ? 'Ej: Compra a proveedor' : 'Ej: Venta'}
-                />
-              </div>
-              {msgMov && (
-                <div style={{ color: '#ef4444', fontSize: '0.85rem' }}>{msgMov}</div>
-              )}
-              <button type="submit" className="btn-guardar-cuenta" style={{ width: '100%', justifyContent: 'center', marginTop: '0.5rem' }} disabled={guardandoMov}>
-                <Check size={16} /> {guardandoMov ? 'Procesando...' : 'Confirmar'}
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
     </main>
   );
 };
 
-export default Inventarios;
+export default Cuentas;
