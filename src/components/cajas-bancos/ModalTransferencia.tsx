@@ -2,11 +2,11 @@ import React, { useState } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import { X, ArrowRightLeft, DollarSign, Calendar, Hash, AlignLeft, Building2, AlertCircle, Save, RefreshCw } from 'lucide-react';
 import { getHoyISO } from '../../lib/dateUtils';
-import type { CuentaContable } from '../../types/finanzas';
+import type { CajaBanco } from '../../types/finanzas';
 
 interface Props {
   visible: boolean;
-  cajas: CuentaContable[];
+  cajas: CajaBanco[];
   onCerrar: () => void;
   onCreado: () => void;
   setFormDirty: (dirty: boolean) => void;
@@ -62,39 +62,16 @@ const ModalTransferencia: React.FC<Props> = ({ visible, cajas, onCerrar, onCread
       const escuelaId = perfil?.escuela_id;
       if (!escuelaId) throw new Error('No se pudo determinar la escuela.');
 
-      // 2. Crear asiento contable (la cabecera)
-      const { data: asiento, error: errAsiento } = await supabase.from('asientos_contables').insert({
-        escuela_id: escuelaId,
-        usuario_id: user.id,
-        fecha,
-        descripcion,
-        metodo_pago: 'transferencia',
-        nro_transaccion: nroTransaccion.trim() || null
-      }).select().single();
+      // 2. Actualizar Saldos de Caja
+      // Origen: Restar monto
+      const { data: cajaOrigen } = await supabase.from('cajas_bancos').select('saldo_actual').eq('id', origenId).single();
+      const nuevoSaldoOrigen = (Number(cajaOrigen?.saldo_actual) || 0) - valorMonto;
+      await supabase.from('cajas_bancos').update({ saldo_actual: nuevoSaldoOrigen }).eq('id', origenId);
 
-      if (errAsiento || !asiento) throw new Error('Error al registrar el comprobante: ' + (errAsiento?.message || 'Error desconocido'));
-
-      // 3. Crear movimientos (Origen -> sale dinero -> Haber, Destino -> entra dinero -> Debe)
-      const { error: errMovs } = await supabase.from('movimientos_contables').insert([
-        { // Salida origen
-          escuela_id: escuelaId,
-          asiento_id: asiento.id,
-          cuenta_contable_id: origenId,
-          debe: 0,
-          haber: valorMonto,
-          conciliado: false
-        },
-        { // Entrada destino
-          escuela_id: escuelaId,
-          asiento_id: asiento.id,
-          cuenta_contable_id: destinoId,
-          debe: valorMonto,
-          haber: 0,
-          conciliado: false
-        }
-      ]);
-
-      if (errMovs) throw new Error('Error al registrar los movimientos: ' + errMovs.message);
+      // Destino: Sumar monto
+      const { data: cajaDestino } = await supabase.from('cajas_bancos').select('saldo_actual').eq('id', destinoId).single();
+      const nuevoSaldoDestino = (Number(cajaDestino?.saldo_actual) || 0) + valorMonto;
+      await supabase.from('cajas_bancos').update({ saldo_actual: nuevoSaldoDestino }).eq('id', destinoId);
 
       setFormDirty(false);
       onCreado();
@@ -136,7 +113,7 @@ const ModalTransferencia: React.FC<Props> = ({ visible, cajas, onCerrar, onCread
             <div className="form-campo">
               <label><Building2 size={14} /> Cuenta Origen *</label>
               <select value={origenId} onChange={e => handleInputChange(setOrigenId, e.target.value)} required disabled={guardando}>
-                <option value="">Seleccione cuenta origen...</option>
+                <option value="">Seleccione</option>
                 {cajas.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
               </select>
             </div>
@@ -144,7 +121,7 @@ const ModalTransferencia: React.FC<Props> = ({ visible, cajas, onCerrar, onCread
             <div className="form-campo">
               <label><Building2 size={14} /> Cuenta Destino *</label>
               <select value={destinoId} onChange={e => handleInputChange(setDestinoId, e.target.value)} required disabled={guardando}>
-                <option value="">Seleccione cuenta destino...</option>
+                <option value="">Seleccione</option>
                 {cajas.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
               </select>
             </div>
@@ -181,7 +158,7 @@ const ModalTransferencia: React.FC<Props> = ({ visible, cajas, onCerrar, onCread
                 value={nroTransaccion}
                 onChange={e => handleInputChange(setNroTransaccion, e.target.value)}
                 disabled={guardando}
-                placeholder="Ej: TRF-001234..."
+                placeholder=""
               />
             </div>
 
@@ -192,9 +169,9 @@ const ModalTransferencia: React.FC<Props> = ({ visible, cajas, onCerrar, onCread
                 onChange={e => handleInputChange(setDescripcion, e.target.value)} 
                 required 
                 disabled={guardando} 
-                placeholder="Transferencia interna"
+                placeholder="Descripción de la transferencia"
                 maxLength={255}
-                style={{ resize: 'vertical', minHeight: '60px' }}
+                style={{ resize: 'vertical', minHeight: '120px', width: '100%' }}
               />
             </div>
           </div>
