@@ -8,26 +8,28 @@
  * 3. Barra de búsqueda de proveedor
  * 4. Lista tipo hoja de cálculo de proveedores con acciones inline
  */
-import React, { useEffect, useState, useMemo, useCallback } from 'react';
-import { supabase } from '../../lib/supabaseClient';
+import React, { useState, useMemo, useCallback } from 'react';
 import {
-  ChevronLeft, RefreshCw, Plus, Search,
-  Truck, AlertTriangle, DollarSign,
-  CreditCard, FileText, Users, UserPlus, BookOpen
+  RefreshCw, Plus, Search,
+  Truck, CreditCard, FileText, UserPlus, BookOpen
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 import { SidebarContext } from '../../App';
-import { useContext } from 'react';
+import { useContext, useEffect } from 'react';
 
 // Componentes del módulo
-import FiltrosCxP, { CATEGORIAS_PROVEEDOR, OPCIONES_ANTIGUEDAD } from '../../components/cxp/FiltrosCxP';
+import FiltrosCxP, { CATEGORIAS_PROVEEDOR } from '../../components/cxp/FiltrosCxP';
 import NotaPago from '../../components/cxp/NotaPago';
 import DetalleProveedorCxP from '../../components/cxp/DetalleProveedorCxP';
 import AdminEntidadesCxP from '../../components/cxp/AdminEntidadesCxP';
 import ModalPagoRapidoCxP from '../../components/cxp/ModalPagoRapidoCxP';
 import ModalSaldoInicialCxP from '../../components/cxp/ModalSaldoInicialCxP';
 import type { EntidadCxP } from '../../types/cxp';
+
+import { useAuthSaaSport } from '../../lib/authHelper';
+import { useCxpEntidades, useCxpResumen } from '../../hooks/useFinanzas';
+import { useQueryClient } from '@tanstack/react-query';
 
 
 /** Formato de moneda boliviana */
@@ -37,17 +39,32 @@ const fmtMonto = (n: number) =>
 const CuentasPagar: React.FC = () => {
   const navigate = useNavigate();
   const { setExtra } = useContext(SidebarContext);
-
-  // ── Estado principal ──
-  const [entidades, setEntidades]     = useState<EntidadCxP[]>([]);
-  const [cargando, setCargando]       = useState(() => !localStorage.getItem('saasport_cxp_cache'));
-  const [error, setError]             = useState<string | null>(null);
-  const [escuelaId, setEscuelaId]     = useState<string | null>(null);
+  const { escuelaId } = useAuthSaaSport();
+  const queryClient = useQueryClient();
 
   // ── Búsqueda y filtros ──
   const [busqueda, setBusqueda]         = useState('');
   const [filtroCategoria, setFiltroCategoria] = useState('');
   const [filtroAntiguedad, setFiltroAntiguedad] = useState('');
+
+  // ── Hooks de datos (Fase 1: Cálculos en DB + Fase 2: Caché) ──
+  const filtros = {
+    categoria: filtroCategoria,
+    antiguedad: filtroAntiguedad,
+    busqueda
+  };
+
+  const { data: entidadesRaw, isLoading: cargandoEntidades, error: errorEntidades } = useCxpEntidades(escuelaId, filtros);
+  const { data: resumenData, isLoading: cargandoResumen } = useCxpResumen(escuelaId);
+
+  const cargando = cargandoEntidades || cargandoResumen;
+  const entidadesFiltradas = (entidadesRaw as unknown as EntidadCxP[]) || [];
+  
+  const statsGlobales = {
+    totalEntidades: resumenData?.total_entidades || 0,
+    conDeuda: resumenData?.con_deuda || 0,
+    totalPendiente: Number(resumenData?.total_pendiente || 0)
+  };
 
   // ── Modales ──
   const [mostrarNota, setMostrarNota]                   = useState(false);
@@ -62,18 +79,6 @@ const CuentasPagar: React.FC = () => {
   // ── Entidad para pago rápido ──
   const [entidadParaNota, setEntidadParaNota]           = useState<EntidadCxP | null>(null);
 
-  /** Obtiene escuela_id del usuario autenticado */
-  const obtenerEscuelaId = useCallback(async (): Promise<string | null> => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return null;
-    const { data } = await supabase
-      .from('usuarios')
-      .select('escuela_id')
-      .eq('id', user.id)
-      .single();
-    return data?.escuela_id ?? null;
-  }, []);
-
   /** Calcula la antigüedad en días de una fecha ISO */
   const calcularDias = (fechaISO: string | null): number => {
     if (!fechaISO) return 0;
@@ -82,66 +87,10 @@ const CuentasPagar: React.FC = () => {
     return Math.floor((hoy.getTime() - fecha.getTime()) / (1000 * 60 * 60 * 24));
   };
 
-  /** Carga proveedores y personal con sus saldos pendientes */
-  const cargarDatos = useCallback(async (usarCache = true) => {
-    if (usarCache) {
-      const cache = localStorage.getItem('saasport_cxp_cache');
-      if (cache) {
-        try {
-          setEntidades(JSON.parse(cache));
-        } catch (e) {
-          console.error("Error al leer caché", e);
-        }
-      } else {
-        setCargando(true);
-      }
-    } else {
-      setCargando(true);
-    }
-    setError(null);
-
-    const eid = escuelaId || await obtenerEscuelaId();
-    if (!eid) {
-      setError('No se pudo determinar la escuela. Reinicia sesión.');
-      setCargando(false);
-      return;
-    }
-    if (!escuelaId) setEscuelaId(eid);
-
-    // Cargar consolidado de backend
-    const { data: dataCxp, error: errCxp } = await supabase
-      .from('v_cxp_consolidado')
-      .select('*')
-      .eq('escuela_id', eid)
-      .eq('activo', true);
-
-    if (errCxp) {
-      setError(`Error al cargar datos: ${errCxp.message}`);
-      setCargando(false);
-      return;
-    }
-
-    const lista = (dataCxp || []) as EntidadCxP[];
-
-    // Ordenar: primero con saldo, después por nombre
-    lista.sort((a, b) => {
-      if (b.saldo_pendiente !== a.saldo_pendiente) return b.saldo_pendiente - a.saldo_pendiente;
-      return a.nombre.localeCompare(b.nombre);
-    });
-
-    setEntidades(lista);
-    localStorage.setItem('saasport_cxp_cache', JSON.stringify(lista));
-    setCargando(false);
-  }, [escuelaId, obtenerEscuelaId]);
-
-  useEffect(() => { cargarDatos(); }, [cargarDatos]);
-
-  // ── Estadísticas globales ──
-  const statsGlobales = useMemo(() => ({
-    totalEntidades:   entidades.length,
-    conDeuda:         entidades.filter(e => e.saldo_pendiente > 0).length,
-    totalPendiente:   entidades.reduce((s, e) => s + e.saldo_pendiente, 0),
-  }), [entidades]);
+  const manejarActualizacion = () => {
+    queryClient.invalidateQueries({ queryKey: ['cxp-entidades'] });
+    queryClient.invalidateQueries({ queryKey: ['cxp-resumen'] });
+  };
 
   // Sidebar limpio para este módulo (según requerimiento)
   useEffect(() => {
@@ -149,31 +98,6 @@ const CuentasPagar: React.FC = () => {
     return () => setExtra(null);
   }, [setExtra]);
 
-  // ── Lista filtrada ──
-  const entidadesFiltradas = useMemo(() => {
-    let lista = entidades;
-
-    if (filtroCategoria) {
-      lista = lista.filter(e => e.categoria === filtroCategoria);
-    }
-
-    if (filtroAntiguedad) {
-      const limite = filtroAntiguedad === 'mas' ? 45 : parseInt(filtroAntiguedad);
-      lista = lista.filter(e => {
-        if (!e.fecha_mas_antigua) return false;
-        const dias = calcularDias(e.fecha_mas_antigua);
-        if (filtroAntiguedad === 'mas') return dias > 45;
-        return dias <= limite && dias > 0;
-      });
-    }
-
-    if (busqueda.trim()) {
-      const q = busqueda.toLowerCase();
-      lista = lista.filter(e => e.nombre.toLowerCase().includes(q));
-    }
-
-    return lista;
-  }, [entidades, filtroCategoria, filtroAntiguedad, busqueda]);
 
   /** Abrir nota para una entidad específica */
   const abrirNotaParaEntidad = (e: React.MouseEvent, entidad: EntidadCxP) => {
@@ -192,7 +116,7 @@ const CuentasPagar: React.FC = () => {
 
   // ── Vista: Panel de administración ──
   if (mostrarAdmin) {
-    return <AdminEntidadesCxP onVolver={() => { setMostrarAdmin(false); cargarDatos(); }} />;
+    return <AdminEntidadesCxP onVolver={() => { setMostrarAdmin(false); manejarActualizacion(); }} />;
   }
 
   // ── Vista: Módulo principal ──
@@ -253,7 +177,7 @@ const CuentasPagar: React.FC = () => {
             >
               <BookOpen size={14} />
             </button>
-            <button className="btn-excel-icon" onClick={() => cargarDatos(false)} disabled={cargando} title="Actualizar">
+            <button className="btn-excel-icon" onClick={manejarActualizacion} disabled={cargando} title="Actualizar">
               <RefreshCw size={14} className={cargando ? 'spin' : ''} />
             </button>
           </div>
@@ -294,10 +218,10 @@ const CuentasPagar: React.FC = () => {
       </div>
 
       {/* ─── Error ─── */}
-      {error && (
+      {errorEntidades && (
         <div className="pc-error">
-          <p>⚠️ {error}</p>
-          <button onClick={() => cargarDatos(false)}>Reintentar</button>
+          <p>⚠️ {errorEntidades instanceof Error ? errorEntidades.message : 'Error desconocido'}</p>
+          <button onClick={manejarActualizacion}>Reintentar</button>
         </div>
       )}
 
@@ -440,16 +364,16 @@ const CuentasPagar: React.FC = () => {
         visible={mostrarNota}
         tipoInicial={tipoNotaInicial}
         onCerrar={() => { setMostrarNota(false); setEntidadParaNota(null); }}
-        onCreada={() => { setMostrarNota(false); setEntidadParaNota(null); cargarDatos(); }}
+        onCreada={() => { setMostrarNota(false); setEntidadParaNota(null); manejarActualizacion(); }}
       />
 
       {/* ─── Modal: Pago Rápido ─── */}
       <ModalPagoRapidoCxP
         visible={mostrarPagoRapido}
-        entidades={entidades}
+        entidades={entidadesFiltradas}
         entidadInicial={entidadParaPagoRapido}
         onCerrar={() => { setMostrarPagoRapido(false); setEntidadParaPagoRapido(null); }}
-        onPagado={cargarDatos}
+        onPagado={manejarActualizacion}
       />
 
       {/* ─── Modal: Detalle del Proveedor ─── */}
@@ -457,7 +381,7 @@ const CuentasPagar: React.FC = () => {
         entidad={entidadSeleccionada}
         visible={!!entidadSeleccionada}
         onCerrar={() => setEntidadSeleccionada(null)}
-        onActualizar={cargarDatos}
+        onActualizar={manejarActualizacion}
       />
 
       <ModalSaldoInicialCxP
@@ -465,7 +389,7 @@ const CuentasPagar: React.FC = () => {
         onCerrar={() => setMostrarSaldoInicial(false)}
         onCreado={() => {
           setMostrarSaldoInicial(false);
-          cargarDatos();
+          manejarActualizacion();
         }}
       />
 

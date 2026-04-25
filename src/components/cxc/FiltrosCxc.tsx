@@ -4,9 +4,9 @@
  * Permite filtrar por Sucursal, Entrenador, Cancha y Horario.
  * Al seleccionar uno, los demás se ajustan automáticamente.
  */
-import React, { useEffect, useState, useMemo } from 'react';
-import { supabase } from '../../lib/supabaseClient';
+import React, { useMemo } from 'react';
 import { Filter, X } from 'lucide-react';
+import { useSucursales, useEntrenadores, useCanchas, useHorarios, useAlumnosRelaciones } from '../../hooks/useMasterData';
 
 /** Estructura de opciones de filtro */
 interface OpcionFiltro {
@@ -29,54 +29,27 @@ interface FiltrosProps {
   sidebar?: boolean;
 }
 
-/** Datos crudos del alumno para construir relaciones */
-interface AlumnoRel {
-  sucursal_id: string | null;
-  cancha_id: string | null;
-  horario_id: string | null;
-  profesor_asignado_id: string | null;
-}
-
 const FiltrosCxc: React.FC<FiltrosProps> = ({
   sucursalId, entrenadorId, canchaId, horarioId,
   onChangeSucursal, onChangeEntrenador, onChangeCancha, onChangeHorario,
   onLimpiar, compact = false, sidebar = false,
 }) => {
-  // Catálogos base
-  const [sucursales, setSucursales] = useState<OpcionFiltro[]>([]);
-  const [entrenadores, setEntrenadores] = useState<OpcionFiltro[]>([]);
-  const [canchas, setCanchas] = useState<OpcionFiltro[]>([]);
-  const [horarios, setHorarios] = useState<OpcionFiltro[]>([]);
-  // Relaciones de alumnos para filtrar bidireccionalmente
-  const [relaciones, setRelaciones] = useState<AlumnoRel[]>([]);
+  // Hooks de datos maestros con TanStack Query
+  const { data: sucursalesRaw } = useSucursales();
+  const { data: entrenadoresRaw } = useEntrenadores();
+  const { data: canchasRaw } = useCanchas();
+  const { data: horariosRaw } = useHorarios();
+  const { data: relaciones } = useAlumnosRelaciones();
 
-  // Cargar catálogos y relaciones al montar
-  useEffect(() => {
-    const cargar = async () => {
-      const [resSuc, resEnt, resCan, resHor, resAlum] = await Promise.all([
-        supabase.from('sucursales').select('id, nombre').order('nombre'),
-        supabase.from('usuarios').select('id, nombres, apellidos')
-          .in('rol', ['Entrenador', 'Entrenarqueros'])
-          .eq('activo', true)
-          .order('nombres'),
-        supabase.from('canchas').select('id, nombre').eq('activo', true).order('nombre'),
-        supabase.from('horarios').select('id, hora').eq('activo', true).order('hora'),
-        supabase.from('alumnos').select('sucursal_id, cancha_id, horario_id, profesor_asignado_id')
-          .eq('archivado', false),
-      ]);
+  // Mapear a formato OpcionFiltro
+  const sucursales = useMemo(() => (sucursalesRaw ?? []).map(s => ({ id: s.id, nombre: s.nombre })), [sucursalesRaw]);
+  const entrenadores = useMemo(() => (entrenadoresRaw ?? []).map(e => ({ id: e.id, nombre: `${e.nombres} ${e.apellidos}` })), [entrenadoresRaw]);
+  const canchas = useMemo(() => (canchasRaw ?? []).map(c => ({ id: c.id, nombre: c.nombre })), [canchasRaw]);
+  const horarios = useMemo(() => (horariosRaw ?? []).map(h => ({ id: h.id, nombre: h.hora })), [horariosRaw]);
 
-      setSucursales((resSuc.data ?? []).map(s => ({ id: s.id, nombre: s.nombre })));
-      setEntrenadores((resEnt.data ?? []).map(e => ({ id: e.id, nombre: `${e.nombres} ${e.apellidos}` })));
-      setCanchas((resCan.data ?? []).map(c => ({ id: c.id, nombre: c.nombre })));
-      setHorarios((resHor.data ?? []).map(h => ({ id: h.id, nombre: h.hora })));
-      setRelaciones(resAlum.data ?? []);
-    };
-    cargar();
-  }, []);
-
-  // Filtrar opciones disponibles bidireccionalmentee
+  // Filtrar opciones disponibles bidireccionalmente
   const filtrarOpciones = useMemo(() => {
-    let rels = relaciones;
+    let rels = relaciones ?? [];
 
     // Aplicar filtros actuales para reducir el conjunto
     if (sucursalId) rels = rels.filter(r => r.sucursal_id === sucursalId);
@@ -97,6 +70,7 @@ const FiltrosCxc: React.FC<FiltrosProps> = ({
       horariosFilt: horarioId ? horarios : horarios.filter(h => horIds.has(h.id)),
     };
   }, [relaciones, sucursalId, entrenadorId, canchaId, horarioId, sucursales, entrenadores, canchas, horarios]);
+
 
   const hayFiltros = sucursalId || entrenadorId || canchaId || horarioId;
 

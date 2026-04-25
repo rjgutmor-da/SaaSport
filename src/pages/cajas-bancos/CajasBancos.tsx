@@ -1,6 +1,9 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { supabase } from '../../lib/supabaseClient';
-import { ChevronLeft, Search, RefreshCw, Landmark, ArrowDownRight, ArrowUpRight, CheckCircle2, ArrowRightLeft, CheckSquare, Square, Pencil, Trash2 } from 'lucide-react';
+import {
+  RefreshCw, Landmark, ArrowDownRight, ArrowUpRight,
+  CheckCircle2, ArrowRightLeft, CheckSquare, Square, Pencil, Trash2
+} from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import type { CajaBanco, MovimientoContable, AsientoContable } from '../../types/finanzas';
 import ModalTransferencia from '../../components/cajas-bancos/ModalTransferencia';
@@ -16,6 +19,8 @@ import type { EntidadCxP } from '../../types/cxp';
 import { SidebarContext } from '../../App';
 import { useContext } from 'react';
 import { useAuthSaaSport } from '../../lib/authHelper';
+import { useCajasBancos, useMovimientos, useCxpEntidades } from '../../hooks/useFinanzas';
+import { useQueryClient } from '@tanstack/react-query';
 
 const fmtMonto = (n: number) =>
   n.toLocaleString('es-BO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -31,31 +36,32 @@ interface MovimientoExtendido {
   descripcion: string;
   nro_transaccion: string;
   cuenta_id: string;
-  cuenta_nombre: string;
   conciliado: boolean;
   cliente?: string;
   saldo_historico?: number;
   cuenta_maestra_id?: string;
+  cuenta_nombre?: string;
 }
 
 const CajasBancos: React.FC = () => {
   const navigate = useNavigate();
   const { setExtra } = useContext(SidebarContext);
-  const { esSuperAdmin, escuelaId: authEscuelaId } = useAuthSaaSport();
+  const { esSuperAdmin, escuelaId } = useAuthSaaSport();
+  const queryClient = useQueryClient();
 
-  // Estados
-  const [cajas, setCajas] = useState<CajaBanco[]>([]);
-  const [movimientos, setMovimientos] = useState<MovimientoExtendido[]>([]);
-  const [cargando, setCargando] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  // ── Hooks de datos con TanStack Query ──
+  const { data: cajas = [], isLoading: cargandoCajas } = useCajasBancos(escuelaId);
+  const cajaIds = useMemo(() => cajas.map(c => c.id), [cajas]);
+  const { data: movimientosRaw = [], isLoading: cargandoMovimientos, error: errorMovs } = useMovimientos(escuelaId, cajaIds);
+  const { data: entidades = [] } = useCxpEntidades(escuelaId, {});
+
+  const cargando = cargandoCajas || cargandoMovimientos;
+  const error = errorMovs ? (errorMovs instanceof Error ? errorMovs.message : 'Error al cargar datos') : null;
 
   // Filtros
   const [filtroCuenta, setFiltroCuenta] = useState<string>('todas');
   const [busqueda, setBusqueda] = useState('');
 
-  // Aux
-
-  
   // Estados para formularios activos
   const [activeForm, setActiveForm] = useState<'ingreso' | 'salida' | 'transferencia' | 'nueva_caja' | null>(null);
   const [formDirty, setFormDirty] = useState(false);
@@ -67,164 +73,30 @@ const CajasBancos: React.FC = () => {
   // Estados para Cobros/Pagos rápidos
   const [showCobro, setShowCobro] = useState(false);
   const [showPago, setShowPago] = useState(false);
-  const [entidades, setEntidades] = useState<EntidadCxP[]>([]);
 
-  const cargarDatos = useCallback(async () => {
-    setCargando(true);
-    setError(null);
-    const eid = authEscuelaId;
-    console.log("[CajasBancos] Iniciando carga de datos. EscuelaID:", eid);
-    
-    if (!eid) {
-      console.warn("[CajasBancos] No hay EscuelaID disponible. Abortando carga.");
-      // No seteamos cargando(false) inmediatamente para evitar parpadeos si el perfil está refrescando
-      // Pero si ya pasaron varios segundos, lo hacemos para no quedar bloqueado
-      setTimeout(() => {
-        setCargando(false);
-      }, 2000);
-      return;
-    }
-
-
-    // 1. Cargar las cuentas de cajas_bancos
-    const { data: dataCuentas, error: errCuentas } = await supabase
-      .from('cajas_bancos')
-      .select('*')
-      .eq('escuela_id', eid)
-      .eq('activo', true)
-      .order('nombre');
-
-    if (errCuentas) {
-      console.error("[CajasBancos] Error al cargar cajas_bancos:", errCuentas);
-      setError(`Error al cargar cajas/bancos: ${errCuentas.message}`);
-      setCargando(false);
-      return;
-    }
-    
-    const listCajas = dataCuentas ?? [];
-    console.log("[CajasBancos] Cajas cargadas:", listCajas.length);
-    setCajas(listCajas);
-
-    if (listCajas.length === 0) {
-      console.warn("[CajasBancos] La consulta devolvió 0 cajas para esta escuela.");
-      setCargando(false);
-      return;
-    }
-
-    const idsCajas = listCajas.map((c: any) => c.id);
-
-    // 2. Cargar entidades y cobros/pagos en paralelo para mejorar rendimiento
-    const [
-      { data: entProveedores },
-      { data: entPersonal },
-      { data: cobrosData },
-      { data: pagosData }
-    ] = await Promise.all([
-      supabase.from('proveedores').select('*').eq('escuela_id', eid),
-      supabase.from('personal').select('*').eq('escuela_id', eid),
-      supabase.from('cobros_aplicados').select(`
-        id, caja_id, monto_aplicado, fecha, conciliado, created_at,
-        cuentas_cobrar (
-          id, descripcion, nro_recibo,
-          alumnos ( nombres, apellidos )
-        )
-      `).in('caja_id', idsCajas),
-      supabase.from('pagos_aplicados').select(`
-        id, caja_id, monto_aplicado, fecha, conciliado, created_at,
-        cuentas_pagar (
-          id, descripcion,
-          proveedores ( nombre ),
-          personal ( nombres, apellidos )
-        )
-      `).in('caja_id', idsCajas)
-    ]);
-
-    const listEnt: EntidadCxP[] = [
-      ...(entProveedores?.map(p => ({ 
-        id: p.id, 
-        nombre: p.nombre, 
-        tipo: 'proveedor' as const, 
-        saldo_pendiente: 0,
-        categoria: 'Proveedor',
-        notas_pendientes: 0,
-        fecha_mas_antigua: null
-      })) || []),
-      ...(entPersonal?.map(p => ({ 
-        id: p.id, 
-        nombre: `${p.nombres} ${p.apellidos}`, 
-        tipo: 'personal' as const, 
-        saldo_pendiente: 0,
-        categoria: 'Personal',
-        notas_pendientes: 0,
-        fecha_mas_antigua: null
-      })) || [])
-    ];
-    setEntidades(listEnt);
-
-    const movsList: MovimientoExtendido[] = [];
+  // Procesar movimientos con saldo histórico
+  const movimientos = useMemo(() => {
+    const list = [...movimientosRaw].reverse(); // Empezar por el más antiguo para saldo
     const saldosHistoricos: Record<string, number> = {};
-
-    (cobrosData || []).forEach((c: any) => {
-      const cxc = c.cuentas_cobrar;
-      let clienteNombre = '—';
-      if (cxc?.alumnos) clienteNombre = `${cxc.alumnos.nombres} ${cxc.alumnos.apellidos}`;
-
-      movsList.push({
-        id: c.id,
-        tipo_origen: 'cobro',
-        debe: Number(c.monto_aplicado) || 0,
-        haber: 0,
-        fecha: c.fecha || c.created_at,
-        descripcion: cxc?.descripcion || 'Cobro / Ingreso',
-        nro_transaccion: cxc?.nro_recibo || '',
-        cliente: clienteNombre,
-        cuenta_id: c.caja_id,
-        cuenta_nombre: listCajas.find((bx: any) => bx.id === c.caja_id)?.nombre || 'Desconocida',
-        conciliado: c.conciliado || false,
-        cuenta_maestra_id: cxc?.id
-      });
-    });
-
-    (pagosData || []).forEach((p: any) => {
-      const cxp = p.cuentas_pagar;
-      let clienteNombre = '—';
-      if (cxp?.proveedores) {
-        clienteNombre = cxp.proveedores.nombre;
-      } else if (cxp?.personal) {
-        clienteNombre = `${cxp.personal.nombres} ${cxp.personal.apellidos}`;
-      }
-
-      movsList.push({
-        id: p.id,
-        tipo_origen: 'pago',
-        debe: 0,
-        haber: Number(p.monto_aplicado) || 0,
-        fecha: p.fecha || p.created_at,
-        descripcion: cxp?.descripcion || 'Pago / Egreso',
-        nro_transaccion: '',
-        cliente: clienteNombre,
-        cuenta_id: p.caja_id,
-        cuenta_nombre: listCajas.find((bx: any) => bx.id === p.caja_id)?.nombre || 'Desconocida',
-        conciliado: p.conciliado || false,
-        cuenta_maestra_id: cxp?.id
-      });
-    });
-
-    // Sort ascending to calculate running balance
-    movsList.sort((a, b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime());
-
-    movsList.forEach(m => {
+    
+    const result = list.map(m => {
       if (!saldosHistoricos[m.cuenta_id]) saldosHistoricos[m.cuenta_id] = 0;
       saldosHistoricos[m.cuenta_id] += (m.debe - m.haber);
-      m.saldo_historico = saldosHistoricos[m.cuenta_id];
+      return {
+        ...m,
+        cuenta_nombre: cajas.find(c => c.id === m.cuenta_id)?.nombre || 'Desconocida',
+        saldo_historico: saldosHistoricos[m.cuenta_id]
+      };
     });
 
-    // Sort descending for UI (newest first)
-    movsList.sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime());
+    return result.reverse(); // Volver al más reciente primero
+  }, [movimientosRaw, cajas]);
 
-    setMovimientos(movsList);
-    setCargando(false);
-  }, [authEscuelaId]);
+  const manejarActualizacion = () => {
+    queryClient.invalidateQueries({ queryKey: ['cajas-bancos', escuelaId] });
+    queryClient.invalidateQueries({ queryKey: ['movimientos-contables', escuelaId] });
+  };
+
 
   const toggleForm = (type: 'ingreso' | 'salida' | 'transferencia' | 'nueva_caja') => {
     if (activeForm === type) {
@@ -444,7 +316,7 @@ const CajasBancos: React.FC = () => {
               <Landmark size={16} /> {activeForm === 'nueva_caja' ? 'Cerrar Nueva' : 'Nueva Caja'}
             </button>
 
-            <button className="btn-refrescar" onClick={cargarDatos} disabled={cargando}>
+            <button className="btn-refrescar" onClick={manejarActualizacion} disabled={cargando}>
               <RefreshCw size={18} className={cargando ? 'spin' : ''} />
             </button>
           </div>
@@ -661,7 +533,7 @@ const CajasBancos: React.FC = () => {
                                           const tablaApl = mov.tipo_origen === 'cobro' ? 'cobros_aplicados' : 'pagos_aplicados';
                                           await supabase.from(tablaApl).delete().eq('id', mov.id);
                                         }
-                                        cargarDatos();
+                                        manejarActualizacion();
                                       }
                                     }}
                                     style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--danger)' }}
@@ -713,7 +585,7 @@ const CajasBancos: React.FC = () => {
         onCreado={() => {
           setActiveForm(null);
           setFormDirty(false);
-          cargarDatos();
+          manejarActualizacion();
         }}
       />
       
@@ -725,7 +597,7 @@ const CajasBancos: React.FC = () => {
         onCreado={() => {
           setActiveForm(null);
           setFormDirty(false);
-          cargarDatos();
+          manejarActualizacion();
         }} 
       />
 
@@ -734,7 +606,7 @@ const CajasBancos: React.FC = () => {
         onCerrar={() => setActiveForm(null)}
         onCreado={() => {
           setActiveForm(null);
-          cargarDatos();
+          manejarActualizacion();
         }}
       />
 
@@ -744,7 +616,7 @@ const CajasBancos: React.FC = () => {
         movimiento={movEditar}
         cajas={cajas}
         onCerrar={() => setMovEditar(null)}
-        onGuardado={() => { setMovEditar(null); cargarDatos(); }}
+        onGuardado={() => { setMovEditar(null); manejarActualizacion(); }}
       />
 
       {/* Nuevos modales de Cobro y Pago rápidos */}
@@ -752,7 +624,7 @@ const CajasBancos: React.FC = () => {
         visible={showCobro}
         alumnoInicial={null}
         onCerrar={() => setShowCobro(false)}
-        onCobrado={() => { setShowCobro(false); cargarDatos(); }}
+        onCobrado={() => { setShowCobro(false); manejarActualizacion(); }}
       />
 
       <ModalPagoRapidoCxP
@@ -760,7 +632,7 @@ const CajasBancos: React.FC = () => {
         entidadInicial={null}
         entidades={entidades}
         onCerrar={() => setShowPago(false)}
-        onPagado={() => { setShowPago(false); cargarDatos(); }}
+        onPagado={() => { setShowPago(false); manejarActualizacion(); }}
       />
 
     </main>

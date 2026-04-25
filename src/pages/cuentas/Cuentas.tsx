@@ -3,16 +3,16 @@
  * Módulo de Cuentas (ex-Inventarios): gestión de catálogo de ítems (productos, servicios, gastos, otros).
  * Permite definir si un ítem es de Ingreso, Egreso o Ambos.
  */
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { supabase } from '../../lib/supabaseClient';
-import type { CatalogoItem } from '../../types/cuentas';
 import {
-  ChevronLeft, RefreshCw, Plus, Check, X, Trash2,
-  Edit2, Save, CircleArrowUp, CircleArrowDown, BookOpen, Package, 
-  ShoppingBag, Wrench, Receipt, Layers
+  RefreshCw, Plus, X, Trash2,
+  Edit2, Save, BookOpen, ShoppingBag, Wrench, Receipt, Layers
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthSaaSport } from '../../lib/authHelper';
+import { useCatalogo } from '../../hooks/useMasterData';
+import { useQueryClient } from '@tanstack/react-query';
 
 const obtenerCtx = async () => {
   const { data: { user } } = await supabase.auth.getUser();
@@ -44,22 +44,32 @@ interface ItemConsolidado {
 
 const Cuentas: React.FC = () => {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const { escuelaId, cargando: authCargando } = useAuthSaaSport();
 
-  // Datos
-  const [items, setItems] = useState<ItemConsolidado[]>(() => {
-    const cache = localStorage.getItem('saasport_cuentas_cache');
-    if (cache) {
-      try {
-        return JSON.parse(cache);
-      } catch (e) {
-        return [];
-      }
-    }
-    return [];
-  });
-  // Si tenemos items en el caché, no mostramos el spinner de pantalla completa, pero igual refrescamos
-  const [cargando, setCargando] = useState(items.length === 0);
-  const [error, setError] = useState<string | null>(null);
+  // ── Hook de datos maestros ──
+  const { data: catalogoRaw, isLoading: cargandoCatalogo, error: errorCatalogo } = useCatalogo(escuelaId);
+
+  // Procesar items para la vista
+  const items = useMemo(() => {
+    return (catalogoRaw ?? []).map((item: any) => ({
+      id: item.id,
+      nombre: item.nombre,
+      categoria: item.categoria || 'servicio',
+      tipo_movimiento: item.tipo_movimiento || 'ingreso',
+      precio_venta: item.precio_venta,
+      costo_unitario: item.costo_unitario,
+      saldo: item.stock?.[0]?.cantidad_disponible || 0,
+      stock_id: item.stock?.[0]?.id,
+      cuenta_ingreso_id: item.cuenta_ingreso_id,
+      cuenta_gasto_id: item.cuenta_gasto_id,
+      ventasMesPresente: 0,
+      ventasMesPasado: 0,
+      ventasTotales: 0,
+    })) as ItemConsolidado[];
+  }, [catalogoRaw]);
+
+  const cargando = cargandoCatalogo || authCargando;
 
   // Filtro
   const [filtroCategoria, setFiltroCategoria] = useState('');
@@ -80,64 +90,10 @@ const Cuentas: React.FC = () => {
   }[]>([]);
   const [guardandoItems, setGuardandoItems] = useState(false);
 
-  const { escuelaId, cargando: authCargando } = useAuthSaaSport();
-
-  // Cargar datos con Estrategia Caché
-  const cargarDatos = async (usarCache = true) => {
-    setError(null);
-
-    if (!escuelaId) {
-      if (authCargando) return;
-      setError('No se pudo cargar el contexto de la escuela. Por favor, asegúrate de tener una sesión activa.');
-      setCargando(false);
-      return;
-    }
-
-    try {
-      // Usamos la vista v_inventario que debe estar actualizada o la tabla directamente
-      // Para este refactor, usaremos la tabla catalogo_items directamente para asegurar que traemos los nuevos campos
-      const { data: invData, error: invErr } = await supabase
-        .from('catalogo_items')
-        .select(`
-          *,
-          stock:stock_productos(id, cantidad_disponible)
-        `)
-        .eq('escuela_id', escuelaId)
-        .order('nombre');
-
-      if (invErr) throw invErr;
-
-      const itemsProcesados: ItemConsolidado[] = (invData || []).map((item: any) => ({
-        id: item.id,
-        nombre: item.nombre,
-        categoria: item.categoria || 'servicio',
-        tipo_movimiento: item.tipo_movimiento || 'ingreso',
-        precio_venta: item.precio_venta,
-        costo_unitario: item.costo_unitario,
-        saldo: item.stock?.[0]?.cantidad_disponible || 0,
-        stock_id: item.stock?.[0]?.id,
-        cuenta_ingreso_id: item.cuenta_ingreso_id,
-        cuenta_gasto_id: item.cuenta_gasto_id,
-        ventasMesPresente: 0, // Estos campos requerirían joins más complejos o RPC, los dejamos en 0 por ahora para simplificar el refactor visual
-        ventasMesPasado: 0,
-        ventasTotales: 0,
-      }));
-
-      setItems(itemsProcesados);
-      localStorage.setItem('saasport_cuentas_cache', JSON.stringify(itemsProcesados));
-    } catch (e: any) {
-      console.error(e);
-      if (!items.length) setError(e.message);
-    } finally {
-      setCargando(false);
-    }
+  const manejarActualizacion = () => {
+    queryClient.invalidateQueries({ queryKey: ['catalogo', escuelaId] });
   };
 
-  useEffect(() => {
-    if (escuelaId) {
-      cargarDatos();
-    }
-  }, [escuelaId]);
 
   // Lista Filtrada
   const itemsFiltrados = useMemo(() => {
@@ -272,7 +228,7 @@ const Cuentas: React.FC = () => {
         alert('Hubo problemas al guardar algunos ítems. Por favor revisa la consola o intenta de nuevo.');
       } else {
         setEditando(false);
-        cargarDatos(false);
+        manejarActualizacion();
       }
     } catch (err) {
       console.error("Falla crítica al guardar:", err);
@@ -360,16 +316,16 @@ const Cuentas: React.FC = () => {
                 </button>
               </>
             )}
-            <button className="btn-refrescar" onClick={() => cargarDatos(false)} disabled={cargando}>
+            <button className="btn-refrescar" onClick={manejarActualizacion} disabled={cargando}>
               <RefreshCw size={16} className={cargando ? 'spin' : ''} />
             </button>
           </div>
         </div>
       </div>
 
-      {error && (
+      {errorCatalogo && (
         <div className="pc-error" style={{ marginBottom: '1rem' }}>
-          <p>⚠️ {error}</p>
+          <p>⚠️ {errorCatalogo instanceof Error ? errorCatalogo.message : 'Error desconocido'}</p>
         </div>
       )}
 

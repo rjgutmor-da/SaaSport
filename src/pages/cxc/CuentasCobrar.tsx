@@ -8,13 +8,12 @@
  * 3. Barra de búsqueda
  * 4. Tabla tipo hoja de cálculo con acciones por alumno
  */
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import type { AlumnoDeuda } from '../../types/cxc';
 import {
-  ChevronLeft, RefreshCw, Plus, Search,
-  Users, AlertTriangle, DollarSign,
-  MessageCircle, CreditCard, FileText, BookOpen
+  RefreshCw, Plus, Search,
+  Users, CreditCard, FileText, BookOpen, MessageCircle
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
@@ -29,6 +28,9 @@ import ModalCobroRapido from '../../components/cxc/ModalCobroRapido';
 import ModalSaldoInicialCxC from '../../components/cxc/ModalSaldoInicialCxC';
 
 import { useDebounce } from '../../hooks/useDebounce';
+import { useAuthSaaSport } from '../../lib/authHelper';
+import { useCxcAlumnos, useCxcResumen } from '../../hooks/useFinanzas';
+import { useQueryClient } from '@tanstack/react-query';
 
 /** Formatea un número como moneda (Bs) */
 const fmtMonto = (n: number): string =>
@@ -37,20 +39,15 @@ const fmtMonto = (n: number): string =>
 const CuentasCobrar: React.FC = () => {
   const navigate = useNavigate();
   const { setExtra } = useContext(SidebarContext);
-
-  // Datos principales
-  const [alumnosDeuda, setAlumnosDeuda] = useState<AlumnoDeuda[]>([]);
-  const [cargando, setCargando] = useState(() => !localStorage.getItem('saasport_cxc_cache'));
-  const [error, setError] = useState<string | null>(null);
+  const { escuelaId } = useAuthSaaSport();
+  const queryClient = useQueryClient();
 
   // Búsqueda con Debounce
   const [busqueda, setBusqueda] = useState('');
   const debouncedBusqueda = useDebounce(busqueda, 500);
 
-  // Filtro rápido: solo con deuda
+  // Filtros rápidos y de servidor
   const [soloConDeuda, setSoloConDeuda] = useState(false);
-
-  // Filtros bidireccionales
   const [filtroSucursal, setFiltroSucursal] = useState('');
   const [filtroEntrenador, setFiltroEntrenador] = useState('');
   const [filtroCancha, setFiltroCancha] = useState('');
@@ -58,11 +55,31 @@ const CuentasCobrar: React.FC = () => {
 
   // Paginación
   const [pagina, setPagina] = useState(1);
-  const [totalResultados, setTotalResultados] = useState(0);
   const itemsPorPagina = 20;
 
-  // Stats globales (estos sí podrían necesitar una carga aparte o calcularse sobre el total sin paginar)
-  const [stats, setStats] = useState({ totalAlumnos: 0, conDeuda: 0, totalPendiente: 0 });
+  // Hooks de datos (Fase 1: Cálculos en DB + Fase 2: Caché)
+  const filtros = {
+    sucursalId: filtroSucursal,
+    entrenadorId: filtroEntrenador,
+    canchaId: filtroCancha,
+    horarioId: filtroHorario,
+    soloConDeuda,
+    busqueda: debouncedBusqueda,
+    pagina,
+    itemsPorPagina
+  };
+
+  const { data: alumnosData, isLoading: cargandoAlumnos, error: errorAlumnos, refetch: refetchAlumnos } = useCxcAlumnos(escuelaId, filtros);
+  const { data: resumenData, isLoading: cargandoResumen, refetch: refetchResumen } = useCxcResumen(escuelaId);
+
+  const cargando = cargandoAlumnos || cargandoResumen;
+  const alumnosDeuda = (alumnosData?.data as unknown as AlumnoDeuda[]) || [];
+  const totalResultados = alumnosData?.count || 0;
+  const stats = {
+    totalAlumnos: resumenData?.total_alumnos || 0,
+    conDeuda: resumenData?.con_deuda || 0,
+    totalPendiente: Number(resumenData?.total_pendiente || 0)
+  };
 
   // Modales
   const [mostrarNota, setMostrarNota] = useState(false);
@@ -84,118 +101,11 @@ const CuentasCobrar: React.FC = () => {
   const fechaHoyAnt = new Date(); fechaHoyAnt.setMonth(fechaHoyAnt.getMonth() - 1);
   const mesAnteriorStr = nombresMeses[fechaHoyAnt.getMonth()];
 
-  // Obtener escuela_id del usuario autenticado
-  const obtenerEscuelaId = async (): Promise<string | null> => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return null;
-    const { data } = await supabase
-      .from('usuarios')
-      .select('escuela_id')
-      .eq('id', user.id)
-      .single();
-    return data?.escuela_id ?? null;
+  const manejarActualizacion = () => {
+    queryClient.invalidateQueries({ queryKey: ['cxc-alumnos'] });
+    queryClient.invalidateQueries({ queryKey: ['cxc-resumen'] });
   };
 
-  // Cargar datos con filtrado en servidor
-  const cargarDatos = async (usarCache = true) => {
-    if (usarCache && pagina === 1 && !filtroSucursal && !filtroEntrenador && !filtroCancha && !filtroHorario && !debouncedBusqueda && !soloConDeuda) {
-      const cache = localStorage.getItem('saasport_cxc_cache');
-      if (cache) {
-        try {
-          const parsed = JSON.parse(cache);
-          setAlumnosDeuda(parsed.alumnos);
-          setTotalResultados(parsed.count);
-          setStats(parsed.stats);
-        } catch (e) {
-          console.error("Error al leer caché", e);
-        }
-      } else {
-        setCargando(true);
-      }
-    } else {
-      setCargando(true);
-    }
-    setError(null);
-
-    const escuelaId = await obtenerEscuelaId();
-    if (!escuelaId) {
-      setError('No se pudo determinar tu escuela. Reinicia sesión.');
-      setCargando(false);
-      return;
-    }
-
-    let query = supabase
-      .from('v_alumnos_deuda')
-      .select('*, fecha_nacimiento', { count: 'exact' })
-      .eq('escuela_id', escuelaId);
-
-    // Aplicar filtros en servidor
-    if (filtroSucursal) query = query.eq('sucursal_id', filtroSucursal);
-    if (filtroEntrenador) query = query.eq('entrenador_id', filtroEntrenador);
-    if (filtroCancha) query = query.eq('cancha_id', filtroCancha);
-    if (filtroHorario) query = query.eq('horario_id', filtroHorario);
-    if (soloConDeuda) query = query.gt('saldo_pendiente', 0);
-    
-    if (debouncedBusqueda.trim()) {
-      const q = `%${debouncedBusqueda.trim()}%`;
-      query = query.or(`nombres.ilike.${q},apellidos.ilike.${q}`);
-    }
-
-    // Paginación
-    const desde = (pagina - 1) * itemsPorPagina;
-    const hasta = desde + itemsPorPagina - 1;
-    
-    const { data, error: err, count } = await query
-      .order('nombres', { ascending: true })
-      .range(desde, hasta);
-
-    if (err) {
-      setError(`Error al cargar: ${err.message}`);
-    } else {
-      setAlumnosDeuda((data as unknown as AlumnoDeuda[]) ?? []);
-      setTotalResultados(count || 0);
-      
-      // Para las estadísticas globales, si queremos el total real, 
-      // a veces es mejor otra query ligera o usar el count si no hay filtros.
-      // Aquí usamos el count del query filtrado para los alumnos visibles.
-      if (count !== null) {
-          // Nota: Las stats de 'totalPendiente' requieren sumar todos los registros.
-          // Si el dataset es muy grande, esto debería ser un RPC.
-          // Por ahora, si hay menos de 1000 alumnos, podemos traer los saldos en una query aparte.
-          const { data: sums } = await supabase
-            .from('v_alumnos_deuda')
-            .select('saldo_pendiente')
-            .eq('escuela_id', escuelaId);
-          
-          const totalPend = (sums || []).reduce((s, a) => s + Number(a.saldo_pendiente), 0);
-          const conDeudaCount = (sums || []).filter(a => Number(a.saldo_pendiente) > 0).length;
-
-          const newStats = {
-            totalAlumnos: count,
-            conDeuda: conDeudaCount,
-            totalPendiente: totalPend
-          };
-          setStats(newStats);
-          
-          if (pagina === 1 && !filtroSucursal && !filtroEntrenador && !filtroCancha && !filtroHorario && !debouncedBusqueda && !soloConDeuda) {
-            localStorage.setItem('saasport_cxc_cache', JSON.stringify({ alumnos: data, count, stats: newStats }));
-          }
-      }
-    }
-    setCargando(false);
-  };
-
-  // Recargar cuando cambian los filtros o la búsqueda
-  useEffect(() => {
-    setPagina(1); // Volver a la primera página al filtrar
-    cargarDatos(false);
-  }, [filtroSucursal, filtroEntrenador, filtroCancha, filtroHorario, debouncedBusqueda, soloConDeuda]);
-
-  // Recargar solo cuando cambia la página
-  useEffect(() => {
-    const sinFiltros = !filtroSucursal && !filtroEntrenador && !filtroCancha && !filtroHorario && !debouncedBusqueda && !soloConDeuda;
-    cargarDatos(pagina === 1 && sinFiltros);
-  }, [pagina]);
 
   // Abrir nota para un alumno específico
   const abrirNotaParaAlumno = (e: React.MouseEvent, alumno: AlumnoDeuda) => {
@@ -291,7 +201,7 @@ const CuentasCobrar: React.FC = () => {
             >
               <BookOpen size={14} />
             </button>
-            <button className="btn-refrescar" onClick={() => cargarDatos(false)} disabled={cargando} title="Actualizar">
+            <button className="btn-refrescar" onClick={manejarActualizacion} disabled={cargando} title="Actualizar">
               <RefreshCw size={14} className={cargando ? 'spin' : ''} />
             </button>
           </div>
@@ -332,10 +242,10 @@ const CuentasCobrar: React.FC = () => {
       </div>
 
       {/* ─── Error ─── */}
-      {error && (
+      {errorAlumnos && (
         <div className="pc-error">
-          <p>⚠️ {error}</p>
-          <button onClick={() => cargarDatos(false)}>Reintentar</button>
+          <p>⚠️ {errorAlumnos instanceof Error ? errorAlumnos.message : 'Error desconocido'}</p>
+          <button onClick={manejarActualizacion}>Reintentar</button>
         </div>
       )}
 
@@ -467,7 +377,7 @@ const CuentasCobrar: React.FC = () => {
       <NotaServicios
         visible={mostrarNota}
         onCerrar={() => { setMostrarNota(false); setAlumnoParaNota(null); }}
-        onCreada={cargarDatos}
+        onCreada={manejarActualizacion}
         alumnoPreseleccionado={alumnoParaNota}
       />
 
@@ -477,7 +387,7 @@ const CuentasCobrar: React.FC = () => {
           alumnoInicial={alumnoParaCobro}
           visible={mostrarCobroRapido}
           onCerrar={() => { setMostrarCobroRapido(false); setAlumnoParaCobro(null); }}
-          onCobrado={cargarDatos}
+          onCobrado={manejarActualizacion}
         />
       )}
 
@@ -486,7 +396,7 @@ const CuentasCobrar: React.FC = () => {
         alumno={alumnoSeleccionado}
         visible={!!alumnoSeleccionado}
         onCerrar={() => setAlumnoSeleccionado(null)}
-        onActualizar={cargarDatos}
+        onActualizar={manejarActualizacion}
       />
 
       <ModalSaldoInicialCxC
@@ -494,7 +404,7 @@ const CuentasCobrar: React.FC = () => {
         onCerrar={() => setMostrarSaldoInicial(false)}
         onCreado={() => {
           setMostrarSaldoInicial(false);
-          cargarDatos();
+          manejarActualizacion();
         }}
       />
 
