@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import {
-  RefreshCw, Landmark, ArrowDownRight, ArrowUpRight,
+  RefreshCw, Landmark, ArrowDownRight, ArrowUpRight, Search,
   CheckCircle2, ArrowRightLeft, CheckSquare, Square, Pencil, Trash2
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -27,7 +27,7 @@ const fmtMonto = (n: number) =>
 
 const fmtFechaLocal = (iso: string): string => formatFecha(iso);
 
-interface MovimientoExtendido {
+interface MovimientoUI {
   id: string;
   tipo_origen: 'cobro' | 'pago';
   debe: number;
@@ -67,8 +67,8 @@ const CajasBancos: React.FC = () => {
   const [formDirty, setFormDirty] = useState(false);
 
   // Estado para edición de movimientos
-  const [movEditar, setMovEditar] = useState<MovimientoExtendido | null>(null);
-  const [movDetalle, setMovDetalle] = useState<MovimientoExtendido | null>(null);
+  const [movEditar, setMovEditar] = useState<MovimientoUI | null>(null);
+  const [movDetalle, setMovDetalle] = useState<MovimientoUI | null>(null);
 
   // Estados para Cobros/Pagos rápidos
   const [showCobro, setShowCobro] = useState(false);
@@ -125,9 +125,7 @@ const CajasBancos: React.FC = () => {
     setFormDirty(false);
   };
 
-  useEffect(() => {
-    cargarDatos();
-  }, [cargarDatos]);
+
 
   // Cálculos de saldo
   const saldos = useMemo(() => {
@@ -195,7 +193,7 @@ const CajasBancos: React.FC = () => {
     return list;
   }, [movimientos, filtroCuenta, busqueda]);
 
-  const toggleConciliar = async (mov: MovimientoExtendido) => {
+  const toggleConciliar = async (mov: MovimientoUI) => {
     try {
       const tabla = mov.tipo_origen === 'cobro' ? 'cobros_aplicados' : 'pagos_aplicados';
       const { error: errUpd } = await supabase
@@ -205,9 +203,7 @@ const CajasBancos: React.FC = () => {
 
       if (errUpd) throw errUpd;
 
-      setMovimientos(prev => prev.map(m => 
-        m.id === mov.id ? { ...m, conciliado: !mov.conciliado } : m
-      ));
+      manejarActualizacion();
     } catch (err: any) {
       alert("Error al actualizar estado: " + err.message);
     }
