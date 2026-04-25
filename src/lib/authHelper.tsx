@@ -98,6 +98,8 @@ export const AuthProviderSaaSport = ({ children }: { children: ReactNode }) => {
 
     // 2. Escuchar cambios de autenticación
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, s) => {
+      console.log("[Auth] Evento de sesión:", event);
+      setCargando(true);
       setSession(s);
       if (s?.user) {
         await cargarPerfil(s.user.id);
@@ -124,17 +126,19 @@ export const AuthProviderSaaSport = ({ children }: { children: ReactNode }) => {
     ? (perfil.rol === 'SuperAdministrador' || perfil.rol === 'Dueño') && perfil.activo
     : false;
 
+  const value = React.useMemo(() => ({
+    session,
+    perfil,
+    cargando,
+    tieneAcceso,
+    esSuperAdmin,
+    sucursalId: perfil?.sucursal_id ?? null,
+    escuelaId: perfil?.escuela_id ?? null,
+    cerrarSesion,
+  }), [session, perfil, cargando, tieneAcceso, esSuperAdmin, cerrarSesion]);
+
   return (
-    <AuthContext.Provider value={{
-      session,
-      perfil,
-      cargando,
-      tieneAcceso,
-      esSuperAdmin,
-      sucursalId: perfil?.sucursal_id ?? null,
-      escuelaId: perfil?.escuela_id ?? null,
-      cerrarSesion,
-    }}>
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );

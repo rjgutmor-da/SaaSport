@@ -4,6 +4,7 @@
  * Las credenciales se leen desde variables de entorno (.env).
  */
 import { createClient } from '@supabase/supabase-js'
+import Cookies from 'js-cookie'
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
@@ -16,41 +17,23 @@ if (!supabaseUrl || !supabaseAnonKey) {
 }
 
 /**
- * Storage personalizado para compartir la sesión entre subdominios.
- * Guarda la sesión en una cookie en el dominio raíz (.saasport.pro).
+ * Storage personalizado usando js-cookie para compartir la sesión entre subdominios (.saasport.pro).
  */
-const isBrowser = typeof document !== 'undefined';
-// Usar .saasport.pro solo si estamos en ese dominio, si no, dejar vacío para que use el dominio actual (ej. vercel.app)
-const domain = isBrowser && window.location.hostname.endsWith('saasport.pro') 
-  ? '.saasport.pro' 
-  : '';
-
 const cookieStorage = {
   getItem: (key: string) => {
-    if (!isBrowser) return null;
-    const name = `${key}=`;
-    const decodedCookie = decodeURIComponent(document.cookie);
-    const ca = decodedCookie.split(';');
-    for (let i = 0; i < ca.length; i++) {
-      let c = ca[i].trim();
-      if (c.indexOf(name) === 0) {
-        return c.substring(name.length, c.length);
-      }
-    }
-    return null;
+    return Cookies.get(key) || null;
   },
   setItem: (key: string, value: string) => {
-    if (!isBrowser) return;
-    const d = new Date();
-    d.setTime(d.getTime() + (365 * 24 * 60 * 60 * 1000));
-    const expires = "expires=" + d.toUTCString();
-    const domainAttr = domain ? `;domain=${domain}` : '';
-    document.cookie = `${key}=${value};${expires}${domainAttr};path=/;SameSite=Lax;Secure`;
+    Cookies.set(key, value, {
+      expires: 365,
+      domain: '.saasport.pro',
+      path: '/',
+      sameSite: 'lax',
+      secure: true
+    });
   },
   removeItem: (key: string) => {
-    if (!isBrowser) return;
-    const domainAttr = domain ? `;domain=${domain}` : '';
-    document.cookie = `${key}=;expires=Thu, 01 Jan 1970 00:00:00 UTC${domainAttr};path=/;SameSite=Lax;Secure`;
+    Cookies.remove(key, { domain: '.saasport.pro', path: '/' });
   }
 };
 
