@@ -193,8 +193,26 @@ const AppRouter: React.FC<AppRouterProps> = ({ onLogout, theme, onCycleTheme }) 
   }
 
   // Bloquear roles no permitidos (entrenadores, etc.)
-  if (!tieneAcceso && perfil) {
+  if (perfil && !tieneAcceso) {
     return <AccesoDenegado rol={perfil.rol} onLogout={onLogout} />;
+  }
+
+  // Si no hay perfil pero cargando es false, algo falló al obtener los datos del usuario
+  if (!perfil && !cargando) {
+    return (
+      <div className="login-container">
+        <div className="login-card" style={{ textAlign: 'center', gap: '1.5rem' }}>
+          <div style={{ fontSize: '3rem' }}>⚠️</div>
+          <h1 className="login-titulo">Error de Perfil</h1>
+          <p style={{ color: 'var(--text-secondary)' }}>
+            No pudimos cargar tu información de usuario. Esto puede deberse a un problema de conexión o a que tu cuenta no está configurada correctamente.
+          </p>
+          <button onClick={onLogout} className="login-btn">
+            Intentar de nuevo (Cerrar Sesión)
+          </button>
+        </div>
+      </div>
+    );
   }
 
   return (

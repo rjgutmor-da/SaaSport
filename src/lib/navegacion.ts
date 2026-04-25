@@ -6,7 +6,7 @@
 export const ASISPORT_URL = 'https://asisport.saasport.pro';
 
 /**
- * Redirige a AsisPort de forma independiente (sin compartir sesión).
+ * Redirige a AsisPort directamente (la sesión se comparte vía cookies).
  */
 export const navegarAAsisport = (rutaDestino: string = '/dashboard'): void => {
   const route = rutaDestino.startsWith('/') ? rutaDestino : `/${rutaDestino}`;
