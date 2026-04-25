@@ -11,15 +11,18 @@ import type { CajaBanco } from '../../types/finanzas';
 
 interface MovimientoExtendido {
   id: string;
+  tipo_origen: 'cobro' | 'pago';
   debe: number;
   haber: number;
   fecha: string;
   descripcion: string;
   nro_transaccion: string;
-  asiento_id: string;
   cuenta_id: string;
   cuenta_nombre: string;
   conciliado: boolean;
+  cliente?: string;
+  saldo_historico?: number;
+  cuenta_maestra_id?: string;
 }
 
 interface Props {
