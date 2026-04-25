@@ -8,26 +8,11 @@ import { supabase } from '../../lib/supabaseClient';
 import { X, Pencil, DollarSign, Calendar, Hash, AlignLeft, Building2, AlertCircle, Save, RefreshCw, Check } from 'lucide-react';
 import { getHoyISO } from '../../lib/dateUtils';
 import type { CajaBanco } from '../../types/finanzas';
-
-interface MovimientoExtendido {
-  id: string;
-  tipo_origen: 'cobro' | 'pago';
-  debe: number;
-  haber: number;
-  fecha: string;
-  descripcion: string;
-  nro_transaccion: string;
-  cuenta_id: string;
-  cuenta_nombre: string;
-  conciliado: boolean;
-  cliente?: string;
-  saldo_historico?: number;
-  cuenta_maestra_id?: string;
-}
+import { type MovimientoFinanciero } from '../../hooks/useFinanzas';
 
 interface Props {
   visible: boolean;
-  movimiento: MovimientoExtendido | null;
+  movimiento: MovimientoFinanciero | null;
   cajas: CajaBanco[];
   onCerrar: () => void;
   onGuardado: () => void;

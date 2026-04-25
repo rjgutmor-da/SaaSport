@@ -8,6 +8,22 @@ export const queryKeys = {
   cxp_entidades: (filtros: any) => ['cxp-entidades', filtros] as const,
 };
 
+export interface MovimientoFinanciero {
+  id: string;
+  tipo_origen: 'cobro' | 'pago';
+  debe: number;
+  haber: number;
+  fecha: string;
+  descripcion: string;
+  nro_transaccion: string;
+  cuenta_id: string;
+  cuenta_nombre: string;
+  conciliado: boolean;
+  cliente?: string;
+  saldo_historico?: number;
+  cuenta_maestra_id?: string;
+}
+
 // --- Resúmenes (Fase 1: Cálculos en DB) ---
 
 const fetchCxcResumen = async (escuelaId: string) => {

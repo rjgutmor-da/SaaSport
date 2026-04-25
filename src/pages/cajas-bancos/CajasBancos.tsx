@@ -19,7 +19,7 @@ import type { EntidadCxP } from '../../types/cxp';
 import { SidebarContext } from '../../App';
 import { useContext } from 'react';
 import { useAuthSaaSport } from '../../lib/authHelper';
-import { useCajasBancos, useMovimientos, useCxpEntidades } from '../../hooks/useFinanzas';
+import { useCajasBancos, useMovimientos, useCxpEntidades, type MovimientoFinanciero } from '../../hooks/useFinanzas';
 import { useQueryClient } from '@tanstack/react-query';
 
 const fmtMonto = (n: number) =>
@@ -27,21 +27,7 @@ const fmtMonto = (n: number) =>
 
 const fmtFechaLocal = (iso: string): string => formatFecha(iso);
 
-interface MovimientoUI {
-  id: string;
-  tipo_origen: 'cobro' | 'pago';
-  debe: number;
-  haber: number;
-  fecha: string;
-  descripcion: string;
-  nro_transaccion: string;
-  cuenta_id: string;
-  conciliado: boolean;
-  cliente?: string;
-  saldo_historico?: number;
-  cuenta_maestra_id?: string;
-  cuenta_nombre: string;
-}
+
 
 const CajasBancos: React.FC = () => {
   const navigate = useNavigate();
@@ -67,8 +53,8 @@ const CajasBancos: React.FC = () => {
   const [formDirty, setFormDirty] = useState(false);
 
   // Estado para edición de movimientos
-  const [movEditar, setMovEditar] = useState<MovimientoUI | null>(null);
-  const [movDetalle, setMovDetalle] = useState<MovimientoUI | null>(null);
+  const [movEditar, setMovEditar] = useState<MovimientoFinanciero | null>(null);
+  const [movDetalle, setMovDetalle] = useState<MovimientoFinanciero | null>(null);
 
   // Estados para Cobros/Pagos rápidos
   const [showCobro, setShowCobro] = useState(false);
@@ -193,7 +179,7 @@ const CajasBancos: React.FC = () => {
     return list;
   }, [movimientos, filtroCuenta, busqueda]);
 
-  const toggleConciliar = async (mov: MovimientoUI) => {
+  const toggleConciliar = async (mov: MovimientoFinanciero) => {
     try {
       const tabla = mov.tipo_origen === 'cobro' ? 'cobros_aplicados' : 'pagos_aplicados';
       const { error: errUpd } = await supabase
@@ -609,7 +595,7 @@ const CajasBancos: React.FC = () => {
       {/* Modal: Editar movimiento existente */}
       <ModalEditarMovimiento
         visible={!!movEditar}
-        movimiento={movEditar as any}
+        movimiento={movEditar}
         cajas={cajas}
         onCerrar={() => setMovEditar(null)}
         onGuardado={() => { setMovEditar(null); manejarActualizacion(); }}
