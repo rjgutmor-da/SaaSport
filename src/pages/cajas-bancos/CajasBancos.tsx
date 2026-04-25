@@ -40,7 +40,7 @@ interface MovimientoUI {
   cliente?: string;
   saldo_historico?: number;
   cuenta_maestra_id?: string;
-  cuenta_nombre?: string;
+  cuenta_nombre: string;
 }
 
 const CajasBancos: React.FC = () => {
@@ -609,7 +609,7 @@ const CajasBancos: React.FC = () => {
       {/* Modal: Editar movimiento existente */}
       <ModalEditarMovimiento
         visible={!!movEditar}
-        movimiento={movEditar}
+        movimiento={movEditar as any}
         cajas={cajas}
         onCerrar={() => setMovEditar(null)}
         onGuardado={() => { setMovEditar(null); manejarActualizacion(); }}
