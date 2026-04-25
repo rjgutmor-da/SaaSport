@@ -11,7 +11,7 @@
  *   ❌ Entrenador         → BLOQUEADO, solo puede usar AsisPort
  *   ❌ Entrenarqueros     → BLOQUEADO, solo puede usar AsisPort
  */
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
 import type { ReactNode } from 'react';
 import { supabase } from './supabaseClient';
 import type { Session } from '@supabase/supabase-js';
@@ -57,6 +57,10 @@ export const AuthProviderSaaSport = ({ children }: { children: ReactNode }) => {
   const [perfil, setPerfil] = useState<PerfilUsuario | null>(null);
   const [cargando, setCargando] = useState(true);
 
+  // Refs para evitar loops de carga innecesarios en onAuthStateChange
+  const inicializado = useRef(false);
+  const procesandoId = useRef<string | null>(null);
+
   /** Obtener perfil desde la tabla usuarios con timeout de seguridad */
   const cargarPerfil = async (userId: string): Promise<void> => {
     try {
@@ -66,7 +70,7 @@ export const AuthProviderSaaSport = ({ children }: { children: ReactNode }) => {
         .eq('id', userId)
         .single();
 
-      // Timeout de 8 segundos para evitar bloqueos infinitos
+      // Timeout de 15 segundos para evitar bloqueos infinitos
       const timeoutPromise = new Promise((_, reject) =>
         setTimeout(() => reject(new Error('Timeout al cargar perfil')), 15000)
       );
@@ -87,26 +91,35 @@ export const AuthProviderSaaSport = ({ children }: { children: ReactNode }) => {
   };
 
   useEffect(() => {
-    // 1. Verificar sesión activa al cargar
-    supabase.auth.getSession().then(async ({ data: { session: s } }) => {
-      setSession(s);
-      if (s?.user) {
-        await cargarPerfil(s.user.id);
-      }
-      setCargando(false);
-    });
+    /**
+     * Procesa los cambios de sesión de forma centralizada.
+     * Implementa condición estricta para evitar re-activar el cargando si el usuario es el mismo.
+     */
+    const procesarSesion = async (s: Session | null, event: string) => {
+      console.log(`[Auth] Evento: ${event}`, s?.user?.email);
 
-    // 2. Escuchar cambios de autenticación
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, s) => {
-      console.log("[Auth] Evento de sesión:", event);
-      setCargando(true);
+      // Condición estricta: solo activar carga si hay un cambio real de usuario
+      if (inicializado.current && s?.user?.id && procesandoId.current !== s.user.id) {
+        setCargando(true);
+      }
+
       setSession(s);
+      
       if (s?.user) {
+        procesandoId.current = s.user.id;
         await cargarPerfil(s.user.id);
       } else {
         setPerfil(null);
+        procesandoId.current = null;
       }
+
       setCargando(false);
+      inicializado.current = true;
+    };
+
+    // Escuchar cambios de autenticación (onAuthStateChange emite INITIAL_SESSION automáticamente al montarse)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, s) => {
+      procesarSesion(s, event);
     });
 
     return () => subscription.unsubscribe();
