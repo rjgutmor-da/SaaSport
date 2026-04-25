@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { supabase } from '../../lib/supabaseClient';
-import { ChevronLeft, Search, RefreshCw, Landmark, ArrowDownRight, ArrowUpRight, CheckCircle2, ArrowRightLeft, CheckSquare, Square, Pencil } from 'lucide-react';
+import { ChevronLeft, Search, RefreshCw, Landmark, ArrowDownRight, ArrowUpRight, CheckCircle2, ArrowRightLeft, CheckSquare, Square, Pencil, Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import type { CajaBanco, MovimientoContable, AsientoContable } from '../../types/finanzas';
 import ModalTransferencia from '../../components/cajas-bancos/ModalTransferencia';
@@ -15,6 +15,7 @@ import type { EntidadCxP } from '../../types/cxp';
 
 import { SidebarContext } from '../../App';
 import { useContext } from 'react';
+import { useAuthSaaSport } from '../../lib/authHelper';
 
 const fmtMonto = (n: number) =>
   n.toLocaleString('es-BO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -23,20 +24,24 @@ const fmtFechaLocal = (iso: string): string => formatFecha(iso);
 
 interface MovimientoExtendido {
   id: string;
+  tipo_origen: 'cobro' | 'pago';
   debe: number;
   haber: number;
   fecha: string;
   descripcion: string;
   nro_transaccion: string;
-  asiento_id: string;
   cuenta_id: string;
   cuenta_nombre: string;
   conciliado: boolean;
+  cliente?: string;
+  saldo_historico?: number;
+  cuenta_maestra_id?: string;
 }
 
 const CajasBancos: React.FC = () => {
   const navigate = useNavigate();
   const { setExtra } = useContext(SidebarContext);
+  const { esSuperAdmin, escuelaId: authEscuelaId } = useAuthSaaSport();
 
   // Estados
   const [cajas, setCajas] = useState<CajaBanco[]>([]);
@@ -50,7 +55,6 @@ const CajasBancos: React.FC = () => {
 
   // Aux
   const [escuelaId, setEscuelaId] = useState<string | null>(null);
-  const [userRol, setUserRol] = useState<string>('');
   
   // Estados para formularios activos
   const [activeForm, setActiveForm] = useState<'ingreso' | 'salida' | 'transferencia' | 'nueva_caja' | null>(null);
@@ -65,29 +69,15 @@ const CajasBancos: React.FC = () => {
   const [showPago, setShowPago] = useState(false);
   const [entidades, setEntidades] = useState<EntidadCxP[]>([]);
 
-  const obtenerEscuelaId = useCallback(async (): Promise<string | null> => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return null;
-    const { data } = await supabase
-      .from('usuarios')
-      .select('escuela_id, rol')
-      .eq('id', user.id)
-      .single();
-    
-    if (data?.rol) setUserRol(data.rol);
-    return data?.escuela_id ?? null;
-  }, []);
-
   const cargarDatos = useCallback(async () => {
     setCargando(true);
     setError(null);
-    const eid = escuelaId || await obtenerEscuelaId();
+    const eid = authEscuelaId;
     if (!eid) {
-      setError('No se pudo determinar la escuela. Reinicia sesión.');
       setCargando(false);
       return;
     }
-    if (!escuelaId) setEscuelaId(eid);
+    setEscuelaId(eid);
 
     // 1. Cargar las cuentas de cajas_bancos
     const { data: dataCuentas, error: errCuentas } = await supabase
@@ -113,10 +103,32 @@ const CajasBancos: React.FC = () => {
 
     const idsCajas = listCajas.map((c: any) => c.id);
 
-    // 2. Cargar entidades para CxP (si se requiere para el modal de pago rápido)
-    const { data: entProveedores } = await supabase.from('proveedores').select('*').eq('escuela_id', eid);
-    const { data: entPersonal } = await supabase.from('personal').select('*').eq('escuela_id', eid);
-    
+    // 2. Cargar entidades y cobros/pagos en paralelo para mejorar rendimiento
+    const [
+      { data: entProveedores },
+      { data: entPersonal },
+      { data: cobrosData },
+      { data: pagosData }
+    ] = await Promise.all([
+      supabase.from('proveedores').select('*').eq('escuela_id', eid),
+      supabase.from('personal').select('*').eq('escuela_id', eid),
+      supabase.from('cobros_aplicados').select(`
+        id, caja_id, monto_aplicado, fecha, conciliado, created_at,
+        cuentas_cobrar (
+          id, descripcion, nro_recibo,
+          alumnos ( nombres, apellidos )
+        )
+      `).in('caja_id', idsCajas),
+      supabase.from('pagos_aplicados').select(`
+        id, caja_id, monto_aplicado, fecha, conciliado, created_at,
+        cuentas_pagar (
+          id, descripcion,
+          proveedores ( nombre ),
+          personal ( nombres, apellidos )
+        )
+      `).in('caja_id', idsCajas)
+    ]);
+
     const listEnt: EntidadCxP[] = [
       ...(entProveedores?.map(p => ({ 
         id: p.id, 
@@ -139,18 +151,76 @@ const CajasBancos: React.FC = () => {
     ];
     setEntidades(listEnt);
 
-    setMovimientos([]);
+    const movsList: MovimientoExtendido[] = [];
+    const saldosHistoricos: Record<string, number> = {};
+
+    (cobrosData || []).forEach((c: any) => {
+      const cxc = c.cuentas_cobrar;
+      let clienteNombre = '—';
+      if (cxc?.alumnos) clienteNombre = `${cxc.alumnos.nombres} ${cxc.alumnos.apellidos}`;
+
+      movsList.push({
+        id: c.id,
+        tipo_origen: 'cobro',
+        debe: Number(c.monto_aplicado) || 0,
+        haber: 0,
+        fecha: c.fecha || c.created_at,
+        descripcion: cxc?.descripcion || 'Cobro / Ingreso',
+        nro_transaccion: cxc?.nro_recibo || '',
+        cliente: clienteNombre,
+        cuenta_id: c.caja_id,
+        cuenta_nombre: listCajas.find((bx: any) => bx.id === c.caja_id)?.nombre || 'Desconocida',
+        conciliado: c.conciliado || false,
+        cuenta_maestra_id: cxc?.id
+      });
+    });
+
+    (pagosData || []).forEach((p: any) => {
+      const cxp = p.cuentas_pagar;
+      let clienteNombre = '—';
+      if (cxp?.proveedores) {
+        clienteNombre = cxp.proveedores.nombre;
+      } else if (cxp?.personal) {
+        clienteNombre = `${cxp.personal.nombres} ${cxp.personal.apellidos}`;
+      }
+
+      movsList.push({
+        id: p.id,
+        tipo_origen: 'pago',
+        debe: 0,
+        haber: Number(p.monto_aplicado) || 0,
+        fecha: p.fecha || p.created_at,
+        descripcion: cxp?.descripcion || 'Pago / Egreso',
+        nro_transaccion: '',
+        cliente: clienteNombre,
+        cuenta_id: p.caja_id,
+        cuenta_nombre: listCajas.find((bx: any) => bx.id === p.caja_id)?.nombre || 'Desconocida',
+        conciliado: p.conciliado || false,
+        cuenta_maestra_id: cxp?.id
+      });
+    });
+
+    // Sort ascending to calculate running balance
+    movsList.sort((a, b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime());
+
+    movsList.forEach(m => {
+      if (!saldosHistoricos[m.cuenta_id]) saldosHistoricos[m.cuenta_id] = 0;
+      saldosHistoricos[m.cuenta_id] += (m.debe - m.haber);
+      m.saldo_historico = saldosHistoricos[m.cuenta_id];
+    });
+
+    // Sort descending for UI (newest first)
+    movsList.sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime());
+
+    setMovimientos(movsList);
     setCargando(false);
-  }, [escuelaId, obtenerEscuelaId]);
+  }, [authEscuelaId]);
 
   const toggleForm = (type: 'ingreso' | 'salida' | 'transferencia' | 'nueva_caja') => {
     if (activeForm === type) {
-      if (formDirty) {
-        if (!window.confirm('Tienes cambios sin guardar. ¿Deseas descartarlos y cerrar el formulario?')) {
-          return;
-        }
-      }
       setActiveForm(null);
+    } else {
+      setActiveForm(type);
       setFormDirty(false);
       return;
     }
@@ -243,11 +313,21 @@ const CajasBancos: React.FC = () => {
     return list;
   }, [movimientos, filtroCuenta, busqueda]);
 
-  const toggleConciliar = async (id: string, valorActual: boolean) => {
-    const newVal = !valorActual;
-    const { error: err } = await supabase.from('movimientos_contables').update({ conciliado: newVal }).eq('id', id);
-    if (!err) {
-      setMovimientos(prev => prev.map(m => m.id === id ? { ...m, conciliado: newVal } : m));
+  const toggleConciliar = async (mov: MovimientoExtendido) => {
+    try {
+      const tabla = mov.tipo_origen === 'cobro' ? 'cobros_aplicados' : 'pagos_aplicados';
+      const { error: errUpd } = await supabase
+        .from(tabla)
+        .update({ conciliado: !mov.conciliado })
+        .eq('id', mov.id);
+
+      if (errUpd) throw errUpd;
+
+      setMovimientos(prev => prev.map(m => 
+        m.id === mov.id ? { ...m, conciliado: !mov.conciliado } : m
+      ));
+    } catch (err: any) {
+      alert("Error al actualizar estado: " + err.message);
     }
   };
 
@@ -454,93 +534,161 @@ const CajasBancos: React.FC = () => {
           <Landmark size={40} style={{ marginBottom: '0.75rem', opacity: 0.4 }} />
           <p>No tienes Cajas ni Bancos configurados en el Plan de Cuentas.</p>
         </div>
-      ) : movimientosFiltrados.length === 0 ? (
-        <div className="arbol-vacio">
-          <CheckCircle2 size={40} style={{ marginBottom: '0.75rem', opacity: 0.4 }} />
-          <p>No se encontraron movimientos{busqueda ? ' para esta búsqueda' : ''}.</p>
-        </div>
       ) : (
-        <div className="cxc-tabla-wrapper" style={{ borderRadius: '12px' }}>
-          <table className="cxc-tabla">
-            <thead>
-              <tr>
-                <th className="cxc-th" style={{ width: '100px' }}>Fecha</th>
-                <th className="cxc-th" style={{ width: '180px' }}>Cuenta</th>
-                <th className="cxc-th">Descripción</th>
-                <th className="cxc-th cxc-th-center" style={{ width: '150px' }}>Nro. Transacción</th>
-                <th className="cxc-th cxc-th-right" style={{ width: '140px' }}>Ingreso (Debe)</th>
-                <th className="cxc-th cxc-th-right" style={{ width: '140px' }}>Egreso (Haber)</th>
-                <th className="cxc-th cxc-th-center" style={{ width: '100px' }}>Conciliado</th>
-                <th className="cxc-th cxc-th-center" style={{ width: '60px' }}></th>
-              </tr>
-            </thead>
-            <tbody>
-              {movimientosFiltrados.map(mov => {
-                const esIngreso = mov.debe > 0;
-                
-                return (
-                  <tr 
-                    key={mov.id} 
-                    className="cxc-tr cxc-tr-clickable"
-                    onClick={() => setMovDetalle(mov)}
-                  >
-                    <td className="cxc-td cxc-td-meta" style={{ whiteSpace: 'nowrap' }}>
-                      {fmtFechaLocal(mov.fecha)}
-                    </td>
-                    <td className="cxc-td" style={{ fontWeight: 500, color: 'var(--text-primary)' }}>
-                      {mov.cuenta_nombre}
-                    </td>
-                    <td className="cxc-td cxc-td-meta">
-                      {mov.descripcion}
-                    </td>
-                    <td className="cxc-td cxc-td-center cxc-td-meta">
-                      <span>{mov.nro_transaccion || '—'}</span>
-                    </td>
-                    <td className="cxc-td cxc-td-right">
-                      {esIngreso ? (
-                        <span style={{ color: 'var(--success)', fontWeight: 600 }}>
-                          Bs +{fmtMonto(mov.debe)}
-                          <ArrowUpRight size={12} style={{ marginLeft: '4px', display: 'inline-block', verticalAlign: 'middle' }} />
-                        </span>
-                      ) : (
-                        <span className="cxc-td-dash">—</span>
-                      )}
-                    </td>
-                    <td className="cxc-td cxc-td-right">
-                      {!esIngreso ? (
-                        <span style={{ color: 'var(--danger)', fontWeight: 600 }}>
-                          Bs -{fmtMonto(mov.haber)}
-                          <ArrowDownRight size={12} style={{ marginLeft: '4px', display: 'inline-block', verticalAlign: 'middle' }} />
-                        </span>
-                      ) : (
-                        <span className="cxc-td-dash">—</span>
-                      )}
-                    </td>
-                    <td className="cxc-td cxc-td-center">
-                      <button 
-                        onClick={(e) => { e.stopPropagation(); toggleConciliar(mov.id, mov.conciliado); }}
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: mov.conciliado ? 'var(--success)' : 'var(--text-tertiary)' }}
-                        title={mov.conciliado ? "Marcar como no conciliado" : "Marcar como conciliado en Banco"}
-                      >
-                        {mov.conciliado ? <CheckSquare size={18} /> : <Square size={18} />}
-                      </button>
-                    </td>
-                    <td className="cxc-td cxc-td-center">
-                      {!mov.conciliado && (
-                        <button
-                          onClick={(e) => { e.stopPropagation(); setMovEditar(mov); }}
-                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--secondary)' }}
-                          title="Editar movimiento"
-                        >
-                          <Pencil size={15} />
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+        <div className="cajas-tablas-container" style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+          {cajas.filter(c => filtroCuenta === 'todas' || c.id === filtroCuenta).map(caja => {
+            const movsCaja = movimientosFiltrados.filter(m => m.cuenta_id === caja.id);
+
+            // Si hay búsqueda y esta caja no tiene movimientos coincidentes, la ocultamos para limpiar la UI
+            if (busqueda && movsCaja.length === 0) return null;
+
+            return (
+              <div key={caja.id} className="caja-seccion">
+                <h3 style={{ marginBottom: '1rem', color: 'var(--text-primary)', fontSize: '1.2rem', fontWeight: 700 }}>
+                  <Landmark size={20} style={{ display: 'inline-block', verticalAlign: 'middle', marginRight: '8px', color: 'var(--primary)' }} />
+                  {caja.nombre}
+                </h3>
+                <div className="cxc-tabla-wrapper" style={{ borderRadius: '12px' }}>
+                  <table className="cxc-tabla">
+                    <thead>
+                      <tr>
+                        <th className="cxc-th" style={{ width: '100px' }}>Fecha</th>
+                        <th className="cxc-th" style={{ width: '80px' }}>Hora</th>
+                        <th className="cxc-th" style={{ width: '120px' }}>Documento</th>
+                        <th className="cxc-th">Alumno</th>
+                        <th className="cxc-th" style={{ width: '120px' }}>Cuentas</th>
+                        <th className="cxc-th cxc-th-right" style={{ width: '120px' }}>Ingreso</th>
+                        <th className="cxc-th cxc-th-right" style={{ width: '120px' }}>Salida</th>
+                        <th className="cxc-th cxc-th-right" style={{ width: '120px' }}>Saldo</th>
+                        <th className="cxc-th cxc-th-center" style={{ width: '100px' }}>Acciones</th>
+                        <th className="cxc-th cxc-th-center" style={{ width: '100px' }}>Conciliado</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {movsCaja.length === 0 ? (
+                        <tr>
+                          <td colSpan={10} className="cxc-td cxc-td-center cxc-td-meta" style={{ padding: '2rem' }}>
+                            {busqueda ? 'No se encontraron movimientos para esta búsqueda en esta cuenta.' : 'No hay movimientos registrados en esta cuenta.'}
+                          </td>
+                        </tr>
+                      ) : movsCaja.map(mov => {
+                        const esIngreso = mov.debe > 0;
+                        const fechaObj = new Date(mov.fecha);
+                        const fechaStr = fechaObj.toLocaleDateString('es-BO');
+                        const horaStr = fechaObj.toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit' });
+                        
+                        return (
+                          <tr 
+                            key={mov.id} 
+                            className="cxc-tr cxc-tr-clickable"
+                            onClick={() => setMovDetalle(mov)}
+                          >
+                            <td className="cxc-td cxc-td-meta" style={{ whiteSpace: 'nowrap' }}>
+                              {fechaStr}
+                            </td>
+                            <td className="cxc-td cxc-td-meta" style={{ whiteSpace: 'nowrap' }}>
+                              {horaStr}
+                            </td>
+                            <td className="cxc-td cxc-td-meta">
+                              {mov.nro_transaccion ? <div style={{ fontWeight: 600 }}>{mov.nro_transaccion}</div> : null}
+                              <div style={{ fontSize: '0.8rem' }}>{mov.descripcion}</div>
+                            </td>
+                            <td className="cxc-td" style={{ fontWeight: 500, color: 'var(--text-primary)' }}>
+                              {mov.cliente}
+                            </td>
+                            <td className="cxc-td cxc-td-meta">
+                              {mov.cuenta_nombre}
+                            </td>
+                            <td className="cxc-td cxc-td-right">
+                              {esIngreso ? (
+                                <span style={{ color: 'var(--success)', fontWeight: 600 }}>
+                                  +{fmtMonto(mov.debe)}
+                                </span>
+                              ) : (
+                                <span className="cxc-td-dash">—</span>
+                              )}
+                            </td>
+                            <td className="cxc-td cxc-td-right">
+                              {!esIngreso ? (
+                                <span style={{ color: 'var(--danger)', fontWeight: 600 }}>
+                                  -{fmtMonto(mov.haber)}
+                                </span>
+                              ) : (
+                                <span className="cxc-td-dash">—</span>
+                              )}
+                            </td>
+                            <td className="cxc-td cxc-td-right">
+                              <span style={{ fontWeight: 700, color: (mov as any).saldo_historico >= 0 ? 'var(--text-primary)' : 'var(--danger)' }}>
+                                {fmtMonto((mov as any).saldo_historico || 0)}
+                              </span>
+                            </td>
+                            <td className="cxc-td cxc-td-center">
+                              {!mov.conciliado && (
+                                <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); setMovEditar(mov); }}
+                                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--secondary)' }}
+                                    title="Editar movimiento"
+                                  >
+                                    <Pencil size={15} />
+                                  </button>
+                                  <button
+                                    onClick={async (e) => { 
+                                      e.stopPropagation(); 
+                                      if (window.confirm("¿Eliminar esta transacción definitivamente?")) {
+                                        const tablaMaestra = mov.tipo_origen === 'cobro' ? 'cuentas_cobrar' : 'cuentas_pagar';
+                                        
+                                        // 1. Revertir saldo de caja
+                                        const { data: cajaData } = await supabase.from('cajas_bancos').select('saldo_actual').eq('id', mov.cuenta_id).single();
+                                        const nuevoSaldo = (Number(cajaData?.saldo_actual) || 0) - (mov.debe - mov.haber);
+                                        await supabase.from('cajas_bancos').update({ saldo_actual: nuevoSaldo }).eq('id', mov.cuenta_id);
+                                        
+                                        // 2. Eliminar cuenta (cascada)
+                                        if ((mov as any).cuenta_maestra_id) {
+                                          await supabase.from(tablaMaestra).delete().eq('id', (mov as any).cuenta_maestra_id);
+                                        } else {
+                                          // Fallback en caso de que solo haya aplicación
+                                          const tablaApl = mov.tipo_origen === 'cobro' ? 'cobros_aplicados' : 'pagos_aplicados';
+                                          await supabase.from(tablaApl).delete().eq('id', mov.id);
+                                        }
+                                        cargarDatos();
+                                      }
+                                    }}
+                                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--danger)' }}
+                                    title="Eliminar movimiento"
+                                  >
+                                    <Trash2 size={15} />
+                                  </button>
+                                </div>
+                              )}
+                            </td>
+                            <td className="cxc-td cxc-td-center">
+                              <button 
+                                onClick={(e) => { 
+                                  e.stopPropagation(); 
+                                  if (esSuperAdmin) toggleConciliar(mov); 
+                                }}
+                                style={{ 
+                                  background: 'none', border: 'none', 
+                                  cursor: esSuperAdmin ? 'pointer' : 'default', 
+                                  color: mov.conciliado ? 'var(--success)' : 'var(--text-tertiary)',
+                                  opacity: esSuperAdmin ? 1 : 0.6
+                                }}
+                                title={mov.conciliado ? "Conciliado" : (esSuperAdmin ? "Marcar como conciliado" : "Solo el super admin puede conciliar")}
+                                disabled={!esSuperAdmin}
+                              >
+                                {mov.conciliado ? <CheckSquare size={18} /> : <Square size={18} />}
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
 
@@ -587,13 +735,6 @@ const CajasBancos: React.FC = () => {
         cajas={cajas}
         onCerrar={() => setMovEditar(null)}
         onGuardado={() => { setMovEditar(null); cargarDatos(); }}
-      />
-
-      {/* Modal: Detalle de movimiento */}
-      <ModalDetalleMovimiento
-        visible={!!movDetalle}
-        asientoId={movDetalle?.asiento_id || null}
-        onCerrar={() => setMovDetalle(null)}
       />
 
       {/* Nuevos modales de Cobro y Pago rápidos */}
