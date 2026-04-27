@@ -66,35 +66,7 @@ const Login: React.FC<LoginProps> = ({ onLoginExitoso }) => {
         throw new Error('El servidor no devolvió un usuario.');
       }
 
-      // 2. Verificar el rol del usuario en la tabla usuarios
-      const { data: perfil, error: perfilError } = await supabase
-        .from('usuarios')
-        .select('rol, activo')
-        .eq('id', data.user.id)
-        .single();
-
-      if (perfilError || !perfil) {
-        // Si no hay perfil, cerrar sesión y mostrar error
-        await supabase.auth.signOut();
-        throw new Error('No se encontró tu perfil de usuario. Contacta al administrador.');
-      }
-
-      if (!perfil.activo) {
-        await supabase.auth.signOut();
-        throw new Error('Tu cuenta está desactivada. Contacta al administrador.');
-      }
-
-      // 3. Verificar que el rol tenga acceso a SaaSport
-      if (!ROLES_PERMITIDOS.includes(perfil.rol)) {
-        // Rol no permitido → cerrar sesión y mostrar pantalla de acceso denegado
-        await supabase.auth.signOut();
-        setRolUsuario(perfil.rol);
-        setAccesoRolDenegado(true);
-        setCargando(false);
-        return;
-      }
-
-      // 4. ¡Acceso autorizado!
+      // 2. ¡Acceso autorizado! (El AuthContext se encargará de verificar el perfil y los roles)
       onLoginExitoso();
 
     } catch (err: any) {

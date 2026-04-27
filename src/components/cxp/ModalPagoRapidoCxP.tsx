@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import type { CajaBanco } from '../../types/finanzas';
 import type { EntidadCxP } from '../../types/cxp';
-import { X, CreditCard, AlertCircle, Check, MessageCircle, FileText, Users, RefreshCw, DollarSign, Building2, Hash, Calendar } from 'lucide-react';
+import { X, CreditCard, AlertCircle, Check, FileText, Users, RefreshCw, DollarSign, Building2, Hash, Calendar } from 'lucide-react';
 
 const fmtMonto = (n: number): string =>
   n.toLocaleString('es-BO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -36,7 +36,7 @@ const ModalPagoRapidoCxP: React.FC<Props> = ({ entidadInicial, entidades, visibl
      setEntidadSel(entidadInicial);
   }, [entidadInicial]);
 
-  // Cargar datos al abrir (Cuentas activas 1.1.1 y 1.1.2)
+  // Cargar datos al abrir
   useEffect(() => {
     if (!visible) return;
     setError(null); setExito(null);
@@ -109,83 +109,90 @@ const ModalPagoRapidoCxP: React.FC<Props> = ({ entidadInicial, entidades, visibl
 
     setGuardando(true); setError(null);
 
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) { setError('Error de autenticación.'); setGuardando(false); return; }
-    const { data: ctx } = await supabase.from('usuarios')
-      .select('id, escuela_id, sucursal_id, nombres, apellidos')
-      .eq('id', user.id).single();
-    if (!ctx) { setError('Error de contexto.'); setGuardando(false); return; }
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Error de autenticación.');
+      const { data: ctx } = await supabase.from('usuarios')
+        .select('id, escuela_id, sucursal_id, nombres, apellidos')
+        .eq('id', user.id).single();
+      if (!ctx) throw new Error('Error de contexto.');
 
-    let objetivoCxpId = cxpSelId;
-    
-    // Si es un anticipo, creamos una nota dinámica de CxP apuntando a la 1.1.6 (Anticipo a Proveedores) o 1.1.7 (Anticipo a Personal)
-    if (cxpSelId === 'anticipo') {
-        const codigoCuentaAnticipo = entidadSel.tipo === 'personal' ? '1.1.7' : '1.1.6';
-        const { data: ctaAnticipo } = await supabase.from('plan_cuentas').select('id').eq('codigo', codigoCuentaAnticipo).single();
-        if (!ctaAnticipo) { setError(`No se encontró la cuenta ${codigoCuentaAnticipo} (Anticipo a ${entidadSel.tipo === 'personal' ? 'Personal' : 'Proveedores'}).`); setGuardando(false); return; }
-        
-        const payloadCxp = {
-            escuela_id: ctx.escuela_id,
-            sucursal_id: ctx.sucursal_id,
-            tipo_gasto: entidadSel.tipo,
-            proveedor_id: entidadSel.tipo === 'proveedor' ? entidadSel.id : null,
-            personal_id: entidadSel.tipo === 'personal' ? entidadSel.id : null,
-            // Quitamos numero_documento porque no existe en la tabla y los anticipos son directos,
-            // o lo guardamos en 'observaciones' si es necesario, pero según el schema la descripción ya está.
-            descripcion: 'Anticipo',
-            monto_total: montoNum,
-            estado: 'pendiente'
-        };
+      let objetivoCxpId = cxpSelId;
+      
+      // Si es un anticipo, creamos una nota dinámica de CxP
+      if (cxpSelId === 'anticipo') {
+          const payloadCxp = {
+              escuela_id: ctx.escuela_id,
+              sucursal_id: ctx.sucursal_id,
+              tipo_gasto: entidadSel.tipo,
+              proveedor_id: entidadSel.tipo === 'proveedor' ? entidadSel.id : null,
+              personal_id: entidadSel.tipo === 'personal' ? entidadSel.id : null,
+              descripcion: 'Anticipo',
+              monto_total: montoNum,
+              estado: 'pendiente',
+              es_anticipo: true,
+              cuenta_contable_id: null
+          };
 
-        const { data: nuevaNota, error: errCxp } = await supabase.from('cuentas_pagar').insert(payloadCxp).select('id').single();
+          const { data: nuevaNota, error: errCxp } = await supabase.from('cuentas_pagar').insert(payloadCxp).select('id').single();
+          if (errCxp || !nuevaNota) throw new Error('Error al crear nota de anticipo en CxP.');
+          objetivoCxpId = nuevaNota.id;
 
-        if (errCxp || !nuevaNota) { setError('Error al crear nota de anticipo en CxP.'); setGuardando(false); return; }
-        objetivoCxpId = nuevaNota.id;
-
-        // Crear detalle para consistencia (obligatorio para la contabilidad si rpc depende de esto)
-        await supabase.from('cxp_detalle').insert({
-            escuela_id: ctx.escuela_id,
-            cuenta_pagar_id: nuevaNota.id,
-            descripcion: 'Anticipo',
-            cantidad: 1,
-            precio_unitario: montoNum,
-            cuenta_gasto_id: ctaAnticipo.id // Aca entra el activo "Anticipo a Proveedores"
-        });
-    }
-
-    const { data: rpcData, error: rpcErr } = await supabase.rpc('rpc_registrar_pago_cxp', {
-      p_payload: {
-        cuenta_pagar_id: objetivoCxpId,
-        monto: montoNum,
-        metodo_pago: metodo,
-        cuenta_origen_id: cuentaId,
-        escuela_id: ctx.escuela_id,
-        sucursal_id: ctx.sucursal_id,
-        usuario_id: ctx.id,
-        nro_comprobante: nroDoc.trim() || null,
-        referencia: 'Pago Rápido',
-        fecha: fechaPago
+          // Crear detalle para consistencia
+          await supabase.from('cxp_detalle').insert({
+              escuela_id: ctx.escuela_id,
+              cuenta_pagar_id: nuevaNota.id,
+              descripcion: 'Anticipo',
+              cantidad: 1,
+              precio_unitario: montoNum
+          });
       }
-    });
 
-    if (rpcErr) { setError(`Error: ${rpcErr.message}`); setGuardando(false); return; }
+      // 1. Registrar el pago aplicado
+      const { data: nuevoPago, error: errPago } = await supabase.from('pagos_aplicados').insert({
+        escuela_id: ctx.escuela_id,
+        cuenta_pagar_id: objetivoCxpId,
+        caja_id: cuentaId,
+        monto_aplicado: montoNum,
+        fecha: fechaPago + 'T12:00:00',
+        conciliado: false
+      }).select('id').single();
 
-    // Auditoría
-    await supabase.from('audit_log').insert({
-      escuela_id: ctx.escuela_id, usuario_id: ctx.id,
-      usuario_nombre: `${ctx.nombres} ${ctx.apellidos}`,
-      accion: 'pago', modulo: 'cxp', entidad_id: objetivoCxpId,
-      detalle: { monto: montoNum, metodo_pago: metodo, nuevo_estado: rpcData?.nuevo_estado },
-    });
+      if (errPago) throw errPago;
 
-    const estadoMsg = rpcData?.nuevo_estado === 'pagada' ? '¡CxP liquidada!' : `Saldo restante: Bs ${fmtMonto(rpcData?.deuda_restante || 0)}`;
-    setExito(`✅ Pago registrado exitosamente. ${estadoMsg}`);
-    setGuardando(false);
+      // 2. Actualizar estado de la nota (CxP)
+      const { data: cxpData } = await supabase.from('v_estado_cuentas_pagar').select('*').eq('id', objetivoCxpId).single();
+      if (cxpData) {
+          const deudaRestante = Number(cxpData.deuda_restante) - montoNum;
+          const nuevoEstado = deudaRestante <= 0 ? 'pagada' : (deudaRestante < Number(cxpData.monto_total) ? 'parcial' : 'pendiente');
+          await supabase.from('cuentas_pagar').update({ estado: nuevoEstado, updated_at: new Date().toISOString() }).eq('id', objetivoCxpId);
+      }
 
-    setTimeout(() => {
-      onPagado();
-      onCerrar();
-    }, 2000);
+      // 3. Actualizar Saldo de Caja/Banco
+      const { data: cajaData } = await supabase.from('cajas_bancos').select('saldo_actual').eq('id', cuentaId).single();
+      const nuevoSaldo = (Number(cajaData?.saldo_actual) || 0) - montoNum;
+      await supabase.from('cajas_bancos').update({ saldo_actual: nuevoSaldo }).eq('id', cuentaId);
+
+      // 4. Auditoría
+      await supabase.from('audit_log').insert({
+        escuela_id: ctx.escuela_id, usuario_id: ctx.id,
+        usuario_nombre: `${ctx.nombres} ${ctx.apellidos}`,
+        accion: 'pago', modulo: 'cxp', entidad_id: objetivoCxpId,
+        detalle: { monto: montoNum, metodo_pago: metodo, caja_id: cuentaId },
+      });
+
+      setExito(`✅ Pago registrado exitosamente.`);
+      setGuardando(false);
+
+      setTimeout(() => {
+        onPagado();
+        onCerrar();
+      }, 2000);
+
+    } catch (err: any) {
+      setError(`Error: ${err.message}`);
+      setGuardando(false);
+    }
   };
 
   if (!visible) return null;
@@ -207,7 +214,7 @@ const ModalPagoRapidoCxP: React.FC<Props> = ({ entidadInicial, entidades, visibl
             <div>
               <h2 style={{ margin: 0, fontSize: '1.25rem' }}>Registrar Pago / Anticipo</h2>
               <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-tertiary)' }}>
-                Liquida una deuda pendiente o registra un adelanto
+                Liquida una deuda pendiente o registra un adelanto (Tesoreria Directa)
               </p>
             </div>
           </div>
@@ -263,7 +270,7 @@ const ModalPagoRapidoCxP: React.FC<Props> = ({ entidadInicial, entidades, visibl
                 {cxpsPendientes.length > 0 && <optgroup label="Deudas Pendientes">
                   {cxpsPendientes.map(c => (
                     <option key={c.id} value={c.id}>
-                      {c.numero_documento} {c.descripcion || ''} — Saldo: Bs {fmtMonto(Number(c.deuda_restante))}
+                      {c.numero_documento || c.descripcion} — Saldo: Bs {fmtMonto(Number(c.deuda_restante))}
                     </option>
                   ))}
                 </optgroup>}
@@ -295,8 +302,8 @@ const ModalPagoRapidoCxP: React.FC<Props> = ({ entidadInicial, entidades, visibl
                 </div>
 
                 <div className="form-campo">
-                  <label><Hash size={14} /> Nro. Transacción</label>
-                  <input type="text" value={metodo} onChange={e => setMetodo(e.target.value)} disabled={guardando} placeholder="Ej: 00123, REC-001..." />
+                  <label><Hash size={14} /> Metodo / Referencia</label>
+                  <input type="text" value={metodo} onChange={e => setMetodo(e.target.value)} disabled={guardando} placeholder="Efectivo, QR, etc." />
                 </div>
 
                 <div className="form-campo full-width">
@@ -310,7 +317,7 @@ const ModalPagoRapidoCxP: React.FC<Props> = ({ entidadInicial, entidades, visibl
                 </div>
 
                 <div className="form-campo full-width">
-                   <label><Hash size={14} /> Nro. Comprobante / Referencia (Opcional)</label>
+                   <label><Hash size={14} /> Nro. Comprobante / Referencia Interna (Opcional)</label>
                    <input type="text" placeholder="Ej: Recibo 123, Transferencia #88..." value={nroDoc} onChange={e => setNroDoc(e.target.value)} disabled={guardando} />
                 </div>
               </div>

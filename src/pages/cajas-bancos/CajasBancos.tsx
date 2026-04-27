@@ -601,6 +601,13 @@ const CajasBancos: React.FC = () => {
         onGuardado={() => { setMovEditar(null); manejarActualizacion(); }}
       />
 
+      {/* Modal: Detalle de movimiento */}
+      <ModalDetalleMovimiento
+        visible={!!movDetalle}
+        movimiento={movDetalle}
+        onCerrar={() => setMovDetalle(null)}
+      />
+
       {/* Nuevos modales de Cobro y Pago rápidos */}
       <ModalCobroRapido
         visible={showCobro}

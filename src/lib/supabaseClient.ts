@@ -39,13 +39,17 @@ const cookieStorage = {
     return result || null;
   },
   setItem: (key: string, value: string): void => {
-    const opts = {
-      domain: '.saasport.pro',
+    const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    const opts: any = {
       expires: 7,
       path: '/',
       sameSite: 'lax' as const,
-      secure: true,
+      secure: !isLocalhost,
     };
+
+    if (!isLocalhost) {
+      opts.domain = '.saasport.pro';
+    }
 
     if (value.length <= CHUNK_SIZE) {
       Cookies.set(key, value, opts);
@@ -64,7 +68,12 @@ const cookieStorage = {
     });
   },
   removeItem: (key: string): void => {
-    const opts = { domain: '.saasport.pro', path: '/' };
+    const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    const opts: any = { path: '/' };
+    if (!isLocalhost) {
+      opts.domain = '.saasport.pro';
+    }
+    
     const first = Cookies.get(key);
     
     if (first?.startsWith('chunk_0:')) {

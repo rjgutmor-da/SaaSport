@@ -1,7 +1,7 @@
 /**
  * ModalCobroRapido.tsx
  * Modal de cobro rápido accesible desde la lista principal de alumnos.
- * Muestra las CxC pendientes del alumno y permite registrar un pago.
+ * Versión simplificada sin asientos contables.
  */
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabaseClient';
@@ -87,7 +87,6 @@ const ModalCobroRapido: React.FC<Props> = ({ alumnoInicial, visible, onCerrar, o
         .order('created_at', { ascending: true });
       const lista = (data as unknown as CuentaCobrar[]) ?? [];
       setCxcsPendientes(lista);
-      setCxcsPendientes(lista);
       if (lista.length > 0) {
         setCxcSelId(lista[0].id);
         setMonto(String(Number(lista[0].saldo_pendiente)));
@@ -109,7 +108,7 @@ const ModalCobroRapido: React.FC<Props> = ({ alumnoInicial, visible, onCerrar, o
     if (cxc) setMonto(String(Number(cxc.saldo_pendiente)));
   };
 
-    const registrar = async (e: React.FormEvent) => {
+  const registrar = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!alumnoSel || !cxcSelId) { setError('Selecciona un alumno y una nota pendiente o anticipo.'); return; }
     const montoNum = parseFloat(monto);
@@ -118,99 +117,110 @@ const ModalCobroRapido: React.FC<Props> = ({ alumnoInicial, visible, onCerrar, o
 
     setGuardando(true); setError(null);
 
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) { setError('Error de autenticación.'); setGuardando(false); return; }
-    const { data: ctx } = await supabase.from('usuarios')
-      .select('id, escuela_id, sucursal_id, nombres, apellidos')
-      .eq('id', user.id).single();
-    if (!ctx) { setError('Error de contexto.'); setGuardando(false); return; }
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Error de autenticación.');
+      const { data: ctx } = await supabase.from('usuarios')
+        .select('id, escuela_id, sucursal_id, nombres, apellidos')
+        .eq('id', user.id).single();
+      if (!ctx) throw new Error('Error de contexto.');
 
-    let objetivoCxcId = cxcSelId;
-    
-    // Si es un anticipo, creamos una nota de cuentas_cobrar dinámica en la 2.1.5 y la pagamos
-    if (cxcSelId === 'anticipo') {
-        const { data: ctaAnticipo } = await supabase.from('plan_cuentas').select('id').eq('codigo', '2.1.5').single();
-        if (!ctaAnticipo) { setError('No se encontró la cuenta 2.1.5 (Cobros Anticipados).'); setGuardando(false); return; }
-        
-        const { data: nuevaNota, error: errCxc } = await supabase.from('cuentas_cobrar').insert({
-            escuela_id: ctx.escuela_id,
-            sucursal_id: ctx.sucursal_id,
-            alumno_id: alumnoSel.alumno_id,
-            cuenta_contable_id: ctaAnticipo.id,
-            monto_total: montoNum,
-            descripcion: 'Cobro Anticipado',
-            estado: 'pendiente'
-        }).select('id').single();
+      let objetivoCxcId = cxcSelId;
+      
+      // Si es un anticipo, creamos una nota de cuentas_cobrar dinámica
+      if (cxcSelId === 'anticipo') {
+          const { data: nuevaNota, error: errCxc } = await supabase.from('cuentas_cobrar').insert({
+              escuela_id: ctx.escuela_id,
+              sucursal_id: ctx.sucursal_id,
+              alumno_id: alumnoSel.alumno_id,
+              cuenta_contable_id: null,
+              monto_total: montoNum,
+              descripcion: 'Cobro Anticipado',
+              estado: 'pendiente'
+          }).select('id').single();
 
-        if (errCxc || !nuevaNota) { setError('Error al crear nota de anticipo.'); setGuardando(false); return; }
-        objetivoCxcId = nuevaNota.id;
+          if (errCxc || !nuevaNota) throw new Error('Error al crear nota de anticipo.');
+          objetivoCxcId = nuevaNota.id;
 
-        // Crear detalle para consistencia
-        await supabase.from('cxc_detalle').insert({
-            escuela_id: ctx.escuela_id,
-            cuenta_cobrar_id: nuevaNota.id,
-            descripcion: 'Anticipo del cliente',
-            cantidad: 1,
-            precio_unitario: montoNum
-        });
-    }
-
-    const partesRef: string[] = [];
-    if (bancoOrigen.trim()) partesRef.push(`Banco: ${bancoOrigen.trim()}`);
-    if (hora.trim()) partesRef.push(`He: ${hora.trim()}`);
-    if (nroDoc.trim()) partesRef.push(`Nro: ${nroDoc.trim()}`);
-
-    const { data: rpcData, error: rpcErr } = await supabase.rpc('rpc_registrar_cobro', {
-      p_payload: {
-        cuenta_cobrar_id: objetivoCxcId,
-        monto: montoNum,
-        metodo_pago: metodo,
-        cuenta_cobro_id: cuentaId,
-        escuela_id: ctx.escuela_id,
-        sucursal_id: ctx.sucursal_id,
-        usuario_id: ctx.id,
-        nro_comprobante: partesRef.join(' | ') || null,
+          // Crear detalle para consistencia
+          await supabase.from('cxc_detalle').insert({
+              escuela_id: ctx.escuela_id,
+              cuenta_cobrar_id: nuevaNota.id,
+              descripcion: 'Anticipo del cliente',
+              cantidad: 1,
+              precio_unitario: montoNum
+          });
       }
-    });
 
-    if (rpcErr) { setError(`Error: ${rpcErr.message}`); setGuardando(false); return; }
+      const partesRef: string[] = [];
+      if (bancoOrigen.trim()) partesRef.push(`Banco: ${bancoOrigen.trim()}`);
+      if (hora.trim()) partesRef.push(`He: ${hora.trim()}`);
+      if (nroDoc.trim()) partesRef.push(`Nro: ${nroDoc.trim()}`);
 
-    // Auditoría
-    await supabase.from('audit_log').insert({
-      escuela_id: ctx.escuela_id, usuario_id: ctx.id,
-      usuario_nombre: `${ctx.nombres} ${ctx.apellidos}`,
-      accion: 'cobro', modulo: 'cxc', entidad_id: objetivoCxcId,
-      detalle: { 
-        cliente: `${alumnoSel.nombres} ${alumnoSel.apellidos}`,
-        monto: montoNum, 
-        metodo_pago: metodo, 
-        nuevo_estado: rpcData?.nuevo_estado 
-      },
-    });
+      // 1. Registrar cobro aplicado
+      const { error: errCobro } = await supabase.from('cobros_aplicados').insert({
+        escuela_id: ctx.escuela_id,
+        cuenta_cobrar_id: objetivoCxcId,
+        caja_id: cuentaId,
+        monto_aplicado: montoNum,
+        fecha: new Date().toISOString(),
+        metodo_pago: metodo,
+        referencia: partesRef.join(' | ') || null
+      });
 
-    // Mensaje WhatsApp de recibo
-    const esPadre = alumnoSel.whatsapp_preferido === 'padre';
-    const telefono = esPadre
-      ? (alumnoSel.telefono_padre || alumnoSel.telefono_madre)
-      : (alumnoSel.telefono_madre || alumnoSel.telefono_padre);
-    const tipoPago = rpcData?.nuevo_estado === 'pagada' ? 'pago total' : 'pago parcial';
-    const cxcActual = cxcsPendientes.find(c => c.id === cxcSelId);
+      if (errCobro) throw errCobro;
 
-    if (telefono) {
-      const telF = telefono.replace(/\D/g, '');
-      const telFinal = telF.startsWith('591') ? telF : `591${telF}`;
-      const texto = `Gracias por el ${tipoPago} de Bs ${fmtMonto(montoNum)} correspondiente a: ${cxcActual?.descripcion || 'servicios'}.`;
-      setMensajeWA({ texto, telefono: telFinal });
+      // 2. Actualizar estado de la nota (CxC)
+      const { data: cxcData } = await supabase.from('v_cuentas_cobrar').select('*').eq('id', objetivoCxcId).single();
+      if (cxcData) {
+          const saldoPendiente = Number(cxcData.saldo_pendiente) - montoNum;
+          const nuevoEstado = saldoPendiente <= 0 ? 'pagada' : (saldoPendiente < Number(cxcData.monto_total) ? 'parcial' : 'pendiente');
+          await supabase.from('cuentas_cobrar').update({ estado: nuevoEstado }).eq('id', objetivoCxcId);
+      }
+
+      // 3. Actualizar Saldo de Caja
+      const { data: cajaData } = await supabase.from('cajas_bancos').select('saldo_actual').eq('id', cuentaId).single();
+      const nuevoSaldo = (Number(cajaData?.saldo_actual) || 0) + montoNum;
+      await supabase.from('cajas_bancos').update({ saldo_actual: nuevoSaldo }).eq('id', cuentaId);
+
+      // 4. Auditoría
+      await supabase.from('audit_log').insert({
+        escuela_id: ctx.escuela_id, usuario_id: ctx.id,
+        usuario_nombre: `${ctx.nombres} ${ctx.apellidos}`,
+        accion: 'cobro', modulo: 'cxc', entidad_id: objetivoCxcId,
+        detalle: { 
+          cliente: `${alumnoSel.nombres} ${alumnoSel.apellidos}`,
+          monto: montoNum, 
+          metodo_pago: metodo
+        },
+      });
+
+      // Mensaje WhatsApp de recibo
+      const esPadre = alumnoSel.whatsapp_preferido === 'padre';
+      const telefono = esPadre
+        ? (alumnoSel.telefono_padre || alumnoSel.telefono_madre)
+        : (alumnoSel.telefono_madre || alumnoSel.telefono_padre);
+      const cxcActual = cxcsPendientes.find(c => c.id === cxcSelId);
+
+      if (telefono) {
+        const telF = telefono.replace(/\D/g, '');
+        const telFinal = telF.startsWith('591') ? telF : `591${telF}`;
+        const texto = `Gracias por el pago de Bs ${fmtMonto(montoNum)} correspondiente a: ${cxcActual?.descripcion || 'servicios'}.`;
+        setMensajeWA({ texto, telefono: telFinal });
+      }
+
+      setExito(`✅ Cobro registrado exitosamente.`);
+      setGuardando(false);
+
+      setTimeout(() => {
+        onCobrado();
+        if (!mensajeWA) onCerrar();
+      }, 2000);
+
+    } catch (err: any) {
+      setError(`Error: ${err.message}`);
+      setGuardando(false);
     }
-
-    const estadoMsg = rpcData?.nuevo_estado === 'pagada' ? '¡CxC completamente pagada!' : `Saldo restante: Bs ${fmtMonto(rpcData?.saldo_pendiente || 0)}`;
-    setExito(`✅ Cobro registrado. ${estadoMsg}`);
-    setGuardando(false);
-
-    setTimeout(() => {
-      onCobrado();
-      if (!mensajeWA) onCerrar();
-    }, 2000);
   };
 
   const enviarWA = () => {
@@ -349,22 +359,9 @@ const ModalCobroRapido: React.FC<Props> = ({ alumnoInicial, visible, onCerrar, o
                       </select>
                     </div>
 
-                    {(metodo === 'transferencia' || metodo === 'qr') && (
-                      <>
-                        <div className="form-campo">
-                          <label><Info size={14} /> Banco origen</label>
-                          <input type="text" placeholder="Ej: BNB, Tigo Money..." value={bancoOrigen} onChange={e => setBancoOrigen(e.target.value)} disabled={guardando} />
-                        </div>
-                        <div className="form-campo">
-                          <label><Calendar size={14} /> Hora/Referencia</label>
-                          <input type="text" value={hora} placeholder="Ej: 14:30 o Ref: 4567" onChange={e => setHora(e.target.value)} disabled={guardando} />
-                        </div>
-                      </>
-                    )}
-
                     <div className="form-campo full-width">
-                      <label><Hash size={14} /> Nro. Comprobante Interno (Opcional)</label>
-                      <input type="text" placeholder="Número de recibo físico si aplica" value={nroDoc} onChange={e => setNroDoc(e.target.value)} disabled={guardando} />
+                      <label><Hash size={14} /> Referencia Extra (Opcional)</label>
+                      <input type="text" placeholder="Ej: Banco, Hora, Ref..." value={bancoOrigen} onChange={e => setBancoOrigen(e.target.value)} disabled={guardando} />
                     </div>
                   </div>
 

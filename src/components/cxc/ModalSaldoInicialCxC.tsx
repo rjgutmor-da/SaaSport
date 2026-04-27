@@ -1,9 +1,7 @@
 /**
  * ModalSaldoInicialCxC.tsx
  * Modal para registrar saldos iniciales de deuda de clientes (alumnos).
- * Genera un registro en cuentas_cobrar y un asiento contable:
- *   DEBE: 1.1.3 (CxC Alumnos)
- *   HABER: 3.2.1 (Capital Social Ajustes)
+ * Versión simplificada sin asientos contables.
  */
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabaseClient';
@@ -70,23 +68,28 @@ const ModalSaldoInicialCxC: React.FC<Props> = ({ visible, onCerrar, onCreado, ed
     setGuardando(true);
 
     try {
+      // Caso Edición (Simplificado: solo actualiza el monto/descripcion de la CxC)
       if (edicionItem) {
-        const { error: editErr } = await supabase.rpc('rpc_editar_saldo_inicial_cxc', {
-          p_payload: {
-            cxc_id: edicionItem.id,
-            monto: valorMonto,
-            fecha,
-            descripcion: descripcion.trim()
-          }
-        });
+        const { error: editErr } = await supabase
+          .from('cuentas_cobrar')
+          .update({
+            monto_total: valorMonto,
+            fecha_emision: fecha,
+            descripcion: descripcion.trim(),
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', edicionItem.id);
+          
         if (editErr) throw editErr;
         setExito(`✅ Saldo inicial actualizado correctamente.`);
         setTimeout(() => { onCreado(); }, 1500);
         return;
       }
 
+      // Caso Nuevo
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('No hay sesión activa.');
+      
       const { data: ctx } = await supabase.from('usuarios')
         .select('id, escuela_id, sucursal_id, nombres, apellidos')
         .eq('id', user.id).single();
@@ -94,64 +97,37 @@ const ModalSaldoInicialCxC: React.FC<Props> = ({ visible, onCerrar, onCreado, ed
 
       const esAnticipo = naturalezaSaldo === 'anticipo';
 
-      // Buscar cuentas necesarias
-      const codigoCxc = esAnticipo ? '2.1.5' : '1.1.3';
-      const { data: ctaCxc } = await supabase.from('plan_cuentas').select('id').eq('codigo', codigoCxc).single();
-      const { data: ctaCapital } = await supabase.from('plan_cuentas').select('id').eq('codigo', '3.2.1').single();
-      
-      if (!ctaCxc) throw new Error(`No se encontró la cuenta ${codigoCxc}.`);
-      if (!ctaCapital) throw new Error('No se encontró la cuenta 3.2.1 (Capital Social Ajustes).');
-
-      // 1. Crear registro en cuentas_cobrar
+      // 1. Crear registro en cuentas_cobrar (sin cuenta_contable_id)
       const { data: nuevaCxc, error: errCxc } = await supabase.from('cuentas_cobrar').insert({
         escuela_id: ctx.escuela_id,
         sucursal_id: ctx.sucursal_id,
         alumno_id: alumnoId,
-        cuenta_contable_id: ctaCxc.id,
+        cuenta_contable_id: null,
         monto_total: valorMonto,
         fecha_emision: fecha,
         descripcion: descripcion.trim() || (esAnticipo ? 'Saldo inicial de anticipo' : 'Saldo inicial de deuda'),
-        observaciones: (esAnticipo ? 'SIA-' : 'Saldo inicial - ajuste contable'),
+        observaciones: (esAnticipo ? 'SIA-' : 'Saldo inicial - ajuste administrativo'),
         es_anticipo: esAnticipo,
-        estado: 'pendiente', // se mata abajo con el pago si es anticipo
+        estado: 'pendiente',
       }).select('id').single();
 
       if (errCxc || !nuevaCxc) throw new Error(`Error al crear CxC: ${errCxc?.message || 'desconocido'}`);
 
-      // 2. Crear asiento contable
-      const movimientos = esAnticipo ? [
-        { cuenta_contable_id: ctaCapital.id, debe: valorMonto, haber: 0 },
-        { cuenta_contable_id: ctaCxc.id, debe: 0, haber: valorMonto },
-      ] : [
-        { cuenta_contable_id: ctaCxc.id, debe: valorMonto, haber: 0 },
-        { cuenta_contable_id: ctaCapital.id, debe: 0, haber: valorMonto },
-      ];
-
-      const cobros = esAnticipo ? [
-        { cuenta_cobrar_id: nuevaCxc.id, monto_aplicado: valorMonto }
-      ] : undefined;
-
-      const { data: vAsientoId, error: rpcErr } = await supabase.rpc('rpc_procesar_transaccion_financiera', {
-        p_payload: {
+      // 2. Si es anticipo, lo "aplicamos" inmediatamente para que el saldo esté a favor
+      if (esAnticipo) {
+        const { error: errCobro } = await supabase.from('cobros_aplicados').insert({
           escuela_id: ctx.escuela_id,
-          sucursal_id: ctx.sucursal_id,
-          usuario_id: ctx.id,
-          descripcion: `Saldo Inicial CxC${esAnticipo ? ' (Anticipo)' : ''}: ${descripcion.trim()}`,
-          metodo_pago: 'efectivo',
-          nro_transaccion: null,
-          fecha,
-          movimientos,
-          cobros,
-          origen_tipo: 'cxc',
-          origen_id: nuevaCxc.id,
-        }
-      });
-
-      if (rpcErr) throw new Error(`Error en asiento contable: ${rpcErr.message}`);
-
-      // Vincular asiento_id de vuelta a la CxC para trazabilidad bidireccional
-      if (vAsientoId) {
-        await supabase.from('cuentas_cobrar').update({ asiento_id: vAsientoId }).eq('id', nuevaCxc.id);
+          cuenta_cobrar_id: nuevaCxc.id,
+          monto_aplicado: valorMonto,
+          fecha: fecha + 'T12:00:00', // hora ficticia para el día
+          caja_id: null, // No afecta cajas reales
+          es_aplicacion_anticipo: true,
+          conciliado: true
+        });
+        if (errCobro) throw errCobro;
+        
+        // Actualizar estado de la CxC a pagada
+        await supabase.from('cuentas_cobrar').update({ estado: 'pagada' }).eq('id', nuevaCxc.id);
       }
 
       // 3. Auditoría
@@ -164,6 +140,7 @@ const ModalSaldoInicialCxC: React.FC<Props> = ({ visible, onCerrar, onCreado, ed
           alumno: alumObj ? `${alumObj.nombres} ${alumObj.apellidos}` : alumnoId,
           monto: valorMonto,
           descripcion: descripcion.trim(),
+          es_anticipo: esAnticipo
         },
       });
 
@@ -190,7 +167,7 @@ const ModalSaldoInicialCxC: React.FC<Props> = ({ visible, onCerrar, onCreado, ed
             <div>
               <h2 style={{ margin: 0, fontSize: '1.25rem' }}>Saldo Inicial — CxC</h2>
               <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-tertiary)' }}>
-                Registra una deuda inicial de un alumno (ajuste contable)
+                Registra una deuda inicial de un alumno (ajuste de sistema)
               </p>
             </div>
           </div>
@@ -272,9 +249,9 @@ const ModalSaldoInicialCxC: React.FC<Props> = ({ visible, onCerrar, onCreado, ed
           <div style={{ background: 'rgba(245, 158, 11, 0.08)', borderRadius: '8px', padding: '0.75rem 1rem', margin: '1rem 0', border: '1px solid rgba(245, 158, 11, 0.15)' }}>
             <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-tertiary)', lineHeight: 1.5 }}>
               {naturalezaSaldo === 'deuda' ? (
-                <><strong style={{ color: '#f59e0b' }}>Asiento automático:</strong> DEBE → 1.1.3 (CxC) | HABER → 3.2.1 (Capital Social Ajustes)</>
+                <><strong style={{ color: '#f59e0b' }}>Aviso:</strong> Este registro generará una cuenta por cobrar pendiente en el estado de cuenta del alumno.</>
               ) : (
-                <><strong style={{ color: '#00D26A' }}>Asiento automático:</strong> DEBE → 3.2.1 (Capital Social Ajustes) | HABER → 2.1.5 (Cobros Anticipados)</>
+                <><strong style={{ color: '#00D26A' }}>Aviso:</strong> Este registro se cargará como un saldo a favor (anticipo) para futuras aplicaciones.</>
               )}
             </p>
           </div>

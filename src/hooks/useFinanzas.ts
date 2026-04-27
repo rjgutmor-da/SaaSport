@@ -22,6 +22,7 @@ export interface MovimientoFinanciero {
   cliente?: string;
   saldo_historico?: number;
   cuenta_maestra_id?: string;
+  asiento_id?: string | null;
 }
 
 // --- Resúmenes (Fase 1: Cálculos en DB) ---
@@ -168,14 +169,14 @@ const fetchMovimientos = async (escuelaId: string, cajaIds: string[]) => {
   
   const [cobros, pagos] = await Promise.all([
     supabase.from('cobros_aplicados').select(`
-      id, caja_id, monto_aplicado, fecha, conciliado, created_at,
+      id, caja_id, monto_aplicado, fecha, conciliado, created_at, asiento_id,
       cuentas_cobrar (
         id, descripcion, nro_recibo,
         alumnos ( nombres, apellidos )
       )
     `).in('caja_id', cajaIds),
     supabase.from('pagos_aplicados').select(`
-      id, caja_id, monto_aplicado, fecha, conciliado, created_at,
+      id, caja_id, monto_aplicado, fecha, conciliado, created_at, asiento_id,
       cuentas_pagar (
         id, descripcion,
         proveedores ( nombre ),
@@ -201,7 +202,8 @@ const fetchMovimientos = async (escuelaId: string, cajaIds: string[]) => {
       cliente: c.cuentas_cobrar?.alumnos ? `${c.cuentas_cobrar.alumnos.nombres} ${c.cuentas_cobrar.alumnos.apellidos}` : '—',
       cuenta_id: c.caja_id,
       conciliado: c.conciliado || false,
-      cuenta_maestra_id: c.cuentas_cobrar?.id
+      cuenta_maestra_id: c.cuentas_cobrar?.id,
+      asiento_id: c.asiento_id
     });
   });
 
@@ -217,7 +219,8 @@ const fetchMovimientos = async (escuelaId: string, cajaIds: string[]) => {
       cliente: p.cuentas_pagar?.proveedores?.nombre || (p.cuentas_pagar?.personal ? `${p.cuentas_pagar.personal.nombres} ${p.cuentas_pagar.personal.apellidos}` : '—'),
       cuenta_id: p.caja_id,
       conciliado: p.conciliado || false,
-      cuenta_maestra_id: p.cuentas_pagar?.id
+      cuenta_maestra_id: p.cuentas_pagar?.id,
+      asiento_id: p.asiento_id
     });
   });
 
