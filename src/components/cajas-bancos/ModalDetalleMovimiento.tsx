@@ -1,13 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabaseClient';
-import { X, FileText, Calendar, Hash, Info, Link2, User, CreditCard } from 'lucide-react';
+import { X, FileText, Calendar, Hash, Info, Link2, User, CreditCard, ArrowDownRight, ArrowUpRight } from 'lucide-react';
 import { formatFecha } from '../../lib/dateUtils';
 import type { MovimientoFinanciero } from '../../hooks/useFinanzas';
 
 interface ModalDetalleMovimientoProps {
   visible: boolean;
   onCerrar: () => void;
-  movimiento: MovimientoFinanciero | null;
+  movimiento?: MovimientoFinanciero | null;
+  asientoId?: string | null;
 }
 
 const fmtMonto = (n: number) =>
@@ -22,27 +23,28 @@ const ORIGEN_INFO: Record<string, { label: string; modulo: string; color: string
   manual:        { label: 'Asiento Manual',       modulo: 'Manual',       color: '#64748b', bg: 'rgba(100,116,139,0.10)' },
 };
 
-const ModalDetalleMovimiento: React.FC<ModalDetalleMovimientoProps> = ({ visible, onCerrar, movimiento }) => {
+const ModalDetalleMovimiento: React.FC<ModalDetalleMovimientoProps> = ({ visible, onCerrar, movimiento, asientoId }) => {
   const [asiento, setAsiento] = useState<any>(null);
   const [movimientosContables, setMovimientosContables] = useState<any[]>([]);
   const [cargando, setCargando] = useState(false);
 
   useEffect(() => {
-    if (visible && movimiento?.asiento_id) {
-      cargarDetalleContable(movimiento.asiento_id);
+    const targetId = asientoId || movimiento?.asiento_id;
+    if (visible && targetId) {
+      cargarDetalleContable(targetId);
     } else {
       setAsiento(null);
       setMovimientosContables([]);
     }
-  }, [visible, movimiento]);
+  }, [visible, movimiento, asientoId]);
 
-  const cargarDetalleContable = async (asientoId: string) => {
+  const cargarDetalleContable = async (id: string) => {
     setCargando(true);
     try {
       const { data: dataAsiento, error: errAsiento } = await supabase
         .from('asientos_contables')
         .select('*')
-        .eq('id', asientoId)
+        .eq('id', id)
         .single();
       
       if (errAsiento) throw errAsiento;
@@ -54,23 +56,23 @@ const ModalDetalleMovimiento: React.FC<ModalDetalleMovimientoProps> = ({ visible
           id, debe, haber, 
           cuenta:plan_cuentas(nombre, codigo)
         `)
-        .eq('asiento_id', asientoId)
+        .eq('asiento_id', id)
         .order('debe', { ascending: false });
 
       if (errMovs) throw errMovs;
       setMovimientosContables(dataMovs || []);
-    } catch (error) {
-      console.error('Error al cargar detalle contable:', error);
+    } catch (err: any) {
+      console.error('Error al cargar detalle contable:', err);
     } finally {
       setCargando(false);
     }
   };
 
-  if (!visible || !movimiento) return null;
+  if (!visible) return null;
 
-  const infoOrigen = ORIGEN_INFO[movimiento.tipo_origen] || ORIGEN_INFO.manual;
-  const monto = movimiento.debe > 0 ? movimiento.debe : movimiento.haber;
-  const esIngreso = movimiento.debe > 0;
+  const infoOrigen = (movimiento?.tipo_origen && ORIGEN_INFO[movimiento.tipo_origen]) || ORIGEN_INFO.manual;
+  const montoValor = movimiento ? (movimiento.debe > 0 ? movimiento.debe : movimiento.haber) : (asiento?.total || 0);
+  const esIngreso = movimiento ? movimiento.debe > 0 : true;
 
   return (
     <div className="cxc-modal-overlay">
@@ -86,7 +88,7 @@ const ModalDetalleMovimiento: React.FC<ModalDetalleMovimientoProps> = ({ visible
             <div>
               <h2 style={{ margin: 0 }}>{esIngreso ? 'Detalle de Ingreso' : 'Detalle de Egreso'}</h2>
               <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-tertiary)' }}>
-                {infoOrigen.label} • {formatFecha(movimiento.fecha)}
+                {infoOrigen.label} • {movimiento ? formatFecha(movimiento.fecha) : (asiento ? formatFecha(asiento.fecha) : '—')}
               </p>
             </div>
           </div>
@@ -98,24 +100,24 @@ const ModalDetalleMovimiento: React.FC<ModalDetalleMovimientoProps> = ({ visible
           <div className="modal-form-grid" style={{ marginBottom: '2rem' }}>
             <div className="form-campo">
               <label><Calendar size={14} /> Fecha y Hora</label>
-              <div style={{ fontSize: '1.1rem', fontWeight: 600 }}>{formatFecha(movimiento.fecha)}</div>
+              <div style={{ fontSize: '1.1rem', fontWeight: 600 }}>{movimiento ? formatFecha(movimiento.fecha) : (asiento ? formatFecha(asiento.fecha) : '—')}</div>
             </div>
             <div className="form-campo">
               <label><Hash size={14} /> Nro. Transacción</label>
-              <div style={{ fontSize: '1.1rem', fontWeight: 600 }}>{movimiento.nro_transaccion || '—'}</div>
+              <div style={{ fontSize: '1.1rem', fontWeight: 600 }}>{movimiento?.nro_transaccion || '—'}</div>
             </div>
             <div className="form-campo">
-              <label><User size={14} /> {movimiento.tipo_origen === 'cobro' ? 'Alumno / Cliente' : 'Beneficiario'}</label>
-              <div style={{ fontSize: '1.1rem', fontWeight: 600 }}>{movimiento.cliente || '—'}</div>
+              <label><User size={14} /> {movimiento?.tipo_origen === 'cobro' ? 'Alumno / Cliente' : 'Beneficiario'}</label>
+              <div style={{ fontSize: '1.1rem', fontWeight: 600 }}>{movimiento?.cliente || '—'}</div>
             </div>
             <div className="form-campo">
               <label><CreditCard size={14} /> Cuenta / Caja</label>
-              <div style={{ fontSize: '1.1rem', fontWeight: 600 }}>{movimiento.cuenta_nombre}</div>
+              <div style={{ fontSize: '1.1rem', fontWeight: 600 }}>{movimiento?.cuenta_nombre || '—'}</div>
             </div>
             <div className="form-campo full-width">
               <label>Descripción / Glosa</label>
               <div style={{ background: 'var(--bg-glass)', padding: '1rem', borderRadius: '12px', border: '1px solid var(--border)', fontSize: '1.1rem', fontWeight: 500 }}>
-                {movimiento.descripcion || 'Sin descripción'}
+                {movimiento?.descripcion || asiento?.glosa || 'Sin descripción'}
               </div>
             </div>
           </div>
@@ -132,17 +134,13 @@ const ModalDetalleMovimiento: React.FC<ModalDetalleMovimientoProps> = ({ visible
             marginBottom: '2rem'
           }}>
             <span style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-secondary)' }}>Monto Total Transaccionado</span>
-            <span style={{ 
-              fontSize: '2rem', 
-              fontWeight: 900, 
-              color: esIngreso ? '#10b981' : '#ef4444' 
-            }}>
-              Bs {fmtMonto(monto)}
-            </span>
+            <div style={{ fontSize: '2.5rem', fontWeight: 800, color: esIngreso ? '#10b981' : '#ef4444' }}>
+              Bs {fmtMonto(montoValor)}
+            </div>
           </div>
 
           {/* Sección Contable (Solo si existe asiento) */}
-          {movimiento.asiento_id && (
+          {(movimiento?.asiento_id || asientoId) && (
             <div style={{ marginTop: '2rem' }}>
                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
                   <Info size={16} color="var(--text-tertiary)" />
