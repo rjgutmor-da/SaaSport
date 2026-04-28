@@ -47,7 +47,7 @@ interface CobroAplicado {
 const fmtMonto = (n: number): string =>
   n.toLocaleString('es-BO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-const ModalVerNotaCxC: React.FC<Props> = ({ visible, cxcId, onCerrar, onEditar }) => {
+const ModalVerNotaCxC: React.FC<Props> = ({ visible, cxcId, onCerrar, onEditar, onActualizar }) => {
   const [cargando, setCargando] = useState(true);
   const [nota, setNota] = useState<any>(null);
   const [items, setItems] = useState<DetalleItem[]>([]);

@@ -46,7 +46,7 @@ interface PagoAplicado {
 const fmtMonto = (n: number): string =>
   n.toLocaleString('es-BO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-const ModalVerNotaCxP: React.FC<Props> = ({ visible, cxpId, onCerrar, onEditar }) => {
+const ModalVerNotaCxP: React.FC<Props> = ({ visible, cxpId, onCerrar, onEditar, onActualizar }) => {
   const [cargando, setCargando] = useState(true);
   const [nota, setNota] = useState<any>(null);
   const [items, setItems] = useState<DetalleItem[]>([]);

@@ -27,4 +27,6 @@ export interface NotaResumenCxP {
   tipo_gasto: string;
   proveedor_nombre?: string;
   personal_nombre?: string;
+  created_at: string;
+  es_anticipo: boolean;
 }
