@@ -240,110 +240,108 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
         <div className="cxc-modal cxc-modal--detalle cxc-modal--wide" onClick={e => e.stopPropagation()}>
           {/* Header con Efecto Glass y Metadatos Premium */}
           <div className="modal-header-glass" style={{ padding: '1.5rem 2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-            <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'center' }}>
-              <div style={{ 
-                width: '64px', height: '64px', borderRadius: '18px', background: 'var(--accent-gradient)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.75rem', fontWeight: 'bold', color: 'white',
-                boxShadow: '0 8px 20px -4px rgba(249,115,22,0.4)',
-                border: '2px solid rgba(255,255,255,0.1)'
-              }}>
-                {alumno.nombres[0]}{alumno.apellidos[0]}
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                <h2 style={{ margin: 0, fontSize: '1.5rem', letterSpacing: '-0.02em' }}>{alumno.nombres} {alumno.apellidos}</h2>
-                <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-                  <span className="cxc-modal-meta-line" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8rem', color: '#94a3b8' }}>
-                    <MapPin size={14} className="color-deuda" /> {alumno.sucursal_nombre || 'Sede Central'}
-                  </span>
-                  <span className="cxc-modal-meta-line" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8rem', color: '#94a3b8' }}>
-                    <User size={14} style={{ color: '#4ade80' }} /> {alumno.entrenador_nombre || 'Sin Asignar'}
-                  </span>
-                  <span className="cxc-modal-meta-line" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8rem', color: '#94a3b8' }}>
-                    <Trophy size={14} style={{ color: '#facc15' }} /> {alumno.cancha_nombre || 'General'}
-                  </span>
-                  <span className="cxc-modal-meta-line" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8rem', color: '#94a3b8' }}>
-                    <Clock size={14} className="color-meses" /> {alumno.horario_hora || '--:--'}
-                  </span>
-                </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+              <h2 style={{ margin: 0, fontSize: '1.75rem', fontWeight: 800, letterSpacing: '-0.025em', color: '#fff' }}>
+                {alumno.nombres} {alumno.apellidos}
+              </h2>
+              <div style={{ display: 'flex', gap: '1.25rem', alignItems: 'center', color: '#94a3b8', fontSize: '0.85rem', flexWrap: 'wrap' }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <MapPin size={14} style={{ color: '#f87171' }} /> {alumno.sucursal_nombre || 'Sede'}
+                </span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <User size={14} style={{ color: '#4ade80' }} /> {alumno.entrenador_nombre || 'Entrenador'}
+                </span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <Trophy size={14} style={{ color: '#fbbf24' }} /> {alumno.cancha_nombre || 'Cancha'}
+                </span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#38bdf8' }}>
+                  <Clock size={14} /> {alumno.horario_hora || '--:--'}
+                </span>
               </div>
             </div>
-            <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+            <div style={{ display: 'flex', gap: '0.85rem', alignItems: 'center' }}>
               <button 
                 onClick={() => setMostrarNuevaNotaManual(true)}
-                className="btn-premium btn-blue"
-                style={{ padding: '0.6rem 1.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 600 }}
+                className="btn-premium"
+                style={{ 
+                  padding: '0.75rem 1.25rem', display: 'flex', alignItems: 'center', gap: '0.6rem', 
+                  fontWeight: 700, background: '#3b82f6', borderRadius: '10px'
+                }}
               >
                 <Plus size={18} /> NUEVA NOTA
               </button>
               <button 
-                className="btn-premium btn-teal"
-                style={{ padding: '0.6rem 1.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 600 }}
+                className="btn-premium"
+                style={{ 
+                  padding: '0.75rem 1.25rem', display: 'flex', alignItems: 'center', gap: '0.6rem', 
+                  fontWeight: 700, background: '#10b981', borderRadius: '10px'
+                }}
               >
                 <DollarSign size={18} /> PAGAR
               </button>
               <button 
-                className="btn-premium btn-purple"
-                style={{ padding: '0.6rem 1.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 600 }}
+                className="btn-premium"
+                onClick={() => setShowAnticiposMenu(!showAnticiposMenu)}
+                style={{ 
+                  padding: '0.75rem 1.25rem', display: 'flex', alignItems: 'center', gap: '0.6rem', 
+                  fontWeight: 700, background: '#8b5cf6', borderRadius: '10px'
+                }}
               >
                 <CreditCard size={18} /> ANTICIPOS <ChevronDown size={14} />
               </button>
-              <button onClick={onCerrar} className="btn-close-circle"><X size={20}/></button>
+              <button onClick={onCerrar} className="btn-close-circle" style={{ borderRadius: '10px' }}><X size={20}/></button>
             </div>
           </div>
 
           {/* Ficha Premium de 4 Columnas */}
-          <div className="detalle-resumen-premium">
-            <div className="resumen-card">
-              <div className="resumen-icon-bg"><AlertCircle size={24} className="color-deuda" /></div>
-              <span className="resumen-label">Total Deuda</span>
-              <span className="resumen-valor color-deuda">Bs {fmtMonto(alumno.saldo_pendiente || 0)}</span>
+          <div className="detalle-resumen-premium" style={{ gap: '1.25rem', padding: '1.5rem 2rem' }}>
+            <div className="resumen-card" style={{ border: '1px solid rgba(248,113,113,0.2)' }}>
+              <span className="resumen-label">TOTAL DEUDA</span>
+              <span className="resumen-valor color-deuda" style={{ fontSize: '1.8rem' }}>Bs {fmtMonto(alumno.saldo_pendiente || 0)}</span>
               <div className="resumen-footer">
-                <AlertCircle size={10} style={{ display: 'inline', marginRight: '4px' }} />
-                {alumno.cxc_pendientes || 0} pendientes
+                <Clock size={12} /> {alumno.cxc_pendientes || 0} pendientes
               </div>
+              <div className="resumen-icon-bg" style={{ opacity: 0.15 }}><AlertCircle size={28} className="color-deuda" /></div>
             </div>
 
-            <div className="resumen-card">
-              <div className="resumen-icon-bg"><Wallet size={24} className="color-ingreso" /></div>
-              <span className="resumen-label">Total Ingresos</span>
-              <span className="resumen-valor color-ingreso">Bs {fmtMonto(alumno.total_ingresos_historico || 0)}</span>
+            <div className="resumen-card" style={{ border: '1px solid rgba(74,222,128,0.2)' }}>
+              <span className="resumen-label">TOTAL INGRESOS</span>
+              <span className="resumen-valor color-ingreso" style={{ fontSize: '1.8rem' }}>Bs {fmtMonto(alumno.total_ingresos_historico || 0)}</span>
               <div className="resumen-footer">
-                <Check size={10} style={{ display: 'inline', marginRight: '4px' }} />
-                Histórico recaudado
+                <Check size={12} /> Histórico recaudado
               </div>
+              <div className="resumen-icon-bg" style={{ opacity: 0.15 }}><Wallet size={28} className="color-ingreso" /></div>
             </div>
 
-            <div className="resumen-card">
-              <div className="resumen-icon-bg"><Calendar size={24} className="color-meses" /></div>
-              <span className="resumen-label">Fecha de Inicio</span>
-              <span className="resumen-valor color-meses">{formatFechaCorta(alumno.fecha_inicio_consolidada)}</span>
+            <div className="resumen-card" style={{ border: '1px solid rgba(56,189,248,0.2)' }}>
+              <span className="resumen-label">FECHA DE INICIO</span>
+              <span className="resumen-valor color-meses" style={{ fontSize: '1.8rem' }}>{formatFechaCorta(alumno.fecha_inicio_consolidada)}</span>
               <div className="resumen-footer">
-                <Calendar size={10} style={{ display: 'inline', marginRight: '4px' }} />
-                Inicio actividad
+                <Calendar size={12} /> Inicio actividad
               </div>
+              <div className="resumen-icon-bg" style={{ opacity: 0.15 }}><Calendar size={28} className="color-meses" /></div>
             </div>
 
-            <div className="resumen-card">
-              <div className="resumen-icon-bg"><Clock size={24} style={{ color: '#38bdf8' }} /></div>
-              <span className="resumen-label">Meses de Actividad</span>
-              <span className="resumen-valor" style={{ color: '#38bdf8' }}>{alumno.cantidad_meses_actividad || 0} <small>Meses</small></span>
+            <div className="resumen-card" style={{ border: '1px solid rgba(56,189,248,0.2)' }}>
+              <span className="resumen-label">MESES DE ACTIVIDAD</span>
+              <span className="resumen-valor" style={{ color: '#38bdf8', fontSize: '1.8rem' }}>{alumno.cantidad_meses_actividad || 0} <small style={{ fontSize: '0.9rem' }}>Meses</small></span>
               <div className="resumen-footer">
-                <Check size={10} style={{ display: 'inline', marginRight: '4px' }} />
-                Financiera
+                <Clock size={12} /> Financiera
               </div>
+              <div className="resumen-icon-bg" style={{ opacity: 0.15 }}><Clock size={28} style={{ color: '#38bdf8' }} /></div>
             </div>
           </div>
 
           <div className="detalle-cxc-lista" style={{ padding: '0 1rem 1rem 1rem', overflowY: 'auto', maxHeight: '60vh' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
               <thead>
-                <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)', color: '#94a3b8', textAlign: 'left' }}>
-                  <th style={{ padding: '0.75rem' }}>Fecha</th>
-                  <th style={{ padding: '0.75rem' }}>Concepto / Detalle</th>
-                  <th style={{ padding: '0.75rem' }}>Total</th>
-                  <th style={{ padding: '0.75rem' }}>Cobrado</th>
-                  <th style={{ padding: '0.75rem' }}>Saldo</th>
-                  <th style={{ padding: '0.75rem', textAlign: 'center' }}>Acciones</th>
+                <tr style={{ background: 'var(--bg-table-header)', color: 'var(--text-table-header)' }}>
+                  <th style={{ padding: '0.6rem 0.75rem', border: '1px solid var(--border)', textAlign: 'left', width: '120px', fontSize: '0.7rem', fontWeight: 800 }}>FECHA</th>
+                  <th style={{ padding: '0.6rem 0.75rem', border: '1px solid var(--border)', textAlign: 'left', fontSize: '0.7rem', fontWeight: 800 }}>CONCEPTO / DETALLE</th>
+                  <th style={{ padding: '0.6rem 0.75rem', border: '1px solid var(--border)', textAlign: 'left', width: '140px', fontSize: '0.7rem', fontWeight: 800 }}>TOTAL</th>
+                  <th style={{ padding: '0.6rem 0.75rem', border: '1px solid var(--border)', textAlign: 'left', width: '140px', fontSize: '0.7rem', fontWeight: 800 }}>COBRADO</th>
+                  <th style={{ padding: '0.6rem 0.75rem', border: '1px solid var(--border)', textAlign: 'left', width: '140px', fontSize: '0.7rem', fontWeight: 800 }}>SALDO</th>
+                  <th style={{ padding: '0.6rem 0.75rem', border: '1px solid var(--border)', textAlign: 'center', width: '160px', fontSize: '0.7rem', fontWeight: 800 }}>ACCIONES</th>
                 </tr>
               </thead>
               <tbody>
@@ -356,68 +354,54 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                   return (
                     <React.Fragment key={cxc.id}>
                       <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', opacity: cxc.anulada ? 0.5 : 1 }}>
-                        <td style={{ padding: '0.75rem', verticalAlign: 'top', whiteSpace: 'nowrap' }}>{formatFecha(cxc.created_at || cxc.fecha_emision)}</td>
-                        <td style={{ padding: '0.75rem', verticalAlign: 'top' }}>
-                          {/* Concepto principal */}
-                          <div style={{ fontWeight: 600, marginBottom: '0.2rem' }}>
-                            {cxc.descripcion || 'Sin descripción'}
-                            {cxc.anulada && <span style={{ color: '#f87171', marginLeft: '0.4rem', fontSize: '0.75rem' }}>(Anulada)</span>}
-                            {isAnticipo && <span style={{ color: '#a855f7', marginLeft: '0.4rem', fontSize: '0.75rem' }}>(Anticipo)</span>}
-                          </div>
-                          {/* Detalle de ítems visible a primera vista */}
-                          {itemsDeLaNota.length > 0 && (
-                            <div style={{ display: 'flex', gap: '0.25rem', flexWrap: 'wrap', marginTop: '0.15rem' }}>
-                              {itemsDeLaNota.map((item: any, i: number) => {
-                                const meses = item.periodo_meses;
-                                const detExtra = item.detalle_extra;
-                                let detalle = item.item_nombre;
-                                if (meses && meses.length > 0) detalle += ` (${meses.join(', ')})`;
-                                else if (detExtra) detalle += ` — ${detExtra}`;
-                                return (
-                                  <span key={i} style={{
-                                    fontSize: '0.7rem', padding: '1px 7px', borderRadius: '10px',
-                                    background: 'rgba(59,130,246,0.1)', color: '#60a5fa',
-                                    border: '1px solid rgba(59,130,246,0.2)'
-                                  }}>
-                                    {detalle}
-                                  </span>
-                                );
-                              })}
+                        <td style={{ padding: '0.5rem 0.75rem', verticalAlign: 'middle', whiteSpace: 'nowrap', border: '1px solid rgba(255,255,255,0.08)' }}>{formatFecha(cxc.created_at || cxc.fecha_emision)}</td>
+                        <td style={{ padding: '0.5rem 0.75rem', verticalAlign: 'middle', border: '1px solid rgba(255,255,255,0.08)' }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                              <div style={{ fontWeight: 700, color: '#fff' }}>
+                                {cxc.descripcion || 'Sin descripción'}
+                                {cxc.anulada && <span style={{ color: '#f87171', marginLeft: '0.4rem', fontSize: '0.7rem', background: 'rgba(248,113,113,0.1)', padding: '2px 6px', borderRadius: '4px' }}>ANULADA</span>}
+                                {isAnticipo && <span style={{ color: '#a855f7', marginLeft: '0.4rem', fontSize: '0.7rem', background: 'rgba(168,85,247,0.1)', padding: '2px 6px', borderRadius: '4px' }}>ANTICIPO</span>}
+                              </div>
+                              {itemsDeLaNota.length > 0 && (
+                                <div style={{ display: 'flex', gap: '0.25rem' }}>
+                                  {itemsDeLaNota.map((item: any, i: number) => (
+                                    <span key={i} style={{ fontSize: '0.65rem', padding: '1px 6px', borderRadius: '4px', background: 'rgba(59,130,246,0.15)', color: '#60a5fa' }}>
+                                      {item.item_nombre}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
                             </div>
-                          )}
-                          {/* Observaciones generales si las hay */}
-                          {cxc.observaciones && (
-                            <p style={{ fontSize: '0.72rem', color: '#a78bfa', marginTop: '0.2rem', fontStyle: 'italic' }}>📝 {cxc.observaciones}</p>
-                          )}
+                            {cxc.observaciones && (
+                              <div style={{ fontSize: '0.75rem', color: '#94a3b8', fontStyle: 'italic', borderLeft: '2px solid rgba(255,255,255,0.1)', paddingLeft: '0.5rem' }}>
+                                {cxc.observaciones}
+                              </div>
+                            )}
+                          </div>
                         </td>
-                        <td style={{ padding: '0.75rem', verticalAlign: 'top' }}>Bs {fmtMonto(Number(cxc.monto_total))}</td>
-                        <td style={{ padding: '0.75rem', verticalAlign: 'top', color: '#4ade80' }}>Bs {fmtMonto(cobrado)}</td>
+                        <td style={{ padding: '0.5rem 0.75rem', verticalAlign: 'middle', border: '1px solid rgba(255,255,255,0.08)', fontWeight: 600 }}>Bs {fmtMonto(Number(cxc.monto_total))}</td>
+                        <td style={{ padding: '0.5rem 0.75rem', verticalAlign: 'middle', border: '1px solid rgba(255,255,255,0.08)', color: '#4ade80', fontWeight: 600 }}>Bs {fmtMonto(cobrado)}</td>
                         <td style={{ 
-                          padding: '0.75rem', 
-                          verticalAlign: 'top', 
+                          padding: '0.5rem 0.75rem', verticalAlign: 'middle', border: '1px solid rgba(255,255,255,0.08)',
                           fontWeight: 700, 
                           color: isAnticipo 
-                            ? (Number(cxc.saldo_pendiente) > 0 ? '#a855f7' : '#94a3b8')
-                            : (Number(cxc.saldo_pendiente) > 0 ? '#facc15' : '#4ade80') 
+                            ? (Number(cxc.saldo_pendiente) > 0 ? '#a855f7' : '#4ade80')
+                            : (Number(cxc.saldo_pendiente) > 0 ? '#38bdf8' : '#4ade80') 
                         }}>
                           Bs {fmtMonto(Number(cxc.saldo_pendiente))}
-                          {isAnticipo && (Number(cxc.saldo_pendiente) > 0 ? ' (Disp.)' : ' (Aplicado)')}
                         </td>
-                        <td style={{ padding: '0.75rem', textAlign: 'center', verticalAlign: 'top' }}>
+                        <td style={{ padding: '0.5rem 0.75rem', textAlign: 'center', verticalAlign: 'middle', border: '1px solid rgba(255,255,255,0.08)' }}>
                           <div style={{ display: 'flex', gap: '0.35rem', justifyContent: 'center' }}>
-                            {/* Ver documento completo */}
-                            <button onClick={() => setVerNotaId(cxc.id)} className="cxc-btn-editar-visible" title="Ver documento completo"><Eye size={14} /></button>
-                            {/* Editar nota */}
+                            <button onClick={() => setVerNotaId(cxc.id)} className="btn-compact-action" title="Ver"><Eye size={14} /></button>
                             {!cxc.anulada && puedeAnular() && (
-                              <button onClick={() => { setCxcParaEditar(cxc); setModoModal('editar'); setModalNotaVisible(true); }} style={{ color: '#3b82f6', borderColor: '#3b82f6' }} className="cxc-btn-editar-visible" title="Editar nota"><Pencil size={14} /></button>
+                              <button onClick={() => { setCxcParaEditar(cxc); setModoModal('editar'); setModalNotaVisible(true); }} className="btn-compact-action action-blue" title="Editar"><Pencil size={14} /></button>
                             )}
-                            {/* Cobrar */}
                             {!cxc.anulada && cxc.estado !== 'pagada' && (
-                              <button onClick={() => { setCobroCxcId(cxc.id); setCobroMonto(String(cxc.saldo_pendiente)); }} style={{ color: '#4ade80', borderColor: '#4ade80' }} className="cxc-btn-editar-visible" title="Registrar cobro"><DollarSign size={14} /></button>
+                              <button onClick={() => { setCobroCxcId(cxc.id); setCobroMonto(String(cxc.saldo_pendiente)); }} className="btn-compact-action action-green" title="Cobrar"><DollarSign size={14} /></button>
                             )}
-                            {/* Anular */}
                             {puedeAnular() && !cxc.anulada && (
-                              <button onClick={() => anularNota(cxc.id)} style={{ color: '#f87171', borderColor: '#f87171' }} className="cxc-btn-editar-visible" title="Anular nota"><Ban size={14} /></button>
+                              <button onClick={() => anularNota(cxc.id)} className="btn-compact-action action-red" title="Anular"><Ban size={14} /></button>
                             )}
                           </div>
                         </td>
