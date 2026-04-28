@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabaseClient';
-import { X, ArrowDownRight, ArrowUpRight, DollarSign, Calendar, Hash, AlignLeft, Building2, Tag, AlertCircle, Save, RefreshCw } from 'lucide-react';
-import { getHoyISO } from '../../lib/dateUtils';
+import { X, ArrowDownRight, ArrowUpRight, DollarSign, Calendar, Hash, AlignLeft, Building2, Tag, AlertCircle, Save, RefreshCw, Clock } from 'lucide-react';
+import { getHoyISO, getHoraLocal } from '../../lib/dateUtils';
 import type { CajaBanco } from '../../types/finanzas';
 import type { CatalogoItem } from '../../types/cuentas';
 
@@ -22,6 +22,7 @@ const ModalMovimientoDirecto: React.FC<Props> = ({ visible, tipo, cajas, onCerra
   const [contraCuentaId, setContraCuentaId] = useState('');
   const [monto, setMonto] = useState('');
   const [fecha, setFecha] = useState(getHoyISO());
+  const [hora, setHora] = useState(getHoraLocal());
   const [descripcion, setDescripcion] = useState('');
   const [nroTransaccion, setNroTransaccion] = useState('');
 
@@ -29,16 +30,18 @@ const ModalMovimientoDirecto: React.FC<Props> = ({ visible, tipo, cajas, onCerra
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Cargar cuentas contra-partida al abrir modal
   useEffect(() => {
     if (visible) {
       cargarContraCuentas();
-      // Reset form states if needed
+      // Reset form states
       setMonto('');
       setDescripcion('');
       setContraCuentaId('');
       setCajaId('');
       setNroTransaccion('');
+      setFecha(getHoyISO());
+      setHora(getHoraLocal());
+      setFormDirty(false); // <--- Asegurar que empezamos limpios
     }
   }, [visible, setFormDirty]);
 
@@ -124,7 +127,7 @@ const ModalMovimientoDirecto: React.FC<Props> = ({ visible, tipo, cajas, onCerra
           cuenta_cobrar_id: cxc.id,
           caja_id: cajaId,
           monto_aplicado: valorMonto,
-          fecha: new Date(fecha + 'T12:00:00Z').toISOString()
+          fecha: new Date(`${fecha}T${hora}:00`).toISOString()
         });
 
       } else {
@@ -155,7 +158,7 @@ const ModalMovimientoDirecto: React.FC<Props> = ({ visible, tipo, cajas, onCerra
           cuenta_pagar_id: cxp.id,
           caja_id: cajaId,
           monto_aplicado: valorMonto,
-          fecha: new Date(fecha + 'T12:00:00Z').toISOString()
+          fecha: new Date(`${fecha}T${hora}:00`).toISOString()
         });
       }
 
@@ -239,6 +242,17 @@ const ModalMovimientoDirecto: React.FC<Props> = ({ visible, tipo, cajas, onCerra
                 type="date" 
                 value={fecha} 
                 onChange={e => handleInputChange(setFecha, e.target.value)} 
+                required 
+                disabled={guardando} 
+              />
+            </div>
+
+            <div className="form-campo">
+              <label><Clock size={14} /> Hora *</label>
+              <input 
+                type="time" 
+                value={hora} 
+                onChange={e => handleInputChange(setHora, e.target.value)} 
                 required 
                 disabled={guardando} 
               />

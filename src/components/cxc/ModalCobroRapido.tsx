@@ -7,7 +7,8 @@ import React, { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import type { AlumnoDeuda, CuentaCobrar } from '../../types/cxc';
 import type { CajaBanco } from '../../types/finanzas';
-import { X, CreditCard, AlertCircle, Check, MessageCircle, Users, FileText, RefreshCw, DollarSign, Building2, Info, Calendar, Hash } from 'lucide-react';
+import { X, CreditCard, AlertCircle, Check, MessageCircle, Users, FileText, RefreshCw, DollarSign, Building2, Info, Calendar, Hash, Clock } from 'lucide-react';
+import { getHoyISO, getHoraLocal } from '../../lib/dateUtils';
 
 /** Formatea un número como moneda (Bs) */
 const fmtMonto = (n: number): string =>
@@ -31,7 +32,8 @@ const ModalCobroRapido: React.FC<Props> = ({ alumnoInicial, visible, onCerrar, o
   const [metodo, setMetodo] = useState('efectivo');
   const [cuentaId, setCuentaId] = useState('');
   const [bancoOrigen, setBancoOrigen] = useState('');
-  const [hora, setHora] = useState('');
+  const [fecha, setFecha] = useState(getHoyISO());
+  const [hora, setHora] = useState(getHoraLocal());
   const [nroDoc, setNroDoc] = useState('');
 
   const [guardando, setGuardando] = useState(false);
@@ -163,7 +165,7 @@ const ModalCobroRapido: React.FC<Props> = ({ alumnoInicial, visible, onCerrar, o
         cuenta_cobrar_id: objetivoCxcId,
         caja_id: cuentaId,
         monto_aplicado: montoNum,
-        fecha: new Date().toISOString(),
+        fecha: new Date(`${fecha}T${hora}:00`).toISOString(),
         metodo_pago: metodo,
         referencia: partesRef.join(' | ') || null
       });
@@ -347,6 +349,16 @@ const ModalCobroRapido: React.FC<Props> = ({ alumnoInicial, visible, onCerrar, o
                     <div className="form-campo">
                       <label><Hash size={14} /> Nro. Transacción</label>
                       <input type="text" value={metodo} onChange={e => setMetodo(e.target.value)} disabled={guardando} placeholder="Ej: 00123, REC-001..." />
+                    </div>
+
+                    <div className="form-campo">
+                      <label><Calendar size={14} /> Fecha *</label>
+                      <input type="date" value={fecha} onChange={e => setFecha(e.target.value)} required disabled={guardando} />
+                    </div>
+
+                    <div className="form-campo">
+                      <label><Clock size={14} /> Hora *</label>
+                      <input type="time" value={hora} onChange={e => setHora(e.target.value)} required disabled={guardando} />
                     </div>
 
                     <div className="form-campo full-width">

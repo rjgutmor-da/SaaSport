@@ -178,33 +178,18 @@ const DetalleCxP: React.FC<Props> = ({ nota, visible, onCerrar, onActualizar }) 
       if (usarAnticipo) {
         if (!anticipoId) throw new Error('Selecciona un anticipo.');
         
-        // 1. Aplicación en la nota actual
-        await supabase.from('pagos_aplicados').insert({
-          escuela_id: ctx.escuela_id,
-          cuenta_pagar_id: nota.id,
-          monto_aplicado: mp,
-          fecha: new Date().toISOString(),
-          es_aplicacion_anticipo: true,
-          caja_id: null
+        const { error: rpcErr } = await supabase.rpc('rpc_aplicar_anticipo_cxp', {
+          p_payload: {
+            nota_id: nota.id,
+            anticipo_id: anticipoId,
+            monto: mp,
+            usuario_id: ctx.id,
+            escuela_id: ctx.escuela_id,
+            sucursal_id: ctx.sucursal_id,
+          }
         });
 
-        // 2. Aplicación en el anticipo (para reducir su saldo disponible)
-        await supabase.from('pagos_aplicados').insert({
-          escuela_id: ctx.escuela_id,
-          cuenta_pagar_id: anticipoId,
-          monto_aplicado: mp,
-          fecha: new Date().toISOString(),
-          es_aplicacion_anticipo: true,
-          caja_id: null
-        });
-
-        // 3. Actualizar estado del anticipo
-        const { data: antData } = await supabase.from('v_estado_cuentas_pagar').select('*').eq('id', anticipoId).single();
-        if (antData) {
-            const deudaRestante = Number(antData.deuda_restante) - mp;
-            const nuevoEstado = deudaRestante <= 0 ? 'pagada' : (deudaRestante < Number(antData.monto_total) ? 'parcial' : 'pendiente');
-            await supabase.from('cuentas_pagar').update({ estado: nuevoEstado }).eq('id', anticipoId);
-        }
+        if (rpcErr) throw rpcErr;
 
       } else {
         // PAGO DIRECTO

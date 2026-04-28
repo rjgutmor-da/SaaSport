@@ -172,7 +172,10 @@ const fetchMovimientos = async (escuelaId: string, cajaIds: string[]) => {
       id, caja_id, monto_aplicado, fecha, conciliado, created_at, asiento_id,
       cuentas_cobrar (
         id, descripcion, nro_recibo,
-        alumnos ( nombres, apellidos )
+        alumnos ( nombres, apellidos ),
+        cxc_detalle (
+          catalogo_items ( nombre )
+        )
       )
     `).in('caja_id', cajaIds),
     supabase.from('pagos_aplicados').select(`
@@ -180,7 +183,10 @@ const fetchMovimientos = async (escuelaId: string, cajaIds: string[]) => {
       cuentas_pagar (
         id, descripcion,
         proveedores ( nombre ),
-        personal ( nombres, apellidos )
+        personal ( nombres, apellidos ),
+        cxp_detalle (
+          catalogo_items ( nombre )
+        )
       )
     `).in('caja_id', cajaIds)
   ]);
@@ -201,6 +207,7 @@ const fetchMovimientos = async (escuelaId: string, cajaIds: string[]) => {
       nro_transaccion: c.cuentas_cobrar?.nro_recibo || '',
       cliente: c.cuentas_cobrar?.alumnos ? `${c.cuentas_cobrar.alumnos.nombres} ${c.cuentas_cobrar.alumnos.apellidos}` : '—',
       cuenta_id: c.caja_id,
+      cuenta_nombre: c.cuentas_cobrar?.cxc_detalle?.[0]?.catalogo_items?.nombre || 'Concepto no especificado',
       conciliado: c.conciliado || false,
       cuenta_maestra_id: c.cuentas_cobrar?.id,
       asiento_id: c.asiento_id
@@ -218,6 +225,7 @@ const fetchMovimientos = async (escuelaId: string, cajaIds: string[]) => {
       nro_transaccion: '',
       cliente: p.cuentas_pagar?.proveedores?.nombre || (p.cuentas_pagar?.personal ? `${p.cuentas_pagar.personal.nombres} ${p.cuentas_pagar.personal.apellidos}` : '—'),
       cuenta_id: p.caja_id,
+      cuenta_nombre: p.cuentas_pagar?.cxp_detalle?.[0]?.catalogo_items?.nombre || 'Concepto no especificado',
       conciliado: p.conciliado || false,
       cuenta_maestra_id: p.cuentas_pagar?.id,
       asiento_id: p.asiento_id

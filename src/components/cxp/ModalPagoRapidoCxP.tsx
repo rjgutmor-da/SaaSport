@@ -2,7 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import type { CajaBanco } from '../../types/finanzas';
 import type { EntidadCxP } from '../../types/cxp';
-import { X, CreditCard, AlertCircle, Check, FileText, Users, RefreshCw, DollarSign, Building2, Hash, Calendar } from 'lucide-react';
+import { X, CreditCard, AlertCircle, Check, FileText, Users, RefreshCw, DollarSign, Building2, Hash, Calendar, Clock } from 'lucide-react';
+import { getHoyISO, getHoraLocal } from '../../lib/dateUtils';
 
 const fmtMonto = (n: number): string =>
   n.toLocaleString('es-BO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -26,7 +27,8 @@ const ModalPagoRapidoCxP: React.FC<Props> = ({ entidadInicial, entidades, visibl
   const [metodo, setMetodo] = useState('efectivo');
   const [cuentaId, setCuentaId] = useState('');
   const [nroDoc, setNroDoc] = useState('');
-  const [fechaPago, setFechaPago] = useState(new Date().toISOString().split('T')[0]);
+  const [fechaPago, setFechaPago] = useState(getHoyISO());
+  const [horaPago, setHoraPago] = useState(getHoraLocal());
 
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -154,7 +156,7 @@ const ModalPagoRapidoCxP: React.FC<Props> = ({ entidadInicial, entidades, visibl
         cuenta_pagar_id: objetivoCxpId,
         caja_id: cuentaId,
         monto_aplicado: montoNum,
-        fecha: fechaPago + 'T12:00:00',
+        fecha: new Date(`${fechaPago}T${horaPago}:00`).toISOString(),
         conciliado: false
       }).select('id').single();
 
@@ -299,6 +301,11 @@ const ModalPagoRapidoCxP: React.FC<Props> = ({ entidadInicial, entidades, visibl
                 <div className="form-campo">
                   <label><Calendar size={14} /> Fecha de Pago *</label>
                   <input type="date" value={fechaPago} onChange={e => setFechaPago(e.target.value)} required disabled={guardando} />
+                </div>
+
+                <div className="form-campo">
+                  <label><Clock size={14} /> Hora *</label>
+                  <input type="time" value={horaPago} onChange={e => setHoraPago(e.target.value)} required disabled={guardando} />
                 </div>
 
                 <div className="form-campo">

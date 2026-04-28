@@ -9,10 +9,12 @@ import { supabase } from '../../lib/supabaseClient';
 import {
   X, DollarSign, Calendar, RefreshCw,
   AlertCircle, Check, CreditCard, CheckCircle2,
-  FileText, TrendingDown, Edit2, Wallet
+  FileText, TrendingDown, Edit2, Wallet, Eye
 } from 'lucide-react';
+import { formatFecha } from '../../lib/dateUtils';
 import NotaPago from './NotaPago';
 import DetalleCxP from './DetalleCxP';
+import ModalVerNotaCxP from './ModalVerNotaCxP';
 import FichaAnticiposCxP from './FichaAnticiposCxP';
 import { CATEGORIAS_PROVEEDOR } from './FiltrosCxP';
 import type { EntidadCxP, NotaResumenCxP as NotaResumen } from '../../types/cxp';
@@ -29,9 +31,9 @@ interface Props {
 const fmtMonto = (n: number) =>
   n.toLocaleString('es-BO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-const fmtFecha = (f: string) => {
-  const [y, m, d] = f.split('-');
-  return `${d}/${m}/${y}`;
+const fmtFecha = (f: any) => {
+  if (!f) return '—';
+  return formatFecha(f);
 };
 
 const BADGE_ESTADOS: Record<string, { label: string; color: string; bg: string }> = {
@@ -51,6 +53,8 @@ const DetalleProveedorCxP: React.FC<Props> = ({ entidad, visible, onCerrar, onAc
   const [mostrarNuevaNota, setMostrarNuevaNota] = useState(false);
   const [notaSeleccionada, setNotaSeleccionada] = useState<any>(null);
   const [mostrarFichaAnticipos, setMostrarFichaAnticipos] = useState(false);
+  const [verNotaId, setVerNotaId] = useState<string | null>(null);
+  const [detallesItems, setDetallesItems] = useState<Record<string, any[]>>({});
 
   /** Carga las notas del proveedor/personal */
   const cargarNotas = async () => {
@@ -83,6 +87,22 @@ const DetalleProveedorCxP: React.FC<Props> = ({ entidad, visible, onCerrar, onAc
         personal_nombre:  entidad.tipo === 'personal'  ? entidad.nombre : undefined,
       }))
     );
+
+    // Cargar ítems del detalle por nota
+    const notaIds = (data ?? []).map((n: any) => n.id);
+    if (notaIds.length > 0) {
+      const { data: todosItems } = await supabase
+        .from('cxp_detalle')
+        .select('cuenta_pagar_id, cantidad, precio_unitario, descripcion, catalogo_items!inner(nombre)')
+        .in('cuenta_pagar_id', notaIds);
+      const itemsMap: Record<string, any[]> = {};
+      todosItems?.forEach((item: any) => {
+        if (!itemsMap[item.cuenta_pagar_id]) itemsMap[item.cuenta_pagar_id] = [];
+        itemsMap[item.cuenta_pagar_id].push({ ...item, item_nombre: item.catalogo_items?.nombre });
+      });
+      setDetallesItems(itemsMap);
+    }
+
     setCargando(false);
   };
 
@@ -259,11 +279,11 @@ const DetalleProveedorCxP: React.FC<Props> = ({ entidad, visible, onCerrar, onAc
                 <table className="cxc-tabla">
                   <thead>
                     <tr>
-                      <th className="cxc-th">Descripción</th>
+                      <th className="cxc-th">Concepto / Detalle</th>
                       <th className="cxc-th cxc-th-center">Fecha</th>
                       <th className="cxc-th cxc-th-center">Estado</th>
                       <th className="cxc-th cxc-th-right">Total</th>
-                      <th className="cxc-th cxc-th-right">Pagado</th>
+                      <th className="cxc-th cxc-th-right">Abonado</th>
                       <th className="cxc-th cxc-th-right">Saldo</th>
                       <th className="cxc-th cxc-th-acciones">Acciones</th>
                     </tr>
@@ -275,26 +295,36 @@ const DetalleProveedorCxP: React.FC<Props> = ({ entidad, visible, onCerrar, onAc
                         ? { label: 'Anticipo', color: '#a855f7', bg: 'rgba(168,85,247,0.15)' }
                         : (BADGE_ESTADOS[nota.estado] ?? BADGE_ESTADOS.pendiente);
                       const tieneSaldo = nota.deuda_restante > 0;
+                      const itemsDeLaNota = detallesItems[nota.id] || [];
                       
                       return (
                         <tr
                           key={nota.id}
                           className={`cxc-tr ${tieneSaldo ? 'cxc-tr--deuda' : ''} ${isAnticipo ? 'cxc-tr--anticipo' : ''}`}
-                          style={{ cursor: 'pointer' }}
-                          onClick={() => setNotaSeleccionada({
-                            ...nota,
-                            proveedor_nombre: entidad.tipo === 'proveedor' ? entidad.nombre : undefined,
-                            personal_nombre:  entidad.tipo === 'personal'  ? entidad.nombre : undefined,
-                          })}
                         >
                           <td className="cxc-td">
-                            <span style={{ fontSize: '0.87rem' }}>
+                            {/* Concepto principal */}
+                            <div style={{ fontWeight: 600, fontSize: '0.87rem', marginBottom: '0.15rem' }}>
                               {nota.descripcion || '(Sin descripción)'}
-                            </span>
+                            </div>
+                            {/* Detalle de ítems visible a primera vista */}
+                            {itemsDeLaNota.length > 0 && (
+                              <div style={{ display: 'flex', gap: '0.25rem', flexWrap: 'wrap' }}>
+                                {itemsDeLaNota.map((item: any, i: number) => (
+                                  <span key={i} style={{
+                                    fontSize: '0.68rem', padding: '1px 6px', borderRadius: '10px',
+                                    background: 'rgba(245,158,11,0.1)', color: '#fbbf24',
+                                    border: '1px solid rgba(245,158,11,0.2)'
+                                  }}>
+                                    {item.item_nombre}{item.descripcion ? ` — ${item.descripcion}` : ''}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
                           </td>
                           <td className="cxc-td cxc-td-center" style={{ fontSize: '0.83rem', color: '#94a3b8' }}>
                             <Calendar size={12} style={{ marginRight: '0.3rem' }} />
-                            {fmtFecha(nota.fecha_emision)}
+                            {fmtFecha(nota.created_at || nota.fecha_emision)}
                           </td>
                           <td className="cxc-td cxc-td-center">
                             <span style={{
@@ -308,45 +338,48 @@ const DetalleProveedorCxP: React.FC<Props> = ({ entidad, visible, onCerrar, onAc
                           <td className="cxc-td cxc-td-right" style={{ color: '#94a3b8', fontSize: '0.87rem' }}>
                             Bs {fmtMonto(nota.monto_total)}
                           </td>
-                          <td className="cxc-td cxc-td-right" style={{ color: '#4ade80', fontSize: '0.87rem' }}>
-                            Bs {fmtMonto(nota.monto_pagado)}
+                          <td className="cxc-td cxc-td-right" style={{ color: '#4ade80', fontSize: '0.87rem', fontWeight: 500 }}>
+                            Bs {fmtMonto(Number(nota.monto_total) - Number(nota.deuda_restante))}
                           </td>
                           <td className="cxc-td cxc-td-right">
                             {isAnticipo ? (
-                              <span style={{ color: '#a855f7', fontWeight: 600 }}>Bs {fmtMonto(nota.deuda_restante)} (Disp.)</span>
+                              <span style={{ 
+                                color: nota.deuda_restante > 0 ? '#a855f7' : '#94a3b8', 
+                                fontWeight: 600,
+                                opacity: nota.deuda_restante > 0 ? 1 : 0.6
+                              }}>
+                                Bs {fmtMonto(nota.deuda_restante)} {nota.deuda_restante > 0 ? '(Disp.)' : '(Aplicado)'}
+                              </span>
                             ) : tieneSaldo
                               ? <span className="cxc-monto-deuda">Bs {fmtMonto(nota.deuda_restante)}</span>
                               : <span className="cxc-al-dia">✓ Pagada</span>
                             }
                           </td>
                           <td className="cxc-td cxc-td-acciones" onClick={e => e.stopPropagation()}>
-                            <div style={{ display: 'flex', gap: '0.4rem', justifyContent: 'center' }}>
-                              {tieneSaldo && !isAnticipo && (
-                                <button
-                                  className="cxc-accion-btn cxc-accion-btn--nota"
-                                  onClick={() => setNotaSeleccionada({
-                                    ...nota,
-                                    proveedor_nombre: entidad.tipo === 'proveedor' ? entidad.nombre : undefined,
-                                    personal_nombre:  entidad.tipo === 'personal'  ? entidad.nombre : undefined,
-                                  })}
-                                  title="Pagar"
-                                  style={{ padding: '4px 8px' }}
-                                >
-                                  <CreditCard size={13} />
-                                </button>
-                              )}
+                            <div style={{ display: 'flex', gap: '0.35rem', justifyContent: 'center' }}>
+                              {/* Ver documento completo */}
                               <button
                                 className="cxc-accion-btn"
+                                onClick={() => setVerNotaId(nota.id)}
+                                title="Ver documento completo"
+                                style={{ padding: '4px 8px', borderColor: 'rgba(255,255,255,0.1)' }}
+                              >
+                                <Eye size={13} />
+                              </button>
+                              {/* Pagar / Editar */}
+                              <button
+                                className="cxc-accion-btn cxc-accion-btn--nota"
                                 onClick={() => setNotaSeleccionada({
                                   ...nota,
                                   proveedor_nombre: entidad.tipo === 'proveedor' ? entidad.nombre : undefined,
                                   personal_nombre:  entidad.tipo === 'personal'  ? entidad.nombre : undefined,
                                 })}
-                                title="Ver detalles / Editar"
-                                style={{ padding: '4px 8px', borderColor: 'rgba(255,255,255,0.1)' }}
+                                title={tieneSaldo && !isAnticipo ? 'Pagar / Editar' : 'Ver detalles'}
+                                style={{ padding: '4px 8px' }}
                               >
-                                <Edit2 size={13} />
+                                {tieneSaldo && !isAnticipo ? <CreditCard size={13} /> : <Edit2 size={13} />}
                               </button>
+                              {/* Anular */}
                               <button
                                 className="cxc-accion-btn"
                                 onClick={() => handleAnularNota(nota.id)}
@@ -390,6 +423,25 @@ const DetalleProveedorCxP: React.FC<Props> = ({ entidad, visible, onCerrar, onAc
         visible={mostrarFichaAnticipos}
         onCerrar={() => setMostrarFichaAnticipos(false)}
         onActualizar={() => { cargarNotas(); onActualizar(); }}
+      />
+
+      {/* Modal Ver Documento Completo */}
+      <ModalVerNotaCxP
+        visible={!!verNotaId}
+        cxpId={verNotaId}
+        onCerrar={() => setVerNotaId(null)}
+        onActualizar={() => { cargarNotas(); onActualizar(); }}
+        onEditar={() => {
+          const nota = notas.find(n => n.id === verNotaId);
+          if (nota) {
+            setVerNotaId(null);
+            setNotaSeleccionada({
+              ...nota,
+              proveedor_nombre: entidad!.tipo === 'proveedor' ? entidad!.nombre : undefined,
+              personal_nombre:  entidad!.tipo === 'personal'  ? entidad!.nombre : undefined,
+            });
+          }
+        }}
       />
     </div>
   );

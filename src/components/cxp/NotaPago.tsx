@@ -235,29 +235,56 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, esAnticipo = false, o
             <div style={{ marginBottom: '1.5rem' }}>
               <p style={{ fontSize: '0.8rem', fontWeight: 700, color: '#94a3b8', marginBottom: '0.75rem' }}>ÍTÉMS / GASTOS</p>
               {lineas.map((linea, idx) => (
-                <div key={idx} style={{ display: 'grid', gridTemplateColumns: '1fr 80px 100px 30px', gap: '0.5rem', marginBottom: '0.5rem', alignItems: 'center' }}>
-                  <select value={linea.catalogo_item_id} onChange={e => {
-                    const it = catalogo.find(c => c.id === e.target.value);
-                    if (it) {
+                <div key={idx} style={{ marginBottom: '0.75rem', paddingBottom: '0.75rem', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 60px 100px 100px 30px', gap: '0.5rem', alignItems: 'center' }}>
+                    <select value={linea.catalogo_item_id} onChange={e => {
+                      const it = catalogo.find(c => c.id === e.target.value);
+                      if (it) {
+                        const nuevas = [...lineas];
+                        nuevas[idx] = { ...nuevas[idx], catalogo_item_id: it.id, nombre: it.nombre, tipo: it.tipo, precio_unitario: Number(it.precio_venta) || 0, subtotal: (Number(it.precio_venta) || 0) * nuevas[idx].cantidad };
+                        setLineas(nuevas);
+                      }
+                    }} required disabled={guardando}>
+                      <option value="">— Seleccionar Ítem —</option>
+                      {catalogo.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                    </select>
+                    <input type="number" value={linea.cantidad} onChange={e => {
+                      const cant = parseInt(e.target.value) || 1;
                       const nuevas = [...lineas];
-                      nuevas[idx] = { ...nuevas[idx], catalogo_item_id: it.id, nombre: it.nombre, tipo: it.tipo, precio_unitario: Number(it.precio_venta) || 0, subtotal: Number(it.precio_venta) || 0 };
+                      nuevas[idx] = { ...nuevas[idx], cantidad: cant, subtotal: cant * nuevas[idx].precio_unitario };
                       setLineas(nuevas);
-                    }
-                  }} required disabled={guardando}>
-                    <option value="">— Seleccionar Ítem —</option>
-                    {catalogo.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-                  </select>
-                  <input type="number" value={linea.cantidad} onChange={e => {
-                    const cant = parseInt(e.target.value) || 1;
-                    const nuevas = [...lineas];
-                    nuevas[idx] = { ...nuevas[idx], cantidad: cant, subtotal: cant * nuevas[idx].precio_unitario };
-                    setLineas(nuevas);
-                  }} min="1" disabled={guardando} />
-                  <div style={{ textAlign: 'right', fontWeight: 700 }}>Bs {fmtMonto(linea.subtotal)}</div>
-                  <button type="button" onClick={() => setLineas(lineas.filter((_, i) => i !== idx))} disabled={lineas.length === 1} style={{ color: '#f87171' }}><Trash2 size={16} /></button>
+                    }} min="1" disabled={guardando} title="Cantidad" />
+                    <input type="number" step="0.01" value={linea.precio_unitario} onChange={e => {
+                      const prec = parseFloat(e.target.value) || 0;
+                      const nuevas = [...lineas];
+                      nuevas[idx] = { ...nuevas[idx], precio_unitario: prec, subtotal: prec * nuevas[idx].cantidad };
+                      setLineas(nuevas);
+                    }} disabled={guardando} title="Precio Unitario" />
+                    <div style={{ textAlign: 'right', fontWeight: 700, fontSize: '0.9rem' }}>Bs {fmtMonto(linea.subtotal)}</div>
+                    <button type="button" onClick={() => setLineas(lineas.filter((_, i) => i !== idx))} disabled={lineas.length === 1} style={{ color: '#f87171' }}><Trash2 size={16} /></button>
+                  </div>
                 </div>
               ))}
               <button type="button" onClick={() => setLineas([...lineas, lineaVacia()])} style={{ fontSize: '0.8rem', color: '#f59e0b', display: 'flex', alignItems: 'center', gap: '0.3rem' }}><Plus size={14} /> Agregar ítem</button>
+            </div>
+
+            {/* Observaciones generales */}
+            <div className="form-campo full-width" style={{ marginBottom: '1rem' }}>
+              <label style={{ fontSize: '0.8rem', fontWeight: 700, color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '0.3rem', marginBottom: '0.3rem' }}>
+                📝 Observaciones Generales
+              </label>
+              <textarea
+                value={observaciones}
+                onChange={e => setObservaciones(e.target.value)}
+                placeholder="Notas internas, aclaraciones, condiciones de pago..."
+                rows={2}
+                style={{
+                  width: '100%', padding: '0.6rem 0.75rem', fontSize: '0.85rem',
+                  background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)',
+                  borderRadius: '8px', color: 'inherit', resize: 'vertical', minHeight: '50px'
+                }}
+                disabled={guardando}
+              />
             </div>
 
             <div style={{ background: 'rgba(255,255,255,0.03)', padding: '1rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>

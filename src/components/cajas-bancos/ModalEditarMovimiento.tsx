@@ -5,8 +5,8 @@
  */
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabaseClient';
-import { X, Pencil, DollarSign, Calendar, Hash, AlignLeft, Building2, AlertCircle, Save, RefreshCw, Check } from 'lucide-react';
-import { getHoyISO } from '../../lib/dateUtils';
+import { X, Pencil, DollarSign, Calendar, Hash, AlignLeft, Building2, AlertCircle, Save, RefreshCw, Check, Clock } from 'lucide-react';
+import { getHoyISO, getHoraLocal } from '../../lib/dateUtils';
 import type { CajaBanco } from '../../types/finanzas';
 import { type MovimientoFinanciero } from '../../hooks/useFinanzas';
 
@@ -25,6 +25,7 @@ const ModalEditarMovimiento: React.FC<Props> = ({ visible, movimiento, cajas, on
   const [descripcion, setDescripcion] = useState('');
   const [monto, setMonto] = useState('');
   const [fecha, setFecha] = useState('');
+  const [hora, setHora] = useState('');
   const [nroTransaccion, setNroTransaccion] = useState('');
   const [cajaId, setCajaId] = useState('');
 
@@ -38,7 +39,21 @@ const ModalEditarMovimiento: React.FC<Props> = ({ visible, movimiento, cajas, on
       setDescripcion(movimiento.descripcion);
       const montoOriginal = movimiento.debe > 0 ? movimiento.debe : movimiento.haber;
       setMonto(String(montoOriginal));
-      setFecha(movimiento.fecha ? movimiento.fecha.split('T')[0] : getHoyISO());
+      if (movimiento.fecha) {
+        const d = new Date(movimiento.fecha);
+        // Extraer componentes locales para que coincida con la tabla (evitar desfase UTC)
+        const yyyy = d.getFullYear();
+        const mmLocal = String(d.getMonth() + 1).padStart(2, '0');
+        const ddLocal = String(d.getDate()).padStart(2, '0');
+        setFecha(`${yyyy}-${mmLocal}-${ddLocal}`);
+
+        const hh = String(d.getHours()).padStart(2, '0');
+        const mm = String(d.getMinutes()).padStart(2, '0');
+        setHora(`${hh}:${mm}`);
+      } else {
+        setFecha(getHoyISO());
+        setHora(getHoraLocal());
+      }
       setNroTransaccion(movimiento.nro_transaccion || '');
       setCajaId(movimiento.cuenta_id);
       setError(null);
@@ -68,15 +83,15 @@ const ModalEditarMovimiento: React.FC<Props> = ({ visible, movimiento, cajas, on
         userRol = usrData?.rol || '';
       }
 
-      const { data, error: rpcErr } = await supabase.rpc('rpc_editar_movimiento_financiero', {
+      const { data, error: rpcErr } = await supabase.rpc('rpc_editar_movimiento_simple', {
         p_payload: {
           movimiento_id: movimiento.id,
+          tipo_origen: movimiento.tipo_origen,
           cuenta_id: cajaId,
           monto: valorMonto,
-          fecha: fecha,
+          fecha: new Date(`${fecha}T${hora}:00`).toISOString(),
           descripcion: descripcion.trim(),
-          nro_transaccion: nroTransaccion.trim() || null,
-          rol_usuario: userRol
+          nro_transaccion: nroTransaccion.trim() || null
         }
       });
 
@@ -139,6 +154,12 @@ const ModalEditarMovimiento: React.FC<Props> = ({ visible, movimiento, cajas, on
             <div className="form-campo">
               <label><Calendar size={14} /> Fecha *</label>
               <input type="date" value={fecha} onChange={e => setFecha(e.target.value)} required disabled={guardando} />
+            </div>
+
+            {/* Hora */}
+            <div className="form-campo">
+              <label><Clock size={14} /> Hora *</label>
+              <input type="time" value={hora} onChange={e => setHora(e.target.value)} required disabled={guardando} />
             </div>
 
             {/* Nro Transacción */}

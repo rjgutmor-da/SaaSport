@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import { X, FileText, Calendar, Hash, Info, Link2, User, CreditCard, ArrowDownRight, ArrowUpRight } from 'lucide-react';
-import { formatFecha } from '../../lib/dateUtils';
+import { formatFecha, formatFechaHora } from '../../lib/dateUtils';
 import type { MovimientoFinanciero } from '../../hooks/useFinanzas';
 
 interface ModalDetalleMovimientoProps {
@@ -39,33 +39,8 @@ const ModalDetalleMovimiento: React.FC<ModalDetalleMovimientoProps> = ({ visible
   }, [visible, movimiento, asientoId]);
 
   const cargarDetalleContable = async (id: string) => {
-    setCargando(true);
-    try {
-      const { data: dataAsiento, error: errAsiento } = await supabase
-        .from('asientos_contables')
-        .select('*')
-        .eq('id', id)
-        .single();
-      
-      if (errAsiento) throw errAsiento;
-      setAsiento(dataAsiento);
-
-      const { data: dataMovs, error: errMovs } = await supabase
-        .from('movimientos_contables')
-        .select(`
-          id, debe, haber, 
-          cuenta:plan_cuentas(nombre, codigo)
-        `)
-        .eq('asiento_id', id)
-        .order('debe', { ascending: false });
-
-      if (errMovs) throw errMovs;
-      setMovimientosContables(dataMovs || []);
-    } catch (err: any) {
-      console.error('Error al cargar detalle contable:', err);
-    } finally {
-      setCargando(false);
-    }
+    // Ya no usamos tablas contables
+    setCargando(false);
   };
 
   if (!visible) return null;
@@ -100,7 +75,7 @@ const ModalDetalleMovimiento: React.FC<ModalDetalleMovimientoProps> = ({ visible
           <div className="modal-form-grid" style={{ marginBottom: '2rem' }}>
             <div className="form-campo">
               <label><Calendar size={14} /> Fecha y Hora</label>
-              <div style={{ fontSize: '1.1rem', fontWeight: 600 }}>{movimiento ? formatFecha(movimiento.fecha) : (asiento ? formatFecha(asiento.fecha) : '—')}</div>
+              <div style={{ fontSize: '1.1rem', fontWeight: 600 }}>{movimiento ? formatFechaHora(movimiento.fecha) : (asiento ? formatFechaHora(asiento.fecha) : '—')}</div>
             </div>
             <div className="form-campo">
               <label><Hash size={14} /> Nro. Transacción</label>
@@ -139,49 +114,7 @@ const ModalDetalleMovimiento: React.FC<ModalDetalleMovimientoProps> = ({ visible
             </div>
           </div>
 
-          {/* Sección Contable (Solo si existe asiento) */}
-          {(movimiento?.asiento_id || asientoId) && (
-            <div style={{ marginTop: '2rem' }}>
-               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
-                  <Info size={16} color="var(--text-tertiary)" />
-                  <h3 style={{ margin: 0, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-tertiary)' }}>
-                    Información Contable (Histórica)
-                  </h3>
-               </div>
-
-               {cargando ? (
-                 <p style={{ textAlign: 'center', padding: '1rem', color: 'var(--text-tertiary)' }}>Cargando detalles contables...</p>
-               ) : (
-                 <div className="cxc-tabla-wrapper" style={{ overflow: 'hidden', border: '1px solid var(--border)', borderRadius: '12px' }}>
-                    <table className="cxc-tabla">
-                      <thead>
-                        <tr>
-                          <th className="cxc-th">Cuenta Contable</th>
-                          <th className="cxc-th cxc-th-right">Debe</th>
-                          <th className="cxc-th cxc-th-right">Haber</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {movimientosContables.map((m) => (
-                          <tr key={m.id} className="cxc-tr" style={{ cursor: 'default' }}>
-                            <td className="cxc-td">
-                              <div style={{ fontWeight: 600 }}>{m.cuenta?.nombre}</div>
-                              <div style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>{m.cuenta?.codigo}</div>
-                            </td>
-                            <td className="cxc-td cxc-td-right">
-                              {m.debe > 0 ? <span style={{ color: '#10b981', fontWeight: 600 }}>{fmtMonto(m.debe)}</span> : '—'}
-                            </td>
-                            <td className="cxc-td cxc-td-right">
-                              {m.haber > 0 ? <span style={{ color: '#ef4444', fontWeight: 600 }}>{fmtMonto(m.haber)}</span> : '—'}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                 </div>
-               )}
-            </div>
-          )}
+          {/* Sección Contable removida por simplificación de sistema */}
         </div>
         
         <div style={{ padding: '1.5rem 2rem', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end' }}>

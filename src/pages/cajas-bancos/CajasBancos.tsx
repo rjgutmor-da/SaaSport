@@ -70,7 +70,6 @@ const CajasBancos: React.FC = () => {
       saldosHistoricos[m.cuenta_id] += (m.debe - m.haber);
       return {
         ...m,
-        cuenta_nombre: cajas.find(c => c.id === m.cuenta_id)?.nombre || 'Desconocida',
         saldo_historico: saldosHistoricos[m.cuenta_id]
       };
     });
@@ -86,12 +85,10 @@ const CajasBancos: React.FC = () => {
 
   const toggleForm = (type: 'ingreso' | 'salida' | 'transferencia' | 'nueva_caja') => {
     if (activeForm === type) {
-      setActiveForm(null);
-    } else {
-      setActiveForm(type);
-      setFormDirty(false);
+      handleCerrarModal();
       return;
     }
+
     if (activeForm && formDirty) {
       if (!window.confirm('Tienes cambios sin guardar en el formulario actual. ¿Deseas descartarlos y cambiar de operación?')) {
         return;
@@ -419,7 +416,7 @@ const CajasBancos: React.FC = () => {
                         <th className="cxc-th" style={{ width: '100px' }}>Fecha</th>
                         <th className="cxc-th" style={{ width: '80px' }}>Hora</th>
                         <th className="cxc-th" style={{ width: '120px' }}>Documento</th>
-                        <th className="cxc-th">Alumno</th>
+                        <th className="cxc-th">Alumno / Proveedor</th>
                         <th className="cxc-th" style={{ width: '120px' }}>Cuentas</th>
                         <th className="cxc-th cxc-th-right" style={{ width: '120px' }}>Ingreso</th>
                         <th className="cxc-th cxc-th-right" style={{ width: '120px' }}>Salida</th>

@@ -9,13 +9,15 @@ import type { AlumnoDeuda, CuentaCobrar, CxcDetalle, LineaNota } from '../../typ
 import type { CajaBanco } from '../../types/finanzas';
 import { 
   AlertCircle, Check, CreditCard, Pencil, Ban, MessageCircle, X, 
-  Calendar, Eye, Hash, Wallet, DollarSign, Plus, ChevronDown
+  Calendar, Eye, Hash, Wallet, DollarSign, Plus, ChevronDown,
+  MapPin, User, Trophy, Clock
 } from 'lucide-react';
 import NotaServicios from './NotaServicios';
+import ModalVerNotaCxC from './ModalVerNotaCxC';
 import ModalEditarMovimiento from '../cajas-bancos/ModalEditarMovimiento';
 import ModalDetalleMovimiento from '../cajas-bancos/ModalDetalleMovimiento';
 import FichaAnticiposCxC from './FichaAnticiposCxC';
-import { getHoraLocal, getHoyISO, formatFecha } from '../../lib/dateUtils';
+import { getHoraLocal, getHoyISO, formatFecha, formatFechaCorta } from '../../lib/dateUtils';
 
 interface DetalleAlumnoProps {
   alumno: AlumnoDeuda | null;
@@ -62,6 +64,11 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
   const [movDetalleId, setMovDetalleId] = useState<string | null>(null);
   const [showAnticiposMenu, setShowAnticiposMenu] = useState(false);
 
+  // Modal Ver/Editar Nota completa
+  const [verNotaId, setVerNotaId] = useState<string | null>(null);
+  const [editarNotaId, setEditarNotaId] = useState<string | null>(null);
+  const [detallesItems, setDetallesItems] = useState<Record<string, any[]>>({});
+
   useEffect(() => {
     if (!visible || !alumno) return;
 
@@ -97,6 +104,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
       
       const cxcIds = (resCxc.data as any[])?.map(c => c.id) || [];
       if (cxcIds.length > 0) {
+        // Cargar cobros
         const { data: todosCobros } = await supabase
           .from('cobros_aplicados')
           .select('*, cajas_bancos(nombre)')
@@ -109,6 +117,18 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
           historyMap[cobro.cuenta_cobrar_id].push({ ...cobro, caja_nombre: cobro.cajas_bancos?.nombre });
         });
         setHistorialCobros(historyMap);
+
+        // Cargar detalle de ítems por nota (concepto + detalle visible)
+        const { data: todosItems } = await supabase
+          .from('cxc_detalle')
+          .select('cuenta_cobrar_id, cantidad, precio_unitario, periodo_meses, detalle_extra, catalogo_items!inner(nombre)')
+          .in('cuenta_cobrar_id', cxcIds);
+        const itemsMap: Record<string, any[]> = {};
+        todosItems?.forEach((item: any) => {
+          if (!itemsMap[item.cuenta_cobrar_id]) itemsMap[item.cuenta_cobrar_id] = [];
+          itemsMap[item.cuenta_cobrar_id].push({ ...item, item_nombre: item.catalogo_items?.nombre });
+        });
+        setDetallesItems(itemsMap);
       }
 
       const { data: resAnt } = await supabase.from('v_cuentas_cobrar')
@@ -144,33 +164,18 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
       if (usarAnticipo) {
         if (!anticipoId) throw new Error('Seleccione un anticipo.');
         
-        // 1. Aplicación en la nota actual
-        await supabase.from('cobros_aplicados').insert({
-          escuela_id: ctx.escuela_id,
-          cuenta_cobrar_id: cobroCxcId,
-          monto_aplicado: monto,
-          fecha: `${cobroFecha}T${cobroHora}:00`,
-          es_aplicacion_anticipo: true,
-          caja_id: null
+        const { error: rpcErr } = await supabase.rpc('rpc_aplicar_anticipo_cxc', {
+          p_payload: {
+            nota_id: cobroCxcId,
+            anticipo_id: anticipoId,
+            monto: monto,
+            usuario_id: ctx.id,
+            escuela_id: ctx.escuela_id,
+            sucursal_id: ctx.sucursal_id,
+          }
         });
 
-        // 2. Aplicación en el anticipo
-        await supabase.from('cobros_aplicados').insert({
-          escuela_id: ctx.escuela_id,
-          cuenta_cobrar_id: anticipoId,
-          monto_aplicado: monto,
-          fecha: `${cobroFecha}T${cobroHora}:00`,
-          es_aplicacion_anticipo: true,
-          caja_id: null
-        });
-
-        // 3. Actualizar estado del anticipo
-        const { data: antData } = await supabase.from('v_cuentas_cobrar').select('*').eq('id', anticipoId).single();
-        if (antData) {
-            const saldoRestante = Number(antData.saldo_pendiente) - monto;
-            const nuevoEstado = saldoRestante <= 0 ? 'pagada' : (saldoRestante < Number(antData.monto_total) ? 'parcial' : 'pendiente');
-            await supabase.from('cuentas_cobrar').update({ estado: nuevoEstado }).eq('id', anticipoId);
-        }
+        if (rpcErr) throw rpcErr;
       } else {
         const partesRef = [];
         if (cobroBancoOrigen.trim()) partesRef.push(`Banco: ${cobroBancoOrigen.trim()}`);
@@ -231,36 +236,101 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
 
   return (
     <>
-      <div className="cxc-modal-overlay">
+      <div className="cxc-modal-overlay" onClick={onCerrar}>
         <div className="cxc-modal cxc-modal--detalle cxc-modal--wide" onClick={e => e.stopPropagation()}>
-          <div className="cxc-modal-header">
-            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-              <div className="cxc-alumno-avatar" style={{ width: '48px', height: '48px', fontSize: '1.2rem' }}>
+          {/* Header con Efecto Glass y Metadatos Premium */}
+          <div className="modal-header-glass" style={{ padding: '1.5rem 2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+            <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'center' }}>
+              <div style={{ 
+                width: '64px', height: '64px', borderRadius: '18px', background: 'var(--accent-gradient)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.75rem', fontWeight: 'bold', color: 'white',
+                boxShadow: '0 8px 20px -4px rgba(249,115,22,0.4)',
+                border: '2px solid rgba(255,255,255,0.1)'
+              }}>
                 {alumno.nombres[0]}{alumno.apellidos[0]}
               </div>
-              <div>
-                <h2 style={{ margin: 0 }}>{alumno.nombres} {alumno.apellidos}</h2>
-                <p style={{ margin: 0, fontSize: '0.8rem', color: '#94a3b8' }}>{alumno.sucursal_nombre || 'Sede Central'}</p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                <h2 style={{ margin: 0, fontSize: '1.5rem', letterSpacing: '-0.02em' }}>{alumno.nombres} {alumno.apellidos}</h2>
+                <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+                  <span className="cxc-modal-meta-line" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8rem', color: '#94a3b8' }}>
+                    <MapPin size={14} className="color-deuda" /> {alumno.sucursal_nombre || 'Sede Central'}
+                  </span>
+                  <span className="cxc-modal-meta-line" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8rem', color: '#94a3b8' }}>
+                    <User size={14} style={{ color: '#4ade80' }} /> {alumno.entrenador_nombre || 'Sin Asignar'}
+                  </span>
+                  <span className="cxc-modal-meta-line" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8rem', color: '#94a3b8' }}>
+                    <Trophy size={14} style={{ color: '#facc15' }} /> {alumno.cancha_nombre || 'General'}
+                  </span>
+                  <span className="cxc-modal-meta-line" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8rem', color: '#94a3b8' }}>
+                    <Clock size={14} className="color-meses" /> {alumno.horario_hora || '--:--'}
+                  </span>
+                </div>
               </div>
             </div>
-            <div style={{ display: 'flex', gap: '0.5rem' }}>
-              <button className="btn-premium-square" onClick={() => setMostrarNuevaNotaManual(true)} style={{ background: '#3b82f6' }}><Plus size={15} /> Nueva Nota</button>
-              <button onClick={onCerrar} className="btn-refrescar"><X size={20} /></button>
+            <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+              <button 
+                onClick={() => setMostrarNuevaNotaManual(true)}
+                className="btn-premium btn-blue"
+                style={{ padding: '0.6rem 1.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 600 }}
+              >
+                <Plus size={18} /> NUEVA NOTA
+              </button>
+              <button 
+                className="btn-premium btn-teal"
+                style={{ padding: '0.6rem 1.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 600 }}
+              >
+                <DollarSign size={18} /> PAGAR
+              </button>
+              <button 
+                className="btn-premium btn-purple"
+                style={{ padding: '0.6rem 1.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 600 }}
+              >
+                <CreditCard size={18} /> ANTICIPOS <ChevronDown size={14} />
+              </button>
+              <button onClick={onCerrar} className="btn-close-circle"><X size={20}/></button>
             </div>
           </div>
 
-          <div className="detalle-resumen-premium" style={{ gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem', padding: '1rem' }}>
+          {/* Ficha Premium de 4 Columnas */}
+          <div className="detalle-resumen-premium">
             <div className="resumen-card">
-              <span className="resumen-label">Saldo Pendiente</span>
-              <span className="resumen-valor color-deuda">Bs {fmtMonto(Number(alumno.saldo_pendiente))}</span>
+              <div className="resumen-icon-bg"><AlertCircle size={24} className="color-deuda" /></div>
+              <span className="resumen-label">Total Deuda</span>
+              <span className="resumen-valor color-deuda">Bs {fmtMonto(alumno.saldo_pendiente || 0)}</span>
+              <div className="resumen-footer">
+                <AlertCircle size={10} style={{ display: 'inline', marginRight: '4px' }} />
+                {alumno.cxc_pendientes || 0} pendientes
+              </div>
             </div>
+
             <div className="resumen-card">
-              <span className="resumen-label">Total Recaudado</span>
+              <div className="resumen-icon-bg"><Wallet size={24} className="color-ingreso" /></div>
+              <span className="resumen-label">Total Ingresos</span>
               <span className="resumen-valor color-ingreso">Bs {fmtMonto(alumno.total_ingresos_historico || 0)}</span>
+              <div className="resumen-footer">
+                <Check size={10} style={{ display: 'inline', marginRight: '4px' }} />
+                Histórico recaudado
+              </div>
             </div>
+
             <div className="resumen-card">
-              <span className="resumen-label">Mensualidades</span>
-              <span className="resumen-valor color-meses">{alumno.cxc_pendientes} Pendientes</span>
+              <div className="resumen-icon-bg"><Calendar size={24} className="color-meses" /></div>
+              <span className="resumen-label">Fecha de Inicio</span>
+              <span className="resumen-valor color-meses">{formatFechaCorta(alumno.fecha_inicio_consolidada)}</span>
+              <div className="resumen-footer">
+                <Calendar size={10} style={{ display: 'inline', marginRight: '4px' }} />
+                Inicio actividad
+              </div>
+            </div>
+
+            <div className="resumen-card">
+              <div className="resumen-icon-bg"><Clock size={24} style={{ color: '#38bdf8' }} /></div>
+              <span className="resumen-label">Meses de Actividad</span>
+              <span className="resumen-valor" style={{ color: '#38bdf8' }}>{alumno.cantidad_meses_actividad || 0} <small>Meses</small></span>
+              <div className="resumen-footer">
+                <Check size={10} style={{ display: 'inline', marginRight: '4px' }} />
+                Financiera
+              </div>
             </div>
           </div>
 
@@ -269,31 +339,85 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
               <thead>
                 <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)', color: '#94a3b8', textAlign: 'left' }}>
                   <th style={{ padding: '0.75rem' }}>Fecha</th>
-                  <th style={{ padding: '0.75rem' }}>Concepto</th>
+                  <th style={{ padding: '0.75rem' }}>Concepto / Detalle</th>
                   <th style={{ padding: '0.75rem' }}>Total</th>
+                  <th style={{ padding: '0.75rem' }}>Cobrado</th>
                   <th style={{ padding: '0.75rem' }}>Saldo</th>
                   <th style={{ padding: '0.75rem', textAlign: 'center' }}>Acciones</th>
                 </tr>
               </thead>
               <tbody>
                 {cxcs.map(cxc => {
-                  const isExp = expandida === cxc.id;
                   const isCobro = cobroCxcId === cxc.id;
+                  const isAnticipo = (cxc as any).es_anticipo;
+                  const itemsDeLaNota = detallesItems[cxc.id] || [];
+                  const cobrado = Number(cxc.monto_total) - Number(cxc.saldo_pendiente);
+                  
                   return (
                     <React.Fragment key={cxc.id}>
-                      <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', background: isExp ? 'rgba(255,255,255,0.02)' : 'transparent' }}>
-                        <td style={{ padding: '0.75rem' }}>{formatFecha(cxc.fecha_emision)}</td>
-                        <td style={{ padding: '0.75rem' }}>{cxc.descripcion || 'Sin descripción'} {cxc.anulada && '(Anulada)'}</td>
-                        <td style={{ padding: '0.75rem' }}>Bs {fmtMonto(Number(cxc.monto_total))}</td>
-                        <td style={{ padding: '0.75rem', fontWeight: 700, color: Number(cxc.saldo_pendiente) > 0 ? '#facc15' : '#4ade80' }}>Bs {fmtMonto(Number(cxc.saldo_pendiente))}</td>
-                        <td style={{ padding: '0.75rem', textAlign: 'center' }}>
-                          <div style={{ display: 'flex', gap: '0.4rem', justifyContent: 'center' }}>
-                            <button onClick={() => setExpandida(isExp ? null : cxc.id)} className="cxc-btn-editar-visible"><Eye size={14} /></button>
-                            {!cxc.anulada && cxc.estado !== 'pagada' && (
-                              <button onClick={() => { setCobroCxcId(cxc.id); setCobroMonto(String(cxc.saldo_pendiente)); }} style={{ color: '#4ade80', borderColor: '#4ade80' }} className="cxc-btn-editar-visible"><DollarSign size={14} /></button>
+                      <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', opacity: cxc.anulada ? 0.5 : 1 }}>
+                        <td style={{ padding: '0.75rem', verticalAlign: 'top', whiteSpace: 'nowrap' }}>{formatFecha(cxc.created_at || cxc.fecha_emision)}</td>
+                        <td style={{ padding: '0.75rem', verticalAlign: 'top' }}>
+                          {/* Concepto principal */}
+                          <div style={{ fontWeight: 600, marginBottom: '0.2rem' }}>
+                            {cxc.descripcion || 'Sin descripción'}
+                            {cxc.anulada && <span style={{ color: '#f87171', marginLeft: '0.4rem', fontSize: '0.75rem' }}>(Anulada)</span>}
+                            {isAnticipo && <span style={{ color: '#a855f7', marginLeft: '0.4rem', fontSize: '0.75rem' }}>(Anticipo)</span>}
+                          </div>
+                          {/* Detalle de ítems visible a primera vista */}
+                          {itemsDeLaNota.length > 0 && (
+                            <div style={{ display: 'flex', gap: '0.25rem', flexWrap: 'wrap', marginTop: '0.15rem' }}>
+                              {itemsDeLaNota.map((item: any, i: number) => {
+                                const meses = item.periodo_meses;
+                                const detExtra = item.detalle_extra;
+                                let detalle = item.item_nombre;
+                                if (meses && meses.length > 0) detalle += ` (${meses.join(', ')})`;
+                                else if (detExtra) detalle += ` — ${detExtra}`;
+                                return (
+                                  <span key={i} style={{
+                                    fontSize: '0.7rem', padding: '1px 7px', borderRadius: '10px',
+                                    background: 'rgba(59,130,246,0.1)', color: '#60a5fa',
+                                    border: '1px solid rgba(59,130,246,0.2)'
+                                  }}>
+                                    {detalle}
+                                  </span>
+                                );
+                              })}
+                            </div>
+                          )}
+                          {/* Observaciones generales si las hay */}
+                          {cxc.observaciones && (
+                            <p style={{ fontSize: '0.72rem', color: '#a78bfa', marginTop: '0.2rem', fontStyle: 'italic' }}>📝 {cxc.observaciones}</p>
+                          )}
+                        </td>
+                        <td style={{ padding: '0.75rem', verticalAlign: 'top' }}>Bs {fmtMonto(Number(cxc.monto_total))}</td>
+                        <td style={{ padding: '0.75rem', verticalAlign: 'top', color: '#4ade80' }}>Bs {fmtMonto(cobrado)}</td>
+                        <td style={{ 
+                          padding: '0.75rem', 
+                          verticalAlign: 'top', 
+                          fontWeight: 700, 
+                          color: isAnticipo 
+                            ? (Number(cxc.saldo_pendiente) > 0 ? '#a855f7' : '#94a3b8')
+                            : (Number(cxc.saldo_pendiente) > 0 ? '#facc15' : '#4ade80') 
+                        }}>
+                          Bs {fmtMonto(Number(cxc.saldo_pendiente))}
+                          {isAnticipo && (Number(cxc.saldo_pendiente) > 0 ? ' (Disp.)' : ' (Aplicado)')}
+                        </td>
+                        <td style={{ padding: '0.75rem', textAlign: 'center', verticalAlign: 'top' }}>
+                          <div style={{ display: 'flex', gap: '0.35rem', justifyContent: 'center' }}>
+                            {/* Ver documento completo */}
+                            <button onClick={() => setVerNotaId(cxc.id)} className="cxc-btn-editar-visible" title="Ver documento completo"><Eye size={14} /></button>
+                            {/* Editar nota */}
+                            {!cxc.anulada && puedeAnular() && (
+                              <button onClick={() => { setCxcParaEditar(cxc); setModoModal('editar'); setModalNotaVisible(true); }} style={{ color: '#3b82f6', borderColor: '#3b82f6' }} className="cxc-btn-editar-visible" title="Editar nota"><Pencil size={14} /></button>
                             )}
+                            {/* Cobrar */}
+                            {!cxc.anulada && cxc.estado !== 'pagada' && (
+                              <button onClick={() => { setCobroCxcId(cxc.id); setCobroMonto(String(cxc.saldo_pendiente)); }} style={{ color: '#4ade80', borderColor: '#4ade80' }} className="cxc-btn-editar-visible" title="Registrar cobro"><DollarSign size={14} /></button>
+                            )}
+                            {/* Anular */}
                             {puedeAnular() && !cxc.anulada && (
-                              <button onClick={() => anularNota(cxc.id)} style={{ color: '#f87171', borderColor: '#f87171' }} className="cxc-btn-editar-visible"><Ban size={14} /></button>
+                              <button onClick={() => anularNota(cxc.id)} style={{ color: '#f87171', borderColor: '#f87171' }} className="cxc-btn-editar-visible" title="Anular nota"><Ban size={14} /></button>
                             )}
                           </div>
                         </td>
@@ -328,25 +452,6 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                           </td>
                         </tr>
                       )}
-
-                      {isExp && !isCobro && (
-                        <tr>
-                          <td colSpan={5} style={{ padding: '1rem', background: 'rgba(255,255,255,0.02)' }}>
-                            <div style={{ fontSize: '0.8rem' }}>
-                              <p style={{ fontWeight: 700, marginBottom: '0.5rem', color: '#94a3b8' }}>HISTORIAL DE PAGOS</p>
-                              {historialCobros[cxc.id]?.length > 0 ? (
-                                historialCobros[cxc.id].map(p => (
-                                  <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '0.4rem', borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
-                                    <span>{formatFecha(p.fecha)} {p.caja_nombre && `(${p.caja_nombre})`}</span>
-                                    <span style={{ color: '#4ade80', fontWeight: 700 }}>Bs {fmtMonto(Number(p.monto_aplicado))}</span>
-                                  </div>
-                                ))
-                              ) : <p>No hay pagos registrados.</p>}
-                              {cxc.observaciones && <p style={{ marginTop: '0.75rem', color: '#94a3b8' }}>📝 {cxc.observaciones}</p>}
-                            </div>
-                          </td>
-                        </tr>
-                      )}
                     </React.Fragment>
                   )
                 })}
@@ -357,6 +462,35 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
       </div>
 
       <NotaServicios visible={mostrarNuevaNotaManual} onCerrar={() => setMostrarNuevaNotaManual(false)} onCreada={() => { setMostrarNuevaNotaManual(false); onActualizar(); }} alumnoPreseleccionado={{ id: alumno.alumno_id, nombre: `${alumno.nombres} ${alumno.apellidos}` }} />
+
+      {/* Modal Editar Nota */}
+      {modalNotaVisible && cxcParaEditar && (
+        <NotaServicios
+          visible={modalNotaVisible}
+          onCerrar={() => { setModalNotaVisible(false); setCxcParaEditar(null); }}
+          onCreada={() => { setModalNotaVisible(false); setCxcParaEditar(null); onActualizar(); }}
+          alumnoPreseleccionado={{ id: alumno.alumno_id, nombre: `${alumno.nombres} ${alumno.apellidos}` }}
+          cxcEditar={cxcParaEditar}
+          modoInicial={modoModal}
+        />
+      )}
+
+      {/* Modal Ver Documento Completo */}
+      <ModalVerNotaCxC
+        visible={!!verNotaId}
+        cxcId={verNotaId}
+        onCerrar={() => setVerNotaId(null)}
+        onActualizar={onActualizar}
+        onEditar={() => {
+          const cxc = cxcs.find(c => c.id === verNotaId);
+          if (cxc) {
+            setVerNotaId(null);
+            setCxcParaEditar(cxc);
+            setModoModal('editar');
+            setModalNotaVisible(true);
+          }
+        }}
+      />
     </>
   );
 

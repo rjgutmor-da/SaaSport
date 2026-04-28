@@ -7,7 +7,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import type { CatalogoItem } from '../../types/cuentas';
 import type { LineaNota } from '../../types/cxc';
-import { MESES_ANIO } from '../../types/cxc';
+import { MESES_ANIO, LISTA_TORNEOS } from '../../types/cxc';
 import {
   X, Plus, Check, Trash2, Calendar, AlertCircle,
   CreditCard, FileText, Users, RefreshCw, Hash
@@ -123,6 +123,7 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
         sucursal_id: ctx.sucursal_id,
         alumno_id: alumnoId,
         monto_total: total,
+        descripcion: lineasValidas.map(l => l.nombre).join(', '),
         observaciones,
         fecha_emision: fechaEmision,
         fecha_vencimiento: vencimiento || null,
@@ -146,23 +147,28 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
       if (pagarAlCrear) {
         const mp = parseFloat(montoPago);
         if (mp > 0 && cuentaCobroId) {
-          await supabase.from('cobros_aplicados').insert({
+          const { error: errP } = await supabase.from('cobros_aplicados').insert({
             escuela_id: ctx.escuela_id,
             cuenta_cobrar_id: nueva.id,
             monto_aplicado: mp,
             caja_id: cuentaCobroId,
-            fecha: `${fechaPago}T${horaPago}:00`,
-            documento_referencia: cobroNroDoc || null
+            fecha: `${fechaPago}T${horaPago}:00`
           });
+          if (errP) throw errP;
 
           // Actualizar Saldo Caja
           const caja = cajasBancos.find(c => c.id === cuentaCobroId);
           const nuevoSaldo = (Number(caja?.saldo_actual) || 0) + mp;
-          await supabase.from('cajas_bancos').update({ saldo_actual: nuevoSaldo }).eq('id', cuentaCobroId);
+          const { error: errC } = await supabase.from('cajas_bancos').update({ saldo_actual: nuevoSaldo }).eq('id', cuentaCobroId);
+          if (errC) throw errC;
 
-          // Actualizar Estado Nota
+          // Actualizar Estado Nota y Referencia
           const nuevoEstado = mp >= total ? 'pagada' : 'parcial';
-          await supabase.from('cuentas_cobrar').update({ estado: nuevoEstado }).eq('id', nueva.id);
+          const { error: errU } = await supabase.from('cuentas_cobrar').update({ 
+            estado: nuevoEstado,
+            nro_recibo: cobroNroDoc || null
+          }).eq('id', nueva.id);
+          if (errU) throw errU;
         }
       }
 
@@ -205,31 +211,157 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
             </div>
 
             <div style={{ marginBottom: '1.5rem' }}>
-              <p style={{ fontSize: '0.8rem', fontWeight: 700, color: '#94a3b8', marginBottom: '0.75rem' }}>CONCEPTOS</p>
-              {lineas.map((linea, idx) => (
-                <div key={idx} style={{ display: 'grid', gridTemplateColumns: '1fr 80px 100px 30px', gap: '0.5rem', marginBottom: '0.5rem', alignItems: 'center' }}>
-                  <select value={linea.catalogo_item_id} onChange={e => {
-                    const it = catalogo.find(c => c.id === e.target.value);
-                    if (it) {
-                      const nuevas = [...lineas];
-                      nuevas[idx] = { ...nuevas[idx], catalogo_item_id: it.id, nombre: it.nombre, precio_unitario: Number(it.precio_venta) || 0, subtotal: Number(it.precio_venta) || 0 };
-                      setLineas(nuevas);
-                    }
-                  }} required disabled={guardando}>
-                    <option value="">— Seleccionar Ítem —</option>
-                    {catalogo.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-                  </select>
-                  <input type="number" value={linea.cantidad} onChange={e => {
-                    const cant = parseInt(e.target.value) || 1;
-                    const nuevas = [...lineas];
-                    nuevas[idx] = { ...nuevas[idx], cantidad: cant, subtotal: cant * nuevas[idx].precio_unitario };
-                    setLineas(nuevas);
-                  }} min="1" disabled={guardando} />
-                  <div style={{ textAlign: 'right', fontWeight: 700 }}>Bs {fmtMonto(linea.subtotal)}</div>
-                  <button type="button" onClick={() => setLineas(lineas.filter((_, i) => i !== idx))} disabled={lineas.length === 1} style={{ color: '#f87171' }}><Trash2 size={16} /></button>
-                </div>
-              ))}
+              {lineas.map((linea, idx) => {
+                const esMensualidad = linea.nombre === 'Mensualidad';
+                const esTorneo = linea.nombre === 'Inscripción a Torneos';
+
+                return (
+                  <div key={idx} style={{ marginBottom: '1rem', paddingBottom: '1rem', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 60px 100px 100px 30px', gap: '0.5rem', alignItems: 'center' }}>
+                      <select value={linea.catalogo_item_id} onChange={e => {
+                        const it = catalogo.find(c => c.id === e.target.value);
+                        if (it) {
+                          const nuevas = [...lineas];
+                          nuevas[idx] = { 
+                            ...nuevas[idx], 
+                            catalogo_item_id: it.id, 
+                            nombre: it.nombre, 
+                            precio_unitario: Number(it.precio_venta) || 0, 
+                            subtotal: (Number(it.precio_venta) || 0) * nuevas[idx].cantidad,
+                            // Resetear campos específicos al cambiar item
+                            periodo_meses: [],
+                            detalle_personalizado: ''
+                          };
+                          setLineas(nuevas);
+                        }
+                      }} required disabled={guardando}>
+                        <option value="">— Seleccionar Ítem —</option>
+                        {catalogo.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                      </select>
+                      <input type="number" value={linea.cantidad} onChange={e => {
+                        const cant = parseInt(e.target.value) || 1;
+                        const nuevas = [...lineas];
+                        nuevas[idx] = { ...nuevas[idx], cantidad: cant, subtotal: cant * nuevas[idx].precio_unitario };
+                        setLineas(nuevas);
+                      }} min="1" disabled={guardando} title="Cantidad" />
+                      <input type="number" step="0.01" value={linea.precio_unitario} onChange={e => {
+                        const prec = parseFloat(e.target.value) || 0;
+                        const nuevas = [...lineas];
+                        nuevas[idx] = { ...nuevas[idx], precio_unitario: prec, subtotal: prec * nuevas[idx].cantidad };
+                        setLineas(nuevas);
+                      }} disabled={guardando} title="Precio Unitario" />
+                      <div style={{ textAlign: 'right', fontWeight: 700, fontSize: '0.9rem' }}>Bs {fmtMonto(linea.subtotal)}</div>
+                      <button type="button" onClick={() => setLineas(lineas.filter((_, i) => i !== idx))} disabled={lineas.length === 1} style={{ color: '#f87171' }}><Trash2 size={16} /></button>
+                    </div>
+
+                    {/* Opciones especiales para Mensualidad */}
+                    {esMensualidad && (
+                      <div style={{ marginTop: '0.75rem', padding: '0.75rem', background: 'rgba(255,255,255,0.02)', borderRadius: '8px' }}>
+                        <p style={{ fontSize: '0.7rem', fontWeight: 700, color: '#94a3b8', marginBottom: '0.5rem', textTransform: 'uppercase' }}>Seleccionar Mes(es)</p>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '0.4rem', marginBottom: '0.75rem' }}>
+                          {MESES_ANIO.map(mes => (
+                            <label key={mes} style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.75rem', cursor: 'pointer', background: linea.periodo_meses.includes(mes) ? 'rgba(59,130,246,0.1)' : 'transparent', padding: '0.2rem 0.4rem', borderRadius: '4px', border: '1px solid', borderColor: linea.periodo_meses.includes(mes) ? '#3b82f6' : 'rgba(255,255,255,0.1)' }}>
+                              <input 
+                                type="checkbox" 
+                                checked={linea.periodo_meses.includes(mes)} 
+                                onChange={e => {
+                                  const meses = e.target.checked 
+                                    ? [...linea.periodo_meses, mes]
+                                    : linea.periodo_meses.filter(m => m !== mes);
+                                  const nuevas = [...lineas];
+                                  nuevas[idx].periodo_meses = meses;
+                                  setLineas(nuevas);
+                                }}
+                                style={{ width: '12px', height: '12px' }}
+                              />
+                              {mes}
+                            </label>
+                          ))}
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                          <div style={{ flex: 1 }}>
+                            <label style={{ fontSize: '0.7rem', fontWeight: 700, color: '#94a3b8', display: 'block', marginBottom: '0.2rem' }}>PERIODO ESPECÍFICO / DETALLE</label>
+                            <input 
+                              type="text" 
+                              value={linea.detalle_personalizado} 
+                              onChange={e => {
+                                const nuevas = [...lineas];
+                                nuevas[idx].detalle_personalizado = e.target.value;
+                                setLineas(nuevas);
+                              }}
+                              placeholder="Ej: Curso de Verano, Enero-Febrero, etc."
+                              style={{ width: '100%', padding: '0.4rem', fontSize: '0.8rem', background: 'rgba(0,0,0,0.2)' }}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Opciones especiales para Inscripción a Torneos */}
+                    {esTorneo && (
+                      <div style={{ marginTop: '0.75rem', padding: '0.75rem', background: 'rgba(255,255,255,0.02)', borderRadius: '8px' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                          <div>
+                            <label style={{ fontSize: '0.7rem', fontWeight: 700, color: '#94a3b8', display: 'block', marginBottom: '0.2rem' }}>SELECCIONAR TORNEO</label>
+                            <select 
+                              value={LISTA_TORNEOS.includes(linea.detalle_personalizado || '') ? linea.detalle_personalizado : (linea.detalle_personalizado ? 'Otro' : '')}
+                              onChange={e => {
+                                const val = e.target.value;
+                                const nuevas = [...lineas];
+                                if (val === 'Otro') {
+                                  // No cambiar si ya tiene algo que no está en la lista (para no borrarlo)
+                                } else {
+                                  nuevas[idx].detalle_personalizado = val;
+                                }
+                                setLineas(nuevas);
+                              }}
+                              style={{ width: '100%', padding: '0.4rem', fontSize: '0.8rem', background: 'rgba(0,0,0,0.2)' }}
+                            >
+                              <option value="">— Seleccionar —</option>
+                              {LISTA_TORNEOS.map(t => <option key={t} value={t}>{t}</option>)}
+                              <option value="Otro">Otro (Especificar abajo)</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label style={{ fontSize: '0.7rem', fontWeight: 700, color: '#94a3b8', display: 'block', marginBottom: '0.2rem' }}>NOMBRE DEL TORNEO</label>
+                            <input 
+                              type="text" 
+                              value={linea.detalle_personalizado} 
+                              onChange={e => {
+                                const nuevas = [...lineas];
+                                nuevas[idx].detalle_personalizado = e.target.value;
+                                setLineas(nuevas);
+                              }}
+                              placeholder="Escriba el torneo si no está en la lista..."
+                              style={{ width: '100%', padding: '0.4rem', fontSize: '0.8rem', background: 'rgba(0,0,0,0.2)' }}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
               <button type="button" onClick={() => setLineas([...lineas, lineaVacia()])} style={{ fontSize: '0.8rem', color: '#3b82f6', display: 'flex', alignItems: 'center', gap: '0.3rem' }}><Plus size={14} /> Agregar otro ítem</button>
+            </div>
+
+            {/* Observaciones generales */}
+            <div className="form-campo full-width" style={{ marginBottom: '1rem' }}>
+              <label style={{ fontSize: '0.8rem', fontWeight: 700, color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '0.3rem', marginBottom: '0.3rem' }}>
+                📝 Observaciones Generales
+              </label>
+              <textarea
+                value={observaciones}
+                onChange={e => setObservaciones(e.target.value)}
+                placeholder="Notas internas, aclaraciones, condiciones especiales..."
+                rows={2}
+                style={{
+                  width: '100%', padding: '0.6rem 0.75rem', fontSize: '0.85rem',
+                  background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)',
+                  borderRadius: '8px', color: 'inherit', resize: 'vertical', minHeight: '50px'
+                }}
+                disabled={guardando}
+              />
             </div>
 
             <div style={{ background: 'rgba(255,255,255,0.03)', padding: '1rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
@@ -251,9 +383,13 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
                       {cajasBancos.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
                     </select>
                   </div>
-                  <div className="form-campo full-width">
+                  <div className="form-campo">
                     <label>Referencia / Nro. Transacción</label>
                     <input type="text" value={cobroNroDoc} onChange={e => setCobroNroDoc(e.target.value)} placeholder="Opcional" />
+                  </div>
+                  <div className="form-campo">
+                    <label>Fecha de Pago</label>
+                    <input type="date" value={fechaPago} onChange={e => setFechaPago(e.target.value)} required />
                   </div>
                 </div>
               )}

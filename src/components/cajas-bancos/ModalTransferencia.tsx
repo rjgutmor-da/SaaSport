@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { supabase } from '../../lib/supabaseClient';
-import { X, ArrowRightLeft, DollarSign, Calendar, Hash, AlignLeft, Building2, AlertCircle, Save, RefreshCw } from 'lucide-react';
-import { getHoyISO } from '../../lib/dateUtils';
+import { X, ArrowRightLeft, DollarSign, Calendar, Hash, AlignLeft, Building2, AlertCircle, Save, RefreshCw, Clock } from 'lucide-react';
+import { getHoyISO, getHoraLocal } from '../../lib/dateUtils';
 import type { CajaBanco } from '../../types/finanzas';
 
 interface Props {
@@ -17,6 +17,7 @@ const ModalTransferencia: React.FC<Props> = ({ visible, cajas, onCerrar, onCread
   const [destinoId, setDestinoId] = useState('');
   const [monto, setMonto] = useState('');
   const [fecha, setFecha] = useState(getHoyISO());
+  const [hora, setHora] = useState(getHoraLocal());
   const [descripcion, setDescripcion] = useState('Transferencia interna');
   const [nroTransaccion, setNroTransaccion] = useState('');
   
@@ -34,6 +35,8 @@ const ModalTransferencia: React.FC<Props> = ({ visible, cajas, onCerrar, onCread
       setDestinoId('');
       setMonto('');
       setDescripcion('Transferencia interna');
+      setFecha(getHoyISO());
+      setHora(getHoraLocal());
       setFormDirty(false);
     }
   }, [visible, setFormDirty]);
@@ -146,6 +149,17 @@ const ModalTransferencia: React.FC<Props> = ({ visible, cajas, onCerrar, onCread
                 type="date" 
                 value={fecha} 
                 onChange={e => handleInputChange(setFecha, e.target.value)} 
+                required 
+                disabled={guardando} 
+              />
+            </div>
+
+            <div className="form-campo">
+              <label><Clock size={14} /> Hora *</label>
+              <input 
+                type="time" 
+                value={hora} 
+                onChange={e => handleInputChange(setHora, e.target.value)} 
                 required 
                 disabled={guardando} 
               />

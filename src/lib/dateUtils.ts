@@ -32,8 +32,18 @@ export const formatFecha = (iso: string | null | undefined): string => {
   if (!iso) return '—';
   
   try {
-    // Extraer solo la parte de la fecha YYYY-MM-DD
-    const parts = iso.split('T')[0].split('-');
+    // Si contiene 'T', es un timestamp completo. Usamos el objeto Date local.
+    if (iso.includes('T')) {
+      const d = new Date(iso);
+      return d.toLocaleDateString('es-BO', { 
+        day: '2-digit', 
+        month: '2-digit', 
+        year: 'numeric' 
+      });
+    }
+
+    // Si es solo YYYY-MM-DD, evitamos el desfase interpretando partes
+    const parts = iso.split('-');
     if (parts.length !== 3) return iso;
     
     const year = parseInt(parts[0], 10);
@@ -58,7 +68,16 @@ export const formatFechaCorta = (iso: string | null | undefined): string => {
   if (!iso) return '—';
   
   try {
-    const parts = iso.split('T')[0].split('-');
+    if (iso.includes('T')) {
+      const d = new Date(iso);
+      return d.toLocaleDateString('es-BO', { 
+        day: '2-digit', 
+        month: 'short', 
+        year: 'numeric' 
+      });
+    }
+
+    const parts = iso.split('-');
     if (parts.length !== 3) return iso;
     
     const year = parseInt(parts[0], 10);
