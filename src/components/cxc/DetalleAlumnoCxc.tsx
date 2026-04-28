@@ -364,11 +364,18 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                                 {isAnticipo && <span style={{ color: '#a855f7', marginLeft: '0.4rem', fontSize: '0.7rem', background: 'rgba(168,85,247,0.1)', padding: '2px 6px', borderRadius: '4px' }}>ANTICIPO</span>}
                               </div>
                               {itemsDeLaNota.length > 0 && (
-                                <div style={{ display: 'flex', gap: '0.25rem' }}>
+                                <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
                                   {itemsDeLaNota.map((item: any, i: number) => (
-                                    <span key={i} style={{ fontSize: '0.65rem', padding: '1px 6px', borderRadius: '4px', background: 'rgba(59,130,246,0.15)', color: '#60a5fa' }}>
-                                      {item.item_nombre}
-                                    </span>
+                                    <React.Fragment key={i}>
+                                      <span style={{ fontSize: '0.65rem', padding: '1px 6px', borderRadius: '4px', background: 'rgba(59,130,246,0.15)', color: '#60a5fa', fontWeight: 600 }}>
+                                        {item.item_nombre}
+                                      </span>
+                                      {item.periodo_meses && item.periodo_meses.map((mes: string, mi: number) => (
+                                        <span key={`${i}-${mi}`} style={{ fontSize: '0.65rem', padding: '1px 6px', borderRadius: '4px', background: 'rgba(74,222,128,0.15)', color: '#4ade80', fontWeight: 600 }}>
+                                          {mes}
+                                        </span>
+                                      ))}
+                                    </React.Fragment>
                                   ))}
                                 </div>
                               )}

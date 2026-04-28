@@ -89,7 +89,7 @@ const ModalEditarMovimiento: React.FC<Props> = ({ visible, movimiento, cajas, on
           tipo_origen: movimiento.tipo_origen,
           cuenta_id: cajaId,
           monto: valorMonto,
-          fecha: new Date(`${fecha}T${hora}:00`).toISOString(),
+          fecha: new Date(`${fecha}T${getHoraLocal()}:00`).toISOString(),
           descripcion: descripcion.trim(),
           nro_transaccion: nroTransaccion.trim() || null
         }
@@ -156,11 +156,7 @@ const ModalEditarMovimiento: React.FC<Props> = ({ visible, movimiento, cajas, on
               <input type="date" value={fecha} onChange={e => setFecha(e.target.value)} required disabled={guardando} />
             </div>
 
-            {/* Hora */}
-            <div className="form-campo">
-              <label><Clock size={14} /> Hora *</label>
-              <input type="time" value={hora} onChange={e => setHora(e.target.value)} required disabled={guardando} />
-            </div>
+
 
             {/* Nro Transacción */}
             <div className="form-campo full-width">
@@ -182,7 +178,7 @@ const ModalEditarMovimiento: React.FC<Props> = ({ visible, movimiento, cajas, on
                 onChange={e => setDescripcion(e.target.value)}
                 required disabled={guardando}
                 maxLength={255}
-                style={{ resize: 'vertical', minHeight: '60px' }}
+                style={{ resize: 'vertical', minHeight: '60px', width: '100%' }}
               />
             </div>
           </div>

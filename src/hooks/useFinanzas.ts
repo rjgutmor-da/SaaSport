@@ -179,7 +179,7 @@ const fetchMovimientos = async (escuelaId: string, cajaIds: string[]) => {
       )
     `).in('caja_id', cajaIds),
     supabase.from('pagos_aplicados').select(`
-      id, caja_id, monto_aplicado, fecha, conciliado, created_at, asiento_id,
+      id, caja_id, monto_aplicado, fecha, conciliado, created_at, asiento_id, referencia,
       cuentas_pagar (
         id, descripcion,
         proveedores ( nombre ),
@@ -222,7 +222,7 @@ const fetchMovimientos = async (escuelaId: string, cajaIds: string[]) => {
       haber: Number(p.monto_aplicado) || 0,
       fecha: p.fecha || p.created_at,
       descripcion: p.cuentas_pagar?.descripcion || 'Pago / Egreso',
-      nro_transaccion: '',
+      nro_transaccion: p.referencia || '',
       cliente: p.cuentas_pagar?.proveedores?.nombre || (p.cuentas_pagar?.personal ? `${p.cuentas_pagar.personal.nombres} ${p.cuentas_pagar.personal.apellidos}` : '—'),
       cuenta_id: p.caja_id,
       cuenta_nombre: p.cuentas_pagar?.cxp_detalle?.[0]?.catalogo_items?.nombre || 'Concepto no especificado',

@@ -36,7 +36,6 @@ const ModalTransferencia: React.FC<Props> = ({ visible, cajas, onCerrar, onCread
       setMonto('');
       setDescripcion('Transferencia interna');
       setFecha(getHoyISO());
-      setHora(getHoraLocal());
       setFormDirty(false);
     }
   }, [visible, setFormDirty]);
@@ -65,16 +64,76 @@ const ModalTransferencia: React.FC<Props> = ({ visible, cajas, onCerrar, onCread
       const escuelaId = perfil?.escuela_id;
       if (!escuelaId) throw new Error('No se pudo determinar la escuela.');
 
-      // 2. Actualizar Saldos de Caja
-      // Origen: Restar monto
-      const { data: cajaOrigen } = await supabase.from('cajas_bancos').select('saldo_actual').eq('id', origenId).single();
-      const nuevoSaldoOrigen = (Number(cajaOrigen?.saldo_actual) || 0) - valorMonto;
-      await supabase.from('cajas_bancos').update({ saldo_actual: nuevoSaldoOrigen }).eq('id', origenId);
+      // 2. Buscar o asegurar concepto de transferencia
+      const { data: itemData } = await supabase
+        .from('catalogo_items')
+        .select('id')
+        .eq('nombre', 'Transferencia de Fondos')
+        .single();
+      
+      const transferenciaItemId = itemData?.id;
+      if (!transferenciaItemId) throw new Error('No se encontró el concepto "Transferencia de Fondos" en el catálogo.');
 
-      // Destino: Sumar monto
-      const { data: cajaDestino } = await supabase.from('cajas_bancos').select('saldo_actual').eq('id', destinoId).single();
-      const nuevoSaldoDestino = (Number(cajaDestino?.saldo_actual) || 0) + valorMonto;
-      await supabase.from('cajas_bancos').update({ saldo_actual: nuevoSaldoDestino }).eq('id', destinoId);
+      const timestamp = new Date(`${fecha}T${getHoraLocal()}:00`).toISOString();
+
+      // 3. Registrar EGRESO (Cuenta Origen)
+      const { data: cxp, error: errCxP } = await supabase.from('cuentas_pagar').insert({
+        escuela_id: escuelaId,
+        monto_total: valorMonto,
+        estado: 'pagada',
+        descripcion: `[EGRESO TRF] ${descripcion}`,
+        fecha_emision: fecha,
+        tipo_gasto: 'gasto_corriente'
+      }).select().single();
+
+      if (errCxP || !cxp) throw new Error('Error al registrar egreso de transferencia: ' + errCxP?.message);
+
+      await supabase.from('cxp_detalle').insert({
+        escuela_id: escuelaId,
+        cuenta_pagar_id: cxp.id,
+        catalogo_item_id: transferenciaItemId,
+        cantidad: 1,
+        precio_unitario: valorMonto
+      });
+
+      await supabase.from('pagos_aplicados').insert({
+        escuela_id: escuelaId,
+        cuenta_pagar_id: cxp.id,
+        caja_id: origenId,
+        monto_aplicado: valorMonto,
+        fecha: timestamp,
+        referencia: nroTransaccion
+      });
+
+      // 4. Registrar INGRESO (Cuenta Destino)
+      const { data: cxc, error: errCxC } = await supabase.from('cuentas_cobrar').insert({
+        escuela_id: escuelaId,
+        monto_total: valorMonto,
+        estado: 'pagada',
+        descripcion: `[INGRESO TRF] ${descripcion}`,
+        fecha_emision: fecha,
+        nro_recibo: nroTransaccion
+      }).select().single();
+
+      if (errCxC || !cxc) throw new Error('Error al registrar ingreso de transferencia: ' + errCxC?.message);
+
+      await supabase.from('cxc_detalle').insert({
+        escuela_id: escuelaId,
+        cuenta_cobrar_id: cxc.id,
+        catalogo_item_id: transferenciaItemId,
+        cantidad: 1,
+        precio_unitario: valorMonto
+      });
+
+      await supabase.from('cobros_aplicados').insert({
+        escuela_id: escuelaId,
+        cuenta_cobrar_id: cxc.id,
+        caja_id: destinoId,
+        monto_aplicado: valorMonto,
+        fecha: timestamp,
+        documento_referencia: nroTransaccion
+      });
+
 
       setFormDirty(false);
       onCreado();
@@ -154,16 +213,7 @@ const ModalTransferencia: React.FC<Props> = ({ visible, cajas, onCerrar, onCread
               />
             </div>
 
-            <div className="form-campo">
-              <label><Clock size={14} /> Hora *</label>
-              <input 
-                type="time" 
-                value={hora} 
-                onChange={e => handleInputChange(setHora, e.target.value)} 
-                required 
-                disabled={guardando} 
-              />
-            </div>
+
 
             <div className="form-campo full-width" style={{ gridColumn: '1 / -1' }}>
               <label><Hash size={14} /> Nro. Transacción / Referencia</label>

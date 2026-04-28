@@ -239,25 +239,35 @@ const ModalVerNotaCxC: React.FC<Props> = ({ visible, cxcId, onCerrar, onEditar, 
                 </span>
               </div>
 
-              {/* Barra de progreso */}
-              <div style={{ marginTop: '0.5rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', color: '#94a3b8', marginBottom: '0.3rem' }}>
-                  <span>Cobrado: Bs {fmtMonto(totalCobrado)}</span>
-                  <span>Total: Bs {fmtMonto(montoTotal)}</span>
+              {/* Resumen de Montos */}
+              <div style={{ 
+                display: 'flex', 
+                justifyContent: 'space-between', 
+                alignItems: 'center', 
+                marginTop: '1rem',
+                paddingTop: '0.75rem',
+                borderTop: '1px solid rgba(255,255,255,0.06)'
+              }}>
+                <div style={{ display: 'flex', gap: '1.5rem' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column' }}>
+                    <span style={{ fontSize: '0.7rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total</span>
+                    <span style={{ fontSize: '1rem', fontWeight: 700 }}>Bs {fmtMonto(montoTotal)}</span>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column' }}>
+                    <span style={{ fontSize: '0.7rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Cobrado</span>
+                    <span style={{ fontSize: '1rem', fontWeight: 700, color: '#4ade80' }}>Bs {fmtMonto(totalCobrado)}</span>
+                  </div>
                 </div>
-                <div style={{ background: 'rgba(255,255,255,0.08)', borderRadius: '4px', height: '6px' }}>
-                  <div style={{
-                    width: `${progreso}%`,
-                    height: '100%',
-                    background: progreso >= 100 ? '#4ade80' : '#3b82f6',
-                    borderRadius: '4px',
-                    transition: 'width 0.4s ease'
-                  }} />
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.3rem', fontSize: '0.78rem' }}>
-                  <span style={{ color: '#4ade80' }}>Pagado: {progreso.toFixed(0)}%</span>
-                  <span style={{ color: saldoPendiente > 0 ? '#f87171' : '#4ade80', fontWeight: 700 }}>
-                    Saldo: Bs {fmtMonto(saldoPendiente)}
+                <div style={{ 
+                  textAlign: 'right',
+                  padding: '0.5rem 1rem',
+                  background: saldoPendiente > 0 ? 'rgba(248,113,113,0.1)' : 'rgba(74,222,128,0.1)',
+                  borderRadius: '10px',
+                  border: `1px solid ${saldoPendiente > 0 ? 'rgba(248,113,113,0.2)' : 'rgba(74,222,128,0.2)'}`
+                }}>
+                  <span style={{ fontSize: '0.75rem', color: saldoPendiente > 0 ? '#f87171' : '#4ade80', display: 'block', fontWeight: 600 }}>SALDO PENDIENTE</span>
+                  <span style={{ fontSize: '1.4rem', fontWeight: 900, color: saldoPendiente > 0 ? '#f87171' : '#4ade80' }}>
+                    Bs {fmtMonto(saldoPendiente)}
                   </span>
                 </div>
               </div>
@@ -266,10 +276,12 @@ const ModalVerNotaCxC: React.FC<Props> = ({ visible, cxcId, onCerrar, onEditar, 
             {/* ── Ítems del Detalle ── */}
             <div style={{ marginBottom: '1.25rem' }}>
               <p style={{
-                fontSize: '0.75rem', fontWeight: 700, color: '#94a3b8',
-                textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.6rem'
+                fontSize: '0.85rem', fontWeight: 800, color: '#fff',
+                textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.8rem',
+                display: 'flex', alignItems: 'center', gap: '0.5rem'
               }}>
-                📋 Ítems de la Nota
+                <FileText size={16} style={{ color: '#3b82f6' }} />
+                Ítems de la Nota
               </p>
               {items.length === 0 ? (
                 <p style={{ fontSize: '0.85rem', color: '#64748b', fontStyle: 'italic' }}>Sin detalle de ítems</p>
@@ -290,12 +302,12 @@ const ModalVerNotaCxC: React.FC<Props> = ({ visible, cxcId, onCerrar, onEditar, 
                     >
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <div>
-                          <span style={{ fontWeight: 600, fontSize: '0.9rem' }}>{item.nombre}</span>
-                          <span style={{ color: '#64748b', fontSize: '0.8rem', marginLeft: '0.5rem' }}>
+                          <span style={{ fontWeight: 700, fontSize: '1.05rem', color: '#fff' }}>{item.nombre}</span>
+                          <span style={{ color: '#94a3b8', fontSize: '0.85rem', marginLeft: '0.6rem' }}>
                             × {item.cantidad} @ Bs {fmtMonto(item.precio_unitario)}
                           </span>
                         </div>
-                        <span style={{ fontWeight: 700, color: '#e2e8f0', fontSize: '0.9rem' }}>
+                        <span style={{ fontWeight: 800, color: '#fff', fontSize: '1.1rem' }}>
                           Bs {fmtMonto(item.subtotal)}
                         </span>
                       </div>

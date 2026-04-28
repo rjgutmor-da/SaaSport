@@ -156,7 +156,7 @@ const ModalPagoRapidoCxP: React.FC<Props> = ({ entidadInicial, entidades, visibl
         cuenta_pagar_id: objetivoCxpId,
         caja_id: cuentaId,
         monto_aplicado: montoNum,
-        fecha: new Date(`${fechaPago}T${horaPago}:00`).toISOString(),
+        fecha: new Date(`${fechaPago}T${getHoraLocal()}:00`).toISOString(),
         conciliado: false
       }).select('id').single();
 
@@ -170,17 +170,15 @@ const ModalPagoRapidoCxP: React.FC<Props> = ({ entidadInicial, entidades, visibl
           await supabase.from('cuentas_pagar').update({ estado: nuevoEstado, updated_at: new Date().toISOString() }).eq('id', objetivoCxpId);
       }
 
-      // 3. Actualizar Saldo de Caja/Banco
-      const { data: cajaData } = await supabase.from('cajas_bancos').select('saldo_actual').eq('id', cuentaId).single();
-      const nuevoSaldo = (Number(cajaData?.saldo_actual) || 0) - montoNum;
-      await supabase.from('cajas_bancos').update({ saldo_actual: nuevoSaldo }).eq('id', cuentaId);
+      // 3. Actualizar Saldo de Caja/Banco (AHORA SE ENCARGA EL TRIGGER)
+
 
       // 4. Auditoría
       await supabase.from('audit_log').insert({
         escuela_id: ctx.escuela_id, usuario_id: ctx.id,
         usuario_nombre: `${ctx.nombres} ${ctx.apellidos}`,
         accion: 'pago', modulo: 'cxp', entidad_id: objetivoCxpId,
-        detalle: { monto: montoNum, metodo_pago: metodo, caja_id: cuentaId },
+        detalle: { monto: montoNum, metodo_pago: '', caja_id: cuentaId },
       });
 
       setExito(`✅ Pago registrado exitosamente.`);
@@ -303,15 +301,7 @@ const ModalPagoRapidoCxP: React.FC<Props> = ({ entidadInicial, entidades, visibl
                   <input type="date" value={fechaPago} onChange={e => setFechaPago(e.target.value)} required disabled={guardando} />
                 </div>
 
-                <div className="form-campo">
-                  <label><Clock size={14} /> Hora *</label>
-                  <input type="time" value={horaPago} onChange={e => setHoraPago(e.target.value)} required disabled={guardando} />
-                </div>
 
-                <div className="form-campo">
-                  <label><Hash size={14} /> Metodo / Referencia</label>
-                  <input type="text" value={metodo} onChange={e => setMetodo(e.target.value)} disabled={guardando} placeholder="Efectivo, QR, etc." />
-                </div>
 
                 <div className="form-campo full-width">
                   <label><Building2 size={14} /> Caja / Banco de Salida *</label>

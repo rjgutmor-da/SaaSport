@@ -156,7 +156,6 @@ const ModalCobroRapido: React.FC<Props> = ({ alumnoInicial, visible, onCerrar, o
 
       const partesRef: string[] = [];
       if (bancoOrigen.trim()) partesRef.push(`Banco: ${bancoOrigen.trim()}`);
-      if (hora.trim()) partesRef.push(`He: ${hora.trim()}`);
       if (nroDoc.trim()) partesRef.push(`Nro: ${nroDoc.trim()}`);
 
       // 1. Registrar cobro aplicado
@@ -165,7 +164,7 @@ const ModalCobroRapido: React.FC<Props> = ({ alumnoInicial, visible, onCerrar, o
         cuenta_cobrar_id: objetivoCxcId,
         caja_id: cuentaId,
         monto_aplicado: montoNum,
-        fecha: new Date(`${fecha}T${hora}:00`).toISOString(),
+        fecha: new Date(`${fecha}T${getHoraLocal()}:00`).toISOString(),
         metodo_pago: metodo,
         referencia: partesRef.join(' | ') || null
       });
@@ -180,10 +179,8 @@ const ModalCobroRapido: React.FC<Props> = ({ alumnoInicial, visible, onCerrar, o
           await supabase.from('cuentas_cobrar').update({ estado: nuevoEstado }).eq('id', objetivoCxcId);
       }
 
-      // 3. Actualizar Saldo de Caja
-      const { data: cajaData } = await supabase.from('cajas_bancos').select('saldo_actual').eq('id', cuentaId).single();
-      const nuevoSaldo = (Number(cajaData?.saldo_actual) || 0) + montoNum;
-      await supabase.from('cajas_bancos').update({ saldo_actual: nuevoSaldo }).eq('id', cuentaId);
+      // 3. Actualizar Saldo de Caja (AHORA SE ENCARGA EL TRIGGER)
+
 
       // 4. Auditoría
       await supabase.from('audit_log').insert({
@@ -356,10 +353,7 @@ const ModalCobroRapido: React.FC<Props> = ({ alumnoInicial, visible, onCerrar, o
                       <input type="date" value={fecha} onChange={e => setFecha(e.target.value)} required disabled={guardando} />
                     </div>
 
-                    <div className="form-campo">
-                      <label><Clock size={14} /> Hora *</label>
-                      <input type="time" value={hora} onChange={e => setHora(e.target.value)} required disabled={guardando} />
-                    </div>
+
 
                     <div className="form-campo full-width">
                       <label><Building2 size={14} /> Caja o Banco Destino *</label>

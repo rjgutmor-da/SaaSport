@@ -414,7 +414,6 @@ const CajasBancos: React.FC = () => {
                     <thead>
                       <tr>
                         <th className="cxc-th" style={{ width: '100px' }}>Fecha</th>
-                        <th className="cxc-th" style={{ width: '80px' }}>Hora</th>
                         <th className="cxc-th" style={{ width: '120px' }}>Documento</th>
                         <th className="cxc-th">Alumno / Proveedor</th>
                         <th className="cxc-th" style={{ width: '120px' }}>Cuentas</th>
@@ -428,7 +427,7 @@ const CajasBancos: React.FC = () => {
                     <tbody>
                       {movsCaja.length === 0 ? (
                         <tr>
-                          <td colSpan={10} className="cxc-td cxc-td-center cxc-td-meta" style={{ padding: '2rem' }}>
+                          <td colSpan={9} className="cxc-td cxc-td-center cxc-td-meta" style={{ padding: '2rem' }}>
                             {busqueda ? 'No se encontraron movimientos para esta búsqueda en esta cuenta.' : 'No hay movimientos registrados en esta cuenta.'}
                           </td>
                         </tr>
@@ -447,15 +446,51 @@ const CajasBancos: React.FC = () => {
                             <td className="cxc-td cxc-td-meta" style={{ whiteSpace: 'nowrap' }}>
                               {fechaStr}
                             </td>
-                            <td className="cxc-td cxc-td-meta" style={{ whiteSpace: 'nowrap' }}>
-                              {horaStr}
-                            </td>
                             <td className="cxc-td cxc-td-meta">
-                              {mov.nro_transaccion ? <div style={{ fontWeight: 600 }}>{mov.nro_transaccion}</div> : null}
-                              <div style={{ fontSize: '0.8rem' }}>{mov.descripcion}</div>
+                              {/* Mostrar nro_transaccion en Documento (Amarillo) */}
+                              {(() => {
+                                if (!mov.nro_transaccion) return null;
+                                const nroTrim = mov.nro_transaccion.trim();
+                                if (!nroTrim) return null;
+                                
+                                const esMetodo = /^(efectivo|transferencia|qr|transferencia bancaria|pago qr)$/i.test(nroTrim);
+                                if (esMetodo) return null;
+
+                                return <div style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{nroTrim}</div>;
+                              })()}
                             </td>
-                            <td className="cxc-td" style={{ fontWeight: 500, color: 'var(--text-primary)' }}>
-                              {mov.cliente}
+                            <td className="cxc-td">
+                              {/* Alumno / Proveedor + Descripción (Verde) */}
+                              <div style={{ fontWeight: 500, color: 'var(--text-primary)' }}>
+                                {mov.cliente || '—'}
+                              </div>
+                              
+                              {(() => {
+                                if (!mov.descripcion) return null;
+                                let desc = mov.descripcion.trim();
+                                const cuentaTrim = mov.cuenta_nombre?.trim() || '';
+                                
+                                if (desc === cuentaTrim) return null;
+                                if (cuentaTrim && desc.startsWith(cuentaTrim)) {
+                                  desc = desc.substring(cuentaTrim.length).trim().replace(/^[:\-\s]+/, '').trim();
+                                }
+                                
+                                // Quitar métodos de pago genéricos
+                                desc = desc.replace(/\b(efectivo|transferencia|qr|transferencia bancaria|pago qr)\b/gi, '').replace(/^[:\-\s]+/, '').trim();
+                                
+                                if (desc) return (
+                                  <div style={{ 
+                                    fontSize: '0.8rem', 
+                                    lineHeight: '1.2', 
+                                    color: 'var(--text-secondary)',
+                                    marginTop: '2px',
+                                    fontWeight: 400
+                                  }}>
+                                    {desc}
+                                  </div>
+                                );
+                                return null;
+                              })()}
                             </td>
                             <td className="cxc-td cxc-td-meta">
                               {mov.cuenta_nombre}
@@ -499,10 +534,8 @@ const CajasBancos: React.FC = () => {
                                       if (window.confirm("¿Eliminar esta transacción definitivamente?")) {
                                         const tablaMaestra = mov.tipo_origen === 'cobro' ? 'cuentas_cobrar' : 'cuentas_pagar';
                                         
-                                        // 1. Revertir saldo de caja
-                                        const { data: cajaData } = await supabase.from('cajas_bancos').select('saldo_actual').eq('id', mov.cuenta_id).single();
-                                        const nuevoSaldo = (Number(cajaData?.saldo_actual) || 0) - (mov.debe - mov.haber);
-                                        await supabase.from('cajas_bancos').update({ saldo_actual: nuevoSaldo }).eq('id', mov.cuenta_id);
+                                        // 1. Revertir saldo de caja (AHORA SE ENCARGA EL TRIGGER)
+
                                         
                                         // 2. Eliminar cuenta (cascada)
                                         if ((mov as any).cuenta_maestra_id) {

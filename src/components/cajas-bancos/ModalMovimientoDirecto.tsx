@@ -127,7 +127,7 @@ const ModalMovimientoDirecto: React.FC<Props> = ({ visible, tipo, cajas, onCerra
           cuenta_cobrar_id: cxc.id,
           caja_id: cajaId,
           monto_aplicado: valorMonto,
-          fecha: new Date(`${fecha}T${hora}:00`).toISOString()
+          fecha: new Date(`${fecha}T${getHoraLocal()}:00`).toISOString()
         });
 
       } else {
@@ -158,15 +158,12 @@ const ModalMovimientoDirecto: React.FC<Props> = ({ visible, tipo, cajas, onCerra
           cuenta_pagar_id: cxp.id,
           caja_id: cajaId,
           monto_aplicado: valorMonto,
-          fecha: new Date(`${fecha}T${hora}:00`).toISOString()
+          fecha: new Date(`${fecha}T${getHoraLocal()}:00`).toISOString()
         });
       }
 
-      // 3. Actualizar Saldo de Caja
-      const { data: cajaData } = await supabase.from('cajas_bancos').select('saldo_actual').eq('id', cajaId).single();
-      const nuevoSaldo = (Number(cajaData?.saldo_actual) || 0) + (isIngreso ? valorMonto : -valorMonto);
-      
-      await supabase.from('cajas_bancos').update({ saldo_actual: nuevoSaldo }).eq('id', cajaId);
+      // 3. Actualizar Saldo de Caja (AHORA SE ENCARGA EL TRIGGER AUTOMÁTICAMENTE)
+
 
       setFormDirty(false);
       onCreado();
@@ -247,16 +244,7 @@ const ModalMovimientoDirecto: React.FC<Props> = ({ visible, tipo, cajas, onCerra
               />
             </div>
 
-            <div className="form-campo">
-              <label><Clock size={14} /> Hora *</label>
-              <input 
-                type="time" 
-                value={hora} 
-                onChange={e => handleInputChange(setHora, e.target.value)} 
-                required 
-                disabled={guardando} 
-              />
-            </div>
+
 
             <div className="form-campo">
               <label><Hash size={14} /> Nro. Transacción / Recibo</label>
