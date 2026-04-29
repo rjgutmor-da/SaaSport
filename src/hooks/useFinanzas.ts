@@ -203,6 +203,7 @@ const fetchMovimientos = async (escuelaId: string, cajaIds: string[]) => {
       debe: Number(c.monto_aplicado) || 0,
       haber: 0,
       fecha: c.fecha || c.created_at,
+      created_at: c.created_at,
       descripcion: c.cuentas_cobrar?.descripcion || 'Cobro / Ingreso',
       nro_transaccion: c.cuentas_cobrar?.nro_recibo || '',
       cliente: c.cuentas_cobrar?.alumnos ? `${c.cuentas_cobrar.alumnos.nombres} ${c.cuentas_cobrar.alumnos.apellidos}` : '—',
@@ -221,6 +222,7 @@ const fetchMovimientos = async (escuelaId: string, cajaIds: string[]) => {
       debe: 0,
       haber: Number(p.monto_aplicado) || 0,
       fecha: p.fecha || p.created_at,
+      created_at: p.created_at,
       descripcion: p.cuentas_pagar?.descripcion || 'Pago / Egreso',
       nro_transaccion: p.referencia || '',
       cliente: p.cuentas_pagar?.proveedores?.nombre || (p.cuentas_pagar?.personal ? `${p.cuentas_pagar.personal.nombres} ${p.cuentas_pagar.personal.apellidos}` : '—'),
@@ -232,8 +234,13 @@ const fetchMovimientos = async (escuelaId: string, cajaIds: string[]) => {
     });
   });
 
-  // Sort descending for UI (newest first)
-  return movs.sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime());
+  // Sort descending for UI: 1st by Date, 2nd by Created At
+  return movs.sort((a, b) => {
+    const dateA = new Date(a.fecha).getTime();
+    const dateB = new Date(b.fecha).getTime();
+    if (dateB !== dateA) return dateB - dateA;
+    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+  });
 };
 
 export const useCajasBancos = (escuelaId: string | null) =>

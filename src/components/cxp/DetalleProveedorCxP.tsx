@@ -147,7 +147,7 @@ const DetalleProveedorCxP: React.FC<Props> = ({ entidad, visible, onCerrar, onAc
   const stats = useMemo(() => ({
     total:          notas.length,
     pendientes:     notas.filter(n => n.estado !== 'pagada').length,
-    montoPendiente: notas.reduce((s, n) => s + n.deuda_restante, 0),
+    montoPendiente: notas.reduce((s, n) => s + ((n as any).es_anticipo ? -n.deuda_restante : n.deuda_restante), 0),
     montoPagado:    notas.reduce((s, n) => s + n.monto_pagado, 0),
   }), [notas]);
 
@@ -203,16 +203,6 @@ const DetalleProveedorCxP: React.FC<Props> = ({ entidad, visible, onCerrar, onAc
               }}
             >
               <Plus size={18} /> NUEVA NOTA
-            </button>
-            <button 
-              onClick={() => { setMostrarNuevaNota(true); setModoAnticipo(true); }}
-              className="btn-premium"
-              style={{ 
-                padding: '0.75rem 1.25rem', display: 'flex', alignItems: 'center', gap: '0.6rem', 
-                fontWeight: 700, background: '#10b981', borderRadius: '10px'
-              }}
-            >
-              <DollarSign size={18} /> ANTICIPO
             </button>
             <button 
               onClick={() => setMostrarFichaAnticipos(true)}
@@ -298,7 +288,7 @@ const DetalleProveedorCxP: React.FC<Props> = ({ entidad, visible, onCerrar, onAc
                           <div style={{ fontWeight: 700, color: '#fff' }}>
                             {nota.descripcion || 'Sin descripción'}
                           </div>
-                          {itemsDeLaNota.length > 0 && (
+                          {!isAnticipo && itemsDeLaNota.length > 0 && (
                             <div style={{ display: 'flex', gap: '0.25rem', flexWrap: 'wrap' }}>
                               {itemsDeLaNota.map((item: any, i: number) => (
                                 <span key={i} style={{ fontSize: '0.65rem', padding: '1px 6px', borderRadius: '4px', background: 'rgba(245,158,11,0.15)', color: '#fbbf24' }}>
@@ -323,10 +313,14 @@ const DetalleProveedorCxP: React.FC<Props> = ({ entidad, visible, onCerrar, onAc
                         {badge.label}
                       </span>
                     </td>
-                    <td style={{ padding: '0.5rem 0.75rem', textAlign: 'right', border: '1px solid rgba(255,255,255,0.08)', fontWeight: 600 }}>Bs {fmtMonto(nota.monto_total)}</td>
-                    <td style={{ padding: '0.5rem 0.75rem', textAlign: 'right', border: '1px solid rgba(255,255,255,0.08)', color: '#4ade80', fontWeight: 600 }}>Bs {fmtMonto(Number(nota.monto_total) - Number(nota.deuda_restante))}</td>
+                    <td style={{ padding: '0.5rem 0.75rem', textAlign: 'right', border: '1px solid rgba(255,255,255,0.08)', fontWeight: 600 }}>
+                      Bs {fmtMonto(isAnticipo ? 0 : nota.monto_total)}
+                    </td>
+                    <td style={{ padding: '0.5rem 0.75rem', textAlign: 'right', border: '1px solid rgba(255,255,255,0.08)', color: '#4ade80', fontWeight: 600 }}>
+                      Bs {fmtMonto(isAnticipo ? nota.monto_pagado : (Number(nota.monto_total) - Number(nota.deuda_restante)))}
+                    </td>
                     <td style={{ padding: '0.5rem 0.75rem', textAlign: 'right', border: '1px solid rgba(255,255,255,0.08)', fontWeight: 700, color: isAnticipo ? '#a855f7' : (tieneSaldo ? '#38bdf8' : '#4ade80') }}>
-                      Bs {fmtMonto(nota.deuda_restante)}
+                      {isAnticipo ? '-' : ''} Bs {fmtMonto(nota.deuda_restante)}
                     </td>
                     <td style={{ padding: '0.5rem 0.75rem', textAlign: 'center', border: '1px solid rgba(255,255,255,0.08)' }}>
                       <div style={{ display: 'flex', gap: '0.4rem', justifyContent: 'center' }}>
@@ -358,8 +352,15 @@ const DetalleProveedorCxP: React.FC<Props> = ({ entidad, visible, onCerrar, onAc
         />
         <FichaAnticiposCxP
           visible={mostrarFichaAnticipos}
+          entidadId={entidad.id}
+          tipoEntidad={entidad.tipo}
           onCerrar={() => setMostrarFichaAnticipos(false)}
           onActualizar={() => { cargarNotas(); onActualizar(); }}
+          onRegistrar={() => {
+            setMostrarFichaAnticipos(false);
+            setModoAnticipo(true);
+            setMostrarNuevaNota(true);
+          }}
         />
         <ModalVerNotaCxP
           visible={!!verNotaId}

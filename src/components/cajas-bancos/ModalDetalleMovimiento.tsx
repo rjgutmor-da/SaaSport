@@ -74,8 +74,8 @@ const ModalDetalleMovimiento: React.FC<ModalDetalleMovimientoProps> = ({ visible
           {/* Información General */}
           <div className="modal-form-grid" style={{ marginBottom: '2rem' }}>
             <div className="form-campo">
-              <label><Calendar size={14} /> Fecha y Hora</label>
-              <div style={{ fontSize: '1.1rem', fontWeight: 600 }}>{movimiento ? formatFechaHora(movimiento.fecha) : (asiento ? formatFechaHora(asiento.fecha) : '—')}</div>
+              <label><Calendar size={14} /> Fecha</label>
+              <div style={{ fontSize: '1.1rem', fontWeight: 600 }}>{movimiento ? formatFecha(movimiento.fecha) : (asiento ? formatFecha(asiento.fecha) : '—')}</div>
             </div>
             <div className="form-campo">
               <label><Hash size={14} /> Nro. Transacción</label>

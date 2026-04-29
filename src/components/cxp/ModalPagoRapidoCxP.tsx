@@ -24,7 +24,6 @@ const ModalPagoRapidoCxP: React.FC<Props> = ({ entidadInicial, entidades, visibl
   const [cuentasPago, setCuentasPago] = useState<CajaBanco[]>([]);
 
   const [monto, setMonto] = useState('');
-  const [metodo, setMetodo] = useState('efectivo');
   const [cuentaId, setCuentaId] = useState('');
   const [nroDoc, setNroDoc] = useState('');
   const [fechaPago, setFechaPago] = useState(getHoyISO());
@@ -150,25 +149,22 @@ const ModalPagoRapidoCxP: React.FC<Props> = ({ entidadInicial, entidades, visibl
           });
       }
 
-      // 1. Registrar el pago aplicado
-      const { data: nuevoPago, error: errPago } = await supabase.from('pagos_aplicados').insert({
-        escuela_id: ctx.escuela_id,
-        cuenta_pagar_id: objetivoCxpId,
-        caja_id: cuentaId,
-        monto_aplicado: montoNum,
-        fecha: new Date(`${fechaPago}T${getHoraLocal()}:00`).toISOString(),
-        conciliado: false
-      }).select('id').single();
+      // 1. Registrar el pago (USANDO RPC)
+      const { data: resRpc, error: errRpc } = await supabase.rpc('rpc_registrar_pago_cxp', {
+        p_payload: {
+          escuela_id: ctx.escuela_id,
+          sucursal_id: ctx.sucursal_id,
+          usuario_id: ctx.id,
+          cuenta_pagar_id: objetivoCxpId,
+          monto: montoNum,
+          cuenta_pago_id: cuentaId,
+          fecha: new Date(`${fechaPago}T${getHoraLocal()}:00`).toISOString(),
+          nro_comprobante: nroDoc || null,
+          metodo_pago: 'efectivo' // Por defecto
+        }
+      });
 
-      if (errPago) throw errPago;
-
-      // 2. Actualizar estado de la nota (CxP)
-      const { data: cxpData } = await supabase.from('v_estado_cuentas_pagar').select('*').eq('id', objetivoCxpId).single();
-      if (cxpData) {
-          const deudaRestante = Number(cxpData.deuda_restante) - montoNum;
-          const nuevoEstado = deudaRestante <= 0 ? 'pagada' : (deudaRestante < Number(cxpData.monto_total) ? 'parcial' : 'pendiente');
-          await supabase.from('cuentas_pagar').update({ estado: nuevoEstado, updated_at: new Date().toISOString() }).eq('id', objetivoCxpId);
-      }
+      if (errRpc) throw errRpc;
 
       // 3. Actualizar Saldo de Caja/Banco (AHORA SE ENCARGA EL TRIGGER)
 

@@ -9,7 +9,7 @@ import { supabase } from '../../lib/supabaseClient';
 import {
   RefreshCw, ChevronDown, ChevronRight,
   CheckCircle2, AlertCircle, Wallet, ArrowRight,
-  TrendingDown, X
+  TrendingDown, X, Plus
 } from 'lucide-react';
 import { formatFecha } from '../../lib/dateUtils';
 
@@ -38,15 +38,20 @@ interface NotaPendiente {
 
 interface Props {
   visible: boolean;
+  entidadId?: string;
+  tipoEntidad?: 'proveedor' | 'personal';
   onCerrar: () => void;
   onActualizar: () => void;
+  onRegistrar?: () => void;
 }
 
 const fmtMonto = (n: number) =>
   n.toLocaleString('es-BO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 // ── Componente principal ────────────────────────────────────────────────
-const FichaAnticiposCxP: React.FC<Props> = ({ visible, onCerrar, onActualizar }) => {
+const FichaAnticiposCxP: React.FC<Props> = ({ 
+  visible, entidadId, tipoEntidad, onCerrar, onActualizar, onRegistrar 
+}) => {
   const [anticipos, setAnticipos] = useState<AnticipoCxP[]>([]);
   const [cargando, setCargando] = useState(true);
   const [expandidoId, setExpandidoId] = useState<string | null>(null);
@@ -68,12 +73,19 @@ const FichaAnticiposCxP: React.FC<Props> = ({ visible, onCerrar, onActualizar })
     const { data: u } = await supabase.from('usuarios')
       .select('escuela_id').eq('id', user.id).single();
 
-    const { data } = await supabase
+    let query = supabase
       .from('v_estado_cuentas_pagar')
       .select('id, descripcion, fecha_emision, monto_total, monto_pagado, deuda_restante, proveedor_id, personal_id')
       .eq('es_anticipo', true)
       .gt('deuda_restante', 0)
       .order('fecha_emision', { ascending: false });
+
+    if (entidadId) {
+      if (tipoEntidad === 'proveedor') query = query.eq('proveedor_id', entidadId);
+      else query = query.eq('personal_id', entidadId);
+    }
+
+    const { data } = await query;
 
     // Enriquecer con nombres de proveedores y personal
     const provIds = [...new Set((data ?? []).filter(r => r.proveedor_id).map(r => r.proveedor_id))];
@@ -230,9 +242,24 @@ const FichaAnticiposCxP: React.FC<Props> = ({ visible, onCerrar, onActualizar })
               </p>
             </div>
           </div>
-          <button onClick={onCerrar}>
-            <X size={20} />
-          </button>
+          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+            {onRegistrar && (
+              <button 
+                onClick={onRegistrar}
+                style={{
+                  background: '#a855f7', color: '#fff', border: 'none',
+                  borderRadius: '8px', padding: '0.5rem 0.75rem',
+                  display: 'flex', alignItems: 'center', gap: '0.4rem',
+                  fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer'
+                }}
+              >
+                <Plus size={16} /> REGISTRAR
+              </button>
+            )}
+            <button onClick={onCerrar}>
+              <X size={20} />
+            </button>
+          </div>
         </div>
 
         <div style={{ padding: '1rem' }}>
@@ -278,9 +305,18 @@ const FichaAnticiposCxP: React.FC<Props> = ({ visible, onCerrar, onActualizar })
             }}>
               <Wallet size={40} style={{ opacity: 0.3, marginBottom: '0.75rem' }} />
               <p style={{ margin: 0 }}>No hay anticipos disponibles.</p>
-              <p style={{ margin: '0.3rem 0 0', fontSize: '0.82rem' }}>
-                Para registrar un anticipo, usa el botón "Registrar Anticipo" en el listado CxP.
-              </p>
+              {onRegistrar && (
+                <button 
+                  onClick={onRegistrar}
+                  className="btn-guardar-cuenta"
+                  style={{ 
+                    marginTop: '1rem', background: '#a855f7', borderColor: '#a855f7',
+                    padding: '0.6rem 1.2rem'
+                  }}
+                >
+                  Registrar mi primer Anticipo
+                </button>
+              )}
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>

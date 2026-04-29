@@ -208,13 +208,12 @@ const ModalCobroRapido: React.FC<Props> = ({ alumnoInicial, visible, onCerrar, o
         setMensajeWA({ texto, telefono: telFinal });
       }
 
-      setExito(`✅ Cobro registrado exitosamente.`);
+      onCobrado();
       setGuardando(false);
 
       setTimeout(() => {
-        onCobrado();
         if (!mensajeWA) onCerrar();
-      }, 2000);
+      }, 800);
 
     } catch (err: any) {
       setError(`Error: ${err.message}`);

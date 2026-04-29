@@ -111,6 +111,7 @@ const LibroDiario: React.FC = () => {
       `)
       .eq('escuela_id', escuelaId)
       .order('fecha', { ascending: false })
+      .order('created_at', { ascending: false })
       .limit(100);
 
     if (err) { setError(err.message); setCargando(false); return; }

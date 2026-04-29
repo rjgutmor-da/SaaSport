@@ -154,7 +154,6 @@ const ModalVerNotaCxP: React.FC<Props> = ({ visible, cxpId, onCerrar, onEditar, 
   const montoTotal = nota ? Number(nota.monto_total) : 0;
   const montoPagado = nota ? Number(nota.monto_pagado) : 0;
   const deudaRestante = nota ? Number(nota.deuda_restante) : 0;
-  const progreso = montoTotal > 0 ? Math.min(100, (montoPagado / montoTotal) * 100) : 0;
 
   const BADGE_ESTADOS: Record<string, { label: string; color: string; bg: string }> = {
     pendiente: { label: 'Pendiente', color: '#facc15', bg: 'rgba(250,204,21,0.15)' },
@@ -247,25 +246,35 @@ const ModalVerNotaCxP: React.FC<Props> = ({ visible, cxpId, onCerrar, onEditar, 
                 </span>
               </div>
 
-              {/* Barra de progreso */}
-              <div style={{ marginTop: '0.5rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', color: '#94a3b8', marginBottom: '0.3rem' }}>
-                  <span>Pagado: Bs {fmtMonto(montoPagado)}</span>
-                  <span>Total: Bs {fmtMonto(montoTotal)}</span>
+              {/* Resumen de Montos (estilo CxC — sin barra de progreso) */}
+              <div style={{ 
+                display: 'flex', 
+                justifyContent: 'space-between', 
+                alignItems: 'center', 
+                marginTop: '1rem',
+                paddingTop: '0.75rem',
+                borderTop: '1px solid rgba(255,255,255,0.06)'
+              }}>
+                <div style={{ display: 'flex', gap: '1.5rem' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column' }}>
+                    <span style={{ fontSize: '0.7rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total</span>
+                    <span style={{ fontSize: '1rem', fontWeight: 700 }}>Bs {fmtMonto(montoTotal)}</span>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column' }}>
+                    <span style={{ fontSize: '0.7rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Pagado</span>
+                    <span style={{ fontSize: '1rem', fontWeight: 700, color: '#4ade80' }}>Bs {fmtMonto(montoPagado)}</span>
+                  </div>
                 </div>
-                <div style={{ background: 'rgba(255,255,255,0.08)', borderRadius: '4px', height: '6px' }}>
-                  <div style={{
-                    width: `${progreso}%`,
-                    height: '100%',
-                    background: progreso >= 100 ? '#4ade80' : '#f59e0b',
-                    borderRadius: '4px',
-                    transition: 'width 0.4s ease'
-                  }} />
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.3rem', fontSize: '0.78rem' }}>
-                  <span style={{ color: '#4ade80' }}>Pagado: {progreso.toFixed(0)}%</span>
-                  <span style={{ color: deudaRestante > 0 ? '#f87171' : '#4ade80', fontWeight: 700 }}>
-                    Saldo: Bs {fmtMonto(deudaRestante)}
+                <div style={{ 
+                  textAlign: 'right',
+                  padding: '0.5rem 1rem',
+                  background: deudaRestante > 0 ? 'rgba(248,113,113,0.1)' : 'rgba(74,222,128,0.1)',
+                  borderRadius: '10px',
+                  border: `1px solid ${deudaRestante > 0 ? 'rgba(248,113,113,0.2)' : 'rgba(74,222,128,0.2)'}`
+                }}>
+                  <span style={{ fontSize: '0.75rem', color: deudaRestante > 0 ? '#f87171' : '#4ade80', display: 'block', fontWeight: 600 }}>SALDO PENDIENTE</span>
+                  <span style={{ fontSize: '1.4rem', fontWeight: 900, color: deudaRestante > 0 ? '#f87171' : '#4ade80' }}>
+                    Bs {fmtMonto(deudaRestante)}
                   </span>
                 </div>
               </div>
@@ -395,7 +404,7 @@ const ModalVerNotaCxP: React.FC<Props> = ({ visible, cxpId, onCerrar, onEditar, 
                       >
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
                           <span style={{ fontSize: '0.83rem', color: '#cbd5e1' }}>
-                            {formatFechaHora(pago.fecha)}
+                            {formatFecha(pago.fecha)}
                           </span>
                           <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
                             {pago.es_aplicacion_anticipo

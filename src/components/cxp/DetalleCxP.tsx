@@ -1,16 +1,16 @@
 /**
  * DetalleCxP.tsx
  * Modal de detalle de una Nota de Pago (CxP).
- * Versión simplificada sin lógica contable.
+ * Versión simplificada — saldos simples, sin contabilidad de doble partida.
+ * Distribución copiada de CxC (Total / Pagado / Saldo Pendiente).
  */
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import {
-  X, DollarSign, Calendar, Package, RefreshCw,
-  AlertCircle, Check, CreditCard, CheckCircle2, Hash
+  X, DollarSign, Calendar, RefreshCw,
+  AlertCircle, Check, CreditCard, CheckCircle2, Hash, Building2
 } from 'lucide-react';
-import { formatFecha, formatFechaHora } from '../../lib/dateUtils';
-import ModalDetalleMovimiento from '../cajas-bancos/ModalDetalleMovimiento';
+import { formatFecha } from '../../lib/dateUtils';
 
 interface CxPItem {
   id: string;
@@ -18,7 +18,6 @@ interface CxPItem {
   sucursal_id: string | null;
   proveedor_id: string | null;
   personal_id: string | null;
-  cuenta_contable_id: string | null;
   tipo_gasto: string;
   estado: string;
   monto_total: number;
@@ -36,8 +35,9 @@ interface PagoRealizado {
   id: string;
   monto_aplicado: number;
   fecha: string;
-  asiento_id: string | null;
   caja_nombre?: string;
+  referencia?: string;
+  es_aplicacion_anticipo?: boolean;
 }
 
 interface DetalleCxPItem {
@@ -60,13 +60,11 @@ interface Props {
 const fmtMonto = (n: number) =>
   n.toLocaleString('es-BO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-const fmtFechaLocal = (f: string) => formatFechaHora(f);
-
-const BADGE_ESTADOS: Record<string, { label: string; color: string }> = {
-  pendiente: { label: 'Pendiente', color: '#facc15' },
-  parcial:   { label: 'Parcial',   color: '#38bdf8' },
-  pagada:    { label: 'Pagada',    color: '#4ade80' },
-  vencida:   { label: 'Vencida',   color: '#f87171' },
+const BADGE_ESTADOS: Record<string, { label: string; color: string; bg: string }> = {
+  pendiente: { label: 'Pendiente', color: '#facc15', bg: 'rgba(250,204,21,0.15)' },
+  parcial:   { label: 'Parcial',   color: '#38bdf8', bg: 'rgba(56,189,248,0.15)' },
+  pagada:    { label: 'Pagada',    color: '#4ade80', bg: 'rgba(74,222,128,0.15)' },
+  vencida:   { label: 'Vencida',   color: '#f87171', bg: 'rgba(248,113,113,0.15)' },
 };
 
 const DetalleCxP: React.FC<Props> = ({ nota, visible, onCerrar, onActualizar }) => {
@@ -78,7 +76,6 @@ const DetalleCxP: React.FC<Props> = ({ nota, visible, onCerrar, onActualizar }) 
 
   // Formulario de pago
   const [montoPago, setMontoPago] = useState('');
-  const [metodoPago, setMetodoPago] = useState('efectivo');
   const [cuentaPagoId, setCuentaPagoId] = useState('');
   const [nroComprobante, setNroComprobante] = useState('');
   const [registrandoPago, setRegistrandoPago] = useState(false);
@@ -86,9 +83,6 @@ const DetalleCxP: React.FC<Props> = ({ nota, visible, onCerrar, onActualizar }) 
   const [anticipoId, setAnticipoId] = useState('');
   const [errorPago, setErrorPago] = useState<string | null>(null);
   const [exitoPago, setExitoPago] = useState<string | null>(null);
-
-  // Detalle de movimiento
-  const [movDetalleId, setMovDetalleId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!visible || !nota) return;
@@ -104,14 +98,14 @@ const DetalleCxP: React.FC<Props> = ({ nota, visible, onCerrar, onActualizar }) 
         .select('escuela_id, sucursal_id').eq('id', user.id).single();
 
       const [resPagos, resItems, resCajas] = await Promise.all([
-        // Pagos realizados (incluyendo el nombre de la caja si existe)
+        // Pagos realizados
         supabase.from('pagos_aplicados')
-          .select('id, monto_aplicado, fecha, asiento_id, cajas_bancos(nombre)')
+          .select('id, monto_aplicado, fecha, referencia, es_aplicacion_anticipo, cajas_bancos(nombre)')
           .eq('cuenta_pagar_id', nota.id)
           .order('fecha', { ascending: false }),
         // Ítems del detalle
         supabase.from('cxp_detalle')
-          .select(`id, cantidad, precio_unitario, subtotal, descripcion, catalogo_item_id,
+          .select(`id, cantidad, precio_unitario, subtotal, descripcion,
                    catalogo_items!inner(nombre, tipo)`)
           .eq('cuenta_pagar_id', nota.id),
         // Cajas y bancos disponibles
@@ -192,28 +186,22 @@ const DetalleCxP: React.FC<Props> = ({ nota, visible, onCerrar, onActualizar }) 
         if (rpcErr) throw rpcErr;
 
       } else {
-        // PAGO DIRECTO
-        // 1. Registrar pago aplicado
-        const { error: errPago } = await supabase.from('pagos_aplicados').insert({
-          escuela_id: ctx.escuela_id,
-          cuenta_pagar_id: nota.id,
-          caja_id: cuentaPagoId,
-          monto_aplicado: mp,
-          fecha: new Date().toISOString(),
-          referencia: nroComprobante.trim() || null
+        // PAGO DIRECTO — Usar RPC para mantener consistencia
+        const { error: errRpc } = await supabase.rpc('rpc_registrar_pago_cxp', {
+          p_payload: {
+            escuela_id: ctx.escuela_id,
+            sucursal_id: ctx.sucursal_id,
+            usuario_id: ctx.id,
+            cuenta_pagar_id: nota.id,
+            monto: mp,
+            cuenta_pago_id: cuentaPagoId,
+            fecha: new Date().toISOString(),
+            nro_comprobante: nroComprobante.trim() || null,
+            metodo_pago: 'efectivo'
+          }
         });
-        if (errPago) throw errPago;
-
-        // 2. Actualizar Saldo de Caja
-        const caja = cajasBancos.find(c => c.id === cuentaPagoId);
-        const nuevoSaldo = (Number(caja?.saldo_actual) || 0) - mp;
-        await supabase.from('cajas_bancos').update({ saldo_actual: nuevoSaldo }).eq('id', cuentaPagoId);
+        if (errRpc) throw errRpc;
       }
-
-      // 4. Actualizar estado de la nota actual
-      const deudaRestanteActual = Number(nota.deuda_restante) - mp;
-      const nuevoEstadoNota = deudaRestanteActual <= 0 ? 'pagada' : (deudaRestanteActual < Number(nota.monto_total) ? 'parcial' : 'pendiente');
-      await supabase.from('cuentas_pagar').update({ estado: nuevoEstadoNota }).eq('id', nota.id);
 
       setExitoPago(`✅ Aplicación de Bs ${fmtMonto(mp)} registrada correctamente.`);
       setRegistrandoPago(false);
@@ -246,67 +234,207 @@ const DetalleCxP: React.FC<Props> = ({ nota, visible, onCerrar, onActualizar }) 
         {cargando ? (
           <div className="pc-cargando"><RefreshCw size={28} className="spin" /><p>Cargando detalle...</p></div>
         ) : (
-          <div style={{ padding: '1rem' }}>
-            {/* Info principal */}
-            <div className="cxc-cobro-resumen" style={{ marginBottom: '1.25rem' }}>
-              <p style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '0.4rem' }}>{nombreEntidad}</p>
-              <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', fontSize: '0.87rem', color: '#94a3b8' }}>
-                <span><Calendar size={13} style={{ marginRight: '0.3rem' }} />{formatFecha(nota.fecha_emision)}</span>
-                <span style={{ color: badge.color, fontWeight: 600 }}>{badge.label}</span>
-              </div>
-            </div>
+          <div style={{ padding: '1.25rem 1.5rem' }}>
 
-            {/* Barras de progreso */}
-            <div style={{ background: 'rgba(255,255,255,0.05)', borderRadius: '10px', padding: '0.9rem', marginBottom: '1.25rem' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
-                <span style={{ fontSize: '0.85rem', color: '#94a3b8' }}>Progreso de pago</span>
-                <span style={{ fontSize: '0.9rem', fontWeight: 700 }}>
-                  Bs {fmtMonto(nota.monto_pagado)} / Bs {fmtMonto(nota.monto_total)}
+            {/* ── Encabezado de la Nota (Estilo CxC) ── */}
+            <div style={{
+              background: 'rgba(255,255,255,0.03)',
+              borderRadius: '12px',
+              padding: '1rem 1.25rem',
+              marginBottom: '1.25rem',
+              border: '1px solid rgba(255,255,255,0.06)'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
+                <div>
+                  <p style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '0.25rem' }}>
+                    {nombreEntidad}
+                  </p>
+                  <div style={{ display: 'flex', gap: '1rem', fontSize: '0.8rem', color: '#94a3b8', flexWrap: 'wrap' }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                      <Calendar size={13} /> Emitida: {formatFecha(nota.fecha_emision)}
+                    </span>
+                    {nota.fecha_vencimiento && (
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                        <AlertCircle size={13} /> Vence: {formatFecha(nota.fecha_vencimiento)}
+                      </span>
+                    )}
+                    {nota.tipo_gasto && (
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                        📦 {nota.tipo_gasto === 'proveedor' ? 'Proveedor' : 'Personal'}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <span style={{
+                  background: badge.bg,
+                  color: badge.color,
+                  borderRadius: '20px',
+                  padding: '4px 14px',
+                  fontSize: '0.78rem',
+                  fontWeight: 600,
+                  whiteSpace: 'nowrap'
+                }}>
+                  {badge.label}
                 </span>
               </div>
-              <div style={{ background: 'rgba(255,255,255,0.08)', borderRadius: '4px', height: '6px' }}>
-                <div style={{
-                  width: `${Math.min(100, (nota.monto_pagado / nota.monto_total) * 100)}%`,
-                  height: '100%', background: '#4ade80', borderRadius: '4px'
-                }} />
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.4rem', fontSize: '0.8rem' }}>
-                <span style={{ color: '#4ade80' }}>Pagado: Bs {fmtMonto(nota.monto_pagado)}</span>
-                <span style={{ color: '#f87171' }}>Saldo: Bs {fmtMonto(nota.deuda_restante)}</span>
+
+              {/* Resumen de Montos (igual que CxC — SIN barra de progreso) */}
+              <div style={{ 
+                display: 'flex', 
+                justifyContent: 'space-between', 
+                alignItems: 'center', 
+                marginTop: '1rem',
+                paddingTop: '0.75rem',
+                borderTop: '1px solid rgba(255,255,255,0.06)'
+              }}>
+                <div style={{ display: 'flex', gap: '1.5rem' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column' }}>
+                    <span style={{ fontSize: '0.7rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total</span>
+                    <span style={{ fontSize: '1rem', fontWeight: 700 }}>Bs {fmtMonto(nota.monto_total)}</span>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column' }}>
+                    <span style={{ fontSize: '0.7rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Pagado</span>
+                    <span style={{ fontSize: '1rem', fontWeight: 700, color: '#4ade80' }}>Bs {fmtMonto(nota.monto_pagado)}</span>
+                  </div>
+                </div>
+                <div style={{ 
+                  textAlign: 'right',
+                  padding: '0.5rem 1rem',
+                  background: nota.deuda_restante > 0 ? 'rgba(248,113,113,0.1)' : 'rgba(74,222,128,0.1)',
+                  borderRadius: '10px',
+                  border: `1px solid ${nota.deuda_restante > 0 ? 'rgba(248,113,113,0.2)' : 'rgba(74,222,128,0.2)'}`
+                }}>
+                  <span style={{ fontSize: '0.75rem', color: nota.deuda_restante > 0 ? '#f87171' : '#4ade80', display: 'block', fontWeight: 600 }}>SALDO PENDIENTE</span>
+                  <span style={{ fontSize: '1.4rem', fontWeight: 900, color: nota.deuda_restante > 0 ? '#f87171' : '#4ade80' }}>
+                    Bs {fmtMonto(nota.deuda_restante)}
+                  </span>
+                </div>
               </div>
             </div>
 
-            {/* Ítems */}
+            {/* ── Ítems del Detalle ── */}
             {detalleItems.length > 0 && (
               <div style={{ marginBottom: '1.25rem' }}>
-                <p style={{ fontSize: '0.85rem', color: '#94a3b8', marginBottom: '0.5rem', fontWeight: 600 }}>ÍTEMS DE LA NOTA</p>
-                {detalleItems.map(item => (
-                  <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '0.5rem 0', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.87rem' }}>
-                    <span>{item.nombre} × {item.cantidad}</span>
-                    <span style={{ color: '#e2e8f0', fontWeight: 600 }}>Bs {fmtMonto(item.subtotal)}</span>
+                <p style={{
+                  fontSize: '0.85rem', fontWeight: 800, color: '#fff',
+                  textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.8rem',
+                  display: 'flex', alignItems: 'center', gap: '0.5rem'
+                }}>
+                  📋 Ítems de la Nota
+                </p>
+                <div style={{
+                  background: 'rgba(255,255,255,0.02)',
+                  borderRadius: '10px',
+                  border: '1px solid rgba(255,255,255,0.05)',
+                  overflow: 'hidden'
+                }}>
+                  {detalleItems.map((item, idx) => (
+                    <div
+                      key={item.id}
+                      style={{
+                        padding: '0.75rem 1rem',
+                        borderBottom: idx < detalleItems.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none'
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div>
+                          <span style={{ fontWeight: 700, fontSize: '1.05rem', color: '#fff' }}>{item.nombre}</span>
+                          <span style={{ color: '#94a3b8', fontSize: '0.85rem', marginLeft: '0.6rem' }}>
+                            × {item.cantidad} @ Bs {fmtMonto(item.precio_unitario)}
+                          </span>
+                        </div>
+                        <span style={{ fontWeight: 800, color: '#fff', fontSize: '1.1rem' }}>
+                          Bs {fmtMonto(item.subtotal)}
+                        </span>
+                      </div>
+                      {item.descripcion && (
+                        <p style={{ marginTop: '0.3rem', fontSize: '0.78rem', color: '#a78bfa', fontStyle: 'italic' }}>
+                          📝 {item.descripcion}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                  {/* Total */}
+                  <div style={{
+                    padding: '0.75rem 1rem',
+                    background: 'rgba(255,255,255,0.04)',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    fontWeight: 800,
+                    fontSize: '1rem'
+                  }}>
+                    <span>TOTAL</span>
+                    <span>Bs {fmtMonto(nota.monto_total)}</span>
                   </div>
-                ))}
+                </div>
               </div>
             )}
 
-            {/* Historial */}
+            {/* ── Observaciones ── */}
+            {nota.observaciones && (
+              <div style={{
+                marginBottom: '1.25rem',
+                padding: '0.9rem 1rem',
+                background: 'rgba(168,85,247,0.06)',
+                borderRadius: '10px',
+                border: '1px solid rgba(168,85,247,0.15)'
+              }}>
+                <p style={{
+                  fontSize: '0.75rem', fontWeight: 700, color: '#a855f7',
+                  textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.4rem'
+                }}>
+                  📝 Observaciones
+                </p>
+                <p style={{ fontSize: '0.87rem', color: '#cbd5e1', lineHeight: '1.5' }}>
+                  {nota.observaciones}
+                </p>
+              </div>
+            )}
+
+            {/* ── Historial de Pagos ── */}
             {pagosRealizados.length > 0 && (
               <div style={{ marginBottom: '1.25rem' }}>
-                <p style={{ fontSize: '0.85rem', color: '#94a3b8', marginBottom: '0.5rem', fontWeight: 600 }}>HISTORIAL DE PAGOS</p>
-                {pagosRealizados.map(p => (
-                  <div key={p.id} onClick={() => p.asiento_id && setMovDetalleId(p.asiento_id)} style={{
-                      display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                      padding: '0.4rem 0.6rem', borderRadius: '6px', cursor: p.asiento_id ? 'pointer' : 'default',
-                      background: 'rgba(74,222,128,0.06)', marginBottom: '0.3rem', fontSize: '0.85rem'
-                    }}>
-                    <span style={{ color: '#94a3b8' }}>{fmtFechaLocal(p.fecha)} {p.caja_nombre && `(${p.caja_nombre})`}</span>
-                    <span style={{ color: '#4ade80', fontWeight: 700 }}>Bs {fmtMonto(Number(p.monto_aplicado))}</span>
-                  </div>
-                ))}
+                <p style={{
+                  fontSize: '0.85rem', fontWeight: 800, color: '#fff',
+                  textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.8rem',
+                  display: 'flex', alignItems: 'center', gap: '0.5rem'
+                }}>
+                  💰 Historial de Pagos ({pagosRealizados.length})
+                </p>
+                <div style={{
+                  background: 'rgba(255,255,255,0.02)',
+                  borderRadius: '10px',
+                  border: '1px solid rgba(255,255,255,0.05)',
+                  overflow: 'hidden'
+                }}>
+                  {pagosRealizados.map((p, idx) => (
+                    <div key={p.id} style={{
+                        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                        padding: '0.6rem 1rem',
+                        borderBottom: idx < pagosRealizados.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none',
+                        background: p.es_aplicacion_anticipo ? 'rgba(168,85,247,0.04)' : 'transparent'
+                      }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+                        <span style={{ fontSize: '0.83rem', color: '#cbd5e1' }}>
+                          {formatFecha(p.fecha)}
+                        </span>
+                        <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
+                          {p.es_aplicacion_anticipo
+                            ? '🔄 Aplicación de anticipo'
+                            : (p.caja_nombre || 'Caja no especificada')}
+                          {p.referencia && ` — ${p.referencia}`}
+                        </span>
+                      </div>
+                      <span style={{ color: '#4ade80', fontWeight: 700, fontSize: '0.9rem' }}>
+                        Bs {fmtMonto(Number(p.monto_aplicado))}
+                      </span>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
 
-            {/* Formulario de pago */}
+            {/* ── Formulario de pago (simplificado — sin selector de método de pago) ── */}
             {!yaPagada && (
               <form onSubmit={registrarPago}>
                 <div style={{ border: '1px solid rgba(99,102,241,0.3)', borderRadius: '10px', padding: '1rem', background: 'rgba(99,102,241,0.05)' }}>
@@ -325,22 +453,16 @@ const DetalleCxP: React.FC<Props> = ({ nota, visible, onCerrar, onActualizar }) 
 
                   {usarAnticipo && (
                     <div style={{ marginBottom: '0.75rem' }}>
-                      <select value={anticipoId} onChange={e => { setAnticipoId(e.target.value); const ant = anticiposDisponibles.find(a => a.id === e.target.value); if (ant) setMontoPago(String(Math.min(nota.deuda_restante, Number(ant.deuda_restante)))); }} className="nota-pago-select" style={{ width: '100%', borderColor: '#a855f7' }} required>
+                      <select value={anticipoId} onChange={e => { setAnticipoId(e.target.value); const ant = anticiposDisponibles.find((a: any) => a.id === e.target.value); if (ant) setMontoPago(String(Math.min(nota.deuda_restante, Number(ant.deuda_restante)))); }} className="nota-pago-select" style={{ width: '100%', borderColor: '#a855f7' }} required>
                         <option value="">— Seleccionar Anticipo —</option>
-                        {anticiposDisponibles.map(a => <option key={a.id} value={a.id}>{formatFecha(a.fecha_emision)} — Bs {fmtMonto(a.deuda_restante)}</option>)}
+                        {anticiposDisponibles.map((a: any) => <option key={a.id} value={a.id}>{formatFecha(a.fecha_emision)} — Bs {fmtMonto(a.deuda_restante)}</option>)}
                       </select>
                     </div>
                   )}
 
-                  <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem' }}>
-                    <input type="number" step="0.01" min="0.01" value={montoPago} onChange={e => setMontoPago(e.target.value)} placeholder="Monto" className="nota-pago-input" disabled={registrandoPago} style={{ flex: 1 }} />
-                    {!usarAnticipo && (
-                      <select value={metodoPago} onChange={e => setMetodoPago(e.target.value)} disabled={registrandoPago} className="nota-pago-select" style={{ minWidth: '130px' }}>
-                        <option value="efectivo">💵 Efectivo</option>
-                        <option value="transferencia">🏦 Transferencia</option>
-                        <option value="qr">📱 QR</option>
-                      </select>
-                    )}
+                  {/* Monto — sin selector de método de pago */}
+                  <div style={{ marginBottom: '0.75rem' }}>
+                    <input type="number" step="0.01" min="0.01" max={nota.deuda_restante} value={montoPago} onChange={e => setMontoPago(e.target.value)} placeholder="Monto" className="nota-pago-input" disabled={registrandoPago} style={{ width: '100%' }} />
                   </div>
 
                   {!usarAnticipo && (
@@ -371,8 +493,6 @@ const DetalleCxP: React.FC<Props> = ({ nota, visible, onCerrar, onActualizar }) 
           </div>
         )}
       </div>
-
-      <ModalDetalleMovimiento visible={!!movDetalleId} asientoId={movDetalleId} onCerrar={() => setMovDetalleId(null)} />
     </div>
   );
 };

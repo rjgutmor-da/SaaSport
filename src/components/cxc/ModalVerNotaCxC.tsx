@@ -416,7 +416,7 @@ const ModalVerNotaCxC: React.FC<Props> = ({ visible, cxcId, onCerrar, onEditar, 
                       >
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
                           <span style={{ fontSize: '0.83rem', color: '#cbd5e1' }}>
-                            {formatFechaHora(cobro.fecha)}
+                            {formatFecha(cobro.fecha)}
                           </span>
                           <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
                             {cobro.es_aplicacion_anticipo

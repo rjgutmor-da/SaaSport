@@ -47,16 +47,17 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, esAnticipo = false, o
   const [tipoGasto, setTipoGasto] = useState(tipoInicial);
   const [proveedorId, setProveedorId] = useState('');
   const [personalId, setPersonalId] = useState('');
-  const [descripcion, setDescripcion] = useState('');
   const [fechaEmision, setFechaEmision] = useState(getHoyISO());
   const [vencimiento, setVencimiento] = useState('');
   const [observaciones, setObservaciones] = useState('');
   const [lineas, setLineas] = useState<LineaNotaPago[]>([lineaVacia()]);
 
   const [pagarAlCrear, setPagarAlCrear] = useState(false);
+  const [fechaPago, setFechaPago] = useState(getHoyISO());
   const [cuentaPagoId, setCuentaPagoId] = useState('');
   const [montoPago, setMontoPago] = useState('');
   const [nroComprobante, setNroComprobante] = useState('');
+  const [montoAnticipo, setMontoAnticipo] = useState('');
 
   const [proveedores, setProveedores] = useState<{ id: string; nombre: string }[]>([]);
   const [personal, setPersonal] = useState<{ id: string; nombres: string; apellidos: string }[]>([]);
@@ -91,26 +92,39 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, esAnticipo = false, o
     };
     cargar();
 
-    setProveedorId(''); setPersonalId(''); setDescripcion('');
-    setFechaEmision(getHoyISO()); setVencimiento(''); setObservaciones('');
+    setProveedorId(''); setPersonalId('');
+    setFechaEmision(getHoyISO()); setVencimiento(getHoyISO()); setObservaciones('');
     setLineas([lineaVacia()]); setPagarAlCrear(esAnticipo);
-    setMontoPago(''); setNroComprobante('');
+    setFechaPago(getHoyISO()); setMontoPago(''); setNroComprobante('');
     setError(null); setExito(null);
   }, [visible, esAnticipo, tipoInicial]);
 
-  const total = useMemo(() => lineas.reduce((s, l) => s + l.subtotal, 0), [lineas]);
+  const total = useMemo(() => {
+    if (esAnticipo) return parseFloat(montoAnticipo) || 0;
+    return lineas.reduce((s, l) => s + l.subtotal, 0);
+  }, [lineas, esAnticipo, montoAnticipo]);
 
   useEffect(() => {
-    if (pagarAlCrear && !montoPago) setMontoPago(String(total));
-  }, [pagarAlCrear, total]);
+    if (esAnticipo) {
+      setMontoPago(String(total));
+      setPagarAlCrear(true);
+    } else if (pagarAlCrear && !montoPago) {
+      setMontoPago(String(total));
+    }
+  }, [pagarAlCrear, total, esAnticipo]);
 
   const guardarNota = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null); setExito(null);
 
-    const lineasValidas = lineas.filter(l => l.catalogo_item_id && l.precio_unitario >= 0 && l.cantidad > 0);
-    if (lineasValidas.length === 0) { setError('Agrega al menos un ítem válido.'); return; }
-    if (pagarAlCrear && (!montoPago || !cuentaPagoId)) { setError('Completa los datos del pago.'); return; }
+    if (esAnticipo) {
+      if (!montoAnticipo || parseFloat(montoAnticipo) <= 0) { setError('Ingresa un monto válido.'); return; }
+      if (!cuentaPagoId) { setError('Selecciona la caja de salida.'); return; }
+    } else {
+      const lineasValidas = lineas.filter(l => l.catalogo_item_id && l.precio_unitario >= 0 && l.cantidad > 0);
+      if (lineasValidas.length === 0) { setError('Agrega al menos un ítem válido.'); return; }
+      if (pagarAlCrear && (!montoPago || !cuentaPagoId)) { setError('Completa los datos del pago.'); return; }
+    }
 
     setGuardando(true);
     try {
@@ -126,7 +140,7 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, esAnticipo = false, o
         personal_id: tipoGasto === 'personal' ? personalId : null,
         monto_total: total,
         tipo_gasto: tipoGasto,
-        descripcion: descripcion || lineasValidas.map(l => l.nombre).join(', '),
+        descripcion: esAnticipo ? 'Anticipo' : lineas.filter(l => l.catalogo_item_id && l.precio_unitario >= 0 && l.cantidad > 0).map(l => l.nombre).join(', '),
         observaciones,
         fecha_emision: fechaEmision,
         fecha_vencimiento: vencimiento || null,
@@ -136,41 +150,57 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, esAnticipo = false, o
       if (errN) throw errN;
 
       // 2. Detalle
-      await supabase.from('cxp_detalle').insert(lineasValidas.map(l => ({
-        escuela_id: ctx.escuela_id,
-        cuenta_pagar_id: nueva.id,
-        catalogo_item_id: l.catalogo_item_id,
-        cantidad: l.cantidad,
-        precio_unitario: l.precio_unitario,
-        descripcion: l.descripcion || null
-      })));
+      if (esAnticipo) {
+        // Para anticipos, usamos un ítem genérico o el primero de la lista
+        const itemGenerico = catalogo[0]?.id; 
+        await supabase.from('cxp_detalle').insert({
+          escuela_id: ctx.escuela_id,
+          cuenta_pagar_id: nueva.id,
+          catalogo_item_id: itemGenerico,
+          cantidad: 1,
+          precio_unitario: total,
+          descripcion: 'Anticipo'
+        });
+      } else {
+        const lineasValidas = lineas.filter(l => l.catalogo_item_id && l.precio_unitario >= 0 && l.cantidad > 0);
+        await supabase.from('cxp_detalle').insert(lineasValidas.map(l => ({
+          escuela_id: ctx.escuela_id,
+          cuenta_pagar_id: nueva.id,
+          catalogo_item_id: l.catalogo_item_id,
+          cantidad: l.cantidad,
+          precio_unitario: l.precio_unitario,
+          descripcion: l.descripcion || null
+        })));
+      }
 
       // 3. Pago
-      if (pagarAlCrear) {
-        const mp = parseFloat(montoPago);
+      if (pagarAlCrear || esAnticipo) {
+        const mp = esAnticipo ? parseFloat(montoAnticipo) : parseFloat(montoPago);
         if (mp > 0 && cuentaPagoId) {
-          await supabase.from('pagos_aplicados').insert({
-            escuela_id: ctx.escuela_id,
-            cuenta_pagar_id: nueva.id,
-            monto_aplicado: mp,
-            caja_id: cuentaPagoId,
-            fecha: fechaEmision,
-            referencia: nroComprobante || null
+          const { error: errRpc } = await supabase.rpc('rpc_registrar_pago_cxp', {
+            p_payload: {
+              escuela_id: ctx.escuela_id,
+              sucursal_id: ctx.sucursal_id,
+              usuario_id: ctx.id,
+              cuenta_pagar_id: nueva.id,
+              monto: mp,
+              cuenta_pago_id: cuentaPagoId,
+              fecha: fechaPago,
+              nro_comprobante: nroComprobante || null,
+              metodo_pago: 'efectivo',
+              descripcion: esAnticipo ? `Anticipo: ${observaciones || 'Sin observaciones'}` : undefined
+            }
           });
+          
+          if (errRpc) throw errRpc;
 
-          // Actualizar Saldo Caja
-          const caja = cajasBancos.find(c => c.id === cuentaPagoId);
-          const nuevoSaldo = (Number(caja?.saldo_actual) || 0) - mp;
-          await supabase.from('cajas_bancos').update({ saldo_actual: nuevoSaldo }).eq('id', cuentaPagoId);
-
-          // Actualizar Estado Nota
-          const nuevoEstado = mp >= total ? 'pagada' : 'parcial';
-          await supabase.from('cuentas_pagar').update({ monto_pagado: mp, estado: nuevoEstado }).eq('id', nueva.id);
-
-          // Inventario
-          for (const l of lineasValidas) {
-            if (l.tipo === 'producto') {
-              await supabase.from('movimientos_stock').insert({ escuela_id: ctx.escuela_id, catalogo_item_id: l.catalogo_item_id, tipo: 'entrada', cantidad: l.cantidad, motivo: `Compra: ${nueva.id}` });
+          // Inventario (solo si no es anticipo)
+          if (!esAnticipo) {
+            const lineasValidas = lineas.filter(l => l.catalogo_item_id && l.precio_unitario >= 0 && l.cantidad > 0);
+            for (const l of lineasValidas) {
+              if (l.tipo === 'producto') {
+                await supabase.from('movimientos_stock').insert({ escuela_id: ctx.escuela_id, catalogo_item_id: l.catalogo_item_id, tipo: 'entrada', cantidad: l.cantidad, motivo: `Compra: ${nueva.id}` });
+              }
             }
           }
         }
@@ -222,51 +252,52 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, esAnticipo = false, o
                 <label>Fecha Emisión</label>
                 <input type="date" value={fechaEmision} onChange={e => setFechaEmision(e.target.value)} required />
               </div>
-              <div className="form-campo">
-                <label>Vencimiento</label>
-                <input type="date" value={vencimiento} onChange={e => setVencimiento(e.target.value)} />
-              </div>
-              <div className="form-campo full-width">
-                <label>Concepto / Glosa *</label>
-                <input type="text" value={descripcion} onChange={e => setDescripcion(e.target.value)} placeholder="Ej: Pago de uniformes..." required />
-              </div>
+              {!esAnticipo && (
+                <div className="form-campo">
+                  <label>Vencimiento</label>
+                  <input type="date" value={vencimiento} onChange={e => setVencimiento(e.target.value)} />
+                </div>
+              )}
+
             </div>
 
-            <div style={{ marginBottom: '1.5rem' }}>
-              <p style={{ fontSize: '0.8rem', fontWeight: 700, color: '#94a3b8', marginBottom: '0.75rem' }}>ÍTÉMS / GASTOS</p>
-              {lineas.map((linea, idx) => (
-                <div key={idx} style={{ marginBottom: '0.75rem', paddingBottom: '0.75rem', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 60px 100px 100px 30px', gap: '0.5rem', alignItems: 'center' }}>
-                    <select value={linea.catalogo_item_id} onChange={e => {
-                      const it = catalogo.find(c => c.id === e.target.value);
-                      if (it) {
+            {!esAnticipo ? (
+              <div style={{ marginBottom: '1.5rem' }}>
+                <p style={{ fontSize: '0.8rem', fontWeight: 700, color: '#94a3b8', marginBottom: '0.75rem' }}>ÍTÉMS / GASTOS</p>
+                {lineas.map((linea, idx) => (
+                  <div key={idx} style={{ marginBottom: '0.75rem', paddingBottom: '0.75rem', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 60px 100px 100px 30px', gap: '0.5rem', alignItems: 'center' }}>
+                      <select value={linea.catalogo_item_id} onChange={e => {
+                        const it = catalogo.find(c => c.id === e.target.value);
+                        if (it) {
+                          const nuevas = [...lineas];
+                          nuevas[idx] = { ...nuevas[idx], catalogo_item_id: it.id, nombre: it.nombre, tipo: it.tipo, precio_unitario: Number(it.precio_venta) || 0, subtotal: (Number(it.precio_venta) || 0) * nuevas[idx].cantidad };
+                          setLineas(nuevas);
+                        }
+                      }} required disabled={guardando}>
+                        <option value="">— Seleccionar Ítem —</option>
+                        {catalogo.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                      </select>
+                      <input type="number" value={linea.cantidad} onChange={e => {
+                        const cant = parseInt(e.target.value) || 1;
                         const nuevas = [...lineas];
-                        nuevas[idx] = { ...nuevas[idx], catalogo_item_id: it.id, nombre: it.nombre, tipo: it.tipo, precio_unitario: Number(it.precio_venta) || 0, subtotal: (Number(it.precio_venta) || 0) * nuevas[idx].cantidad };
+                        nuevas[idx] = { ...nuevas[idx], cantidad: cant, subtotal: cant * nuevas[idx].precio_unitario };
                         setLineas(nuevas);
-                      }
-                    }} required disabled={guardando}>
-                      <option value="">— Seleccionar Ítem —</option>
-                      {catalogo.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-                    </select>
-                    <input type="number" value={linea.cantidad} onChange={e => {
-                      const cant = parseInt(e.target.value) || 1;
-                      const nuevas = [...lineas];
-                      nuevas[idx] = { ...nuevas[idx], cantidad: cant, subtotal: cant * nuevas[idx].precio_unitario };
-                      setLineas(nuevas);
-                    }} min="1" disabled={guardando} title="Cantidad" />
-                    <input type="number" step="0.01" value={linea.precio_unitario} onChange={e => {
-                      const prec = parseFloat(e.target.value) || 0;
-                      const nuevas = [...lineas];
-                      nuevas[idx] = { ...nuevas[idx], precio_unitario: prec, subtotal: prec * nuevas[idx].cantidad };
-                      setLineas(nuevas);
-                    }} disabled={guardando} title="Precio Unitario" />
-                    <div style={{ textAlign: 'right', fontWeight: 700, fontSize: '0.9rem' }}>Bs {fmtMonto(linea.subtotal)}</div>
-                    <button type="button" onClick={() => setLineas(lineas.filter((_, i) => i !== idx))} disabled={lineas.length === 1} style={{ color: '#f87171' }}><Trash2 size={16} /></button>
+                      }} min="1" disabled={guardando} title="Cantidad" />
+                      <input type="number" step="0.01" value={linea.precio_unitario} onChange={e => {
+                        const prec = parseFloat(e.target.value) || 0;
+                        const nuevas = [...lineas];
+                        nuevas[idx] = { ...nuevas[idx], precio_unitario: prec, subtotal: prec * nuevas[idx].cantidad };
+                        setLineas(nuevas);
+                      }} disabled={guardando} title="Precio Unitario" />
+                      <div style={{ textAlign: 'right', fontWeight: 700, fontSize: '0.9rem' }}>Bs {fmtMonto(linea.subtotal)}</div>
+                      <button type="button" onClick={() => setLineas(lineas.filter((_, i) => i !== idx))} disabled={lineas.length === 1} style={{ color: '#f87171' }}><Trash2 size={16} /></button>
+                    </div>
                   </div>
-                </div>
-              ))}
-              <button type="button" onClick={() => setLineas([...lineas, lineaVacia()])} style={{ fontSize: '0.8rem', color: '#f59e0b', display: 'flex', alignItems: 'center', gap: '0.3rem' }}><Plus size={14} /> Agregar ítem</button>
-            </div>
+                ))}
+                <button type="button" onClick={() => setLineas([...lineas, lineaVacia()])} style={{ fontSize: '0.8rem', color: '#f59e0b', display: 'flex', alignItems: 'center', gap: '0.3rem' }}><Plus size={14} /> Agregar ítem</button>
+              </div>
+            ) : null}
 
             {/* Observaciones generales */}
             <div className="form-campo full-width" style={{ marginBottom: '1rem' }}>
@@ -290,14 +321,23 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, esAnticipo = false, o
             <div style={{ background: 'rgba(255,255,255,0.03)', padding: '1rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
               <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', marginBottom: '1rem' }}>
                 <input type="checkbox" checked={pagarAlCrear} onChange={e => setPagarAlCrear(e.target.checked)} disabled={esAnticipo} />
-                <span style={{ fontWeight: 700 }}>¿Registrar pago ahora?</span>
+                <span style={{ fontWeight: 700 }}>{esAnticipo ? 'Registro de Salida de Dinero' : '¿Registrar pago ahora?'}</span>
               </label>
 
               {pagarAlCrear && (
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.75rem' }}>
+                  <div className="form-campo">
+                    <label>Fecha Pago</label>
+                    <input type="date" value={fechaPago} onChange={e => setFechaPago(e.target.value)} required />
+                  </div>
                   <div className="form-campo">
                     <label>Monto</label>
-                    <input type="number" step="0.01" value={montoPago} onChange={e => setMontoPago(e.target.value)} required />
+                    <input 
+                      type="number" step="0.01" 
+                      value={esAnticipo ? montoAnticipo : montoPago} 
+                      onChange={e => esAnticipo ? setMontoAnticipo(e.target.value) : setMontoPago(e.target.value)} 
+                      required 
+                    />
                   </div>
                   <div className="form-campo">
                     <label>Caja/Banco de Salida</label>
@@ -305,6 +345,15 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, esAnticipo = false, o
                       <option value="">— Seleccionar —</option>
                       {cajasBancos.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
                     </select>
+                  </div>
+                  <div className="form-campo full-width">
+                    <label>Nro. Documento / Comprobante</label>
+                    <input 
+                      type="text" 
+                      value={nroComprobante} 
+                      onChange={e => setNroComprobante(e.target.value)} 
+                      placeholder="Ej: Transf-123, Recibo-456..." 
+                    />
                   </div>
                 </div>
               )}

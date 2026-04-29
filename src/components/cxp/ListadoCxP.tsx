@@ -20,7 +20,6 @@ interface CxPItem {
   sucursal_id: string | null;
   proveedor_id: string | null;
   personal_id: string | null;
-  cuenta_contable_id: string | null;
   tipo_gasto: string;
   estado: string;
   monto_total: number;
