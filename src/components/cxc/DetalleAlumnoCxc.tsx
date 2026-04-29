@@ -402,7 +402,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                           Bs {fmtMonto(isAnticipo ? 0 : Number(cxc.monto_total))}
                         </td>
                         <td style={{ padding: '0.5rem 0.75rem', verticalAlign: 'middle', border: '1px solid rgba(255,255,255,0.08)', color: '#4ade80', fontWeight: 600 }}>
-                          Bs {fmtMonto(isAnticipo ? Number(cxc.monto_pagado) : cobrado)}
+                          Bs {fmtMonto(isAnticipo ? Number(cxc.total_cobrado) : cobrado)}
                         </td>
                         <td style={{ 
                           padding: '0.5rem 0.75rem', verticalAlign: 'middle', border: '1px solid rgba(255,255,255,0.08)',
@@ -411,7 +411,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                             ? (Number(cxc.saldo_pendiente) >= 0 ? '#a855f7' : '#4ade80')
                             : (Number(cxc.saldo_pendiente) > 0 ? '#38bdf8' : '#4ade80') 
                         }}>
-                          {isAnticipo ? '-' : ''} Bs {fmtMonto(isAnticipo ? Number(cxc.monto_pagado) : Number(cxc.saldo_pendiente))}
+                          {isAnticipo ? '-' : ''} Bs {fmtMonto(isAnticipo ? Number(cxc.total_cobrado) : Number(cxc.saldo_pendiente))}
                         </td>
                         <td style={{ padding: '0.5rem 0.75rem', textAlign: 'center', verticalAlign: 'middle', border: '1px solid rgba(255,255,255,0.08)' }}>
                           <div style={{ display: 'flex', gap: '0.35rem', justifyContent: 'center' }}>
@@ -475,7 +475,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
           onActualizar(); 
           triggerRefresh();
         }} 
-        alumnoPreseleccionado={{ id: alumno.alumno_id, nombres: alumno.nombres, apellidos: alumno.apellidos }} 
+        alumnoPreseleccionado={{ id: alumno.alumno_id, nombre: `${alumno.nombres} ${alumno.apellidos}` }} 
       />
 
       {/* Modal Editar Nota */}
