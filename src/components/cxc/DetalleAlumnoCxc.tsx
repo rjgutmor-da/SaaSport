@@ -489,7 +489,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
             onActualizar(); 
             triggerRefresh();
           }}
-          alumnoPreseleccionado={{ id: alumno.alumno_id, nombres: alumno.nombres, apellidos: alumno.apellidos }}
+          alumnoPreseleccionado={{ id: alumno.alumno_id, nombre: `${alumno.nombres} ${alumno.apellidos}` }}
           cxcEditar={cxcParaEditar}
           modoInicial={modoModal}
         />
@@ -518,7 +518,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
           onActualizar();
           triggerRefresh();
         }}
-        alumnoPreseleccionado={{ id: alumno.alumno_id, nombres: alumno.nombres, apellidos: alumno.apellidos }}
+        alumnoPreseleccionado={{ id: alumno.alumno_id, nombre: `${alumno.nombres} ${alumno.apellidos}` }}
         esAnticipo={true}
       />
 

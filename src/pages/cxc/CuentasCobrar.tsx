@@ -84,7 +84,7 @@ const CuentasCobrar: React.FC = () => {
   // Modales
   const [mostrarNota, setMostrarNota] = useState(false);
   const [alumnoSeleccionado, setAlumnoSeleccionado] = useState<AlumnoDeuda | null>(null);
-  const [alumnoParaNota, setAlumnoParaNota] = useState<{ id: string; nombres: string; apellidos: string } | null>(null);
+  const [alumnoParaNota, setAlumnoParaNota] = useState<{ id: string; nombre: string } | null>(null);
 
   // Modal cobro rápido desde la lista
   const [alumnoParaCobro, setAlumnoParaCobro] = useState<AlumnoDeuda | null>(null);
@@ -110,7 +110,7 @@ const CuentasCobrar: React.FC = () => {
   // Abrir nota para un alumno específico
   const abrirNotaParaAlumno = (e: React.MouseEvent, alumno: AlumnoDeuda) => {
     e.stopPropagation();
-    setAlumnoParaNota({ id: alumno.alumno_id, nombres: alumno.nombres, apellidos: alumno.apellidos });
+    setAlumnoParaNota({ id: alumno.alumno_id, nombre: `${alumno.nombres} ${alumno.apellidos}` });
     setMostrarNota(true);
   };
 
