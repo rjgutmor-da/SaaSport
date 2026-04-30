@@ -121,14 +121,36 @@ const CuentasCobrar: React.FC = () => {
     setMostrarCobroRapido(true);
   };
 
+  // Cargar nombre de la escuela para el mensaje de WhatsApp
+  const [escuelaNombre, setEscuelaNombre] = useState<string>('la Escuela');
+
+  React.useEffect(() => {
+    if (!escuelaId) return;
+    supabase
+      .from('escuelas')
+      .select('nombre')
+      .eq('id', escuelaId)
+      .single()
+      .then(({ data }) => {
+        if (data?.nombre) setEscuelaNombre(data.nombre);
+      });
+  }, [escuelaId]);
+
   // Enviar WhatsApp al padre/madre del alumno
   const enviarWhatsApp = (e: React.MouseEvent, alumno: AlumnoDeuda) => {
     e.stopPropagation();
     const esPadre = alumno.whatsapp_preferido === 'padre';
-    const nombre = esPadre
-      ? (alumno.nombre_padre || alumno.nombre_madre || 'Padre/Madre')
-      : (alumno.nombre_madre || alumno.nombre_padre || 'Padre/Madre');
-    const telefono = esPadre
+    const esMadre = alumno.whatsapp_preferido === 'madre';
+    
+    // Si no tiene preferencia, intentamos ver cuál tiene teléfono
+    const prefierePadre = esPadre || (!esMadre && alumno.telefono_padre);
+    
+    const saludo = prefierePadre ? 'Estimado señor' : 'Estimada señora';
+    const nombrePadreMadre = prefierePadre
+      ? (alumno.nombre_padre || 'Padre')
+      : (alumno.nombre_madre || 'Madre');
+    
+    const telefono = prefierePadre
       ? (alumno.telefono_padre || alumno.telefono_madre)
       : (alumno.telefono_madre || alumno.telefono_padre);
 
@@ -139,9 +161,14 @@ const CuentasCobrar: React.FC = () => {
     const telLimpio = telefono.replace(/\D/g, '');
     const telFinal = telLimpio.startsWith('591') ? telLimpio : `591${telLimpio}`;
     const saldo = Number(alumno.saldo_pendiente);
+    
+    // Nombres del alumno sin apellidos
+    const nombresAlumno = alumno.nombres;
+
     const mensaje = saldo > 0
-      ? `Estimado/a ${nombre}, le recordamos que ${alumno.nombres} ${alumno.apellidos} tiene un saldo pendiente de Bs ${fmtMonto(saldo)}. Por favor regularice el pago a la brevedad. Gracias.`
-      : `Estimado/a ${nombre}, le informamos que la cuenta de ${alumno.nombres} ${alumno.apellidos} está al día. ¡Gracias por su puntualidad!`;
+      ? `${saludo} ${nombrePadreMadre}, le escribimos de la administración de ${escuelaNombre} para recordarle que ${nombresAlumno} tiene una deuda de Bs ${fmtMonto(saldo)}. Le pedimos regularizar el pago lo antes posible.`
+      : `${saludo} ${nombrePadreMadre}, le informamos que la cuenta de ${nombresAlumno} está al día. ¡Gracias por su puntualidad!`;
+      
     window.open(`https://wa.me/${telFinal}?text=${encodeURIComponent(mensaje)}`, '_blank');
   };
 
@@ -278,7 +305,7 @@ const CuentasCobrar: React.FC = () => {
                 <th className="cxc-th cxc-th-sm">Sub</th>
                 <th className="cxc-th cxc-th-sm">{mesAnteriorStr}</th>
                 <th className="cxc-th cxc-th-sm">{mesActualStr}</th>
-                <th className="cxc-th cxc-th-monto">CxC Pend.</th>
+                <th className="cxc-th cxc-th-sm">PEND</th>
                 <th className="cxc-th cxc-th-monto">Deuda Total</th>
                 <th className="cxc-th cxc-th-acciones">Acciones</th>
               </tr>

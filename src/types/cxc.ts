@@ -117,9 +117,11 @@ export interface AlumnoDeuda {
   fecha_nacimiento?: string | null;
   sub?: number;
   // Campos centralizados
+  fecha_inicio_consolidada?: string;
   total_ingresos_historico?: number;
   cantidad_meses_actividad?: number;
-  fecha_inicio_consolidada?: string;
+  nombres_search?: string;
+  apellidos_search?: string;
 }
 
 /** Colores y etiquetas por estado */

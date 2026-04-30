@@ -926,11 +926,11 @@ input[type=number] {
 }
 
 .cxc-th-sucursal {
-  width: 200px !important; /* Aumentado con el espacio quitado a Alumno */
+  width: 130px !important; 
 }
 
 .cxc-th-acciones {
-  width: 180px !important; /* Aumentado un 20% (base 150px) */
+  width: 220px !important; /* Aumentado de 180px para evitar desborde */
 }
 
 /* Clases específicas para CxP para restaurar su distribución anterior */
@@ -943,7 +943,7 @@ input[type=number] {
 
 /* Nuevas clases para anchos específicos */
 .cxc-th-monto {
-  width: 120px !important;
+  width: 130px !important; 
 }
 .cxc-th-sm {
   width: 90px !important;

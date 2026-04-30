@@ -1,6 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../lib/supabaseClient';
 
+const normalizar = (str: string) =>
+  str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+
 export const queryKeys = {
   cxc_resumen: ['cxc-resumen'] as const,
   cxp_resumen: ['cxp-resumen'] as const,
@@ -62,8 +65,8 @@ const fetchCxcAlumnos = async (escuelaId: string, filtros: any) => {
   if (filtros.soloConDeuda) query = query.gt('saldo_pendiente', 0);
   
   if (filtros.busqueda?.trim()) {
-    const q = `%${filtros.busqueda.trim()}%`;
-    query = query.or(`nombres.ilike.${q},apellidos.ilike.${q}`);
+    const q = `%${normalizar(filtros.busqueda)}%`;
+    query = query.or(`nombres_search.ilike.${q},apellidos_search.ilike.${q}`);
   }
 
   const desde = (filtros.pagina - 1) * filtros.itemsPorPagina;
