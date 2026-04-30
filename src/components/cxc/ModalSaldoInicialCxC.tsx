@@ -102,7 +102,6 @@ const ModalSaldoInicialCxC: React.FC<Props> = ({ visible, onCerrar, onCreado, ed
         escuela_id: ctx.escuela_id,
         sucursal_id: ctx.sucursal_id,
         alumno_id: alumnoId,
-        cuenta_contable_id: null,
         monto_total: valorMonto,
         fecha_emision: fecha,
         descripcion: descripcion.trim() || (esAnticipo ? 'Saldo inicial de anticipo' : 'Saldo inicial de deuda'),

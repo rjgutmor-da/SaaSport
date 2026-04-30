@@ -29,7 +29,6 @@ const ModalCobroRapido: React.FC<Props> = ({ alumnoInicial, visible, onCerrar, o
   const [cuentasCobro, setCuentasCobro] = useState<CajaBanco[]>([]);
 
   const [monto, setMonto] = useState('');
-  const [metodo, setMetodo] = useState('efectivo');
   const [cuentaId, setCuentaId] = useState('');
   const [bancoOrigen, setBancoOrigen] = useState('');
   const [fecha, setFecha] = useState(getHoyISO());
@@ -135,7 +134,6 @@ const ModalCobroRapido: React.FC<Props> = ({ alumnoInicial, visible, onCerrar, o
               escuela_id: ctx.escuela_id,
               sucursal_id: ctx.sucursal_id,
               alumno_id: alumnoSel.alumno_id,
-              cuenta_contable_id: null,
               monto_total: montoNum,
               descripcion: 'Cobro Anticipado',
               estado: 'pendiente'
@@ -157,27 +155,23 @@ const ModalCobroRapido: React.FC<Props> = ({ alumnoInicial, visible, onCerrar, o
       const partesRef: string[] = [];
       if (bancoOrigen.trim()) partesRef.push(`Banco: ${bancoOrigen.trim()}`);
       if (nroDoc.trim()) partesRef.push(`Nro: ${nroDoc.trim()}`);
+      const concatDoc = partesRef.join(' | ');
 
-      // 1. Registrar cobro aplicado
-      const { error: errCobro } = await supabase.from('cobros_aplicados').insert({
-        escuela_id: ctx.escuela_id,
-        cuenta_cobrar_id: objetivoCxcId,
-        caja_id: cuentaId,
-        monto_aplicado: montoNum,
-        fecha: new Date(`${fecha}T${getHoraLocal()}:00`).toISOString(),
-        metodo_pago: metodo,
-        referencia: partesRef.join(' | ') || null
+      // 1. Registrar cobro aplicado vía RPC (también actualiza estado de la nota)
+      const { error: rpcErr } = await supabase.rpc('rpc_registrar_cobro', {
+        p_payload: {
+          cuenta_cobrar_id: objetivoCxcId,
+          escuela_id: ctx.escuela_id,
+          sucursal_id: ctx.sucursal_id,
+          usuario_id: ctx.id,
+          monto: montoNum,
+          cuenta_cobro_id: cuentaId,
+          nro_comprobante: concatDoc || null,
+          fecha: `${fecha}T${getHoraLocal()}:00`
+        }
       });
 
-      if (errCobro) throw errCobro;
-
-      // 2. Actualizar estado de la nota (CxC)
-      const { data: cxcData } = await supabase.from('v_cuentas_cobrar').select('*').eq('id', objetivoCxcId).single();
-      if (cxcData) {
-          const saldoPendiente = Number(cxcData.saldo_pendiente) - montoNum;
-          const nuevoEstado = saldoPendiente <= 0 ? 'pagada' : (saldoPendiente < Number(cxcData.monto_total) ? 'parcial' : 'pendiente');
-          await supabase.from('cuentas_cobrar').update({ estado: nuevoEstado }).eq('id', objetivoCxcId);
-      }
+      if (rpcErr) throw rpcErr;
 
       // 3. Actualizar Saldo de Caja (AHORA SE ENCARGA EL TRIGGER)
 
@@ -189,8 +183,7 @@ const ModalCobroRapido: React.FC<Props> = ({ alumnoInicial, visible, onCerrar, o
         accion: 'cobro', modulo: 'cxc', entidad_id: objetivoCxcId,
         detalle: { 
           cliente: `${alumnoSel.nombres} ${alumnoSel.apellidos}`,
-          monto: montoNum, 
-          metodo_pago: metodo
+          monto: montoNum 
         },
       });
 
@@ -344,7 +337,7 @@ const ModalCobroRapido: React.FC<Props> = ({ alumnoInicial, visible, onCerrar, o
 
                     <div className="form-campo">
                       <label><Hash size={14} /> Nro. Transacción</label>
-                      <input type="text" value={metodo} onChange={e => setMetodo(e.target.value)} disabled={guardando} placeholder="Ej: 00123, REC-001..." />
+                      <input type="text" value={nroDoc} onChange={e => setNroDoc(e.target.value)} disabled={guardando} placeholder="Ej: 00123, REC-001..." />
                     </div>
 
                     <div className="form-campo">

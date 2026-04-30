@@ -46,8 +46,6 @@ export interface CuentaCobrar {
   escuela_id: string;
   sucursal_id: string | null;
   alumno_id: string | null;
-  cuenta_contable_id: string;
-  comprobante_id: string | null;
   venta_id: string | null;
   monto_total: number;
   periodo: string | null;

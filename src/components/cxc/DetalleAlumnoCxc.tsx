@@ -47,9 +47,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
   const [mostrarNuevaNotaManual, setMostrarNuevaNotaManual] = useState(false);
   const [cobroMonto, setCobroMonto] = useState('');
   const [cobroCuentaId, setCobroCuentaId] = useState('');
-  const [cobroBancoOrigen, setCobroBancoOrigen] = useState('');
-  const [cobroHora, setCobroHora] = useState(getHoraLocal());
-  const [cobroFecha, setCobroFecha] = useState(getHoyISO());
+  const [cobroNroDoc, setCobroNroDoc] = useState('');
   const [guardandoCobro, setGuardandoCobro] = useState(false);
   const [cobroError, setCobroError] = useState<string | null>(null);
   const [cobroExito, setCobroExito] = useState<string | null>(null);
@@ -180,28 +178,23 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
 
         if (rpcErr) throw rpcErr;
       } else {
-        const partesRef = [];
-        if (cobroBancoOrigen.trim()) partesRef.push(`Banco: ${cobroBancoOrigen.trim()}`);
-        if (cobroHora.trim()) partesRef.push(`He: ${cobroHora.trim()}`);
-        const concatDoc = partesRef.join(' | ');
+        const concatDoc = cobroNroDoc.trim() ? `Nro: ${cobroNroDoc.trim()}` : null;
 
-        // 1. Registrar cobro
-        await supabase.from('cobros_aplicados').insert({
-          escuela_id: ctx.escuela_id,
-          cuenta_cobrar_id: cobroCxcId,
-          monto_aplicado: monto,
-          caja_id: cobroCuentaId,
-          fecha: `${cobroFecha}T${cobroHora}:00`,
-          documento_referencia: concatDoc || null
+        const { error: rpcErr } = await supabase.rpc('rpc_registrar_cobro', {
+          p_payload: {
+            cuenta_cobrar_id: cobroCxcId,
+            escuela_id: ctx.escuela_id,
+            sucursal_id: ctx.sucursal_id,
+            usuario_id: ctx.id,
+            monto: monto,
+            cuenta_cobro_id: cobroCuentaId,
+            nro_comprobante: concatDoc,
+            fecha: `${getHoyISO()}T${getHoraLocal()}:00`
+          }
         });
 
-        // 2. Actualizar Saldo Caja (Se encarga el trigger DB)
+        if (rpcErr) throw rpcErr;
       }
-
-      // 4. Actualizar estado de la nota actual
-      const saldoRestanteActual = Number(cxcActual.saldo_pendiente) - monto;
-      const nuevoEstadoNota = saldoRestanteActual <= 0 ? 'pagada' : (saldoRestanteActual < Number(cxcActual.monto_total) ? 'parcial' : 'pendiente');
-      await supabase.from('cuentas_cobrar').update({ estado: nuevoEstadoNota }).eq('id', cobroCxcId);
 
       setCobroExito(`✅ Cobro de Bs ${fmtMonto(monto)} registrado correctamente.`);
       
@@ -216,7 +209,13 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
 
       onActualizar(); 
       triggerRefresh();
-      setTimeout(() => { setCobroCxcId(null); }, 800);
+      setTimeout(() => { 
+        setCobroCxcId(null); 
+        setCobroMonto('');
+        setCobroNroDoc('');
+        setUsarAnticipo(false);
+        setAnticipoId('');
+      }, 800);
 
     } catch (err: any) {
       setCobroError(`Error: ${err.message}`);
@@ -449,6 +448,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                                     {cuentasCobro.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
                                   </select>
                                 )}
+                                <input type="text" value={cobroNroDoc} onChange={e => setCobroNroDoc(e.target.value)} placeholder="Nro Transacción" style={{ width: '130px' }} className="detalle-cobro-input" />
                                 <input type="number" step="0.01" value={cobroMonto} onChange={e => setCobroMonto(e.target.value)} placeholder="Monto" required style={{ width: '100px' }} className="detalle-cobro-input" />
                                 <button type="submit" disabled={guardandoCobro} className="btn-guardar-cuenta" style={{ width: 'auto', padding: '0.5rem 1rem' }}>{guardandoCobro ? '...' : 'Cobrar'}</button>
                                 <button type="button" onClick={() => setCobroCxcId(null)} className="btn-refrescar" style={{ width: 'auto', padding: '0.5rem' }}>Cancelar</button>

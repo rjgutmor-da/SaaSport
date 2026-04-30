@@ -206,24 +206,20 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
       if (pagarAlCrear || esAnticipo) {
         const mp = esAnticipo ? parseFloat(montoAnticipo) : parseFloat(montoPago);
         if (mp > 0 && cuentaCobroId) {
-          const { error: errP } = await supabase.from('cobros_aplicados').insert({
-            escuela_id: ctx.escuela_id,
-            cuenta_cobrar_id: nueva.id,
-            monto_aplicado: mp,
-            caja_id: cuentaCobroId,
-            fecha: `${fechaPago}T${horaPago}:00`,
-            documento_referencia: cobroNroDoc || null
+          const { error: rpcErr } = await supabase.rpc('rpc_registrar_cobro', {
+            p_payload: {
+              cuenta_cobrar_id: nueva.id,
+              escuela_id: ctx.escuela_id,
+              sucursal_id: ctx.sucursal_id,
+              usuario_id: ctx.id,
+              monto: mp,
+              cuenta_cobro_id: cuentaCobroId,
+              nro_comprobante: cobroNroDoc || null,
+              fecha: `${fechaPago}T${horaPago}:00`
+            }
           });
-          if (errP) throw errP;
 
-          // Actualizar Saldo Caja (Se encarga el trigger DB)
-          // Actualizar Estado Nota y Referencia
-          const nuevoEstado = mp >= total ? 'pagada' : 'parcial';
-          const { error: errU } = await supabase.from('cuentas_cobrar').update({ 
-            estado: nuevoEstado,
-            nro_recibo: cobroNroDoc || null
-          }).eq('id', nueva.id);
-          if (errU) throw errU;
+          if (rpcErr) throw rpcErr;
         }
       }
 

@@ -148,7 +148,7 @@ const ModalVerNotaCxC: React.FC<Props> = ({ visible, cxcId, onCerrar, onEditar, 
   const saldoPendiente = nota ? Number(nota.saldo_pendiente) : 0;
   const montoTotal = nota ? Number(nota.monto_total) : 0;
   const totalCobrado = nota ? Number(nota.total_cobrado) : 0;
-  const progreso = montoTotal > 0 ? Math.min(100, (totalCobrado / montoTotal) * 100) : 0;
+
 
   const BADGE_ESTADOS: Record<string, { label: string; color: string; bg: string }> = {
     pendiente: { label: 'Pendiente', color: '#facc15', bg: 'rgba(250,204,21,0.15)' },
