@@ -66,7 +66,7 @@ const fetchCxcAlumnos = async (escuelaId: string, filtros: any) => {
   
   if (filtros.busqueda?.trim()) {
     const q = `%${normalizar(filtros.busqueda)}%`;
-    query = query.or(`nombres_search.ilike.${q},apellidos_search.ilike.${q}`);
+    query = query.ilike('terminos_busqueda', q);
   }
 
   const desde = (filtros.pagina - 1) * filtros.itemsPorPagina;
