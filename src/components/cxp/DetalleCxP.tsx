@@ -41,10 +41,11 @@ interface PagoRealizado {
   id: string;
   monto_aplicado: number;
   fecha: string;
+  referencia: string;
+  es_aplicacion_anticipo: boolean;
+  conciliado: boolean;
+  caja_id?: string;
   caja_nombre?: string;
-  referencia?: string;
-  es_aplicacion_anticipo?: boolean;
-  conciliado?: boolean;
 }
 
 interface DetalleCxPItem {
@@ -115,7 +116,7 @@ const DetalleCxP: React.FC<Props> = ({ nota, visible, onCerrar, onActualizar }) 
       const [resPagos, resItems, resCajas] = await Promise.all([
         // Pagos realizados
         supabase.from('pagos_aplicados')
-          .select('id, monto_aplicado, fecha, referencia, es_aplicacion_anticipo, conciliado, cajas_bancos(nombre)')
+          .select('id, monto_aplicado, fecha, referencia, es_aplicacion_anticipo, conciliado, caja_id, cajas_bancos(nombre)')
           .eq('cuenta_pagar_id', nota.id)
           .order('fecha', { ascending: false }),
         // Ítems del detalle
@@ -124,7 +125,7 @@ const DetalleCxP: React.FC<Props> = ({ nota, visible, onCerrar, onActualizar }) 
                    catalogo_items!inner(nombre, tipo)`)
           .eq('cuenta_pagar_id', nota.id),
         // Cajas y bancos disponibles
-        supabase.from('cajas_bancos').select('id, nombre, saldo_actual')
+        supabase.from('cajas_bancos').select('*')
           .eq('escuela_id', usr?.escuela_id).eq('activo', true).order('nombre'),
       ]);
 
@@ -611,7 +612,7 @@ const DetalleCxP: React.FC<Props> = ({ nota, visible, onCerrar, onActualizar }) 
             movimiento={movEditar}
             cajas={cajasBancos}
             onCerrar={() => setMovEditar(null)}
-            onActualizar={() => {
+            onGuardado={() => {
               onActualizar();
               onCerrar(); // Opcional: Cerrar o recargar
             }}
