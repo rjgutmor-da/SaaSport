@@ -88,8 +88,12 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
       setAlumnoId(cxcEditar.alumno_id);
       setLineas(cxcEditar.lineas || [lineaVacia()]);
       setObservaciones(cxcEditar.observaciones || '');
-      setVencimiento(cxcEditar.vencimiento || getHoyISO());
+      setVencimiento(cxcEditar.fecha_vencimiento || cxcEditar.vencimiento || getHoyISO());
       setFechaEmision(cxcEditar.fecha_emision || getHoyISO());
+      // Si estamos editando y ya tiene cobros, no mostramos el panel de pago rápido
+      if (cxcEditar.total_cobrado > 0) {
+        setPagarAlCrear(false);
+      }
     } else {
       // Intentar cargar borrador si no estamos editando
       const borrador = localStorage.getItem(STORAGE_KEY);
@@ -162,28 +166,50 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
       if (!user) throw new Error('Auth error');
       const { data: ctx } = await supabase.from('usuarios').select('*').eq('id', user.id).single();
 
-      // 1. Crear Nota
-      const { data: nueva, error: errN } = await supabase.from('cuentas_cobrar').insert({
-        escuela_id: ctx.escuela_id,
-        sucursal_id: ctx.sucursal_id,
-        alumno_id: alumnoId,
-        monto_total: total,
-        descripcion: esAnticipo ? 'Anticipo' : lineas.filter(l => l.catalogo_item_id && l.precio_unitario > 0).map(l => l.nombre).join(', '),
-        observaciones,
-        fecha_emision: fechaEmision,
-        fecha_vencimiento: vencimiento || null,
-        es_anticipo: esAnticipo,
-        estado: 'pendiente',
-        nro_recibo: cobroNroDoc || null
-      }).select('id').single();
-      if (errN) throw errN;
+      // 1. Guardar/Actualizar Nota
+      let notaId = '';
+      const descripcionFinal = esAnticipo ? 'Anticipo' : lineas.filter(l => l.catalogo_item_id && l.precio_unitario > 0).map(l => l.nombre).join(', ');
+
+      if (cxcEditar?.id) {
+        notaId = cxcEditar.id;
+        const { error: errU } = await supabase.from('cuentas_cobrar').update({
+          monto_total: total,
+          descripcion: descripcionFinal,
+          observaciones,
+          fecha_emision: fechaEmision,
+          fecha_vencimiento: vencimiento || null,
+          editado: true,
+          editado_por: ctx.id,
+          updated_at: new Date().toISOString()
+        }).eq('id', notaId);
+        if (errU) throw errU;
+
+        // Borrar detalle previo para re-insertar
+        await supabase.from('cxc_detalle').delete().eq('cuenta_cobrar_id', notaId);
+      } else {
+        const { data: nueva, error: errN } = await supabase.from('cuentas_cobrar').insert({
+          escuela_id: ctx.escuela_id,
+          sucursal_id: ctx.sucursal_id,
+          alumno_id: alumnoId,
+          monto_total: total,
+          descripcion: descripcionFinal,
+          observaciones,
+          fecha_emision: fechaEmision,
+          fecha_vencimiento: vencimiento || null,
+          es_anticipo: esAnticipo,
+          estado: 'pendiente',
+          nro_recibo: cobroNroDoc || null
+        }).select('id').single();
+        if (errN) throw errN;
+        notaId = nueva.id;
+      }
 
       // 2. Detalle
       if (esAnticipo) {
         const itemGenerico = catalogo[0]?.id;
         await supabase.from('cxc_detalle').insert({
           escuela_id: ctx.escuela_id,
-          cuenta_cobrar_id: nueva.id,
+          cuenta_cobrar_id: notaId,
           catalogo_item_id: itemGenerico,
           cantidad: 1,
           precio_unitario: total,
@@ -193,7 +219,7 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
         const lineasValidas = lineas.filter(l => l.catalogo_item_id && l.precio_unitario > 0);
         await supabase.from('cxc_detalle').insert(lineasValidas.map(l => ({
           escuela_id: ctx.escuela_id,
-          cuenta_cobrar_id: nueva.id,
+          cuenta_cobrar_id: notaId,
           catalogo_item_id: l.catalogo_item_id,
           cantidad: l.cantidad,
           precio_unitario: l.precio_unitario,
@@ -202,13 +228,13 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
         })));
       }
 
-      // 3. Pago
-      if (pagarAlCrear || esAnticipo) {
+      // 3. Pago (Solo si es nueva nota o si explícitamente se pidió pagar algo adicional)
+      if (!cxcEditar && (pagarAlCrear || esAnticipo)) {
         const mp = esAnticipo ? parseFloat(montoAnticipo) : parseFloat(montoPago);
         if (mp > 0 && cuentaCobroId) {
           const { error: rpcErr } = await supabase.rpc('rpc_registrar_cobro', {
             p_payload: {
-              cuenta_cobrar_id: nueva.id,
+              cuenta_cobrar_id: notaId,
               escuela_id: ctx.escuela_id,
               sucursal_id: ctx.sucursal_id,
               usuario_id: ctx.id,
@@ -224,7 +250,7 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
       }
 
       localStorage.removeItem(STORAGE_KEY);
-      setExito('✅ Registrado correctamente.');
+      setExito(`✅ ${cxcEditar ? 'Cambios guardados' : 'Registrado'} correctamente.`);
       onCreada();
       setTimeout(() => { onCerrar(); }, 600);
     } catch (err: any) {
@@ -240,7 +266,7 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
     <div className="cxc-modal-overlay">
       <div className="cxc-modal" style={{ maxWidth: '700px' }} onClick={e => e.stopPropagation()}>
         <div className="cxc-modal-header">
-          <h2><FileText size={20} style={{ marginRight: '0.5rem' }} /> {esAnticipo ? 'Cobro Anticipado' : 'Nueva Nota de Servicio'}</h2>
+          <h2><FileText size={20} style={{ marginRight: '0.5rem' }} /> {esAnticipo ? 'Cobro Anticipado' : (cxcEditar ? 'Editar Nota de Servicio' : 'Nueva Nota de Servicio')}</h2>
           <button onClick={onCerrar} disabled={guardando}><X size={20} /></button>
         </div>
         <div style={{ padding: '1.5rem' }}>
@@ -463,7 +489,7 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
               <div style={{ fontSize: '1.5rem', fontWeight: 800 }}>Total: Bs {fmtMonto(total)}</div>
               <div style={{ display: 'flex', gap: '0.75rem' }}>
                 <button type="button" onClick={onCerrar} className="btn-refrescar" style={{ width: 'auto' }}>Cancelar</button>
-                <button type="submit" disabled={guardando} className="btn-guardar-cuenta" style={{ width: 'auto', padding: '0 2rem' }}>{guardando ? '...' : 'Confirmar'}</button>
+                <button type="submit" disabled={guardando} className="btn-guardar-cuenta" style={{ width: 'auto', padding: '0 2rem' }}>{guardando ? '...' : (cxcEditar ? 'Guardar Cambios' : 'Confirmar')}</button>
               </div>
             </div>
             {error && <p style={{ color: '#f87171', marginTop: '1rem' }}>{error}</p>}

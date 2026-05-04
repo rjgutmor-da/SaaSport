@@ -48,6 +48,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
   const [cobroMonto, setCobroMonto] = useState('');
   const [cobroCuentaId, setCobroCuentaId] = useState('');
   const [cobroNroDoc, setCobroNroDoc] = useState('');
+  const [cobroFecha, setCobroFecha] = useState(getHoyISO());
   const [guardandoCobro, setGuardandoCobro] = useState(false);
   const [cobroError, setCobroError] = useState<string | null>(null);
   const [cobroExito, setCobroExito] = useState<string | null>(null);
@@ -173,12 +174,13 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
             usuario_id: ctx.id,
             escuela_id: ctx.escuela_id,
             sucursal_id: ctx.sucursal_id,
+            fecha: `${cobroFecha}T${getHoraLocal()}:00`
           }
         });
 
         if (rpcErr) throw rpcErr;
       } else {
-        const concatDoc = cobroNroDoc.trim() ? `Nro: ${cobroNroDoc.trim()}` : null;
+        const concatDoc = cobroNroDoc.trim() || null;
 
         const { error: rpcErr } = await supabase.rpc('rpc_registrar_cobro', {
           p_payload: {
@@ -189,7 +191,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
             monto: monto,
             cuenta_cobro_id: cobroCuentaId,
             nro_comprobante: concatDoc,
-            fecha: `${getHoyISO()}T${getHoraLocal()}:00`
+            fecha: `${cobroFecha}T${getHoraLocal()}:00`
           }
         });
 
@@ -213,6 +215,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
         setCobroCxcId(null); 
         setCobroMonto('');
         setCobroNroDoc('');
+        setCobroFecha(getHoyISO());
         setUsarAnticipo(false);
         setAnticipoId('');
       }, 800);
@@ -416,7 +419,24 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                           <div style={{ display: 'flex', gap: '0.35rem', justifyContent: 'center' }}>
                             <button onClick={() => setVerNotaId(cxc.id)} className="btn-compact-action" title="Ver"><Eye size={14} /></button>
                             {!cxc.anulada && puedeAnular() && (
-                              <button onClick={() => { setCxcParaEditar(cxc); setModoModal('editar'); setModalNotaVisible(true); }} className="btn-compact-action action-blue" title="Editar"><Pencil size={14} /></button>
+                              <button onClick={() => { 
+                                const lines = detallesItems[cxc.id] || [];
+                                setCxcParaEditar({ 
+                                  ...cxc, 
+                                  lineas: lines.map(l => ({
+                                    catalogo_item_id: l.catalogo_item_id,
+                                    nombre: l.item_nombre,
+                                    tipo: 'servicio',
+                                    cantidad: l.cantidad,
+                                    precio_unitario: l.precio_unitario,
+                                    periodo_meses: l.periodo_meses || [],
+                                    detalle_personalizado: l.detalle_extra || '',
+                                    subtotal: l.cantidad * l.precio_unitario
+                                  }))
+                                }); 
+                                setModoModal('editar'); 
+                                setModalNotaVisible(true); 
+                              }} className="btn-compact-action action-blue" title="Editar"><Pencil size={14} /></button>
                             )}
                             {!cxc.anulada && cxc.estado !== 'pagada' && (
                               <button onClick={() => { setCobroCxcId(cxc.id); setCobroMonto(String(cxc.saldo_pendiente)); }} className="btn-compact-action action-green" title="Cobrar"><DollarSign size={14} /></button>
@@ -450,6 +470,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                                 )}
                                 <input type="text" value={cobroNroDoc} onChange={e => setCobroNroDoc(e.target.value)} placeholder="Nro Transacción" style={{ width: '130px' }} className="detalle-cobro-input" />
                                 <input type="number" step="0.01" value={cobroMonto} onChange={e => setCobroMonto(e.target.value)} placeholder="Monto" required style={{ width: '100px' }} className="detalle-cobro-input" />
+                                <input type="date" value={cobroFecha} onChange={e => setCobroFecha(e.target.value)} className="detalle-cobro-input" style={{ width: '160px' }} />
                                 <button type="submit" disabled={guardandoCobro} className="btn-guardar-cuenta" style={{ width: 'auto', padding: '0.5rem 1rem' }}>{guardandoCobro ? '...' : 'Cobrar'}</button>
                                 <button type="button" onClick={() => setCobroCxcId(null)} className="btn-refrescar" style={{ width: 'auto', padding: '0.5rem' }}>Cancelar</button>
                               </div>

@@ -10,7 +10,7 @@ import {
   X, DollarSign, Calendar, RefreshCw,
   AlertCircle, Check, CreditCard, CheckCircle2, Hash, Building2
 } from 'lucide-react';
-import { formatFecha } from '../../lib/dateUtils';
+import { formatFecha, getHoyISO, getHoraLocal } from '../../lib/dateUtils';
 
 interface CxPItem {
   id: string;
@@ -79,6 +79,7 @@ const DetalleCxP: React.FC<Props> = ({ nota, visible, onCerrar, onActualizar }) 
   const [cuentaPagoId, setCuentaPagoId] = useState('');
   const [nroComprobante, setNroComprobante] = useState('');
   const [registrandoPago, setRegistrandoPago] = useState(false);
+  const [fechaPago, setFechaPago] = useState(getHoyISO());
   const [usarAnticipo, setUsarAnticipo] = useState(false);
   const [anticipoId, setAnticipoId] = useState('');
   const [errorPago, setErrorPago] = useState<string | null>(null);
@@ -90,6 +91,7 @@ const DetalleCxP: React.FC<Props> = ({ nota, visible, onCerrar, onActualizar }) 
     setErrorPago(null); setExitoPago(null);
     setMontoPago(String(nota.deuda_restante));
     setCuentaPagoId(''); setNroComprobante('');
+    setFechaPago(getHoyISO());
 
     const cargar = async () => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -180,6 +182,7 @@ const DetalleCxP: React.FC<Props> = ({ nota, visible, onCerrar, onActualizar }) 
             usuario_id: ctx.id,
             escuela_id: ctx.escuela_id,
             sucursal_id: ctx.sucursal_id,
+            fecha: `${fechaPago}T${getHoraLocal()}:00`,
           }
         });
 
@@ -195,7 +198,7 @@ const DetalleCxP: React.FC<Props> = ({ nota, visible, onCerrar, onActualizar }) 
             cuenta_pagar_id: nota.id,
             monto: mp,
             cuenta_pago_id: cuentaPagoId,
-            fecha: new Date().toISOString(),
+            fecha: `${fechaPago}T${getHoraLocal()}:00`,
             nro_comprobante: nroComprobante.trim() || null,
             metodo_pago: 'efectivo'
           }
@@ -439,7 +442,7 @@ const DetalleCxP: React.FC<Props> = ({ nota, visible, onCerrar, onActualizar }) 
               <form onSubmit={registrarPago}>
                 <div style={{ border: '1px solid rgba(99,102,241,0.3)', borderRadius: '10px', padding: '1rem', background: 'rgba(99,102,241,0.05)' }}>
                   <p style={{ fontSize: '0.85rem', fontWeight: 700, marginBottom: '0.75rem', color: '#a5b4fc' }}>
-                    <CreditCard size={14} style={{ marginRight: '0.4rem' }} /> Registrar pago o aplicación
+                    <CreditCard size={14} style={{ marginRight: '0.4rem' }} /> Registrar Pago
                   </p>
 
                   <div style={{ marginBottom: '0.75rem', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '0.5rem' }}>
@@ -460,9 +463,28 @@ const DetalleCxP: React.FC<Props> = ({ nota, visible, onCerrar, onActualizar }) 
                     </div>
                   )}
 
-                  {/* Monto — sin selector de método de pago */}
-                  <div style={{ marginBottom: '0.75rem' }}>
-                    <input type="number" step="0.01" min="0.01" max={nota.deuda_restante} value={montoPago} onChange={e => setMontoPago(e.target.value)} placeholder="Monto" className="nota-pago-input" disabled={registrandoPago} style={{ width: '100%' }} />
+                  {/* Fecha y Monto */}
+                  <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '0.75rem' }}>
+                    <input 
+                      type="date" 
+                      value={fechaPago} 
+                      onChange={e => setFechaPago(e.target.value)} 
+                      className="nota-pago-input" 
+                      disabled={registrandoPago} 
+                      style={{ flex: 1 }} 
+                    />
+                    <input 
+                      type="number" 
+                      step="0.01" 
+                      min="0.01" 
+                      max={nota.deuda_restante} 
+                      value={montoPago} 
+                      onChange={e => setMontoPago(e.target.value)} 
+                      placeholder="Monto" 
+                      className="nota-pago-input" 
+                      disabled={registrandoPago} 
+                      style={{ flex: 1 }} 
+                    />
                   </div>
 
                   {!usarAnticipo && (

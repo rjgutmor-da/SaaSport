@@ -153,8 +153,8 @@ const ModalCobroRapido: React.FC<Props> = ({ alumnoInicial, visible, onCerrar, o
       }
 
       const partesRef: string[] = [];
-      if (bancoOrigen.trim()) partesRef.push(`Banco: ${bancoOrigen.trim()}`);
-      if (nroDoc.trim()) partesRef.push(`Nro: ${nroDoc.trim()}`);
+      if (bancoOrigen.trim()) partesRef.push(bancoOrigen.trim());
+      if (nroDoc.trim()) partesRef.push(nroDoc.trim());
       const concatDoc = partesRef.join(' | ');
 
       // 1. Registrar cobro aplicado vía RPC (también actualiza estado de la nota)

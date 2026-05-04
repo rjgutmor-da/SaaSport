@@ -127,7 +127,8 @@ const ModalMovimientoDirecto: React.FC<Props> = ({ visible, tipo, cajas, onCerra
           cuenta_cobrar_id: cxc.id,
           caja_id: cajaId,
           monto_aplicado: valorMonto,
-          fecha: new Date(`${fecha}T${getHoraLocal()}:00`).toISOString()
+          fecha: new Date(`${fecha}T${getHoraLocal()}:00`).toISOString(),
+          documento_referencia: nroTransaccion.trim() || null
         });
 
       } else {
@@ -158,7 +159,8 @@ const ModalMovimientoDirecto: React.FC<Props> = ({ visible, tipo, cajas, onCerra
           cuenta_pagar_id: cxp.id,
           caja_id: cajaId,
           monto_aplicado: valorMonto,
-          fecha: new Date(`${fecha}T${getHoraLocal()}:00`).toISOString()
+          fecha: new Date(`${fecha}T${getHoraLocal()}:00`).toISOString(),
+          referencia: nroTransaccion.trim() || null
         });
       }
 

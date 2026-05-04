@@ -172,7 +172,7 @@ const fetchMovimientos = async (escuelaId: string, cajaIds: string[]) => {
   
   const [cobros, pagos] = await Promise.all([
     supabase.from('cobros_aplicados').select(`
-      id, caja_id, monto_aplicado, fecha, conciliado, created_at, asiento_id,
+      id, caja_id, monto_aplicado, fecha, conciliado, created_at, asiento_id, documento_referencia,
       cuentas_cobrar (
         id, descripcion, nro_recibo,
         alumnos ( nombres, apellidos ),
@@ -208,7 +208,7 @@ const fetchMovimientos = async (escuelaId: string, cajaIds: string[]) => {
       fecha: c.fecha || c.created_at,
       created_at: c.created_at,
       descripcion: c.cuentas_cobrar?.descripcion || 'Cobro / Ingreso',
-      nro_transaccion: c.cuentas_cobrar?.nro_recibo || '',
+      nro_transaccion: c.documento_referencia || c.cuentas_cobrar?.nro_recibo || '',
       cliente: c.cuentas_cobrar?.alumnos ? `${c.cuentas_cobrar.alumnos.nombres} ${c.cuentas_cobrar.alumnos.apellidos}` : '—',
       cuenta_id: c.caja_id,
       cuenta_nombre: c.cuentas_cobrar?.cxc_detalle?.[0]?.catalogo_items?.nombre || 'Concepto no especificado',
@@ -237,12 +237,17 @@ const fetchMovimientos = async (escuelaId: string, cajaIds: string[]) => {
     });
   });
 
-  // Sort descending for UI: 1st by Date, 2nd by Created At
+  // Sort descending for UI: 1st by Day, 2nd by Created At (last registered first)
   return movs.sort((a, b) => {
-    const dateA = new Date(a.fecha).getTime();
-    const dateB = new Date(b.fecha).getTime();
-    if (dateB !== dateA) return dateB - dateA;
-    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    const dayA = a.fecha.substring(0, 10);
+    const dayB = b.fecha.substring(0, 10);
+    
+    if (dayB !== dayA) return dayB.localeCompare(dayA);
+    
+    // Tie-breaker: last registered (created_at) on top
+    const timeA = new Date(a.created_at).getTime();
+    const timeB = new Date(b.created_at).getTime();
+    return timeB - timeA;
   });
 };
 
