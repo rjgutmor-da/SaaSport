@@ -28,6 +28,7 @@ interface Props {
   esAnticipo?: boolean;
   onCerrar: () => void;
   onCreada: () => void;
+  cxpEditar?: any;
 }
 
 const lineaVacia = (): LineaNotaPago => ({
@@ -43,7 +44,7 @@ const lineaVacia = (): LineaNotaPago => ({
 const fmtMonto = (n: number) =>
   n.toLocaleString('es-BO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-const NotaPago: React.FC<Props> = ({ visible, tipoInicial, esAnticipo = false, onCerrar, onCreada }) => {
+const NotaPago: React.FC<Props> = ({ visible, tipoInicial, esAnticipo = false, onCerrar, onCreada, cxpEditar }) => {
   const [tipoGasto, setTipoGasto] = useState(tipoInicial);
   const [proveedorId, setProveedorId] = useState('');
   const [personalId, setPersonalId] = useState('');
@@ -68,7 +69,9 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, esAnticipo = false, o
   const [error, setError] = useState<string | null>(null);
   const [exito, setExito] = useState<string | null>(null);
 
-  useEffect(() => { setTipoGasto(tipoInicial); }, [tipoInicial]);
+  useEffect(() => { 
+    if (!cxpEditar) setTipoGasto(tipoInicial); 
+  }, [tipoInicial, cxpEditar]);
 
   useEffect(() => {
     if (!visible) return;
@@ -87,17 +90,45 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, esAnticipo = false, o
 
       setProveedores(resProv.data ?? []);
       setPersonal(persProv.data ?? []);
-      setCatalogo(resCat.data ?? []);
+      const catData = resCat.data ?? [];
+      setCatalogo(catData);
       setCajasBancos(resCajas.data ?? []);
+
+      if (cxpEditar) {
+        setTipoGasto(cxpEditar.tipo_gasto || 'proveedor');
+        setProveedorId(cxpEditar.proveedor_id || '');
+        setPersonalId(cxpEditar.personal_id || '');
+        setFechaEmision(cxpEditar.fecha_emision ? cxpEditar.fecha_emision.split('T')[0] : getHoyISO());
+        setVencimiento(cxpEditar.fecha_vencimiento ? cxpEditar.fecha_vencimiento.split('T')[0] : '');
+        setObservaciones(cxpEditar.observaciones || '');
+        
+        const { data: detItems } = await supabase.from('cxp_detalle').select('*').eq('cuenta_pagar_id', cxpEditar.id);
+        if (detItems && detItems.length > 0) {
+          setLineas(detItems.map(d => {
+            const it = (catData || []).find(c => c.id === d.catalogo_item_id);
+            return {
+              catalogo_item_id: d.catalogo_item_id || '',
+              nombre: it?.nombre || d.descripcion || '',
+              tipo: it?.tipo || 'servicio',
+              cantidad: d.cantidad || 1,
+              precio_unitario: Number(d.precio_unitario),
+              subtotal: (d.cantidad || 1) * Number(d.precio_unitario),
+              descripcion: d.descripcion || ''
+            };
+          }));
+        } else {
+          setLineas([lineaVacia()]);
+        }
+      } else {
+        setProveedorId(''); setPersonalId('');
+        setFechaEmision(getHoyISO()); setVencimiento(getHoyISO()); setObservaciones('');
+        setLineas([lineaVacia()]); setPagarAlCrear(esAnticipo);
+        setFechaPago(getHoyISO()); setMontoPago(''); setNroComprobante('');
+      }
+      setError(null); setExito(null);
     };
     cargar();
-
-    setProveedorId(''); setPersonalId('');
-    setFechaEmision(getHoyISO()); setVencimiento(getHoyISO()); setObservaciones('');
-    setLineas([lineaVacia()]); setPagarAlCrear(esAnticipo);
-    setFechaPago(getHoyISO()); setMontoPago(''); setNroComprobante('');
-    setError(null); setExito(null);
-  }, [visible, esAnticipo, tipoInicial]);
+  }, [visible, esAnticipo, cxpEditar]);
 
   const total = useMemo(() => {
     if (esAnticipo) return parseFloat(montoAnticipo) || 0;
@@ -132,10 +163,10 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, esAnticipo = false, o
       if (!user) throw new Error('Auth error');
       const { data: ctx } = await supabase.from('usuarios').select('*').eq('id', user.id).single();
 
-      // 1. Crear Nota
-      const { data: nueva, error: errN } = await supabase.from('cuentas_pagar').insert({
-        escuela_id: ctx.escuela_id,
-        sucursal_id: ctx.sucursal_id,
+      // 1. Crear o Actualizar Nota
+      let notaId = cxpEditar?.id;
+      
+      const cxpPayload = {
         proveedor_id: tipoGasto === 'proveedor' ? proveedorId : null,
         personal_id: tipoGasto === 'personal' ? personalId : null,
         monto_total: total,
@@ -144,18 +175,40 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, esAnticipo = false, o
         observaciones,
         fecha_emision: fechaEmision,
         fecha_vencimiento: vencimiento || null,
-        es_anticipo: esAnticipo,
-        estado: 'pendiente'
-      }).select('id').single();
-      if (errN) throw errN;
+      };
 
-      // 2. Detalle
+      if (cxpEditar) {
+        const pagado = Number(cxpEditar.monto_pagado) || 0;
+        let nuevoEstado = 'pendiente';
+        if (pagado >= total && total > 0) nuevoEstado = 'pagada';
+        else if (pagado > 0) nuevoEstado = 'parcial';
+
+        const { error: errU } = await supabase.from('cuentas_pagar')
+          .update({ ...cxpPayload, estado: nuevoEstado })
+          .eq('id', cxpEditar.id);
+        if (errU) throw errU;
+        
+        // 2. Detalle (borrar y recrear en edicion)
+        await supabase.from('cxp_detalle').delete().eq('cuenta_pagar_id', cxpEditar.id);
+      } else {
+        const { data: nueva, error: errN } = await supabase.from('cuentas_pagar').insert({
+          escuela_id: ctx.escuela_id,
+          sucursal_id: ctx.sucursal_id,
+          es_anticipo: esAnticipo,
+          estado: 'pendiente',
+          ...cxpPayload
+        }).select('id').single();
+        if (errN) throw errN;
+        notaId = nueva.id;
+      }
+
+      // 2. Insertar Detalle (nuevo o despues de borrar)
       if (esAnticipo) {
         // Para anticipos, usamos un ítem genérico o el primero de la lista
         const itemGenerico = catalogo[0]?.id; 
         await supabase.from('cxp_detalle').insert({
           escuela_id: ctx.escuela_id,
-          cuenta_pagar_id: nueva.id,
+          cuenta_pagar_id: notaId,
           catalogo_item_id: itemGenerico,
           cantidad: 1,
           precio_unitario: total,
@@ -165,7 +218,7 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, esAnticipo = false, o
         const lineasValidas = lineas.filter(l => l.catalogo_item_id && l.precio_unitario >= 0 && l.cantidad > 0);
         await supabase.from('cxp_detalle').insert(lineasValidas.map(l => ({
           escuela_id: ctx.escuela_id,
-          cuenta_pagar_id: nueva.id,
+          cuenta_pagar_id: notaId,
           catalogo_item_id: l.catalogo_item_id,
           cantidad: l.cantidad,
           precio_unitario: l.precio_unitario,
@@ -173,8 +226,8 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, esAnticipo = false, o
         })));
       }
 
-      // 3. Pago
-      if (pagarAlCrear || esAnticipo) {
+      // 3. Pago (solo si es nuevo, la edicion de pagos va por otro lado)
+      if (!cxpEditar && (pagarAlCrear || esAnticipo)) {
         const mp = esAnticipo ? parseFloat(montoAnticipo) : parseFloat(montoPago);
         if (mp > 0 && cuentaPagoId) {
           const { error: errRpc } = await supabase.rpc('rpc_registrar_pago_cxp', {
@@ -182,7 +235,7 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, esAnticipo = false, o
               escuela_id: ctx.escuela_id,
               sucursal_id: ctx.sucursal_id,
               usuario_id: ctx.id,
-              cuenta_pagar_id: nueva.id,
+              cuenta_pagar_id: notaId,
               monto: mp,
               cuenta_pago_id: cuentaPagoId,
               fecha: fechaPago,
@@ -199,7 +252,7 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, esAnticipo = false, o
             const lineasValidas = lineas.filter(l => l.catalogo_item_id && l.precio_unitario >= 0 && l.cantidad > 0);
             for (const l of lineasValidas) {
               if (l.tipo === 'producto') {
-                await supabase.from('movimientos_stock').insert({ escuela_id: ctx.escuela_id, catalogo_item_id: l.catalogo_item_id, tipo: 'entrada', cantidad: l.cantidad, motivo: `Compra: ${nueva.id}` });
+                await supabase.from('movimientos_stock').insert({ escuela_id: ctx.escuela_id, catalogo_item_id: l.catalogo_item_id, tipo: 'entrada', cantidad: l.cantidad, motivo: `Compra: ${notaId}` });
               }
             }
           }

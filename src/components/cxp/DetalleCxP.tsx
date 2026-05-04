@@ -8,9 +8,14 @@ import React, { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import {
   X, DollarSign, Calendar, RefreshCw,
-  AlertCircle, Check, CreditCard, CheckCircle2, Hash, Building2
+  AlertCircle, Check, CreditCard, CheckCircle2, Hash, Building2, Pencil, Trash2
 } from 'lucide-react';
 import { formatFecha, getHoyISO, getHoraLocal } from '../../lib/dateUtils';
+import ModalEditarMovimiento from '../cajas-bancos/ModalEditarMovimiento';
+import ModalEditarItemCxP from './ModalEditarItemCxP';
+import ModalEditarCabeceraCxP from './ModalEditarCabeceraCxP';
+import { type MovimientoFinanciero } from '../../hooks/useFinanzas';
+import type { CajaBanco } from '../../types/finanzas';
 
 interface CxPItem {
   id: string;
@@ -29,6 +34,7 @@ interface CxPItem {
   observaciones: string | null;
   proveedor_nombre?: string;
   personal_nombre?: string;
+  anulada?: boolean;
 }
 
 interface PagoRealizado {
@@ -38,6 +44,7 @@ interface PagoRealizado {
   caja_nombre?: string;
   referencia?: string;
   es_aplicacion_anticipo?: boolean;
+  conciliado?: boolean;
 }
 
 interface DetalleCxPItem {
@@ -74,6 +81,12 @@ const DetalleCxP: React.FC<Props> = ({ nota, visible, onCerrar, onActualizar }) 
   const [anticiposDisponibles, setAnticiposDisponibles] = useState<any[]>([]);
   const [cargando, setCargando] = useState(true);
 
+  // Estados para Edición y Eliminación
+  const [movEditar, setMovEditar] = useState<MovimientoFinanciero | null>(null);
+  const [itemEditar, setItemEditar] = useState<any>(null);
+  const [cabeceraEditar, setCabeceraEditar] = useState<boolean>(false);
+  const [eliminandoId, setEliminandoId] = useState<string | null>(null);
+
   // Formulario de pago
   const [montoPago, setMontoPago] = useState('');
   const [cuentaPagoId, setCuentaPagoId] = useState('');
@@ -102,7 +115,7 @@ const DetalleCxP: React.FC<Props> = ({ nota, visible, onCerrar, onActualizar }) 
       const [resPagos, resItems, resCajas] = await Promise.all([
         // Pagos realizados
         supabase.from('pagos_aplicados')
-          .select('id, monto_aplicado, fecha, referencia, es_aplicacion_anticipo, cajas_bancos(nombre)')
+          .select('id, monto_aplicado, fecha, referencia, es_aplicacion_anticipo, conciliado, cajas_bancos(nombre)')
           .eq('cuenta_pagar_id', nota.id)
           .order('fecha', { ascending: false }),
         // Ítems del detalle
@@ -220,6 +233,21 @@ const DetalleCxP: React.FC<Props> = ({ nota, visible, onCerrar, onActualizar }) 
     }
   };
 
+  const handleEliminarPago = async (pagoId: string) => {
+    if (!window.confirm('¿Está seguro de eliminar este movimiento aplicado? Esto recalculará la deuda de la nota.')) return;
+    setEliminandoId(pagoId);
+    try {
+      const { error } = await supabase.rpc('rpc_eliminar_movimiento_aplicado', { p_id: pagoId, p_tipo: 'pago' });
+      if (error) throw error;
+      onActualizar();
+      onCerrar(); 
+    } catch (err: any) {
+      alert(`Error al eliminar movimiento: ${err.message}`);
+    } finally {
+      setEliminandoId(null);
+    }
+  };
+
   if (!visible || !nota) return null;
 
   const badge = BADGE_ESTADOS[nota.estado] ?? BADGE_ESTADOS.pendiente;
@@ -230,7 +258,21 @@ const DetalleCxP: React.FC<Props> = ({ nota, visible, onCerrar, onActualizar }) 
     <div className="cxc-modal-overlay">
       <div className="cxc-modal" style={{ maxWidth: '640px', maxHeight: '90vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
         <div className="cxc-modal-header">
-          <h2><DollarSign size={20} style={{ marginRight: '0.4rem' }} /> Detalle — Nota de Pago</h2>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+            <h2 style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', margin: 0 }}>
+              <DollarSign size={20} /> Detalle — Nota de Pago
+            </h2>
+            {!nota.anulada && !pagosRealizados.some(p => p.conciliado) && (
+              <button 
+                onClick={() => setCabeceraEditar(true)}
+                className="btn-compact-action action-blue"
+                title="Editar cabecera de la nota"
+                style={{ background: 'rgba(59, 130, 246, 0.1)', border: '1px solid rgba(59, 130, 246, 0.2)' }}
+              >
+                <Pencil size={14} /> Editar
+              </button>
+            )}
+          </div>
           <button onClick={onCerrar} disabled={registrandoPago}><X size={20} /></button>
         </div>
 
@@ -239,7 +281,6 @@ const DetalleCxP: React.FC<Props> = ({ nota, visible, onCerrar, onActualizar }) 
         ) : (
           <div style={{ padding: '1.25rem 1.5rem' }}>
 
-            {/* ── Encabezado de la Nota (Estilo CxC) ── */}
             <div style={{
               background: 'rgba(255,255,255,0.03)',
               borderRadius: '12px',
@@ -281,7 +322,6 @@ const DetalleCxP: React.FC<Props> = ({ nota, visible, onCerrar, onActualizar }) 
                 </span>
               </div>
 
-              {/* Resumen de Montos (igual que CxC — SIN barra de progreso) */}
               <div style={{ 
                 display: 'flex', 
                 justifyContent: 'space-between', 
@@ -315,7 +355,6 @@ const DetalleCxP: React.FC<Props> = ({ nota, visible, onCerrar, onActualizar }) 
               </div>
             </div>
 
-            {/* ── Ítems del Detalle ── */}
             {detalleItems.length > 0 && (
               <div style={{ marginBottom: '1.25rem' }}>
                 <p style={{
@@ -346,9 +385,21 @@ const DetalleCxP: React.FC<Props> = ({ nota, visible, onCerrar, onActualizar }) 
                             × {item.cantidad} @ Bs {fmtMonto(item.precio_unitario)}
                           </span>
                         </div>
-                        <span style={{ fontWeight: 800, color: '#fff', fontSize: '1.1rem' }}>
-                          Bs {fmtMonto(item.subtotal)}
-                        </span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                          <span style={{ fontWeight: 800, color: '#fff', fontSize: '1.1rem' }}>
+                            Bs {fmtMonto(item.subtotal)}
+                          </span>
+                          {!nota.anulada && !pagosRealizados.some(p => p.conciliado) && (
+                            <button 
+                              onClick={() => setItemEditar(item)} 
+                              className="cxc-accion-btn" 
+                              style={{ background: 'var(--bg-glass)', color: 'var(--primary)', padding: '0.3rem 0.5rem', borderRadius: '4px' }} 
+                              title="Editar Ítem"
+                            >
+                              <Pencil size={14} />
+                            </button>
+                          )}
+                        </div>
                       </div>
                       {item.descripcion && (
                         <p style={{ marginTop: '0.3rem', fontSize: '0.78rem', color: '#a78bfa', fontStyle: 'italic' }}>
@@ -428,9 +479,43 @@ const DetalleCxP: React.FC<Props> = ({ nota, visible, onCerrar, onActualizar }) 
                           {p.referencia && ` — ${p.referencia}`}
                         </span>
                       </div>
-                      <span style={{ color: '#4ade80', fontWeight: 700, fontSize: '0.9rem' }}>
-                        Bs {fmtMonto(Number(p.monto_aplicado))}
-                      </span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                        <span style={{ color: '#4ade80', fontWeight: 700, fontSize: '0.9rem' }}>
+                          Bs {fmtMonto(Number(p.monto_aplicado))}
+                        </span>
+                        <div style={{ display: 'flex', gap: '0.3rem' }}>
+                          {!p.conciliado ? (
+                            <>
+                              <button
+                                className="btn-compact-action action-blue"
+                                onClick={() => setMovEditar({
+                                  id: p.id,
+                                  fecha: p.fecha.split('T')[0],
+                                  monto_aplicado: p.monto_aplicado,
+                                  tipo: 'pago',
+                                  referencia: p.referencia || ''
+                                })}
+                                disabled={eliminandoId === p.id}
+                                title="Editar fecha/monto"
+                              >
+                                <Pencil size={12} />
+                              </button>
+                              <button
+                                className="btn-compact-action action-red"
+                                onClick={() => handleEliminarPago(p.id)}
+                                disabled={eliminandoId === p.id}
+                                title="Eliminar movimiento"
+                              >
+                                <Trash2 size={12} />
+                              </button>
+                            </>
+                          ) : (
+                            <span style={{ fontSize: '0.75rem', color: '#10b981', display: 'flex', alignItems: 'center', gap: '0.2rem' }} title="Pago Conciliado">
+                              <CheckCircle2 size={12} /> Conciliado
+                            </span>
+                          )}
+                        </div>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -513,6 +598,42 @@ const DetalleCxP: React.FC<Props> = ({ nota, visible, onCerrar, onActualizar }) 
               </div>
             )}
           </div>
+        )}
+
+        {movEditar && (
+          <ModalEditarMovimiento
+            visible={!!movEditar}
+            movimiento={movEditar}
+            cajas={cajasBancos.map(c => ({ id: c.id, nombre: c.nombre }))}
+            onCerrar={() => setMovEditar(null)}
+            onActualizar={() => {
+              onActualizar();
+              onCerrar(); // Opcional: Cerrar o recargar
+            }}
+          />
+        )}
+
+        {itemEditar && (
+          <ModalEditarItemCxP
+            visible={!!itemEditar}
+            item={itemEditar}
+            notaId={nota.id}
+            onCerrar={() => setItemEditar(null)}
+            onActualizar={() => {
+              onActualizar();
+            }}
+          />
+        )}
+
+        {cabeceraEditar && (
+          <ModalEditarCabeceraCxP
+            visible={cabeceraEditar}
+            nota={nota}
+            onCerrar={() => setCabeceraEditar(false)}
+            onActualizar={() => {
+              onActualizar();
+            }}
+          />
         )}
       </div>
     </div>
