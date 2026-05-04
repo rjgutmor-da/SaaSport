@@ -77,7 +77,7 @@ const BADGE_ESTADOS: Record<string, { label: string; color: string; bg: string }
 const DetalleCxP: React.FC<Props> = ({ nota, visible, onCerrar, onActualizar }) => {
   const [pagosRealizados, setPagosRealizados] = useState<PagoRealizado[]>([]);
   const [detalleItems, setDetalleItems] = useState<DetalleCxPItem[]>([]);
-  const [cajasBancos, setCajasBancos] = useState<{ id: string; nombre: string; saldo_actual: number }[]>([]);
+  const [cajasBancos, setCajasBancos] = useState<CajaBanco[]>([]);
   const [anticiposDisponibles, setAnticiposDisponibles] = useState<any[]>([]);
   const [cargando, setCargando] = useState(true);
 
@@ -490,10 +490,15 @@ const DetalleCxP: React.FC<Props> = ({ nota, visible, onCerrar, onActualizar }) 
                                 className="btn-compact-action action-blue"
                                 onClick={() => setMovEditar({
                                   id: p.id,
-                                  fecha: p.fecha.split('T')[0],
-                                  monto_aplicado: p.monto_aplicado,
-                                  tipo: 'pago',
-                                  referencia: p.referencia || ''
+                                  tipo_origen: 'pago',
+                                  debe: 0,
+                                  haber: Number(p.monto_aplicado),
+                                  fecha: p.fecha,
+                                  descripcion: p.referencia || 'Pago de Nota CxP',
+                                  nro_transaccion: p.referencia || '',
+                                  cuenta_id: p.caja_id || '',
+                                  cuenta_nombre: p.caja_nombre || 'Caja/Banco',
+                                  conciliado: p.conciliado || false
                                 })}
                                 disabled={eliminandoId === p.id}
                                 title="Editar fecha/monto"
@@ -604,7 +609,7 @@ const DetalleCxP: React.FC<Props> = ({ nota, visible, onCerrar, onActualizar }) 
           <ModalEditarMovimiento
             visible={!!movEditar}
             movimiento={movEditar}
-            cajas={cajasBancos.map(c => ({ id: c.id, nombre: c.nombre }))}
+            cajas={cajasBancos}
             onCerrar={() => setMovEditar(null)}
             onActualizar={() => {
               onActualizar();
