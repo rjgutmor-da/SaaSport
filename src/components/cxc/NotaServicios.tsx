@@ -281,7 +281,17 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
               </div>
               <div className="form-campo">
                 <label>Fecha Emisión</label>
-                <input type="date" value={fechaEmision} onChange={e => setFechaEmision(e.target.value)} required />
+                <input 
+                  type="date" 
+                  value={fechaEmision} 
+                  onChange={e => {
+                    const f = e.target.value;
+                    setFechaEmision(f);
+                    setVencimiento(f);
+                    setFechaPago(f);
+                  }} 
+                  required 
+                />
               </div>
               {!esAnticipo && (
                 <div className="form-campo">
@@ -383,22 +393,17 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
                             <div>
                               <label style={{ fontSize: '0.7rem', fontWeight: 700, color: '#94a3b8', display: 'block', marginBottom: '0.2rem' }}>SELECCIONAR TORNEO</label>
                               <select 
-                                value={LISTA_TORNEOS.includes(linea.detalle_personalizado || '') ? linea.detalle_personalizado : (linea.detalle_personalizado ? 'Otro' : '')}
+                                value={linea.detalle_personalizado || ''}
                                 onChange={e => {
                                   const val = e.target.value;
                                   const nuevas = [...lineas];
-                                  if (val === 'Otro') {
-                                    // No cambiar
-                                  } else {
-                                    nuevas[idx].detalle_personalizado = val;
-                                  }
+                                  nuevas[idx].detalle_personalizado = val;
                                   setLineas(nuevas);
                                 }}
                                 style={{ width: '100%', padding: '0.4rem', fontSize: '0.8rem', background: 'rgba(0,0,0,0.2)' }}
                               >
                                 <option value="">— Seleccionar —</option>
                                 {LISTA_TORNEOS.map(t => <option key={t} value={t}>{t}</option>)}
-                                <option value="Otro">Otro (Especificar abajo)</option>
                               </select>
                             </div>
                             <div>
