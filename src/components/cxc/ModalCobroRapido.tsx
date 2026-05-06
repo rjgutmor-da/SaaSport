@@ -86,7 +86,7 @@ const ModalCobroRapido: React.FC<Props> = ({ alumnoInicial, visible, onCerrar, o
         .from('v_cuentas_cobrar')
         .select('*')
         .eq('alumno_id', alumnoSel.alumno_id)
-        .neq('estado', 'pagada')
+        .gt('saldo_pendiente', 0)
         .eq('anulada', false)
         .order('fecha_emision', { ascending: true });
       const lista = (data as unknown as CuentaCobrar[]) ?? [];

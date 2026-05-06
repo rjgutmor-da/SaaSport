@@ -74,7 +74,7 @@ const ModalPagoRapidoCxP: React.FC<Props> = ({ entidadInicial, entidades, visibl
       const q = supabase
         .from('v_estado_cuentas_pagar')
         .select('*')
-        .neq('estado', 'pagada')
+        .gt('deuda_restante', 0)
         .order('fecha_emision', { ascending: true });
 
       if (entidadSel.tipo === 'proveedor') q.eq('proveedor_id', entidadSel.id);

@@ -651,20 +651,23 @@ const CajasBancos: React.FC = () => {
                                     onClick={async (e) => { 
                                       e.stopPropagation(); 
                                       if (window.confirm("¿Eliminar esta transacción definitivamente?")) {
-                                        const tablaMaestra = mov.tipo_origen === 'cobro' ? 'cuentas_cobrar' : 'cuentas_pagar';
-                                        
-                                        // 1. Revertir saldo de caja (AHORA SE ENCARGA EL TRIGGER)
-
-                                        
-                                        // 2. Eliminar cuenta (cascada)
-                                        if ((mov as any).cuenta_maestra_id) {
-                                          await supabase.from(tablaMaestra).delete().eq('id', (mov as any).cuenta_maestra_id);
-                                        } else {
-                                          // Fallback en caso de que solo haya aplicación
-                                          const tablaApl = mov.tipo_origen === 'cobro' ? 'cobros_aplicados' : 'pagos_aplicados';
-                                          await supabase.from(tablaApl).delete().eq('id', mov.id);
+                                        try {
+                                          const tablaMaestra = mov.tipo_origen === 'cobro' ? 'cuentas_cobrar' : 'cuentas_pagar';
+                                          
+                                          if (mov.cuenta_maestra_id) {
+                                            const { error: errDel } = await supabase.from(tablaMaestra).delete().eq('id', mov.cuenta_maestra_id);
+                                            if (errDel) throw errDel;
+                                          } else {
+                                            const tablaApl = mov.tipo_origen === 'cobro' ? 'cobros_aplicados' : 'pagos_aplicados';
+                                            const { error: errDel } = await supabase.from(tablaApl).delete().eq('id', mov.id);
+                                            if (errDel) throw errDel;
+                                          }
+                                          
+                                          manejarActualizacion();
+                                        } catch (err: any) {
+                                          console.error("Error al eliminar:", err);
+                                          alert("No se pudo eliminar la transacción: " + (err.message || "Error desconocido"));
                                         }
-                                        manejarActualizacion();
                                       }
                                     }}
                                     style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--danger)' }}
