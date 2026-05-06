@@ -162,7 +162,7 @@ const fetchCajasBancos = async (escuelaId: string) => {
     .select('*')
     .eq('escuela_id', escuelaId)
     .eq('activo', true)
-    .order('nombre');
+    .order('orden');
   if (error) throw error;
   return data;
 };
@@ -245,17 +245,23 @@ const fetchMovimientos = async (escuelaId: string, cajaIds: string[]) => {
     });
   });
 
-  // Sort descending for UI: 1st by Day, 2nd by Created At (last registered first)
+  // Ordenar descendente: 1ero por Fecha (con hora si existe), 2do por fecha de creación (tie-breaker)
   return movs.sort((a, b) => {
-    const dayA = a.fecha.substring(0, 10);
-    const dayB = b.fecha.substring(0, 10);
+    const parse = (f: string) => {
+      if (!f) return 0;
+      if (f.includes('T')) return new Date(f).getTime();
+      const p = f.split('-');
+      if (p.length !== 3) return new Date(f).getTime();
+      return new Date(parseInt(p[0]), parseInt(p[1]) - 1, parseInt(p[2])).getTime();
+    };
+
+    const dateB = parse(b.fecha);
+    const dateA = parse(a.fecha);
     
-    if (dayB !== dayA) return dayB.localeCompare(dayA);
+    if (dateB !== dateA) return dateB - dateA;
     
-    // Tie-breaker: last registered (created_at) on top
-    const timeA = new Date(a.created_at).getTime();
-    const timeB = new Date(b.created_at).getTime();
-    return timeB - timeA;
+    // Si la fecha es idéntica, el más recientemente registrado va arriba
+    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
   });
 };
 
@@ -264,7 +270,7 @@ export const useCajasBancos = (escuelaId: string | null) =>
     queryKey: ['cajas-bancos', escuelaId],
     queryFn: () => fetchCajasBancos(escuelaId!),
     enabled: !!escuelaId,
-    staleTime: 1000 * 60 * 5,
+    staleTime: 0, // Siempre verificar saldo fresco
   });
 
 export const useMovimientos = (escuelaId: string | null, cajaIds: string[]) =>
@@ -272,5 +278,5 @@ export const useMovimientos = (escuelaId: string | null, cajaIds: string[]) =>
     queryKey: ['movimientos-contables', escuelaId, cajaIds],
     queryFn: () => fetchMovimientos(escuelaId!, cajaIds),
     enabled: !!escuelaId && cajaIds.length > 0,
-    staleTime: 1000 * 60 * 1,
+    staleTime: 0, // Siempre verificar movimientos frescos
   });

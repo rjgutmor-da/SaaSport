@@ -57,9 +57,12 @@ const ModalPagoRapidoCxP: React.FC<Props> = ({ entidadInicial, entidades, visibl
       if (!esAdmin && usr.sucursal_id) {
         q = q.or(`sucursal_id.eq.${usr.sucursal_id},sucursal_id.is.null`);
       }
-      const { data: cuentas } = await q.order('nombre');
+      const { data: cuentas } = await q.order('orden');
       setCuentasPago(cuentas ?? []);
-      if (cuentas && cuentas.length > 0) setCuentaId(cuentas[0].id);
+      if (cuentas && cuentas.length > 0) {
+        const pred = cuentas.find((c: any) => c.es_predeterminada);
+        setCuentaId(pred ? pred.id : cuentas[0].id);
+      }
     };
     cargar();
   }, [visible]);

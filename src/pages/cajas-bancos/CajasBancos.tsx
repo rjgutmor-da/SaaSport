@@ -2,7 +2,8 @@ import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import {
   RefreshCw, Landmark, ArrowDownRight, ArrowUpRight, Search,
-  CheckCircle2, ArrowRightLeft, CheckSquare, Square, Pencil, Trash2
+  CheckCircle2, ArrowRightLeft, CheckSquare, Square, Pencil, Trash2,
+  Star, GripVertical
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import type { CajaBanco, MovimientoContable, AsientoContable } from '../../types/finanzas';
@@ -48,6 +49,16 @@ const CajasBancos: React.FC = () => {
   const [filtroCuenta, setFiltroCuenta] = useState<string>('todas');
   const [busqueda, setBusqueda] = useState('');
 
+  // ── Drag-and-drop de tarjetas (solo super admin) ──
+  const [cajasOrdenadas, setCajasOrdenadas] = useState<typeof cajas>([]);
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
+
+  // Sincronizar cajasOrdenadas cuando cambian los datos del servidor
+  useEffect(() => {
+    if (cajas.length > 0) setCajasOrdenadas(cajas);
+  }, [cajas]);
+
   // Estados para formularios activos
   const [activeForm, setActiveForm] = useState<'ingreso' | 'salida' | 'transferencia' | 'nueva_caja' | null>(null);
   const [formDirty, setFormDirty] = useState(false);
@@ -80,6 +91,61 @@ const CajasBancos: React.FC = () => {
   const manejarActualizacion = () => {
     queryClient.invalidateQueries({ queryKey: ['cajas-bancos', escuelaId] });
     queryClient.invalidateQueries({ queryKey: ['movimientos-contables', escuelaId] });
+  };
+
+  // ── Guardar nuevo orden en BD ──
+  const guardarOrden = useCallback(async (listaOrdenada: typeof cajas) => {
+    const updates = listaOrdenada.map((c, idx) => ({ id: c.id, orden: idx }));
+    for (const u of updates) {
+      await supabase.from('cajas_bancos').update({ orden: u.orden }).eq('id', u.id);
+    }
+    manejarActualizacion();
+  }, []);
+
+  // ── Marcar caja como predeterminada ──
+  const marcarPredeterminada = useCallback(async (cajaId: string) => {
+    if (!escuelaId) return;
+    // Quitar predeterminada de todas
+    await supabase.from('cajas_bancos')
+      .update({ es_predeterminada: false })
+      .eq('escuela_id', escuelaId);
+    // Poner en la seleccionada
+    await supabase.from('cajas_bancos')
+      .update({ es_predeterminada: true })
+      .eq('id', cajaId);
+    manejarActualizacion();
+  }, [escuelaId]);
+
+  // ── Handlers de Drag-and-drop ──
+  const handleDragStart = (e: React.DragEvent, id: string) => {
+    setDraggingId(id);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleDragOver = (e: React.DragEvent, id: string) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (id !== draggingId) setDragOverId(id);
+  };
+
+  const handleDrop = (e: React.DragEvent, targetId: string) => {
+    e.preventDefault();
+    if (!draggingId || draggingId === targetId) {
+      setDraggingId(null); setDragOverId(null);
+      return;
+    }
+    const lista = [...cajasOrdenadas];
+    const fromIdx = lista.findIndex(c => c.id === draggingId);
+    const toIdx = lista.findIndex(c => c.id === targetId);
+    const [movida] = lista.splice(fromIdx, 1);
+    lista.splice(toIdx, 0, movida);
+    setCajasOrdenadas(lista);
+    setDraggingId(null); setDragOverId(null);
+    guardarOrden(lista);
+  };
+
+  const handleDragEnd = () => {
+    setDraggingId(null); setDragOverId(null);
   };
 
 
@@ -325,7 +391,7 @@ const CajasBancos: React.FC = () => {
             />
           </div>
 
-          {/* Tarjetas de Cajas/Bancos (Los recuadros blancos solicitados) */}
+          {/* Tarjetas de Cajas/Bancos — drag-and-drop (solo super admin) */}
           <div className="cajas-grid-header" style={{ 
             display: 'flex', 
             gap: '0.75rem', 
@@ -333,40 +399,77 @@ const CajasBancos: React.FC = () => {
             overflowX: 'auto', 
             padding: '0.25rem 0' 
           }}>
-            {cajas.map(c => (
-              <div 
-                key={c.id} 
-                onClick={() => setFiltroCuenta(filtroCuenta === c.id ? 'todas' : c.id)}
-                style={{
-                  background: filtroCuenta === c.id ? 'var(--primary-glow)' : 'rgba(255,255,255,0.05)',
-                  border: `2px solid ${filtroCuenta === c.id ? 'var(--primary)' : '#E5E7EB'}`,
-                  borderRadius: '10px',
-                  padding: '0.4rem 1rem',
-                  cursor: 'pointer',
-                  minWidth: '160px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  justifyContent: 'center',
-                  transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-                  boxShadow: filtroCuenta === c.id ? '0 0 15px var(--primary-glow)' : 'none',
-                  position: 'relative',
-                  overflow: 'hidden'
-                }}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '2px' }}>
-                  <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                    {c.tipo === 'caja_chica' ? 'Caja' : 'Banco'}
+            {cajasOrdenadas.map(c => {
+              const esActiva = filtroCuenta === c.id;
+              const esPred   = c.es_predeterminada;
+              const esDragOver = dragOverId === c.id;
+              return (
+                <div 
+                  key={c.id}
+                  draggable={esSuperAdmin}
+                  onDragStart={esSuperAdmin ? e => handleDragStart(e, c.id) : undefined}
+                  onDragOver={esSuperAdmin ? e => handleDragOver(e, c.id) : undefined}
+                  onDrop={esSuperAdmin ? e => handleDrop(e, c.id) : undefined}
+                  onDragEnd={esSuperAdmin ? handleDragEnd : undefined}
+                  onClick={() => setFiltroCuenta(filtroCuenta === c.id ? 'todas' : c.id)}
+                  style={{
+                    background: esActiva ? 'var(--primary-glow)' : esPred ? 'rgba(255,200,0,0.07)' : 'rgba(255,255,255,0.05)',
+                    border: `2px solid ${esActiva ? 'var(--primary)' : esPred ? '#f59e0b' : esDragOver ? 'var(--primary)' : '#E5E7EB'}`,
+                    borderRadius: '10px',
+                    padding: '0.4rem 1rem',
+                    cursor: esSuperAdmin ? 'grab' : 'pointer',
+                    minWidth: '160px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'center',
+                    transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                    boxShadow: esActiva ? '0 0 15px var(--primary-glow)' : esPred ? '0 0 10px rgba(245,158,11,0.25)' : 'none',
+                    opacity: draggingId === c.id ? 0.5 : 1,
+                    transform: esDragOver ? 'scale(1.03)' : 'scale(1)',
+                    position: 'relative',
+                    overflow: 'hidden'
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '2px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                      {esSuperAdmin && (
+                        <GripVertical size={12} style={{ color: 'var(--text-tertiary)', flexShrink: 0, cursor: 'grab' }} />
+                      )}
+                      <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                        {c.tipo === 'caja_chica' ? 'Caja' : 'Banco'}
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      {esPred && (
+                        <span title="Predeterminada" style={{ lineHeight: 1, display: 'flex' }}>
+                          <Star size={11} fill="#f59e0b" stroke="#f59e0b" />
+                        </span>
+                      )}
+                      <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: c.activo ? 'var(--success)' : 'var(--danger)' }}></div>
+                    </div>
+                  </div>
+                  <span style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.2 }}>
+                    {c.nombre}
                   </span>
-                  <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: c.activo ? 'var(--success)' : 'var(--danger)' }}></div>
+                  <span style={{ fontSize: '1rem', color: 'var(--success)', fontWeight: 900, marginTop: '2px' }}>
+                    Bs {fmtMonto(Number(c.saldo_actual) || 0)}
+                  </span>
+                  {esSuperAdmin && !esPred && (
+                    <button
+                      onClick={e => { e.stopPropagation(); marcarPredeterminada(c.id); }}
+                      title="Marcar como predeterminada"
+                      style={{
+                        position: 'absolute', bottom: '4px', right: '6px',
+                        background: 'none', border: 'none', cursor: 'pointer',
+                        color: 'var(--text-tertiary)', padding: '2px', lineHeight: 1
+                      }}
+                    >
+                      <Star size={12} />
+                    </button>
+                  )}
                 </div>
-                <span style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.2 }}>
-                  {c.nombre}
-                </span>
-                <span style={{ fontSize: '1rem', color: 'var(--success)', fontWeight: 900, marginTop: '2px' }}>
-                  Bs {fmtMonto(Number(c.saldo_actual) || 0)}
-                </span>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
           {busqueda && (
@@ -397,7 +500,7 @@ const CajasBancos: React.FC = () => {
         </div>
       ) : (
         <div className="cajas-tablas-container" style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-          {cajas.filter(c => filtroCuenta === 'todas' || c.id === filtroCuenta).map(caja => {
+          {cajasOrdenadas.filter(c => filtroCuenta === 'todas' || c.id === filtroCuenta).map(caja => {
             const movsCaja = movimientosFiltrados.filter(m => m.cuenta_id === caja.id);
 
             // Si hay búsqueda y esta caja no tiene movimientos coincidentes, la ocultamos para limpiar la UI

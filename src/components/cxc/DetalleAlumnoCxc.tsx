@@ -97,7 +97,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
       const [resCxc, resCuentas] = await Promise.all([
         supabase.from('v_cuentas_cobrar').select('*')
           .eq('alumno_id', alumno.alumno_id)
-          .order('created_at', { ascending: false }),
+          .order('fecha_emision', { ascending: false }),
         qCuentas.order('nombre'),
       ]);
 
@@ -335,6 +335,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                   <th style={{ padding: '0.6rem 0.75rem', border: '1px solid var(--border)', textAlign: 'left', width: '140px', fontSize: '0.7rem', fontWeight: 800 }}>TOTAL</th>
                   <th style={{ padding: '0.6rem 0.75rem', border: '1px solid var(--border)', textAlign: 'left', width: '140px', fontSize: '0.7rem', fontWeight: 800 }}>COBRADO</th>
                   <th style={{ padding: '0.6rem 0.75rem', border: '1px solid var(--border)', textAlign: 'left', width: '140px', fontSize: '0.7rem', fontWeight: 800 }}>SALDO</th>
+                  <th style={{ padding: '0.6rem 0.75rem', border: '1px solid var(--border)', textAlign: 'left', width: '100px', fontSize: '0.7rem', fontWeight: 800 }}>ULT. PAGO</th>
                   <th style={{ padding: '0.6rem 0.75rem', border: '1px solid var(--border)', textAlign: 'center', width: '160px', fontSize: '0.7rem', fontWeight: 800 }}>ACCIONES</th>
                 </tr>
               </thead>
@@ -344,11 +345,12 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                   const isAnticipo = (cxc as any).es_anticipo;
                   const itemsDeLaNota = detallesItems[cxc.id] || [];
                   const cobrado = Number(cxc.monto_total) - Number(cxc.saldo_pendiente);
+                  const ultimoPago = historialCobros[cxc.id]?.[0];
                   
                   return (
                     <React.Fragment key={cxc.id}>
                       <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', opacity: cxc.anulada ? 0.5 : 1 }}>
-                        <td style={{ padding: '0.5rem 0.75rem', verticalAlign: 'middle', whiteSpace: 'nowrap', border: '1px solid rgba(255,255,255,0.08)' }}>{formatFecha(cxc.created_at || cxc.fecha_emision)}</td>
+                        <td style={{ padding: '0.5rem 0.75rem', verticalAlign: 'middle', whiteSpace: 'nowrap', border: '1px solid rgba(255,255,255,0.08)' }}>{formatFecha(cxc.fecha_emision || cxc.created_at)}</td>
                         <td style={{ padding: '0.5rem 0.75rem', verticalAlign: 'middle', border: '1px solid rgba(255,255,255,0.08)' }}>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
@@ -405,6 +407,9 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                         }}>
                           {isAnticipo ? '-' : ''} Bs {fmtMonto(isAnticipo ? Number(cxc.total_cobrado) : Number(cxc.saldo_pendiente))}
                         </td>
+                        <td style={{ padding: '0.5rem 0.75rem', verticalAlign: 'middle', border: '1px solid rgba(255,255,255,0.08)', fontSize: '0.75rem', color: '#94a3b8' }}>
+                          {ultimoPago ? formatFecha(ultimoPago.fecha) : '—'}
+                        </td>
                         <td style={{ padding: '0.5rem 0.75rem', textAlign: 'center', verticalAlign: 'middle', border: '1px solid rgba(255,255,255,0.08)' }}>
                           <div style={{ display: 'flex', gap: '0.35rem', justifyContent: 'center' }}>
                             <button onClick={() => setVerNotaId(cxc.id)} className="btn-compact-action" title="Ver"><Eye size={14} /></button>
@@ -440,7 +445,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
 
                       {isCobro && (
                         <tr>
-                          <td colSpan={5} style={{ padding: '1rem', background: 'rgba(59, 130, 246, 0.05)', borderBottom: '1px solid rgba(59, 130, 246, 0.2)' }}>
+                          <td colSpan={6} style={{ padding: '1rem', background: 'rgba(59, 130, 246, 0.05)', borderBottom: '1px solid rgba(59, 130, 246, 0.2)' }}>
                             <form onSubmit={registrarCobro}>
                               <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
                                 <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8rem', cursor: 'pointer' }}>

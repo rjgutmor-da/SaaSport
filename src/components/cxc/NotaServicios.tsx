@@ -80,7 +80,14 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
       ]);
       setAlumnos(resAlum.data ?? []);
       setCatalogo(resCat.data ?? []);
-      setCajasBancos(resCajas.data ?? []);
+      const listaCajas = resCajas.data ?? [];
+      setCajasBancos(listaCajas);
+      // Preseleccionar caja predeterminada si no hay una ya seleccionada
+      if (!cuentaCobroId) {
+        const pred = (listaCajas as any[]).find((c: any) => c.es_predeterminada);
+        if (pred) setCuentaCobroId(pred.id);
+        else if (listaCajas.length > 0) setCuentaCobroId(listaCajas[0].id);
+      }
     };
     cargar();
 

@@ -31,6 +31,8 @@ export interface CajaBanco {
   tipo: 'caja_chica' | 'cuenta_bancaria';
   activo: boolean;
   saldo_actual: number;
+  orden: number;
+  es_predeterminada: boolean;
   created_at: string;
 }
 

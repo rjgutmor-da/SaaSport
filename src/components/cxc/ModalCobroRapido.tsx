@@ -68,9 +68,12 @@ const ModalCobroRapido: React.FC<Props> = ({ alumnoInicial, visible, onCerrar, o
       if (!esAdmin && usr.sucursal_id) {
         q = q.or(`sucursal_id.eq.${usr.sucursal_id},sucursal_id.is.null`);
       }
-      const { data: cuentas } = await q.order('nombre');
+      const { data: cuentas } = await q.order('orden');
       setCuentasCobro(cuentas ?? []);
-      if (cuentas && cuentas.length > 0) setCuentaId(cuentas[0].id);
+      if (cuentas && cuentas.length > 0) {
+        const pred = cuentas.find((c: any) => c.es_predeterminada);
+        setCuentaId(pred ? pred.id : cuentas[0].id);
+      }
     };
     cargar();
   }, [visible]);
@@ -85,7 +88,7 @@ const ModalCobroRapido: React.FC<Props> = ({ alumnoInicial, visible, onCerrar, o
         .eq('alumno_id', alumnoSel.alumno_id)
         .neq('estado', 'pagada')
         .eq('anulada', false)
-        .order('created_at', { ascending: true });
+        .order('fecha_emision', { ascending: true });
       const lista = (data as unknown as CuentaCobrar[]) ?? [];
       setCxcsPendientes(lista);
       if (lista.length > 0) {

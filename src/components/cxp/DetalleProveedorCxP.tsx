@@ -56,6 +56,7 @@ const DetalleProveedorCxP: React.FC<Props> = ({ entidad, visible, onCerrar, onAc
   const [mostrarFichaAnticipos, setMostrarFichaAnticipos] = useState(false);
   const [verNotaId, setVerNotaId] = useState<string | null>(null);
   const [detallesItems, setDetallesItems] = useState<Record<string, any[]>>({});
+  const [historialPagos, setHistorialPagos] = useState<Record<string, any[]>>({});
 
   /** Carga las notas del proveedor/personal */
   const cargarNotas = async () => {
@@ -103,6 +104,20 @@ const DetalleProveedorCxP: React.FC<Props> = ({ entidad, visible, onCerrar, onAc
         itemsMap[item.cuenta_pagar_id].push({ ...item, item_nombre: item.catalogo_items?.nombre });
       });
       setDetallesItems(itemsMap);
+
+      // Cargar historial de pagos por nota
+      const { data: todosPagos } = await supabase
+        .from('pagos_aplicados')
+        .select('id, cuenta_pagar_id, monto_aplicado, fecha, caja_id, cajas_bancos:caja_id(nombre)')
+        .in('cuenta_pagar_id', notaIds)
+        .order('fecha', { ascending: false });
+
+      const pagosMap: Record<string, any[]> = {};
+      todosPagos?.forEach((pago: any) => {
+        if (!pagosMap[pago.cuenta_pagar_id]) pagosMap[pago.cuenta_pagar_id] = [];
+        pagosMap[pago.cuenta_pagar_id].push({ ...pago, caja_nombre: pago.cajas_bancos?.nombre });
+      });
+      setHistorialPagos(pagosMap);
     }
 
     setCargando(false);
@@ -268,6 +283,7 @@ const DetalleProveedorCxP: React.FC<Props> = ({ entidad, visible, onCerrar, onAc
                 <th style={{ padding: '0.6rem 0.75rem', border: '1px solid var(--border)', textAlign: 'right', width: '130px', fontSize: '0.7rem', fontWeight: 800 }}>TOTAL</th>
                 <th style={{ padding: '0.6rem 0.75rem', border: '1px solid var(--border)', textAlign: 'right', width: '130px', fontSize: '0.7rem', fontWeight: 800 }}>ABONADO</th>
                 <th style={{ padding: '0.6rem 0.75rem', border: '1px solid var(--border)', textAlign: 'right', width: '130px', fontSize: '0.7rem', fontWeight: 800 }}>SALDO</th>
+                <th style={{ padding: '0.6rem 0.75rem', border: '1px solid var(--border)', textAlign: 'left', width: '100px', fontSize: '0.7rem', fontWeight: 800 }}>ULT. PAGO</th>
                 <th style={{ padding: '0.6rem 0.75rem', border: '1px solid var(--border)', textAlign: 'center', width: '140px', fontSize: '0.7rem', fontWeight: 800 }}>ACCIONES</th>
               </tr>
             </thead>
@@ -279,34 +295,34 @@ const DetalleProveedorCxP: React.FC<Props> = ({ entidad, visible, onCerrar, onAc
                   : (BADGE_ESTADOS[nota.estado] ?? BADGE_ESTADOS.pendiente);
                 const tieneSaldo = nota.deuda_restante > 0;
                 const itemsDeLaNota = detallesItems[nota.id] || [];
+                const ultimoPago = historialPagos[nota.id]?.[0];
                 
                 return (
                   <tr key={nota.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                     <td style={{ padding: '0.5rem 0.75rem', verticalAlign: 'middle', border: '1px solid rgba(255,255,255,0.08)' }}>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
-                          <div style={{ fontWeight: 700, color: '#fff' }}>
-                            {nota.descripcion || 'Sin descripción'}
-                          </div>
-                          {!isAnticipo && itemsDeLaNota.length > 0 && (
-                            <div style={{ display: 'flex', gap: '0.25rem', flexWrap: 'wrap' }}>
-                              {itemsDeLaNota.map((item: any, i: number) => (
-                                <span key={i} style={{ fontSize: '0.65rem', padding: '1px 6px', borderRadius: '4px', background: 'rgba(245,158,11,0.15)', color: '#fbbf24' }}>
-                                  {item.item_nombre}
-                                </span>
-                              ))}
-                            </div>
-                          )}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                        <div style={{ fontWeight: 700, color: '#fff' }}>
+                          {nota.descripcion || 'Sin descripción'}
+                          {isAnticipo && <span style={{ color: '#a855f7', marginLeft: '0.4rem', fontSize: '0.7rem', background: 'rgba(168,85,247,0.1)', padding: '2px 6px', borderRadius: '4px' }}>ANTICIPO</span>}
                         </div>
-                        {(nota as any).observaciones && (
-                          <div style={{ fontSize: '0.75rem', color: '#94a3b8', fontStyle: 'italic', borderLeft: '2px solid rgba(255,255,255,0.1)', paddingLeft: '0.5rem' }}>
-                            {(nota as any).observaciones}
+                        {!isAnticipo && itemsDeLaNota.length > 0 && (
+                          <div style={{ display: 'flex', gap: '0.25rem', flexWrap: 'wrap' }}>
+                            {itemsDeLaNota.map((item: any, i: number) => (
+                              <span key={i} style={{ fontSize: '0.65rem', padding: '1px 6px', borderRadius: '4px', background: 'rgba(245,158,11,0.15)', color: '#fbbf24' }}>
+                                {item.item_nombre}
+                              </span>
+                            ))}
                           </div>
+                        )}
+                        {(nota as any).observaciones && (
+                          <span style={{ fontSize: '0.75rem', color: '#94a3b8', fontStyle: 'italic', borderLeft: '1px solid rgba(255,255,255,0.1)', paddingLeft: '0.6rem', marginLeft: '0.2rem' }}>
+                            {(nota as any).observaciones}
+                          </span>
                         )}
                       </div>
                     </td>
                     <td style={{ padding: '0.5rem 0.75rem', textAlign: 'center', border: '1px solid rgba(255,255,255,0.08)', fontSize: '0.8rem', color: '#94a3b8' }}>
-                      {fmtFecha(nota.created_at || nota.fecha_emision)}
+                      {fmtFecha(nota.fecha_emision || nota.created_at)}
                     </td>
                     <td style={{ padding: '0.5rem 0.75rem', textAlign: 'center', border: '1px solid rgba(255,255,255,0.08)' }}>
                       <span style={{ background: badge.bg, color: badge.color, borderRadius: '4px', padding: '2px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase' }}>
@@ -322,12 +338,16 @@ const DetalleProveedorCxP: React.FC<Props> = ({ entidad, visible, onCerrar, onAc
                     <td style={{ padding: '0.5rem 0.75rem', textAlign: 'right', border: '1px solid rgba(255,255,255,0.08)', fontWeight: 700, color: isAnticipo ? '#a855f7' : (tieneSaldo ? '#38bdf8' : '#4ade80') }}>
                       {isAnticipo ? '-' : ''} Bs {fmtMonto(nota.deuda_restante)}
                     </td>
+                    <td style={{ padding: '0.5rem 0.75rem', border: '1px solid rgba(255,255,255,0.08)', fontSize: '0.75rem', color: '#94a3b8' }}>
+                      {ultimoPago ? fmtFecha(ultimoPago.fecha) : '—'}
+                    </td>
                     <td style={{ padding: '0.5rem 0.75rem', textAlign: 'center', border: '1px solid rgba(255,255,255,0.08)' }}>
                       <div style={{ display: 'flex', gap: '0.4rem', justifyContent: 'center' }}>
                         <button className="btn-compact-action" onClick={() => setVerNotaId(nota.id)} title="Ver documento"><Eye size={14}/></button>
                         <button className="btn-compact-action action-green" onClick={() => setNotaSeleccionada({...nota})} title="Pagar/Editar"><CreditCard size={14}/></button>
                         <button className="btn-compact-action action-red" onClick={() => handleAnularNota(nota.id)} title="Anular"><X size={14}/></button>
                       </div>
+
                     </td>
                   </tr>
                 );

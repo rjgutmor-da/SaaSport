@@ -85,14 +85,21 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, esAnticipo = false, o
         supabase.from('proveedores').select('id, nombre').eq('escuela_id', usr.escuela_id).eq('activo', true).order('nombre'),
         supabase.from('personal').select('id, nombres, apellidos').eq('escuela_id', usr.escuela_id).eq('activo', true).order('nombres'),
         supabase.from('catalogo_items').select('*').eq('activo', true).or('tipo_movimiento.eq.egreso,tipo_movimiento.eq.ambos').order('nombre'),
-        supabase.from('cajas_bancos').select('id, nombre, saldo_actual').eq('activo', true).eq('escuela_id', usr.escuela_id).order('nombre'),
+        supabase.from('cajas_bancos').select('id, nombre, saldo_actual, es_predeterminada').eq('activo', true).eq('escuela_id', usr.escuela_id).order('orden'),
       ]);
 
       setProveedores(resProv.data ?? []);
       setPersonal(persProv.data ?? []);
       const catData = resCat.data ?? [];
       setCatalogo(catData);
-      setCajasBancos(resCajas.data ?? []);
+      const listaCajas = resCajas.data ?? [];
+      setCajasBancos(listaCajas);
+      // Preseleccionar caja predeterminada
+      if (!cuentaPagoId) {
+        const pred = (listaCajas as any[]).find((c: any) => c.es_predeterminada);
+        if (pred) setCuentaPagoId(pred.id);
+        else if (listaCajas.length > 0) setCuentaPagoId(listaCajas[0].id);
+      }
 
       if (cxpEditar) {
         setTipoGasto(cxpEditar.tipo_gasto || 'proveedor');
