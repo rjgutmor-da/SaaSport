@@ -315,8 +315,10 @@ const CuentasPagar: React.FC = () => {
 
                     {/* Total deuda */}
                     <td className="cxc-td cxc-td-right">
-                      {tieneDeuda
-                        ? <span className="cxc-monto-deuda">Bs {fmtMonto(entidad.saldo_pendiente)}</span>
+                      {Math.abs(entidad.saldo_pendiente) > 0.01
+                        ? <span className={entidad.saldo_pendiente > 0 ? "cxc-monto-deuda" : "cxc-monto-anticipo"}>
+                            {entidad.saldo_pendiente < 0 ? '- ' : ''}Bs {fmtMonto(Math.abs(entidad.saldo_pendiente))}
+                          </span>
                         : <span className="cxc-al-dia">✓ Al día</span>
                       }
                     </td>

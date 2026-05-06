@@ -304,36 +304,24 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
               <span className="resumen-valor color-deuda" style={{ fontSize: '1.8rem' }}>
                 Bs {fmtMonto(cxcs.reduce((s, c) => s + ((c as any).es_anticipo ? -Number(c.saldo_pendiente) : Number(c.saldo_pendiente)), 0))}
               </span>
-              <div className="resumen-footer">
-                <Clock size={12} /> {alumno.cxc_pendientes || 0} pendientes
-              </div>
               <div className="resumen-icon-bg" style={{ opacity: 0.15 }}><AlertCircle size={28} className="color-deuda" /></div>
             </div>
 
             <div className="resumen-card" style={{ border: '1px solid rgba(74,222,128,0.2)' }}>
               <span className="resumen-label">TOTAL INGRESOS</span>
               <span className="resumen-valor color-ingreso" style={{ fontSize: '1.8rem' }}>Bs {fmtMonto(alumno.total_ingresos_historico || 0)}</span>
-              <div className="resumen-footer">
-                <Check size={12} /> Histórico recaudado
-              </div>
               <div className="resumen-icon-bg" style={{ opacity: 0.15 }}><Wallet size={28} className="color-ingreso" /></div>
             </div>
 
             <div className="resumen-card" style={{ border: '1px solid rgba(56,189,248,0.2)' }}>
               <span className="resumen-label">FECHA DE INICIO</span>
               <span className="resumen-valor color-meses" style={{ fontSize: '1.8rem' }}>{formatFechaCorta(alumno.fecha_inicio_consolidada)}</span>
-              <div className="resumen-footer">
-                <Calendar size={12} /> Inicio actividad
-              </div>
               <div className="resumen-icon-bg" style={{ opacity: 0.15 }}><Calendar size={28} className="color-meses" /></div>
             </div>
 
             <div className="resumen-card" style={{ border: '1px solid rgba(56,189,248,0.2)' }}>
               <span className="resumen-label">MESES DE ACTIVIDAD</span>
               <span className="resumen-valor" style={{ color: '#38bdf8', fontSize: '1.8rem' }}>{alumno.cantidad_meses_actividad || 0} <small style={{ fontSize: '0.9rem' }}>Meses</small></span>
-              <div className="resumen-footer">
-                <Clock size={12} /> Financiera
-              </div>
               <div className="resumen-icon-bg" style={{ opacity: 0.15 }}><Clock size={28} style={{ color: '#38bdf8' }} /></div>
             </div>
           </div>
@@ -373,9 +361,11 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                                 <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
                                   {itemsDeLaNota.map((item: any, i: number) => (
                                     <React.Fragment key={i}>
-                                      <span style={{ fontSize: '0.65rem', padding: '1px 6px', borderRadius: '4px', background: 'rgba(59,130,246,0.15)', color: '#60a5fa', fontWeight: 600 }}>
-                                        {item.item_nombre}
-                                      </span>
+                                      {!(cxc.descripcion?.toLowerCase().includes(item.item_nombre?.toLowerCase()) || item.item_nombre?.toLowerCase().includes(cxc.descripcion?.toLowerCase())) && (
+                                        <span style={{ fontSize: '0.65rem', padding: '1px 6px', borderRadius: '4px', background: 'rgba(59,130,246,0.15)', color: '#60a5fa', fontWeight: 600 }}>
+                                          {item.item_nombre}
+                                        </span>
+                                      )}
                                       {item.periodo_meses && item.periodo_meses.map((mes: string, mi: number) => (
                                         <span key={`${i}-${mi}`} style={{ fontSize: '0.65rem', padding: '1px 6px', borderRadius: '4px', background: 'rgba(74,222,128,0.15)', color: '#4ade80', fontWeight: 600 }}>
                                           {mes}

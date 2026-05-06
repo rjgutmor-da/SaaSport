@@ -211,7 +211,11 @@ const fetchMovimientos = async (escuelaId: string, cajaIds: string[]) => {
       nro_transaccion: c.documento_referencia || c.cuentas_cobrar?.nro_recibo || '',
       cliente: c.cuentas_cobrar?.alumnos ? `${c.cuentas_cobrar.alumnos.nombres} ${c.cuentas_cobrar.alumnos.apellidos}` : '—',
       cuenta_id: c.caja_id,
-      cuenta_nombre: c.cuentas_cobrar?.cxc_detalle?.[0]?.catalogo_items?.nombre || 'Concepto no especificado',
+      cuenta_nombre: (() => {
+        const items = c.cuentas_cobrar?.cxc_detalle?.map((d: any) => d.catalogo_items?.nombre).filter(Boolean);
+        if (!items || items.length === 0) return 'Concepto no especificado';
+        return Array.from(new Set(items)).join(', ');
+      })(),
       conciliado: c.conciliado || false,
       cuenta_maestra_id: c.cuentas_cobrar?.id,
       asiento_id: c.asiento_id
@@ -230,7 +234,11 @@ const fetchMovimientos = async (escuelaId: string, cajaIds: string[]) => {
       nro_transaccion: p.referencia || '',
       cliente: p.cuentas_pagar?.proveedores?.nombre || (p.cuentas_pagar?.personal ? `${p.cuentas_pagar.personal.nombres} ${p.cuentas_pagar.personal.apellidos}` : '—'),
       cuenta_id: p.caja_id,
-      cuenta_nombre: p.cuentas_pagar?.cxp_detalle?.[0]?.catalogo_items?.nombre || 'Concepto no especificado',
+      cuenta_nombre: (() => {
+        const items = p.cuentas_pagar?.cxp_detalle?.map((d: any) => d.catalogo_items?.nombre).filter(Boolean);
+        if (!items || items.length === 0) return 'Concepto no especificado';
+        return Array.from(new Set(items)).join(', ');
+      })(),
       conciliado: p.conciliado || false,
       cuenta_maestra_id: p.cuentas_pagar?.id,
       asiento_id: p.asiento_id

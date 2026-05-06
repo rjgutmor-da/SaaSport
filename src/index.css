@@ -994,6 +994,11 @@ input[type=number] {
   color: var(--warning);
 }
 
+.cxc-monto-anticipo {
+  font-weight: 800;
+  color: var(--success);
+}
+
 .cxc-al-dia {
   color: var(--success);
   font-weight: 600;

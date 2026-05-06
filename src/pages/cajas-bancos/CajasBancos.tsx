@@ -415,8 +415,8 @@ const CajasBancos: React.FC = () => {
                       <tr>
                         <th className="cxc-th" style={{ width: '100px' }}>Fecha</th>
                         <th className="cxc-th" style={{ width: '120px' }}>Documento</th>
-                        <th className="cxc-th">Alumno / Proveedor</th>
-                        <th className="cxc-th" style={{ width: '120px' }}>Cuentas</th>
+                        <th className="cxc-th" style={{ maxWidth: '280px' }}>Alumno / Proveedor</th>
+                        <th className="cxc-th" style={{ width: '240px' }}>Cuentas</th>
                         <th className="cxc-th cxc-th-right" style={{ width: '120px' }}>Ingreso</th>
                         <th className="cxc-th cxc-th-right" style={{ width: '120px' }}>Salida</th>
                         <th className="cxc-th cxc-th-right" style={{ width: '120px' }}>Saldo</th>
@@ -456,27 +456,37 @@ const CajasBancos: React.FC = () => {
                                 const esMetodo = /^(efectivo|transferencia|qr|transferencia bancaria|pago qr)$/i.test(nroTrim);
                                 if (esMetodo) return null;
 
-                                return <div style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{nroTrim}</div>;
+                                return <div style={{ fontWeight: 400, color: 'var(--text-primary)' }}>{nroTrim}</div>;
                               })()}
                             </td>
-                            <td className="cxc-td">
-                              {/* Alumno / Proveedor + Descripción (Verde) */}
-                              <div style={{ fontWeight: 500, color: 'var(--text-primary)' }}>
-                                {mov.cliente || '—'}
-                              </div>
+                            <td className="cxc-td" style={{ maxWidth: '280px' }}>
+                              {/* Alumno / Proveedor */}
+                              {mov.cliente && mov.cliente !== '—' && (
+                                <div style={{ 
+                                  fontWeight: 600, 
+                                  color: 'var(--text-primary)',
+                                  whiteSpace: 'nowrap',
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis'
+                                }} title={mov.cliente}>
+                                  {mov.cliente}
+                                </div>
+                              )}
                               
                               {(() => {
-                                if (!mov.descripcion) return null;
+                                if (!mov.descripcion) {
+                                  return (!mov.cliente || mov.cliente === '—') ? <div style={{ color: 'var(--text-tertiary)' }}>—</div> : null;
+                                }
                                 let desc = mov.descripcion.trim();
                                 const cuentaTrim = mov.cuenta_nombre?.trim() || '';
                                 
-                                if (desc === cuentaTrim) return null;
-                                if (cuentaTrim && desc.startsWith(cuentaTrim)) {
-                                  desc = desc.substring(cuentaTrim.length).trim().replace(/^[:\-\s]+/, '').trim();
+                                if (desc === cuentaTrim) desc = '';
+                                else if (cuentaTrim && desc.startsWith(cuentaTrim)) {
+                                  desc = desc.substring(cuentaTrim.length).trim().replace(/^[:\-\s,]+/, '').trim();
                                 }
                                 
                                 // Quitar métodos de pago genéricos
-                                desc = desc.replace(/\b(efectivo|transferencia|qr|transferencia bancaria|pago qr)\b/gi, '').replace(/^[:\-\s]+/, '').trim();
+                                desc = desc.replace(/\b(efectivo|transferencia|qr|transferencia bancaria|pago qr)\b/gi, '').replace(/^[:\-\s,]+/, '').trim();
                                 
                                 if (desc) return (
                                   <div style={{ 
@@ -489,11 +499,17 @@ const CajasBancos: React.FC = () => {
                                     {desc}
                                   </div>
                                 );
+                                
+                                if (!mov.cliente || mov.cliente === '—') {
+                                  return <div style={{ color: 'var(--text-tertiary)' }}>—</div>;
+                                }
                                 return null;
                               })()}
                             </td>
                             <td className="cxc-td cxc-td-meta">
-                              {mov.cuenta_nombre}
+                              <div style={{ fontWeight: 400, color: 'var(--text-primary)', fontSize: '0.9rem' }}>
+                                {mov.cuenta_nombre}
+                              </div>
                             </td>
                             <td className="cxc-td cxc-td-right">
                               {esIngreso ? (
