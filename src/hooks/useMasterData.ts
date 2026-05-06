@@ -16,7 +16,12 @@ const fetchSucursales = async () => {
 };
 
 const fetchEntrenadores = async () => {
-  const { data, error } = await supabase.from('personal').select('*').eq('rol', 'Entrenador').eq('activo', true).order('nombres');
+  const { data, error } = await supabase
+    .from('usuarios')
+    .select('id, nombres, apellidos')
+    .eq('rol', 'Entrenador')
+    .eq('activo', true)
+    .order('nombres');
   if (error) throw error;
   return data;
 };
