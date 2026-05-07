@@ -123,7 +123,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
         // Cargar detalle de ítems por nota (concepto + detalle visible)
         const { data: todosItems } = await supabase
           .from('cxc_detalle')
-          .select('cuenta_cobrar_id, cantidad, precio_unitario, periodo_meses, detalle_extra, catalogo_items!inner(nombre)')
+          .select('cuenta_cobrar_id, catalogo_item_id, cantidad, precio_unitario, periodo_meses, detalle_extra, catalogo_items!inner(nombre)')
           .in('cuenta_cobrar_id', cxcIds);
         const itemsMap: Record<string, any[]> = {};
         todosItems?.forEach((item: any) => {
@@ -550,7 +550,20 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
           const cxc = cxcs.find(c => c.id === verNotaId);
           if (cxc) {
             setVerNotaId(null);
-            setCxcParaEditar(cxc);
+            const lines = detallesItems[cxc.id] || [];
+            setCxcParaEditar({
+              ...cxc,
+              lineas: lines.map(l => ({
+                catalogo_item_id: l.catalogo_item_id,
+                nombre: l.item_nombre,
+                tipo: 'servicio',
+                cantidad: l.cantidad,
+                precio_unitario: l.precio_unitario,
+                periodo_meses: l.periodo_meses || [],
+                detalle_personalizado: l.detalle_extra || '',
+                subtotal: l.cantidad * l.precio_unitario
+              }))
+            });
             setModoModal('editar');
             setModalNotaVisible(true);
           }

@@ -236,7 +236,7 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
       }
 
       // 3. Pago (Solo si es nueva nota o si explícitamente se pidió pagar algo adicional)
-      if (!cxcEditar && (pagarAlCrear || esAnticipo)) {
+      if (pagarAlCrear || esAnticipo) {
         const mp = esAnticipo ? parseFloat(montoAnticipo) : parseFloat(montoPago);
         if (mp > 0 && cuentaCobroId) {
           const { error: rpcErr } = await supabase.rpc('rpc_registrar_cobro', {

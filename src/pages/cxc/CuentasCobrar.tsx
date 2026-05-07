@@ -26,6 +26,7 @@ import NotaServicios from '../../components/cxc/NotaServicios';
 import DetalleAlumnoCxc from '../../components/cxc/DetalleAlumnoCxc';
 import ModalCobroRapido from '../../components/cxc/ModalCobroRapido';
 import ModalSaldoInicialCxC from '../../components/cxc/ModalSaldoInicialCxC';
+import ModalNotaMasiva from '../../components/cxc/ModalNotaMasiva';
 
 import { useDebounce } from '../../hooks/useDebounce';
 import { useAuthSaaSport } from '../../lib/authHelper';
@@ -90,6 +91,36 @@ const CuentasCobrar: React.FC = () => {
   const [alumnoParaCobro, setAlumnoParaCobro] = useState<AlumnoDeuda | null>(null);
   const [mostrarCobroRapido, setMostrarCobroRapido] = useState(false);
   const [mostrarSaldoInicial, setMostrarSaldoInicial] = useState(false);
+
+  // Selección múltiple para notas masivas
+  const [alumnosMarcados, setAlumnosMarcados] = useState<AlumnoDeuda[]>([]);
+  const [mostrarNotaMasiva, setMostrarNotaMasiva] = useState(false);
+
+  const toggleMarcarAlumno = (alumno: AlumnoDeuda) => {
+    setAlumnosMarcados(prev => {
+      const yaMarcado = prev.some(a => a.alumno_id === alumno.alumno_id);
+      if (yaMarcado) {
+        return prev.filter(a => a.alumno_id !== alumno.alumno_id);
+      }
+      if (prev.length >= 20) {
+        alert('Por seguridad, solo puedes seleccionar un máximo de 20 alumnos a la vez.');
+        return prev;
+      }
+      return [...prev, alumno];
+    });
+  };
+
+  const toggleMarcarTodos = (actuales: AlumnoDeuda[]) => {
+    if (alumnosMarcados.length === actuales.length && actuales.length > 0) {
+      setAlumnosMarcados([]);
+    } else {
+      const nuevos = actuales.slice(0, 20);
+      setAlumnosMarcados(nuevos);
+      if (actuales.length > 20) {
+        alert('Se han marcado los primeros 20 alumnos de la lista (límite por seguridad).');
+      }
+    }
+  };
 
   // Nombres de meses para cabecera de tabla
   const nombresMeses = [
@@ -222,6 +253,15 @@ const CuentasCobrar: React.FC = () => {
               <Plus size={14} /> <span>Nota</span>
             </button>
             <button
+              className="btn-excel btn-nota"
+              onClick={() => setMostrarNotaMasiva(true)}
+              disabled={alumnosMarcados.length === 0}
+              title="Notas de Servicio Masivas"
+              style={{ opacity: alumnosMarcados.length === 0 ? 0.5 : 1, cursor: alumnosMarcados.length === 0 ? 'not-allowed' : 'pointer' }}
+            >
+              <Users size={14} /> <span>Notas Masivas ({alumnosMarcados.length})</span>
+            </button>
+            <button
               className="btn-excel-icon"
               onClick={() => setMostrarSaldoInicial(true)}
               title="Migración"
@@ -300,8 +340,17 @@ const CuentasCobrar: React.FC = () => {
           <table className="cxc-tabla cxc-tabla-fixed">
             <thead>
               <tr>
+                <th className="cxc-th cxc-th-sm" style={{ width: '40px', textAlign: 'center' }}>
+                  <input 
+                    type="checkbox" 
+                    onChange={() => toggleMarcarTodos(alumnosDeuda)}
+                    checked={alumnosMarcados.length > 0 && alumnosMarcados.length === Math.min(alumnosDeuda.length, 20)}
+                    style={{ cursor: 'pointer' }}
+                    title="Marcar todos (Max 20)"
+                  />
+                </th>
                 <th className="cxc-th cxc-th-alumno">Alumno</th>
-                <th className="cxc-th cxc-th-sucursal">Sucursal</th>
+                <th className="cxc-th cxc-th-sucursal" title="Última Mensualidad">Ult. Mes.</th>
                 <th className="cxc-th cxc-th-sm">Sub</th>
                 <th className="cxc-th cxc-th-sm">{mesAnteriorStr}</th>
                 <th className="cxc-th cxc-th-sm">{mesActualStr}</th>
@@ -316,16 +365,25 @@ const CuentasCobrar: React.FC = () => {
                 return (
                   <tr
                     key={alumno.alumno_id}
-                    className={`cxc-tr cxc-tr-clickable ${tieneDeuda ? 'cxc-tr--deuda' : ''}`}
+                    className={`cxc-tr cxc-tr-clickable ${tieneDeuda ? 'cxc-tr--deuda' : ''} ${alumnosMarcados.some(a => a.alumno_id === alumno.alumno_id) ? 'cxc-tr--seleccionado' : ''}`}
                     onClick={() => setAlumnoSeleccionado(alumno)}
                     title="Clic para ver detalle de movimientos"
+                    style={{ background: alumnosMarcados.some(a => a.alumno_id === alumno.alumno_id) ? 'rgba(59,130,246,0.1)' : undefined }}
                   >
+                    <td className="cxc-td cxc-td-center" onClick={e => e.stopPropagation()}>
+                      <input 
+                        type="checkbox" 
+                        checked={alumnosMarcados.some(a => a.alumno_id === alumno.alumno_id)}
+                        onChange={() => toggleMarcarAlumno(alumno)}
+                        style={{ cursor: 'pointer', transform: 'scale(1.2)' }}
+                      />
+                    </td>
                     <td className="cxc-td cxc-td-alumno">
                       <div className="cxc-alumno-info">
                         <span className="cxc-alumno-nombre">{alumno.nombres} {alumno.apellidos}</span>
                       </div>
                     </td>
-                    <td className="cxc-td cxc-td-meta">{alumno.sucursal_nombre || '—'}</td>
+                    <td className="cxc-td cxc-td-meta">{alumno.ultima_mensualidad || '—'}</td>
                     <td className="cxc-td cxc-td-center cxc-td-meta">{alumno.sub ? `Sub ${alumno.sub}` : '—'}</td>
                     <td className="cxc-td cxc-td-center cxc-td-asist">{alumno.asistencias_anterior || 0}</td>
                     <td className="cxc-td cxc-td-center cxc-td-asist cxc-td-asist--actual">{alumno.asistencias_actual || 0}</td>
@@ -433,6 +491,17 @@ const CuentasCobrar: React.FC = () => {
           setMostrarSaldoInicial(false);
           manejarActualizacion();
         }}
+      />
+
+      <ModalNotaMasiva
+        visible={mostrarNotaMasiva}
+        onCerrar={() => setMostrarNotaMasiva(false)}
+        onCreada={() => {
+          setMostrarNotaMasiva(false);
+          setAlumnosMarcados([]); // Limpiar selección tras crear
+          manejarActualizacion();
+        }}
+        alumnosSeleccionados={alumnosMarcados}
       />
 
     </main>
