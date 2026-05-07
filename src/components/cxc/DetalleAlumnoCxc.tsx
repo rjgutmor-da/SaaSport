@@ -265,7 +265,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                   <User size={14} style={{ color: '#4ade80' }} /> {alumno.entrenador_nombre || 'Entrenador'}
                 </span>
                 <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                  <Trophy size={14} style={{ color: '#fbbf24' }} /> {alumno.cancha_nombre || 'Cancha'}
+                  <Trophy size={14} style={{ color: '#fbbf24' }} /> {alumno.sub ? `Sub-${alumno.sub}` : 'Categoría'}
                 </span>
                 <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#38bdf8' }}>
                   <Clock size={14} /> {alumno.horario_hora || '--:--'}

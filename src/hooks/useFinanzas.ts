@@ -237,7 +237,10 @@ const fetchMovimientos = async (escuelaId: string, cajaIds: string[]) => {
       cuenta_nombre: (() => {
         const items = p.cuentas_pagar?.cxp_detalle?.map((d: any) => d.catalogo_items?.nombre).filter(Boolean);
         if (!items || items.length === 0) return 'Concepto no especificado';
-        return Array.from(new Set(items)).join(', ');
+        let res = Array.from(new Set(items)).join(', ');
+        // Si es un pago a personal y el item es ACF, mostrar Sueldos y Salarios
+        if (p.cuentas_pagar?.personal && res === 'ACF') return 'Sueldos y Salarios';
+        return res;
       })(),
       conciliado: p.conciliado || false,
       cuenta_maestra_id: p.cuentas_pagar?.id,

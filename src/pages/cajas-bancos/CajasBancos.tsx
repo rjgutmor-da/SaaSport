@@ -563,24 +563,9 @@ const CajasBancos: React.FC = () => {
                               })()}
                             </td>
                             <td className="cxc-td" style={{ maxWidth: '280px' }}>
-                              {/* Alumno / Proveedor */}
-                              {mov.cliente && mov.cliente !== '—' && (
-                                <div style={{ 
-                                  fontWeight: 600, 
-                                  color: 'var(--text-primary)',
-                                  whiteSpace: 'nowrap',
-                                  overflow: 'hidden',
-                                  textOverflow: 'ellipsis'
-                                }} title={mov.cliente}>
-                                  {mov.cliente}
-                                </div>
-                              )}
-                              
                               {(() => {
-                                if (!mov.descripcion) {
-                                  return (!mov.cliente || mov.cliente === '—') ? <div style={{ color: 'var(--text-tertiary)' }}>—</div> : null;
-                                }
-                                let desc = mov.descripcion.trim();
+                                const cliente = mov.cliente && mov.cliente !== '—' ? mov.cliente : '';
+                                let desc = mov.descripcion?.trim() || '';
                                 const cuentaTrim = mov.cuenta_nombre?.trim() || '';
                                 
                                 if (desc === cuentaTrim) desc = '';
@@ -590,23 +575,25 @@ const CajasBancos: React.FC = () => {
                                 
                                 // Quitar métodos de pago genéricos
                                 desc = desc.replace(/\b(efectivo|transferencia|qr|transferencia bancaria|pago qr)\b/gi, '').replace(/^[:\-\s,]+/, '').trim();
-                                
-                                if (desc) return (
+
+                                return (
                                   <div style={{ 
-                                    fontSize: '0.8rem', 
-                                    lineHeight: '1.2', 
-                                    color: 'var(--text-secondary)',
-                                    marginTop: '2px',
-                                    fontWeight: 400
-                                  }}>
-                                    {desc}
+                                    color: 'var(--text-primary)',
+                                    whiteSpace: 'nowrap',
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis',
+                                    display: 'flex',
+                                    alignItems: 'baseline',
+                                    gap: '6px'
+                                  }} title={`${cliente}${desc ? ' - ' + desc : ''}`}>
+                                    <span style={{ fontWeight: 600 }}>{cliente || '—'}</span>
+                                    {desc && (
+                                      <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontWeight: 400 }}>
+                                        - {desc}
+                                      </span>
+                                    )}
                                   </div>
                                 );
-                                
-                                if (!mov.cliente || mov.cliente === '—') {
-                                  return <div style={{ color: 'var(--text-tertiary)' }}>—</div>;
-                                }
-                                return null;
                               })()}
                             </td>
                             <td className="cxc-td cxc-td-meta">
