@@ -111,7 +111,7 @@ const Sidebar: React.FC<SidebarProps> = ({ onLogout, theme, onCycleTheme, extra 
         )}
         <div className="sidebar-branding" style={{ 
           marginTop: 'auto', 
-          padding: '1rem 0', 
+          padding: '1.5rem 0', 
           display: 'flex', 
           flexDirection: 'column', 
           alignItems: 'center', 
@@ -122,20 +122,9 @@ const Sidebar: React.FC<SidebarProps> = ({ onLogout, theme, onCycleTheme, extra 
           <img 
             src={LogoPlaneta} 
             alt="Logo Planeta" 
-            style={{ width: '130px', height: 'auto', transition: 'transform 0.3s ease' }} 
+            style={{ width: '160px', height: 'auto', transition: 'transform 0.3s ease' }} 
             className="hover-scale"
           />
-          <p style={{ 
-            fontSize: '0.7rem', 
-            color: 'var(--text-tertiary)', 
-            fontStyle: 'italic', 
-            lineHeight: '1.1',
-            maxWidth: '160px',
-            margin: '0 auto',
-            fontWeight: '500'
-          }}>
-            por un Planeta mejor<br/>un Planeta de Futbol
-          </p>
         </div>
       </nav>
 
