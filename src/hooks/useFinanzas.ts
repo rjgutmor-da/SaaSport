@@ -248,18 +248,19 @@ const fetchMovimientos = async (escuelaId: string, cajaIds: string[]) => {
     });
   });
 
-  // Ordenar descendente: 1ero por Fecha (con hora si existe), 2do por fecha de creación (tie-breaker)
+  // Ordenar descendente: 1ero por Fecha (solo el día), 2do por fecha de creación real (para ordenar correctamente los ingresos del mismo día)
   return movs.sort((a, b) => {
-    const parse = (f: string) => {
+    const getJustDate = (f: string) => {
       if (!f) return 0;
-      if (f.includes('T')) return new Date(f).getTime();
-      const p = f.split('-');
-      if (p.length !== 3) return new Date(f).getTime();
-      return new Date(parseInt(p[0]), parseInt(p[1]) - 1, parseInt(p[2])).getTime();
+      const match = f.match(/^(\d{4})-(\d{2})-(\d{2})/);
+      if (match) {
+        return new Date(parseInt(match[1], 10), parseInt(match[2], 10) - 1, parseInt(match[3], 10)).getTime();
+      }
+      return 0;
     };
 
-    const dateB = parse(b.fecha);
-    const dateA = parse(a.fecha);
+    const dateB = getJustDate(b.fecha);
+    const dateA = getJustDate(a.fecha);
     
     if (dateB !== dateA) return dateB - dateA;
     

@@ -164,22 +164,21 @@ const RegistroActividad: React.FC = () => {
       </div>
 
       {/* Cuerpo del Reporte */}
-      <div className="report-container" style={{ padding: '3rem 5rem' }}>
+      <div className="report-container" style={{ padding: '1.5rem 2rem' }}>
         <div className="report-paper" style={{ 
           background: 'var(--bg-card)', 
           minHeight: '100vh', 
           borderRadius: '8px', 
           boxShadow: '0 4px 20px rgba(0,0,0,0.2)',
-          padding: '3rem',
+          padding: '1.5rem 2.5rem',
           color: 'var(--text-primary)',
           border: '1px solid var(--border)'
         }}>
           
           {/* Encabezado del Papel */}
-          <div className="report-header" style={{ textAlign: 'center', marginBottom: '3rem' }}>
-            <h3 style={{ color: 'var(--text-tertiary)', fontSize: '1rem', fontWeight: '500', letterSpacing: '2px', marginBottom: '1rem' }}>{nombreEscuela}</h3>
-            <h1 style={{ fontSize: '1.8rem', fontWeight: '800', marginBottom: '0.5rem', color: 'var(--text-primary)' }}>Registros de actividad</h1>
-            <p style={{ color: 'var(--text-tertiary)', fontSize: '0.95rem' }}>{getSubtituloRango()}</p>
+          <div className="report-header" style={{ textAlign: 'center', marginBottom: '1.5rem', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <h1 style={{ fontSize: '1.4rem', fontWeight: '800', marginBottom: '0.25rem', color: 'var(--text-primary)' }}>Registros de actividad</h1>
+            <p style={{ color: 'var(--text-tertiary)', fontSize: '0.85rem' }}>{getSubtituloRango()}</p>
           </div>
 
           {/* Tabla de Resultados */}
@@ -227,8 +226,22 @@ const RegistroActividad: React.FC = () => {
                         </div>
                       </td>
                       <td style={{ padding: '1.5rem 0', verticalAlign: 'top', color: 'var(--text-secondary)' }}>
-                        <div style={{ fontWeight: '500', marginBottom: '0.3rem', color: 'var(--text-primary)' }}>
-                          {reg.detalle?.descripcion || (reg.accion === 'cobro' ? `Cobro de Bs ${reg.detalle?.monto || 0} (${reg.detalle?.metodo_pago || 'efectivo'})` : reg.accion)}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.3rem' }}>
+                          <div style={{ fontWeight: '500', color: 'var(--text-primary)' }}>
+                            {reg.detalle?.descripcion || (reg.accion === 'cobro' ? `Cobro de Bs ${reg.detalle?.monto || 0} (${reg.detalle?.metodo_pago || 'efectivo'})` : reg.accion)}
+                          </div>
+                          <span style={{ 
+                            fontSize: '0.65rem', 
+                            padding: '1px 6px', 
+                            borderRadius: '4px', 
+                            background: reg.ip_address === 'AsiSport' ? 'rgba(59, 130, 246, 0.1)' : 'rgba(16, 185, 129, 0.1)',
+                            color: reg.ip_address === 'AsiSport' ? '#60a5fa' : '#34d399',
+                            border: '1px solid currentColor',
+                            fontWeight: '700',
+                            textTransform: 'uppercase'
+                          }}>
+                            {reg.ip_address || 'SaaSport'}
+                          </span>
                         </div>
                         <div style={{ fontSize: '0.85rem', color: 'var(--text-tertiary)' }}>
                           por {reg.usuario_nombre}

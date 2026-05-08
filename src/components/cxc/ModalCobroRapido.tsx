@@ -180,15 +180,22 @@ const ModalCobroRapido: React.FC<Props> = ({ alumnoInicial, visible, onCerrar, o
 
 
       // 4. Auditoría
-      await supabase.from('audit_log').insert({
-        escuela_id: ctx.escuela_id, usuario_id: ctx.id,
-        usuario_nombre: `${ctx.nombres} ${ctx.apellidos}`,
-        accion: 'cobro', modulo: 'cxc', entidad_id: objetivoCxcId,
-        detalle: { 
-          cliente: `${alumnoSel.nombres} ${alumnoSel.apellidos}`,
-          monto: montoNum 
-        },
-      });
+      try {
+        const { logActivity } = await import('../../lib/auditLogger');
+        logActivity({
+          escuela_id: ctx.escuela_id,
+          usuario_id: ctx.id,
+          usuario_nombre: `${ctx.nombres} ${ctx.apellidos}`,
+          accion: 'cobro',
+          modulo: 'cxc',
+          entidad_id: objetivoCxcId,
+          detalle: { 
+            cliente: `${alumnoSel.nombres} ${alumnoSel.apellidos}`,
+            monto: montoNum,
+            descripcion: `Cobro de Bs ${montoNum} para ${alumnoSel.nombres}.`
+          },
+        });
+      } catch (e) { console.error(e); }
 
       // Mensaje WhatsApp de recibo
       const esPadre = alumnoSel.whatsapp_preferido === 'padre';

@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { ClipboardList, HandCoins, PieChart, Shirt, TrendingUp, Landmark, BookOpen } from 'lucide-react';
 import { navegarAAsisport } from '../lib/navegacion';
+import LogoPlaneta from '../assets/LogoPlaneta.png';
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -40,6 +41,15 @@ const Dashboard = () => {
           <span className="card-title">Cuentas</span>
         </button>
 
+      </div>
+
+      {/* Brand Section: Logo + Phrase */}
+      <div className="flex flex-col items-center text-center mt-12 pb-8">
+        <img 
+          src={LogoPlaneta} 
+          alt="Logo Planeta FC" 
+          className="w-44 h-auto md:w-[340px] transition-transform hover:scale-105 duration-300"
+        />
       </div>
     </main>
   );

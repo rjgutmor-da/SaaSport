@@ -258,6 +258,26 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
 
       localStorage.removeItem(STORAGE_KEY);
       setExito(`✅ ${cxcEditar ? 'Cambios guardados' : 'Registrado'} correctamente.`);
+      
+      // LOG DE ACTIVIDAD
+      try {
+        const { logActivity } = await import('../../lib/auditLogger');
+        const alumnoNombre = alumnos.find(a => a.id === alumnoId);
+        logActivity({
+          escuela_id: ctx.escuela_id,
+          usuario_id: ctx.id,
+          usuario_nombre: `${ctx.nombres} ${ctx.apellidos}`,
+          accion: cxcEditar ? 'Nota Actualizada' : (esAnticipo ? 'Anticipo Registrado' : 'Nueva Nota'),
+          modulo: 'Finanzas',
+          entidad_id: notaId,
+          detalle: {
+            alumno: alumnoNombre ? `${alumnoNombre.nombres} ${alumnoNombre.apellidos}` : 'N/A',
+            monto: total,
+            descripcion: `${cxcEditar ? 'Factura Actualizada' : (esAnticipo ? 'Anticipo' : 'Factura')} por Bs ${total} para ${alumnoNombre ? alumnoNombre.nombres : 'alumno'}.`
+          }
+        });
+      } catch (e) { console.error(e); }
+
       onCreada();
       setTimeout(() => { onCerrar(); }, 600);
     } catch (err: any) {

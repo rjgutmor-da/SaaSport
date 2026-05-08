@@ -25,6 +25,9 @@ import AuditLog from './pages/config/AuditLog';
 import PanelEscuela from './pages/config/PanelEscuela';
 import CajasBancos from './pages/cajas-bancos/CajasBancos';
 import Estadisticas from './pages/finanzas/estadisticas/Estadisticas';
+import RegistroActividad from './pages/finanzas/RegistroActividad';
+import { Activity } from 'lucide-react';
+import LogoPlaneta from './assets/LogoPlaneta.png';
 
 const ASISPORT_URL = 'https://asisport.saasport.pro';
 
@@ -93,12 +96,47 @@ const Sidebar: React.FC<SidebarProps> = ({ onLogout, theme, onCycleTheme, extra 
           </NavLink>
         </div>
 
+        <div className="sidebar-item-group">
+          <NavLink to="/finanzas/registro-actividad" className={({ isActive }) => (isActive ? 'sidebar-link active' : 'sidebar-link')}>
+            <Activity size={20} strokeWidth={1.5} />
+            <span>Reg. Actividad</span>
+          </NavLink>
+        </div>
+
         {/* Sección de filtros/stats imbuidos */}
         {extra && (
           <div className="sidebar-extra">
             {extra}
           </div>
         )}
+        <div className="sidebar-branding" style={{ 
+          marginTop: 'auto', 
+          padding: '1rem 0', 
+          display: 'flex', 
+          flexDirection: 'column', 
+          alignItems: 'center', 
+          textAlign: 'center',
+          gap: '0.5rem',
+          borderTop: '1px solid rgba(255,255,255,0.05)'
+        }}>
+          <img 
+            src={LogoPlaneta} 
+            alt="Logo Planeta" 
+            style={{ width: '130px', height: 'auto', transition: 'transform 0.3s ease' }} 
+            className="hover-scale"
+          />
+          <p style={{ 
+            fontSize: '0.7rem', 
+            color: 'var(--text-tertiary)', 
+            fontStyle: 'italic', 
+            lineHeight: '1.1',
+            maxWidth: '160px',
+            margin: '0 auto',
+            fontWeight: '500'
+          }}>
+            por un Planeta mejor<br/>un Planeta de Futbol
+          </p>
+        </div>
       </nav>
 
       <div className="sidebar-footer">
@@ -235,6 +273,7 @@ const AppRouter: React.FC<AppRouterProps> = ({ onLogout, theme, onCycleTheme }) 
           <Route path="/cuentas" element={<Cuentas />} />
           <Route path="/cajas-bancos" element={<CajasBancos />} />
           <Route path="/estadisticas" element={<Estadisticas />} />
+          <Route path="/finanzas/registro-actividad" element={<RegistroActividad />} />
 
           {/* Configuraciones */}
           <Route path="/configuraciones" element={<Configuraciones />} />
