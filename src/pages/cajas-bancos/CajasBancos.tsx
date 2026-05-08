@@ -191,42 +191,8 @@ const CajasBancos: React.FC = () => {
     return Object.values(saldos).reduce((sum, val) => sum + val, 0);
   }, [saldos]);
 
-  // Actualizar Sidebar dinámicamente
-  useEffect(() => {
-    setExtra(
-      <>
-        <div className="sidebar-stats-grid">
-          <div className="sidebar-stat-item" onClick={() => setFiltroCuenta('todas')} style={{ cursor: 'pointer' }}>
-            <span className="sidebar-stat-label">Saldo Consolidado</span>
-            <span className="sidebar-stat-value">Bs {fmtMonto(saldoTotal)}</span>
-          </div>
-          {filtroCuenta !== 'todas' && (
-            <div className="sidebar-stat-item">
-              <span className="sidebar-stat-label">Saldo {cajas.find(c => c.id === filtroCuenta)?.nombre}</span>
-              <span className="sidebar-stat-value sidebar-stat-value--warn">Bs {fmtMonto(saldos[filtroCuenta] || 0)}</span>
-            </div>
-          )}
-        </div>
-
-        <div className="sidebar-filters-grid">
-          <div className="sidebar-filter-item">
-            <label className="sidebar-filter-label">Cuenta Seleccionada</label>
-            <select 
-              value={filtroCuenta} 
-              onChange={e => setFiltroCuenta(e.target.value)} 
-              className="sidebar-select"
-            >
-              <option value="todas">Todas las Cuentas</option>
-              {cajas.map(c => (
-                <option key={c.id} value={c.id}>{c.nombre} (Bs {fmtMonto(saldos[c.id])})</option>
-              ))}
-            </select>
-          </div>
-        </div>
-      </>
-    );
-    return () => setExtra(null);
-  }, [saldoTotal, saldos, cajas, filtroCuenta, setExtra]);
+  // Eliminar el useEffect que actualizaba el SidebarContext (líneas 195-230 aprox)
+  // El saldo consolidado y el selector ahora se integran en la rejilla de tarjetas.
 
   // Filtros cruzados
   const movimientosFiltrados = useMemo(() => {
@@ -241,6 +207,7 @@ const CajasBancos: React.FC = () => {
     }
     return list;
   }, [movimientos, filtroCuenta, busqueda]);
+
 
   const toggleConciliar = async (mov: MovimientoFinanciero) => {
     try {
@@ -399,7 +366,41 @@ const CajasBancos: React.FC = () => {
             overflowX: 'auto', 
             padding: '0.25rem 0' 
           }}>
+            {/* Tarjeta de Saldo Consolidado */}
+            <div 
+              onClick={() => setFiltroCuenta('todas')}
+              style={{
+                background: filtroCuenta === 'todas' ? 'var(--primary-glow)' : 'rgba(255,255,255,0.05)',
+                border: `2px solid ${filtroCuenta === 'todas' ? 'var(--primary)' : '#E5E7EB'}`,
+                borderRadius: '10px',
+                padding: '0.4rem 1rem',
+                cursor: 'pointer',
+                minWidth: '160px',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'center',
+                transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                boxShadow: filtroCuenta === 'todas' ? '0 0 15px var(--primary-glow)' : 'none',
+                position: 'relative',
+                overflow: 'hidden'
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '2px' }}>
+                <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Resumen
+                </span>
+                <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--primary)' }}></div>
+              </div>
+              <span style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.2 }}>
+                Saldo Consolidado
+              </span>
+              <span style={{ fontSize: '1rem', color: 'var(--primary)', fontWeight: 900, marginTop: '2px' }}>
+                Bs {fmtMonto(saldoTotal)}
+              </span>
+            </div>
+
             {cajasOrdenadas.map(c => {
+
               const esActiva = filtroCuenta === c.id;
               const esPred   = c.es_predeterminada;
               const esDragOver = dragOverId === c.id;

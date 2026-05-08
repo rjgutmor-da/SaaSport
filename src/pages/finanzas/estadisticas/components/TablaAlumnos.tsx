@@ -3,7 +3,7 @@
  * Tabla estilo Excel de alumnos por ítem de catálogo.
  * - Paginación y búsqueda interna
  * - Lista seleccionable (toda la tabla o filas individuales para copiar a Excel)
- * - Columnas: Alumno, Detalle (mes/torneo), Monto, Fecha
+ * - Columnas: Alumno, Entrenador, Concepto, Sub, Monto, Saldo Pendiente, Pagado, Fecha de Emision
  */
 import React, { useState, useMemo } from 'react';
 import { Search, Copy, Check, RefreshCw } from 'lucide-react';
@@ -45,12 +45,16 @@ const TablaAlumnos: React.FC<Props> = ({
 
   /** Copia la tabla como texto TSV (Tab-Separated Values) listo para pegar en Excel */
   const copiarTabla = () => {
-    const cabecera = ['Alumno', etiquetaDetalle, 'Monto (Bs)', 'Fecha'].join('\t');
+    const cabecera = ['Alumno', 'Entrenador', 'Concepto', 'Sub', 'Monto', 'Saldo Pendiente', 'Pagado', 'Fecha de Emision'].join('\t');
     const filas = alumnosFiltrados.map(a => [
       a.nombre_completo,
-      a.detalle || '—',
+      a.entrenador,
+      a.detalle ? `${a.concepto} (${a.detalle})` : a.concepto,
+      a.sub,
       a.monto.toFixed(2),
-      a.fecha,
+      a.saldo_pendiente.toFixed(2),
+      a.pagado,
+      a.fecha
     ].join('\t'));
     const texto = [cabecera, ...filas].join('\n');
     navigator.clipboard.writeText(texto).then(() => {
@@ -109,21 +113,25 @@ const TablaAlumnos: React.FC<Props> = ({
             <tr>
               <th className="est-th est-th-num">#</th>
               <th className="est-th">Alumno</th>
-              <th className="est-th">{etiquetaDetalle}</th>
-              <th className="est-th est-th-right">Monto (Bs)</th>
-              <th className="est-th est-th-right">Fecha</th>
+              <th className="est-th">Entrenador</th>
+              <th className="est-th">Concepto</th>
+              <th className="est-th">Sub</th>
+              <th className="est-th est-th-right">Monto</th>
+              <th className="est-th est-th-right">Saldo</th>
+              <th className="est-th">Pagado</th>
+              <th className="est-th">Fecha</th>
             </tr>
           </thead>
           <tbody>
             {cargando ? (
               <tr>
-                <td colSpan={5} className="est-td-cargando">
+                <td colSpan={9} className="est-td-cargando">
                   <RefreshCw size={20} className="spin" /> Cargando...
                 </td>
               </tr>
             ) : alumnosFiltrados.length === 0 ? (
               <tr>
-                <td colSpan={5} className="est-td-vacio">
+                <td colSpan={9} className="est-td-vacio">
                   {busqueda ? 'Sin resultados para la búsqueda.' : 'Sin datos para los filtros seleccionados.'}
                 </td>
               </tr>
@@ -132,11 +140,21 @@ const TablaAlumnos: React.FC<Props> = ({
                 <tr key={`${a.nota_id}-${idx}`} className="est-tr">
                   <td className="est-td est-td-num">{idx + 1}</td>
                   <td className="est-td est-td-nombre">{a.nombre_completo}</td>
-                  <td className="est-td est-td-detalle">{a.detalle || '—'}</td>
+                  <td className="est-td">{a.entrenador}</td>
+                  <td className="est-td est-td-detalle">{a.detalle ? `${a.concepto} (${a.detalle})` : a.concepto}</td>
+                  <td className="est-td">{a.sub}</td>
                   <td className="est-td est-td-right est-td-monto">
                     {fmtMonto(a.monto)}
                   </td>
-                  <td className="est-td est-td-right est-td-fecha">{a.fecha}</td>
+                  <td className="est-td est-td-right text-warn">
+                    {fmtMonto(a.saldo_pendiente)}
+                  </td>
+                  <td className="est-td">
+                    {a.pagado === 'Si' && <span style={{ color: 'var(--success)' }}>Si</span>}
+                    {a.pagado === 'No' && <span style={{ color: 'var(--error)' }}>No</span>}
+                    {a.pagado === 'Parcial' && <span style={{ color: 'var(--warning)' }}>Parcial</span>}
+                  </td>
+                  <td className="est-td est-td-fecha">{a.fecha}</td>
                 </tr>
               ))
             )}
@@ -145,11 +163,11 @@ const TablaAlumnos: React.FC<Props> = ({
           {!cargando && alumnosFiltrados.length > 0 && (
             <tfoot>
               <tr className="est-tfoot-tr">
-                <td colSpan={3} className="est-td est-tfoot-label">Total período</td>
+                <td colSpan={5} className="est-td est-tfoot-label">Total período</td>
                 <td className="est-td est-td-right est-tfoot-total">
                   {fmtMonto(totalMonto)}
                 </td>
-                <td className="est-td" />
+                <td colSpan={3} className="est-td" />
               </tr>
             </tfoot>
           )}

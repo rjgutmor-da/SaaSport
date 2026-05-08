@@ -19,7 +19,7 @@ import { supabase } from '../../../lib/supabaseClient';
 
 // Sub-componentes
 import SelectorFechas from './components/SelectorFechas';
-import TortaIngresos from './components/TortaIngresos';
+import GraficoBarras from './components/GraficoBarras';
 import TablaAlumnos from './components/TablaAlumnos';
 
 // Hooks
@@ -55,7 +55,7 @@ interface CatalogoItem {
   activo: boolean;
 }
 
-type Pestaña = 'ingresos' | 'egresos' | 'alumnos';
+type Pestaña = 'resumen' | 'alumnos';
 
 const Estadisticas: React.FC = () => {
   const navigate = useNavigate();
@@ -69,7 +69,7 @@ const Estadisticas: React.FC = () => {
   const [hastaPersonalizado, setHastaPersonalizado] = useState('');
 
   // ─── Pestaña activa ───
-  const [pestaña, setPestaña] = useState<Pestaña>('ingresos');
+  const [pestaña, setPestaña] = useState<Pestaña>('resumen');
 
   // ─── Catálogo de ítems ───
   const [catalogo, setCatalogo] = useState<CatalogoItem[]>([]);
@@ -82,8 +82,13 @@ const Estadisticas: React.FC = () => {
   // Nuevos filtros solicitados (Entrenador y Categoría/Sucursal)
   const [entrenadorId, setEntrenadorId] = useState('');
   const [sucursalId, setSucursalId] = useState('');
+  const [horarioId, setHorarioId] = useState('');
+  const [canchaId, setCanchaId] = useState('');
+  const [pagadoFiltro, setPagadoFiltro] = useState('');
   const [entrenadores, setEntrenadores] = useState<any[]>([]);
   const [sucursales, setSucursales] = useState<any[]>([]);
+  const [horarios, setHorarios] = useState<any[]>([]);
+  const [canchas, setCanchas] = useState<any[]>([]);
 
   // Subfiltros: meses (para Mensualidad) o torneo seleccionado (para Torneos)
   const [mesesSeleccionados, setMesesSeleccionados] = useState<string[]>([]);
@@ -128,7 +133,11 @@ const Estadisticas: React.FC = () => {
     hastaPersonalizado,
     subfiltrosActivos.length > 0 ? subfiltrosActivos : undefined,
     entrenadorId,
-    sucursalId
+    sucursalId,
+    horarioId,
+    canchaId,
+    itemSeleccionado?.nombre,
+    pagadoFiltro
   );
 
   // ─── Cargar catálogo ───
@@ -146,7 +155,7 @@ const Estadisticas: React.FC = () => {
       const vistos = new Set<string>();
       const unicos: CatalogoItem[] = [];
       for (const item of (data ?? []) as CatalogoItem[]) {
-        if (!vistos.has(item.nombre)) {
+        if (item.es_ingreso && !vistos.has(item.nombre)) {
           vistos.add(item.nombre);
           unicos.push(item);
         }
@@ -169,6 +178,22 @@ const Estadisticas: React.FC = () => {
         .eq('escuela_id', escuelaId)
         .order('nombre');
       setSucursales(sucs ?? []);
+
+      // Cargar Horarios
+      const { data: horas } = await supabase
+        .from('horarios')
+        .select('id, hora')
+        .eq('escuela_id', escuelaId)
+        .order('hora');
+      setHorarios(horas ?? []);
+
+      // Cargar Canchas
+      const { data: cchs } = await supabase
+        .from('canchas')
+        .select('id, nombre')
+        .eq('escuela_id', escuelaId)
+        .order('nombre');
+      setCanchas(cchs ?? []);
     };
     cargar();
   }, [escuelaId]);
@@ -186,28 +211,6 @@ const Estadisticas: React.FC = () => {
 
   return (
     <main className="main-content cxc-main">
-      {/* ─── Header ─── */}
-      <div className="cxc-header-bar">
-        <div className="cxc-header-izq">
-          <button className="btn-volver" onClick={() => navigate('/contabilidad')} title="Volver">
-            <ChevronLeft size={20} />
-          </button>
-          <div>
-            <h1 className="cxc-titulo-principal">Estadísticas</h1>
-            <p className="est-subtitulo">{labelRango}</p>
-          </div>
-        </div>
-        <div className="cxc-header-acciones">
-          <button
-            className="btn-refrescar"
-            onClick={resumen.recargar}
-            disabled={resumen.cargando}
-            title="Actualizar datos"
-          >
-            <RefreshCw size={18} className={resumen.cargando ? 'spin' : ''} />
-          </button>
-        </div>
-      </div>
 
       {/* ─── Selector de Fechas Omnipresente ─── */}
       <SelectorFechas
@@ -222,16 +225,10 @@ const Estadisticas: React.FC = () => {
       {/* ─── Pestañas ─── */}
       <div className="est-tabs-bar">
         <button
-          className={`est-tab ${pestaña === 'ingresos' ? 'est-tab--activo est-tab--ingreso' : ''}`}
-          onClick={() => setPestaña('ingresos')}
+          className={`est-tab ${pestaña === 'resumen' ? 'est-tab--activo est-tab--ingreso' : ''}`}
+          onClick={() => setPestaña('resumen')}
         >
-          <TrendingUp size={16} /> Ingresos
-        </button>
-        <button
-          className={`est-tab ${pestaña === 'egresos' ? 'est-tab--activo est-tab--egreso' : ''}`}
-          onClick={() => setPestaña('egresos')}
-        >
-          <TrendingDown size={16} /> Egresos
+          <TrendingUp size={16} /> Ingresos y Egresos
         </button>
         <button
           className={`est-tab ${pestaña === 'alumnos' ? 'est-tab--activo est-tab--alumnos' : ''}`}
@@ -244,8 +241,8 @@ const Estadisticas: React.FC = () => {
       {/* ─── Contenido de pestañas ─── */}
       <div className="est-contenido">
 
-        {/* ══════ PESTAÑA INGRESOS ══════ */}
-        {pestaña === 'ingresos' && (
+        {/* ══════ PESTAÑA RESUMEN (INGRESOS Y EGRESOS) ══════ */}
+        {pestaña === 'resumen' && (
           <div className="est-panel">
             {resumen.error && (
               <div className="est-error-banner">⚠️ {resumen.error}</div>
@@ -253,61 +250,26 @@ const Estadisticas: React.FC = () => {
             {resumen.cargando ? (
               <div className="est-cargando">
                 <RefreshCw size={32} className="spin" />
-                <p>Calculando ingresos...</p>
+                <p>Calculando resumen financiero...</p>
               </div>
             ) : (
-              <>
-                {/* Tarjeta resumen total */}
-                <div className="est-resumen-total est-resumen-total--ingreso">
-                  <TrendingUp size={22} />
-                  <span className="est-resumen-label">Total Ingresos del período</span>
-                  <span className="est-resumen-monto">
-                    Bs {resumen.totalIngresos.toLocaleString('es-BO', { minimumFractionDigits: 2 })}
-                  </span>
-                </div>
-
-                {/* Torta + leyenda */}
-                <TortaIngresos
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                {/* Ingresos */}
+                <GraficoBarras
                   items={resumen.ingresos}
                   total={resumen.totalIngresos}
-                  titulo="Ingresos"
-                  colorBase="#10b981"
+                  titulo="Top Ingresos"
+                  isIngreso={true}
                 />
-              </>
-            )}
-          </div>
-        )}
 
-        {/* ══════ PESTAÑA EGRESOS ══════ */}
-        {pestaña === 'egresos' && (
-          <div className="est-panel">
-            {resumen.error && (
-              <div className="est-error-banner">⚠️ {resumen.error}</div>
-            )}
-            {resumen.cargando ? (
-              <div className="est-cargando">
-                <RefreshCw size={32} className="spin" />
-                <p>Calculando egresos...</p>
-              </div>
-            ) : (
-              <>
-                {/* Tarjeta resumen total */}
-                <div className="est-resumen-total est-resumen-total--egreso">
-                  <TrendingDown size={22} />
-                  <span className="est-resumen-label">Total Egresos del período</span>
-                  <span className="est-resumen-monto">
-                    Bs {resumen.totalEgresos.toLocaleString('es-BO', { minimumFractionDigits: 2 })}
-                  </span>
-                </div>
-
-                {/* Torta + leyenda */}
-                <TortaIngresos
+                {/* Egresos */}
+                <GraficoBarras
                   items={resumen.egresos}
                   total={resumen.totalEgresos}
-                  titulo="Egresos"
-                  colorBase="#ef4444"
+                  titulo="Top Egresos"
+                  isIngreso={false}
                 />
-              </>
+              </div>
             )}
           </div>
         )}
@@ -317,9 +279,11 @@ const Estadisticas: React.FC = () => {
           <div className="est-panel">
             <div className="est-filtros-alumnos-v3">
               <div className="est-card-item-search">
-                <div className="est-item-dropdown-wrap">
-                  <button
-                    className="est-item-dropdown-btn"
+                <div className="est-filtro-item-label" style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', flex: 1.5 }}>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 500, paddingLeft: '2px' }}>Concepto</span>
+                  <div className="est-item-dropdown-wrap" style={{ width: '100%', maxWidth: '300px' }}>
+                    <button
+                      className="est-item-dropdown-btn"
                     onClick={() => setDropdownItemAbierto(!dropdownItemAbierto)}
                   >
                     <span>{itemSeleccionado ? itemSeleccionado.nombre : 'Seleccionar ítem...'}</span>
@@ -356,31 +320,80 @@ const Estadisticas: React.FC = () => {
                       )}
                     </div>
                   )}
+                  </div>
                 </div>
 
                 {/* Filtros laterales (Entrenador y Categoría) */}
                 <div className="est-filtros-laterales-wrap">
-                  <select 
-                    className="est-select-premium"
-                    value={entrenadorId}
-                    onChange={e => setEntrenadorId(e.target.value)}
-                  >
-                    <option value="">Todos los Entrenadores</option>
-                    {entrenadores.map(e => (
-                      <option key={e.id} value={e.id}>{e.nombres} {e.apellidos}</option>
-                    ))}
-                  </select>
+                  <div className="est-filtro-item-label" style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', flex: 1 }}>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 500, paddingLeft: '2px' }}>Entrenador</span>
+                    <select 
+                      className="est-select-premium"
+                      value={entrenadorId}
+                      onChange={e => setEntrenadorId(e.target.value)}
+                    >
+                      <option value="">Todos</option>
+                      {entrenadores.map(e => (
+                        <option key={e.id} value={e.id}>{e.nombres} {e.apellidos}</option>
+                      ))}
+                    </select>
+                  </div>
 
-                  <select 
-                    className="est-select-premium"
-                    value={sucursalId}
-                    onChange={e => setSucursalId(e.target.value)}
-                  >
-                    <option value="">Todas las Categorías</option>
-                    {sucursales.map(s => (
-                      <option key={s.id} value={s.id}>{s.nombre}</option>
-                    ))}
-                  </select>
+                  <div className="est-filtro-item-label" style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', flex: 1 }}>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 500, paddingLeft: '2px' }}>Categoría (Sub)</span>
+                    <select 
+                      className="est-select-premium"
+                      value={sucursalId}
+                      onChange={e => setSucursalId(e.target.value)}
+                    >
+                      <option value="">Todas</option>
+                      {sucursales.map(s => (
+                        <option key={s.id} value={s.id}>{s.nombre}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="est-filtro-item-label" style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', flex: 1 }}>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 500, paddingLeft: '2px' }}>Horario</span>
+                    <select 
+                      className="est-select-premium"
+                      value={horarioId}
+                      onChange={e => setHorarioId(e.target.value)}
+                    >
+                      <option value="">Todos</option>
+                      {horarios.map(h => (
+                        <option key={h.id} value={h.id}>{h.hora}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="est-filtro-item-label" style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', flex: 1 }}>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 500, paddingLeft: '2px' }}>Cancha</span>
+                    <select 
+                      className="est-select-premium"
+                      value={canchaId}
+                      onChange={e => setCanchaId(e.target.value)}
+                    >
+                      <option value="">Todas</option>
+                      {canchas.map(c => (
+                        <option key={c.id} value={c.id}>{c.nombre}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="est-filtro-item-label" style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', flex: 1 }}>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 500, paddingLeft: '2px' }}>Pagado</span>
+                    <select 
+                      className="est-select-premium"
+                      value={pagadoFiltro}
+                      onChange={e => setPagadoFiltro(e.target.value)}
+                    >
+                      <option value="">Todos</option>
+                      <option value="Si">Sí</option>
+                      <option value="Parcial">Parcial</option>
+                      <option value="No">No</option>
+                    </select>
+                  </div>
                 </div>
               </div>
 

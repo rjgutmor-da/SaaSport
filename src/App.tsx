@@ -11,7 +11,7 @@ import React, { useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, NavLink } from 'react-router-dom';
 import { 
   Settings, Sun, Moon, Monitor, LogOut, 
-  HandCoins, PieChart, Landmark, BookOpen, Package
+  HandCoins, PieChart, Landmark, BookOpen, Package, BarChart2
 } from 'lucide-react';
 import { supabase } from './lib/supabaseClient';
 import { AuthProviderSaaSport, useAuthSaaSport } from './lib/authHelper';
@@ -24,6 +24,7 @@ import Configuraciones from './pages/config/Configuraciones';
 import AuditLog from './pages/config/AuditLog';
 import PanelEscuela from './pages/config/PanelEscuela';
 import CajasBancos from './pages/cajas-bancos/CajasBancos';
+import Estadisticas from './pages/finanzas/estadisticas/Estadisticas';
 
 const ASISPORT_URL = 'https://asisport.saasport.pro';
 
@@ -82,6 +83,13 @@ const Sidebar: React.FC<SidebarProps> = ({ onLogout, theme, onCycleTheme, extra 
           <NavLink to="/cuentas" className={({ isActive }) => (isActive ? 'sidebar-link active' : 'sidebar-link')}>
             <BookOpen size={20} strokeWidth={1.5} />
             <span>Cuentas</span>
+          </NavLink>
+        </div>
+
+        <div className="sidebar-item-group">
+          <NavLink to="/estadisticas" className={({ isActive }) => (isActive ? 'sidebar-link active' : 'sidebar-link')}>
+            <BarChart2 size={20} strokeWidth={1.5} />
+            <span>Estadísticas</span>
           </NavLink>
         </div>
 
@@ -226,6 +234,7 @@ const AppRouter: React.FC<AppRouterProps> = ({ onLogout, theme, onCycleTheme }) 
           <Route path="/cxp" element={<CuentasPagar />} />
           <Route path="/cuentas" element={<Cuentas />} />
           <Route path="/cajas-bancos" element={<CajasBancos />} />
+          <Route path="/estadisticas" element={<Estadisticas />} />
 
           {/* Configuraciones */}
           <Route path="/configuraciones" element={<Configuraciones />} />
