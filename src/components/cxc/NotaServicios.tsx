@@ -165,6 +165,14 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
     } else {
       const lineasValidas = lineas.filter(l => l.catalogo_item_id && l.precio_unitario > 0);
       if (lineasValidas.length === 0) { setError('Agrega ítems válidos.'); return; }
+
+      // Validación para Mensualidad: obligatorio seleccionar al menos un mes
+      for (const l of lineasValidas) {
+        if (l.nombre === 'Mensualidad' && l.periodo_meses.length === 0) {
+          setError('Debe seleccionar al menos un mes para el ítem Mensualidad.');
+          return;
+        }
+      }
     }
 
     setGuardando(true);
@@ -341,13 +349,18 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
                           const it = catalogo.find(c => c.id === e.target.value);
                           if (it) {
                             const nuevas = [...lineas];
+                            const esMensualidad = it.nombre === 'Mensualidad';
+                            const mesesIniciales = esMensualidad ? [MESES_ANIO[new Date().getMonth()]] : [];
+                            const cantidadInicial = esMensualidad ? 1 : nuevas[idx].cantidad;
+
                             nuevas[idx] = { 
                               ...nuevas[idx], 
                               catalogo_item_id: it.id, 
                               nombre: it.nombre, 
                               precio_unitario: Number(it.precio_venta) || 0, 
-                              subtotal: (Number(it.precio_venta) || 0) * nuevas[idx].cantidad,
-                              periodo_meses: [],
+                              cantidad: cantidadInicial,
+                              subtotal: (Number(it.precio_venta) || 0) * cantidadInicial,
+                              periodo_meses: mesesIniciales,
                               detalle_personalizado: ''
                             };
                             setLineas(nuevas);
@@ -361,7 +374,7 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
                           const nuevas = [...lineas];
                           nuevas[idx] = { ...nuevas[idx], cantidad: cant, subtotal: cant * nuevas[idx].precio_unitario };
                           setLineas(nuevas);
-                        }} min="1" disabled={guardando} title="Cantidad" />
+                        }} min="1" disabled={guardando || esMensualidad} title="Cantidad" />
                         <input type="number" step="0.01" value={linea.precio_unitario} onChange={e => {
                           const prec = parseFloat(e.target.value) || 0;
                           const nuevas = [...lineas];
@@ -387,6 +400,13 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
                                       : linea.periodo_meses.filter(m => m !== mes);
                                     const nuevas = [...lineas];
                                     nuevas[idx].periodo_meses = meses;
+                                    
+                                    // Actualizar cantidad automáticamente según meses seleccionados
+                                    if (meses.length > 0) {
+                                      nuevas[idx].cantidad = meses.length;
+                                      nuevas[idx].subtotal = meses.length * nuevas[idx].precio_unitario;
+                                    }
+                                    
                                     setLineas(nuevas);
                                   }}
                                   style={{ width: '12px', height: '12px' }}
