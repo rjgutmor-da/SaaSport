@@ -39,6 +39,7 @@ interface CobroAplicado {
   monto_aplicado: number;
   fecha: string;
   caja_nombre?: string;
+  caja_id?: string;
   es_aplicacion_anticipo?: boolean;
   documento_referencia?: string;
 }
