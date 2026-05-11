@@ -4,6 +4,7 @@ import type { CajaBanco } from '../../types/finanzas';
 import type { EntidadCxP } from '../../types/cxp';
 import { X, CreditCard, AlertCircle, Check, FileText, Users, RefreshCw, DollarSign, Building2, Hash, Calendar, Clock } from 'lucide-react';
 import { getHoyISO, getHoraLocal } from '../../lib/dateUtils';
+import { logActivity } from '../../lib/auditLogger';
 
 const fmtMonto = (n: number): string =>
   n.toLocaleString('es-BO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -173,11 +174,18 @@ const ModalPagoRapidoCxP: React.FC<Props> = ({ entidadInicial, entidades, visibl
 
 
       // 4. Auditoría
-      await supabase.from('audit_log').insert({
-        escuela_id: ctx.escuela_id, usuario_id: ctx.id,
+      logActivity({
+        escuela_id: ctx.escuela_id, 
+        usuario_id: ctx.id,
         usuario_nombre: `${ctx.nombres} ${ctx.apellidos}`,
-        accion: 'pago', modulo: 'cxp', entidad_id: objetivoCxpId,
-        detalle: { monto: montoNum, metodo_pago: '', caja_id: cuentaId },
+        accion: 'pago', 
+        modulo: 'cxp', 
+        entidad_id: objetivoCxpId,
+        detalle: { 
+          proveedor: entidadSel.nombre,
+          monto: montoNum, 
+          descripcion: `Pago de Bs ${montoNum} para ${entidadSel.nombre}.`
+        },
       });
 
       setExito(`✅ Pago registrado exitosamente.`);

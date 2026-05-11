@@ -32,19 +32,20 @@ export const formatFecha = (iso: string | null | undefined): string => {
   if (!iso) return '—';
   
   try {
-    // Si contiene 'T', es un timestamp completo. Usamos el objeto Date local.
-    if (iso.includes('T')) {
+    // Extraemos solo la parte YYYY-MM-DD ignorando T o espacios para evitar desfases de zona horaria
+    const datePart = iso.includes('T') ? iso.split('T')[0] : iso.split(' ')[0];
+    const parts = datePart.split('-');
+    
+    if (parts.length !== 3) {
+      // Fallback por si el formato es distinto
       const d = new Date(iso);
+      if (isNaN(d.getTime())) return iso;
       return d.toLocaleDateString('es-BO', { 
         day: '2-digit', 
         month: '2-digit', 
         year: 'numeric' 
       });
     }
-
-    // Si es solo YYYY-MM-DD, evitamos el desfase interpretando partes
-    const parts = iso.split('-');
-    if (parts.length !== 3) return iso;
     
     const year = parseInt(parts[0], 10);
     const month = parseInt(parts[1], 10) - 1;
@@ -68,8 +69,12 @@ export const formatFechaCorta = (iso: string | null | undefined): string => {
   if (!iso) return '—';
   
   try {
-    if (iso.includes('T')) {
+    const datePart = iso.includes('T') ? iso.split('T')[0] : iso.split(' ')[0];
+    const parts = datePart.split('-');
+    
+    if (parts.length !== 3) {
       const d = new Date(iso);
+      if (isNaN(d.getTime())) return iso;
       return d.toLocaleDateString('es-BO', { 
         day: '2-digit', 
         month: 'short', 
@@ -77,9 +82,6 @@ export const formatFechaCorta = (iso: string | null | undefined): string => {
       });
     }
 
-    const parts = iso.split('-');
-    if (parts.length !== 3) return iso;
-    
     const year = parseInt(parts[0], 10);
     const month = parseInt(parts[1], 10) - 1;
     const day = parseInt(parts[2], 10);

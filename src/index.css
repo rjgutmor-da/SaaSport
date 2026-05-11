@@ -56,9 +56,9 @@
   --bg-glass-hover: rgba(0, 0, 0, 0.06);
   --bg-input: #FFFFFF;
 
-  --text-primary: #1A1A1B;
-  --text-secondary: #475569;
-  --text-tertiary: #94A3B8;
+  --text-primary: #0F172A;
+  --text-secondary: #334155;
+  --text-tertiary: #64748B;
 
   --border: #E2E8F0;
   --border-focus: var(--primary);
@@ -81,9 +81,9 @@
     --bg-glass-hover: rgba(0, 0, 0, 0.06);
     --bg-input: #FFFFFF;
 
-    --text-primary: #1A1A1B;
-    --text-secondary: #475569;
-    --text-tertiary: #94A3B8;
+    --text-primary: #0F172A;
+    --text-secondary: #334155;
+    --text-tertiary: #64748B;
 
     --border: #E2E8F0;
     --border-focus: var(--primary);
@@ -139,8 +139,8 @@ body {
    ========================================= */
 ::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-track { background: var(--bg-main); }
-::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
-::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
+::-webkit-scrollbar-thumb { background: var(--bg-glass-hover); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--bg-glass); }
 
 h1, h2, h3, h4, h5, h6 { font-weight: 700; letter-spacing: -0.02em; }
 button { font-family: inherit; cursor: pointer; border: none; background: none; transition: var(--transition); }
@@ -1106,8 +1106,8 @@ input[type=number] {
   grid-template-columns: repeat(4, 1fr);
   gap: 1.5rem;
   padding: 1.5rem 2rem;
-  background: rgba(255,255,255,0.01);
-  border-bottom: 1px solid rgba(255,255,255,0.05);
+  background: var(--bg-glass);
+  border-bottom: 1px solid var(--border);
   position: relative;
   width: 100%;
   box-sizing: border-box;
@@ -1122,8 +1122,8 @@ input[type=number] {
 }
 
 .resumen-card {
-  background: linear-gradient(135deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01));
-  border: 1px solid rgba(255,255,255,0.08);
+  background: var(--bg-card);
+  border: 1px solid var(--border);
   border-radius: 14px;
   padding: 1.5rem;
   display: flex;
@@ -1138,8 +1138,8 @@ input[type=number] {
 
 .resumen-card:hover {
   transform: translateY(-2px);
-  background: linear-gradient(135deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02));
-  border-color: rgba(255,255,255,0.2);
+  background: var(--bg-card-hover);
+  border-color: var(--primary-glow);
 }
 
 .resumen-label {
@@ -1147,7 +1147,7 @@ input[type=number] {
   text-transform: uppercase;
   letter-spacing: 0.08em;
   font-weight: 800;
-  color: #94a3b8;
+  color: var(--text-tertiary);
   margin-bottom: 0.2rem;
 }
 
@@ -1202,7 +1202,7 @@ input[type=number] {
   width: 40px;
   height: 40px;
   border-radius: 12px;
-  background: rgba(255,255,255,0.05);
+  background: var(--bg-glass);
   border: 1px solid var(--border);
   color: var(--text-secondary);
   display: flex;
@@ -1219,7 +1219,7 @@ input[type=number] {
 
 .resumen-footer {
   font-size: 0.75rem;
-  color: #94a3b8;
+  color: var(--text-tertiary);
   margin-top: 0.5rem;
   display: flex;
   align-items: center;
@@ -1235,9 +1235,9 @@ input[type=number] {
   align-items: center;
   justify-content: center;
   border-radius: 6px;
-  background: rgba(255,255,255,0.03);
-  border: 1px solid rgba(255,255,255,0.08);
-  color: #94a3b8;
+  background: var(--bg-glass);
+  border: 1px solid var(--border);
+  color: var(--text-tertiary);
   transition: all 0.2s ease;
 }
 
@@ -1306,16 +1306,16 @@ input[type=number] {
 
 /* Tabla de estado de cuenta (en modal detalle) */
 .detalle-cxc-lista table thead { position: sticky; top: 0; z-index: 1; }
-.detalle-cxc-lista table thead tr { background: rgba(10,10,12,0.95); }
+.detalle-cxc-lista table thead tr { background: var(--bg-table-header); }
 .detalle-cxc-lista table th {
   font-size: 0.78rem; font-weight: 700; text-transform: uppercase;
-  letter-spacing: 0.5px; color: var(--text-tertiary); padding: 0.7rem 0.9rem;
-  border-bottom: 2px solid var(--border); background: rgba(10,10,12,0.95);
+  letter-spacing: 0.5px; color: var(--text-table-header); padding: 0.7rem 0.9rem;
+  border-bottom: 2px solid var(--border); background: var(--bg-table-header);
   white-space: nowrap;
 }
 .detalle-cxc-lista table td { padding: 0.7rem 0.9rem; vertical-align: middle; }
-.detalle-cxc-lista table tbody tr { border-bottom: 1px solid rgba(255,255,255,0.04); transition: background 0.15s; }
-.detalle-cxc-lista table tbody tr:hover { background: var(--bg-glass); }
+.detalle-cxc-lista table tbody tr { border-bottom: 1px solid var(--border); transition: background 0.15s; }
+.detalle-cxc-lista table tbody tr:hover { background: var(--bg-card-hover); }
 
 
 /* =========================================

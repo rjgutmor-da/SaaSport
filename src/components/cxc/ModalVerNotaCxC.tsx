@@ -11,9 +11,8 @@ import {
   Clock, User, AlertCircle, CreditCard, Hash, MessageSquare,
   ChevronDown, ChevronUp, Pencil, Trash2, RefreshCw
 } from 'lucide-react';
-import ModalEditarMovimiento from '../cajas-bancos/ModalEditarMovimiento';
+import ModalEditarCobroCxC from './ModalEditarCobroCxC';
 import type { CajaBanco } from '../../types/finanzas';
-import { type MovimientoFinanciero } from '../../hooks/useFinanzas';
 import { formatFecha, formatFechaHora } from '../../lib/dateUtils';
 
 interface Props {
@@ -55,7 +54,7 @@ const ModalVerNotaCxC: React.FC<Props> = ({ visible, cxcId, onCerrar, onEditar, 
   const [mostrarCobros, setMostrarCobros] = useState(true);
 
   // Estados para edición/eliminación
-  const [movEditar, setMovEditar] = useState<MovimientoFinanciero | null>(null);
+  const [movEditar, setMovEditar] = useState<CobroAplicado | null>(null);
   const [cajas, setCajas] = useState<CajaBanco[]>([]);
   const [eliminandoId, setEliminandoId] = useState<string | null>(null);
 
@@ -438,16 +437,9 @@ const ModalVerNotaCxC: React.FC<Props> = ({ visible, cxcId, onCerrar, onEditar, 
                             <div style={{ display: 'flex', gap: '0.4rem' }}>
                               <button
                                 onClick={() => setMovEditar({
-                                  id: cobro.id,
-                                  descripcion: nota.descripcion,
-                                  debe: cobro.monto_aplicado,
-                                  haber: 0,
-                                  fecha: cobro.fecha,
-                                  cuenta_id: (cobro as any).caja_id,
-                                  cuenta_nombre: cobro.caja_nombre || '',
-                                  tipo_origen: 'cobro',
-                                  nro_transaccion: cobro.documento_referencia
-                                } as any)}
+                                  ...cobro,
+                                  caja_id: (cobro as any).caja_id,
+                                })}
                                 style={{
                                   background: 'rgba(255,255,255,0.05)',
                                   border: 'none',
@@ -487,13 +479,13 @@ const ModalVerNotaCxC: React.FC<Props> = ({ visible, cxcId, onCerrar, onEditar, 
               )}
             </div>
 
-            {/* Modal de edición */}
-            <ModalEditarMovimiento
+            {/* Modal de edición de cobro */}
+            <ModalEditarCobroCxC
               visible={!!movEditar}
-              movimiento={movEditar}
+              cobro={movEditar}
               cajas={cajas}
               onCerrar={() => setMovEditar(null)}
-              onGuardado={async () => {
+              onActualizar={async () => {
                 setMovEditar(null);
                 await cargarDatos();
                 onActualizar?.();

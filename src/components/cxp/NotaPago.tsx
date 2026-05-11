@@ -11,6 +11,7 @@ import {
   Users, FileText, Calendar, RefreshCw, Hash
 } from 'lucide-react';
 import { getHoyISO } from '../../lib/dateUtils';
+import { logActivity } from '../../lib/auditLogger';
 
 interface LineaNotaPago {
   catalogo_item_id: string;
@@ -29,6 +30,10 @@ interface Props {
   onCerrar: () => void;
   onCreada: () => void;
   cxpEditar?: any;
+  /** ID del proveedor a preseleccionar (viene de la tarjeta de detalle) */
+  proveedorIdInicial?: string;
+  /** ID del personal a preseleccionar (viene de la tarjeta de detalle) */
+  personalIdInicial?: string;
 }
 
 const lineaVacia = (): LineaNotaPago => ({
@@ -44,7 +49,7 @@ const lineaVacia = (): LineaNotaPago => ({
 const fmtMonto = (n: number) =>
   n.toLocaleString('es-BO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-const NotaPago: React.FC<Props> = ({ visible, tipoInicial, esAnticipo = false, onCerrar, onCreada, cxpEditar }) => {
+const NotaPago: React.FC<Props> = ({ visible, tipoInicial, esAnticipo = false, onCerrar, onCreada, cxpEditar, proveedorIdInicial, personalIdInicial }) => {
   const [tipoGasto, setTipoGasto] = useState(tipoInicial);
   const [proveedorId, setProveedorId] = useState('');
   const [personalId, setPersonalId] = useState('');
@@ -59,6 +64,8 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, esAnticipo = false, o
   const [montoPago, setMontoPago] = useState('');
   const [nroComprobante, setNroComprobante] = useState('');
   const [montoAnticipo, setMontoAnticipo] = useState('');
+  /** Cuenta/concepto del catálogo a la que se imputa el anticipo */
+  const [cuentaAnticipoId, setCuentaAnticipoId] = useState('');
 
   const [proveedores, setProveedores] = useState<{ id: string; nombre: string }[]>([]);
   const [personal, setPersonal] = useState<{ id: string; nombres: string; apellidos: string }[]>([]);
@@ -127,10 +134,13 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, esAnticipo = false, o
           setLineas([lineaVacia()]);
         }
       } else {
-        setProveedorId(''); setPersonalId('');
+        // Precargar proveedor/personal si viene de la tarjeta de detalle
+        setProveedorId(proveedorIdInicial || '');
+        setPersonalId(personalIdInicial || '');
         setFechaEmision(getHoyISO()); setVencimiento(getHoyISO()); setObservaciones('');
         setLineas([lineaVacia()]); setPagarAlCrear(esAnticipo);
         setFechaPago(getHoyISO()); setMontoPago(''); setNroComprobante('');
+        setCuentaAnticipoId('');
       }
       setError(null); setExito(null);
     };
@@ -211,12 +221,12 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, esAnticipo = false, o
 
       // 2. Insertar Detalle (nuevo o despues de borrar)
       if (esAnticipo) {
-        // Para anticipos, usamos un ítem genérico o el primero de la lista
-        const itemGenerico = catalogo[0]?.id; 
+        // Para anticipos, usar la cuenta seleccionada o el primer ítem del catálogo como fallback
+        const itemAnticipo = cuentaAnticipoId || catalogo[0]?.id; 
         await supabase.from('cxp_detalle').insert({
           escuela_id: ctx.escuela_id,
           cuenta_pagar_id: notaId,
-          catalogo_item_id: itemGenerico,
+          catalogo_item_id: itemAnticipo,
           cantidad: 1,
           precio_unitario: total,
           descripcion: 'Anticipo'
@@ -267,6 +277,44 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, esAnticipo = false, o
       }
 
       setExito('✅ Registrado correctamente.');
+
+      // 4. Auditoría
+      try {
+        const beneficiario = tipoGasto === 'proveedor' 
+          ? proveedores.find(p => p.id === proveedorId)?.nombre 
+          : personal.find(p => p.id === personalId)?.nombres;
+          
+        logActivity({
+          escuela_id: ctx.escuela_id,
+          usuario_id: ctx.id,
+          usuario_nombre: `${ctx.nombres} ${ctx.apellidos}`,
+          accion: esAnticipo ? 'anticipo' : (cxpEditar ? 'edición nota' : 'nueva nota'),
+          modulo: 'cxp',
+          entidad_id: notaId,
+          detalle: {
+            proveedor: beneficiario,
+            monto: total,
+            descripcion: esAnticipo ? `Anticipo de Bs ${total}` : `Nota de CxP por Bs ${total} (${cxpPayload.descripcion})`
+          }
+        });
+
+        if (!cxpEditar && (pagarAlCrear || esAnticipo)) {
+          logActivity({
+            escuela_id: ctx.escuela_id,
+            usuario_id: ctx.id,
+            usuario_nombre: `${ctx.nombres} ${ctx.apellidos}`,
+            accion: 'pago',
+            modulo: 'cxp',
+            entidad_id: notaId,
+            detalle: {
+              proveedor: beneficiario,
+              monto: esAnticipo ? parseFloat(montoAnticipo) : parseFloat(montoPago),
+              descripcion: `Pago de Bs ${esAnticipo ? montoAnticipo : montoPago} para ${beneficiario}.`
+            }
+          });
+        }
+      } catch (e) { console.error('Audit Error:', e); }
+
       setTimeout(() => { onCreada(); onCerrar(); }, 1200);
     } catch (err: any) {
       setError(`Error: ${err.message}`);
@@ -290,19 +338,19 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, esAnticipo = false, o
               <div className="form-campo full-width">
                 <label>Tipo de Beneficiario</label>
                 <div style={{ display: 'flex', gap: '0.5rem' }}>
-                  <button type="button" onClick={() => setTipoGasto('proveedor')} className={`nota-mes-btn ${tipoGasto === 'proveedor' ? 'nota-mes-btn--activo' : ''}`} style={{ flex: 1 }}>🏭 Proveedor</button>
-                  <button type="button" onClick={() => setTipoGasto('personal')} className={`nota-mes-btn ${tipoGasto === 'personal' ? 'nota-mes-btn--activo' : ''}`} style={{ flex: 1 }}>👤 Personal</button>
+                  <button type="button" onClick={() => setTipoGasto('proveedor')} className={`nota-mes-btn ${tipoGasto === 'proveedor' ? 'nota-mes-btn--activo' : ''}`} style={{ flex: 1 }} disabled={!!(proveedorIdInicial || personalIdInicial)}>🏭 Proveedor</button>
+                  <button type="button" onClick={() => setTipoGasto('personal')} className={`nota-mes-btn ${tipoGasto === 'personal' ? 'nota-mes-btn--activo' : ''}`} style={{ flex: 1 }} disabled={!!(proveedorIdInicial || personalIdInicial)}>👤 Personal</button>
                 </div>
               </div>
               <div className="form-campo full-width">
                 <label>{tipoGasto === 'proveedor' ? 'Proveedor' : 'Personal'} *</label>
                 {tipoGasto === 'proveedor' ? (
-                  <select value={proveedorId} onChange={e => setProveedorId(e.target.value)} required>
+                  <select value={proveedorId} onChange={e => setProveedorId(e.target.value)} required disabled={!!proveedorIdInicial}>
                     <option value="">— Seleccionar —</option>
                     {proveedores.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
                   </select>
                 ) : (
-                  <select value={personalId} onChange={e => setPersonalId(e.target.value)} required>
+                  <select value={personalId} onChange={e => setPersonalId(e.target.value)} required disabled={!!personalIdInicial}>
                     <option value="">— Seleccionar —</option>
                     {personal.map(p => <option key={p.id} value={p.id}>{p.nombres} {p.apellidos}</option>)}
                   </select>
@@ -316,6 +364,24 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, esAnticipo = false, o
                 <div className="form-campo">
                   <label>Vencimiento</label>
                   <input type="date" value={vencimiento} onChange={e => setVencimiento(e.target.value)} />
+                </div>
+              )}
+
+              {/* Cuenta / Concepto — visible solo para anticipos */}
+              {esAnticipo && (
+                <div className="form-campo full-width">
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                    📂 Cuenta / Concepto <span style={{ color: '#a855f7', fontSize: '0.75rem' }}>(a qué cuenta se aplica este anticipo)</span>
+                  </label>
+                  <select
+                    value={cuentaAnticipoId}
+                    onChange={e => setCuentaAnticipoId(e.target.value)}
+                    disabled={guardando}
+                    style={{ borderColor: cuentaAnticipoId ? '#a855f7' : undefined }}
+                  >
+                    <option value="">— Seleccionar cuenta —</option>
+                    {catalogo.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                  </select>
                 </div>
               )}
 

@@ -11,10 +11,9 @@ import {
   AlertCircle, Check, CreditCard, CheckCircle2, Hash, Building2, Pencil, Trash2
 } from 'lucide-react';
 import { formatFecha, getHoyISO, getHoraLocal } from '../../lib/dateUtils';
-import ModalEditarMovimiento from '../cajas-bancos/ModalEditarMovimiento';
+import ModalEditarPagoCxP from './ModalEditarPagoCxP';
 import ModalEditarItemCxP from './ModalEditarItemCxP';
 import ModalEditarCabeceraCxP from './ModalEditarCabeceraCxP';
-import { type MovimientoFinanciero } from '../../hooks/useFinanzas';
 import type { CajaBanco } from '../../types/finanzas';
 
 interface CxPItem {
@@ -83,7 +82,7 @@ const DetalleCxP: React.FC<Props> = ({ nota, visible, onCerrar, onActualizar }) 
   const [cargando, setCargando] = useState(true);
 
   // Estados para Edición y Eliminación
-  const [movEditar, setMovEditar] = useState<MovimientoFinanciero | null>(null);
+  const [movEditar, setMovEditar] = useState<PagoRealizado | null>(null);
   const [itemEditar, setItemEditar] = useState<any>(null);
   const [cabeceraEditar, setCabeceraEditar] = useState<boolean>(false);
   const [eliminandoId, setEliminandoId] = useState<string | null>(null);
@@ -99,69 +98,65 @@ const DetalleCxP: React.FC<Props> = ({ nota, visible, onCerrar, onActualizar }) 
   const [errorPago, setErrorPago] = useState<string | null>(null);
   const [exitoPago, setExitoPago] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!visible || !nota) return;
+  const cargarDetalle = async () => {
+    if (!nota) return;
     setCargando(true);
     setErrorPago(null); setExitoPago(null);
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    const { data: usr } = await supabase.from('usuarios')
+      .select('escuela_id, sucursal_id').eq('id', user.id).single();
+
+    const [resPagos, resItems, resCajas] = await Promise.all([
+      supabase.from('pagos_aplicados')
+        .select('id, monto_aplicado, fecha, referencia, es_aplicacion_anticipo, conciliado, caja_id, cajas_bancos(nombre)')
+        .eq('cuenta_pagar_id', nota.id)
+        .order('fecha', { ascending: false }),
+      supabase.from('cxp_detalle')
+        .select(`id, cantidad, precio_unitario, subtotal, descripcion,
+                 catalogo_items!inner(nombre, tipo)`)
+        .eq('cuenta_pagar_id', nota.id),
+      supabase.from('cajas_bancos').select('*')
+        .eq('escuela_id', usr?.escuela_id).eq('activo', true).order('nombre'),
+    ]);
+
+    setPagosRealizados((resPagos.data as any[])?.map(p => ({
+        ...p,
+        caja_nombre: p.cajas_bancos?.nombre
+    })) ?? []);
+    
+    setDetalleItems((resItems.data as any[])?.map((d: any) => ({
+      id: d.id,
+      nombre: d.catalogo_items?.nombre || '—',
+      tipo: d.catalogo_items?.tipo || 'servicio',
+      cantidad: d.cantidad,
+      precio_unitario: Number(d.precio_unitario),
+      subtotal: Number(d.subtotal),
+      descripcion: d.descripcion,
+    })) ?? []);
+    
+    setCajasBancos(resCajas.data ?? []);
+
+    let qAnticipos = supabase.from('v_estado_cuentas_pagar')
+      .select('*')
+      .eq('es_anticipo', true)
+      .gt('deuda_restante', 0);
+    if (nota.proveedor_id) qAnticipos = qAnticipos.eq('proveedor_id', nota.proveedor_id);
+    else if (nota.personal_id) qAnticipos = qAnticipos.eq('personal_id', nota.personal_id);
+    else qAnticipos = qAnticipos.is('id', null);
+    const { data: resAnt } = await qAnticipos;
+    setAnticiposDisponibles(resAnt || []);
+
+    setCargando(false);
+  };
+
+  useEffect(() => {
+    if (!visible || !nota) return;
     setMontoPago(String(nota.deuda_restante));
     setCuentaPagoId(''); setNroComprobante('');
     setFechaPago(getHoyISO());
-
-    const cargar = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-      const { data: usr } = await supabase.from('usuarios')
-        .select('escuela_id, sucursal_id').eq('id', user.id).single();
-
-      const [resPagos, resItems, resCajas] = await Promise.all([
-        // Pagos realizados
-        supabase.from('pagos_aplicados')
-          .select('id, monto_aplicado, fecha, referencia, es_aplicacion_anticipo, conciliado, caja_id, cajas_bancos(nombre)')
-          .eq('cuenta_pagar_id', nota.id)
-          .order('fecha', { ascending: false }),
-        // Ítems del detalle
-        supabase.from('cxp_detalle')
-          .select(`id, cantidad, precio_unitario, subtotal, descripcion,
-                   catalogo_items!inner(nombre, tipo)`)
-          .eq('cuenta_pagar_id', nota.id),
-        // Cajas y bancos disponibles
-        supabase.from('cajas_bancos').select('*')
-          .eq('escuela_id', usr?.escuela_id).eq('activo', true).order('nombre'),
-      ]);
-
-      setPagosRealizados((resPagos.data as any[])?.map(p => ({
-          ...p,
-          caja_nombre: p.cajas_bancos?.nombre
-      })) ?? []);
-      
-      setDetalleItems((resItems.data as any[])?.map((d: any) => ({
-        id: d.id,
-        nombre: d.catalogo_items?.nombre || '—',
-        tipo: d.catalogo_items?.tipo || 'servicio',
-        cantidad: d.cantidad,
-        precio_unitario: Number(d.precio_unitario),
-        subtotal: Number(d.subtotal),
-        descripcion: d.descripcion,
-      })) ?? []);
-      
-      setCajasBancos(resCajas.data ?? []);
-
-      // Buscar anticipos disponibles
-      let qAnticipos = supabase.from('v_estado_cuentas_pagar')
-        .select('*')
-        .eq('es_anticipo', true)
-        .gt('deuda_restante', 0);
-      
-      if (nota.proveedor_id) qAnticipos = qAnticipos.eq('proveedor_id', nota.proveedor_id);
-      else if (nota.personal_id) qAnticipos = qAnticipos.eq('personal_id', nota.personal_id);
-      else qAnticipos = qAnticipos.is('id', null); 
-
-      const { data: resAnt } = await qAnticipos;
-      setAnticiposDisponibles(resAnt || []);
-
-      setCargando(false);
-    };
-    cargar();
+    cargarDetalle();
     setUsarAnticipo(false);
     setAnticipoId('');
   }, [visible, nota]);
@@ -260,7 +255,7 @@ const DetalleCxP: React.FC<Props> = ({ nota, visible, onCerrar, onActualizar }) 
       <div className="cxc-modal" style={{ maxWidth: '640px', maxHeight: '90vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
         <div className="cxc-modal-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-            <h2 style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', margin: 0 }}>
+            <h2 style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', margin: 0, color: 'var(--text-primary)' }}>
               <DollarSign size={20} /> Detalle — Nota de Pago
             </h2>
             {!nota.anulada && !pagosRealizados.some(p => p.conciliado) && (
@@ -283,18 +278,18 @@ const DetalleCxP: React.FC<Props> = ({ nota, visible, onCerrar, onActualizar }) 
           <div style={{ padding: '1.25rem 1.5rem' }}>
 
             <div style={{
-              background: 'rgba(255,255,255,0.03)',
+              background: 'var(--bg-glass)',
               borderRadius: '12px',
               padding: '1rem 1.25rem',
               marginBottom: '1.25rem',
-              border: '1px solid rgba(255,255,255,0.06)'
+              border: '1px solid var(--border)'
             }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
                 <div>
-                  <p style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '0.25rem' }}>
+                  <p style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '0.25rem', color: 'var(--text-primary)' }}>
                     {nombreEntidad}
                   </p>
-                  <div style={{ display: 'flex', gap: '1rem', fontSize: '0.8rem', color: '#94a3b8', flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', gap: '1rem', fontSize: '0.8rem', color: 'var(--text-tertiary)', flexWrap: 'wrap' }}>
                     <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
                       <Calendar size={13} /> Emitida: {formatFecha(nota.fecha_emision)}
                     </span>
@@ -329,15 +324,15 @@ const DetalleCxP: React.FC<Props> = ({ nota, visible, onCerrar, onActualizar }) 
                 alignItems: 'center', 
                 marginTop: '1rem',
                 paddingTop: '0.75rem',
-                borderTop: '1px solid rgba(255,255,255,0.06)'
+                borderTop: '1px solid var(--border)'
               }}>
                 <div style={{ display: 'flex', gap: '1.5rem' }}>
                   <div style={{ display: 'flex', flexDirection: 'column' }}>
-                    <span style={{ fontSize: '0.7rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total</span>
+                    <span style={{ fontSize: '0.7rem', color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total</span>
                     <span style={{ fontSize: '1rem', fontWeight: 700 }}>Bs {fmtMonto(nota.monto_total)}</span>
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column' }}>
-                    <span style={{ fontSize: '0.7rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Pagado</span>
+                    <span style={{ fontSize: '0.7rem', color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Pagado</span>
                     <span style={{ fontSize: '1rem', fontWeight: 700, color: '#4ade80' }}>Bs {fmtMonto(nota.monto_pagado)}</span>
                   </div>
                 </div>
@@ -359,16 +354,16 @@ const DetalleCxP: React.FC<Props> = ({ nota, visible, onCerrar, onActualizar }) 
             {detalleItems.length > 0 && (
               <div style={{ marginBottom: '1.25rem' }}>
                 <p style={{
-                  fontSize: '0.85rem', fontWeight: 800, color: '#fff',
+                  fontSize: '0.85rem', fontWeight: 800, color: 'var(--text-primary)',
                   textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.8rem',
                   display: 'flex', alignItems: 'center', gap: '0.5rem'
                 }}>
                   📋 Ítems de la Nota
                 </p>
                 <div style={{
-                  background: 'rgba(255,255,255,0.02)',
+                  background: 'var(--bg-glass)',
                   borderRadius: '10px',
-                  border: '1px solid rgba(255,255,255,0.05)',
+                  border: '1px solid var(--border)',
                   overflow: 'hidden'
                 }}>
                   {detalleItems.map((item, idx) => (
@@ -376,18 +371,18 @@ const DetalleCxP: React.FC<Props> = ({ nota, visible, onCerrar, onActualizar }) 
                       key={item.id}
                       style={{
                         padding: '0.75rem 1rem',
-                        borderBottom: idx < detalleItems.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none'
+                        borderBottom: idx < detalleItems.length - 1 ? '1px solid var(--border)' : 'none'
                       }}
                     >
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <div>
-                          <span style={{ fontWeight: 700, fontSize: '1.05rem', color: '#fff' }}>{item.nombre}</span>
-                          <span style={{ color: '#94a3b8', fontSize: '0.85rem', marginLeft: '0.6rem' }}>
+                          <span style={{ fontWeight: 700, fontSize: '1.05rem', color: 'var(--text-primary)' }}>{item.nombre}</span>
+                          <span style={{ color: 'var(--text-tertiary)', fontSize: '0.85rem', marginLeft: '0.6rem' }}>
                             × {item.cantidad} @ Bs {fmtMonto(item.precio_unitario)}
                           </span>
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                          <span style={{ fontWeight: 800, color: '#fff', fontSize: '1.1rem' }}>
+                          <span style={{ fontWeight: 800, color: 'var(--text-primary)', fontSize: '1.1rem' }}>
                             Bs {fmtMonto(item.subtotal)}
                           </span>
                           {!nota.anulada && !pagosRealizados.some(p => p.conciliado) && (
@@ -412,7 +407,7 @@ const DetalleCxP: React.FC<Props> = ({ nota, visible, onCerrar, onActualizar }) 
                   {/* Total */}
                   <div style={{
                     padding: '0.75rem 1rem',
-                    background: 'rgba(255,255,255,0.04)',
+                    background: 'var(--bg-glass-hover)',
                     display: 'flex',
                     justifyContent: 'space-between',
                     fontWeight: 800,
@@ -440,7 +435,7 @@ const DetalleCxP: React.FC<Props> = ({ nota, visible, onCerrar, onActualizar }) 
                 }}>
                   📝 Observaciones
                 </p>
-                <p style={{ fontSize: '0.87rem', color: '#cbd5e1', lineHeight: '1.5' }}>
+                <p style={{ fontSize: '0.87rem', color: 'var(--text-secondary)', lineHeight: '1.5' }}>
                   {nota.observaciones}
                 </p>
               </div>
@@ -450,7 +445,7 @@ const DetalleCxP: React.FC<Props> = ({ nota, visible, onCerrar, onActualizar }) 
             {pagosRealizados.length > 0 && (
               <div style={{ marginBottom: '1.25rem' }}>
                 <p style={{
-                  fontSize: '0.85rem', fontWeight: 800, color: '#fff',
+                  fontSize: '0.85rem', fontWeight: 800, color: 'var(--text-primary)',
                   textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.8rem',
                   display: 'flex', alignItems: 'center', gap: '0.5rem'
                 }}>
@@ -466,11 +461,11 @@ const DetalleCxP: React.FC<Props> = ({ nota, visible, onCerrar, onActualizar }) 
                     <div key={p.id} style={{
                         display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                         padding: '0.6rem 1rem',
-                        borderBottom: idx < pagosRealizados.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none',
+                        borderBottom: idx < pagosRealizados.length - 1 ? '1px solid var(--border)' : 'none',
                         background: p.es_aplicacion_anticipo ? 'rgba(168,85,247,0.04)' : 'transparent'
                       }}>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
-                        <span style={{ fontSize: '0.83rem', color: '#cbd5e1' }}>
+                        <span style={{ fontSize: '0.83rem', color: 'var(--text-secondary)' }}>
                           {formatFecha(p.fecha)}
                         </span>
                         <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
@@ -489,20 +484,9 @@ const DetalleCxP: React.FC<Props> = ({ nota, visible, onCerrar, onActualizar }) 
                             <>
                               <button
                                 className="btn-compact-action action-blue"
-                                onClick={() => setMovEditar({
-                                  id: p.id,
-                                  tipo_origen: 'pago',
-                                  debe: 0,
-                                  haber: Number(p.monto_aplicado),
-                                  fecha: p.fecha,
-                                  descripcion: p.referencia || 'Pago de Nota CxP',
-                                  nro_transaccion: p.referencia || '',
-                                  cuenta_id: p.caja_id || '',
-                                  cuenta_nombre: p.caja_nombre || 'Caja/Banco',
-                                  conciliado: p.conciliado || false
-                                })}
+                                onClick={() => setMovEditar(p)}
                                 disabled={eliminandoId === p.id}
-                                title="Editar fecha/monto"
+                                title="Editar pago"
                               >
                                 <Pencil size={12} />
                               </button>
@@ -531,12 +515,12 @@ const DetalleCxP: React.FC<Props> = ({ nota, visible, onCerrar, onActualizar }) 
             {/* ── Formulario de pago (simplificado — sin selector de método de pago) ── */}
             {!yaPagada && (
               <form onSubmit={registrarPago}>
-                <div style={{ border: '1px solid rgba(99,102,241,0.3)', borderRadius: '10px', padding: '1rem', background: 'rgba(99,102,241,0.05)' }}>
-                  <p style={{ fontSize: '0.85rem', fontWeight: 700, marginBottom: '0.75rem', color: '#a5b4fc' }}>
+                <div style={{ border: '1px solid var(--secondary)', borderRadius: '10px', padding: '1rem', background: 'var(--bg-glass)' }}>
+                  <p style={{ fontSize: '0.85rem', fontWeight: 700, marginBottom: '0.75rem', color: 'var(--secondary)' }}>
                     <CreditCard size={14} style={{ marginRight: '0.4rem' }} /> Registrar Pago
                   </p>
 
-                  <div style={{ marginBottom: '0.75rem', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '0.5rem' }}>
+                  <div style={{ marginBottom: '0.75rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem' }}>
                     <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.85rem' }}>
                       <input type="checkbox" checked={usarAnticipo} onChange={e => setUsarAnticipo(e.target.checked)} disabled={registrandoPago || anticiposDisponibles.length === 0} />
                       <span style={{ color: anticiposDisponibles.length > 0 ? '#a855f7' : '#64748b', fontWeight: 600 }}>
@@ -607,14 +591,15 @@ const DetalleCxP: React.FC<Props> = ({ nota, visible, onCerrar, onActualizar }) 
         )}
 
         {movEditar && (
-          <ModalEditarMovimiento
+          <ModalEditarPagoCxP
             visible={!!movEditar}
-            movimiento={movEditar}
+            pago={movEditar}
             cajas={cajasBancos}
             onCerrar={() => setMovEditar(null)}
-            onGuardado={() => {
+            onActualizar={() => {
+              setMovEditar(null);
+              cargarDetalle();
               onActualizar();
-              onCerrar(); // Opcional: Cerrar o recargar
             }}
           />
         )}
@@ -626,6 +611,8 @@ const DetalleCxP: React.FC<Props> = ({ nota, visible, onCerrar, onActualizar }) 
             notaId={nota.id}
             onCerrar={() => setItemEditar(null)}
             onActualizar={() => {
+              setItemEditar(null);
+              cargarDetalle();
               onActualizar();
             }}
           />

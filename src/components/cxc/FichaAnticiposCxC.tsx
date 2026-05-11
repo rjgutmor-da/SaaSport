@@ -253,7 +253,7 @@ const FichaAnticiposCxC: React.FC<Props> = ({
               background: 'rgba(74,222,128,0.08)', border: '1px solid rgba(74,222,128,0.2)',
               borderRadius: '10px', padding: '0.8rem 1rem'
             }}>
-              <div style={{ fontSize: '0.75rem', color: '#94a3b8', marginBottom: '0.3rem' }}>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '0.3rem' }}>
                 Anticipos activos
               </div>
               <div style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--secondary)' }}>
@@ -265,7 +265,7 @@ const FichaAnticiposCxC: React.FC<Props> = ({
               background: 'rgba(74,222,128,0.08)', border: '1px solid rgba(74,222,128,0.2)',
               borderRadius: '10px', padding: '0.8rem 1rem'
             }}>
-              <div style={{ fontSize: '0.75rem', color: '#94a3b8', marginBottom: '0.3rem' }}>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '0.3rem' }}>
                 Total disponible para aplicar
               </div>
               <div style={{ fontSize: '1.4rem', fontWeight: 700, color: 'var(--secondary)' }}>
@@ -311,7 +311,7 @@ const FichaAnticiposCxC: React.FC<Props> = ({
                     style={{
                       border: isExp
                         ? '1px solid rgba(74,222,128,0.4)'
-                        : '1px solid rgba(255,255,255,0.08)',
+                        : '1px solid var(--border)',
                       borderRadius: '12px',
                       overflow: 'hidden',
                       transition: 'border-color 0.2s',
@@ -323,33 +323,33 @@ const FichaAnticiposCxC: React.FC<Props> = ({
                       style={{
                         display: 'flex', alignItems: 'center', gap: '0.75rem',
                         padding: '0.9rem 1rem', cursor: 'pointer',
-                        background: isExp ? 'rgba(74,222,128,0.06)' : 'rgba(255,255,255,0.02)',
+                        background: isExp ? 'rgba(74,222,128,0.06)' : 'var(--bg-glass)',
                         transition: 'background 0.2s',
                       }}
                     >
                       {isExp
                         ? <ChevronDown size={16} style={{ color: 'var(--secondary)', flexShrink: 0 }} />
-                        : <ChevronRight size={16} style={{ color: '#94a3b8', flexShrink: 0 }} />
+                        : <ChevronRight size={16} style={{ color: 'var(--text-tertiary)', flexShrink: 0 }} />
                       }
 
                       <div style={{ flex: 1, minWidth: 0 }}>
                         {/* Nombre del alumno (solo si es modo global) */}
                         {!alumnoId && (
-                          <div style={{ fontSize: '0.78rem', color: '#94a3b8', fontWeight: 600 }}>
+                          <div style={{ fontSize: '0.78rem', color: 'var(--text-tertiary)', fontWeight: 600 }}>
                             {nombreAlumno}
                           </div>
                         )}
-                        <div style={{ fontWeight: 600, fontSize: '0.93rem', color: '#e2e8f0' }}>
+                        <div style={{ fontWeight: 600, fontSize: '0.93rem', color: 'var(--text-primary)' }}>
                           {anticipo.descripcion || 'Saldo a Favor'}
                         </div>
-                        <div style={{ fontSize: '0.78rem', color: '#64748b', marginTop: '0.1rem' }}>
+                        <div style={{ fontSize: '0.78rem', color: 'var(--text-tertiary)', marginTop: '0.1rem' }}>
                           {formatFecha(anticipo.fecha_emision)}
                         </div>
                       </div>
 
                       {/* Saldo disponible */}
                       <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                        <div style={{ fontSize: '0.72rem', color: '#94a3b8' }}>Disponible</div>
+                        <div style={{ fontSize: '0.72rem', color: 'var(--text-tertiary)' }}>Disponible</div>
                         <div style={{ fontWeight: 700, color: 'var(--secondary)', fontSize: '1.05rem' }}>
                           Bs {fmtMonto(anticipo.saldo_pendiente)}
                         </div>
@@ -366,7 +366,7 @@ const FichaAnticiposCxC: React.FC<Props> = ({
                         borderTop: '1px solid rgba(74,222,128,0.15)',
                         background: 'rgba(0,0,0,0.15)',
                       }}>
-                        <p style={{ fontSize: '0.82rem', color: '#94a3b8', fontWeight: 600, marginBottom: '0.75rem' }}>
+                        <p style={{ fontSize: '0.82rem', color: 'var(--text-tertiary)', fontWeight: 600, marginBottom: '0.75rem' }}>
                           <ArrowRight size={13} style={{ marginRight: '0.3rem', color: 'var(--secondary)' }} />
                           APLICAR A UNA NOTA DE SERVICIO PENDIENTE
                           {!alumnoId && ` DE ${nombreAlumno.toUpperCase()}`}
@@ -389,7 +389,7 @@ const FichaAnticiposCxC: React.FC<Props> = ({
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                             {/* Selector de nota */}
                             <div>
-                              <label style={{ fontSize: '0.78rem', color: '#94a3b8', display: 'block', marginBottom: '0.3rem' }}>
+                              <label style={{ fontSize: '0.78rem', color: 'var(--text-tertiary)', display: 'block', marginBottom: '0.3rem' }}>
                                 Nota de servicio a aplicar:
                               </label>
                               <select
@@ -424,7 +424,7 @@ const FichaAnticiposCxC: React.FC<Props> = ({
                                 padding: '0.5rem 0.75rem', borderRadius: '8px',
                                 background: 'rgba(239,68,68,0.07)', fontSize: '0.82rem'
                               }}>
-                                <span style={{ color: '#94a3b8' }}>
+                                <span style={{ color: 'var(--text-tertiary)' }}>
                                   <TrendingDown size={12} style={{ marginRight: '0.2rem' }} />
                                   Saldo nota:
                                 </span>
@@ -437,7 +437,7 @@ const FichaAnticiposCxC: React.FC<Props> = ({
                             {/* Monto + Botón */}
                             <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-end' }}>
                               <div style={{ flex: 1 }}>
-                                <label style={{ fontSize: '0.78rem', color: '#94a3b8', display: 'block', marginBottom: '0.3rem' }}>
+                                <label style={{ fontSize: '0.78rem', color: 'var(--text-tertiary)', display: 'block', marginBottom: '0.3rem' }}>
                                   Monto a aplicar (Bs):
                                 </label>
                                 <input

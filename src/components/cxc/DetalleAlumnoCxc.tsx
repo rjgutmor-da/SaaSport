@@ -252,12 +252,12 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
       <div className="cxc-modal-overlay" onClick={onCerrar}>
         <div className="cxc-modal cxc-modal--detalle cxc-modal--wide" onClick={e => e.stopPropagation()}>
           {/* Header con Efecto Glass y Metadatos Premium */}
-          <div className="modal-header-glass" style={{ padding: '1.5rem 2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+          <div className="modal-header-glass" style={{ padding: '1.5rem 2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border)' }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-              <h2 style={{ margin: 0, fontSize: '1.75rem', fontWeight: 800, letterSpacing: '-0.025em', color: '#fff' }}>
+              <h2 style={{ margin: 0, fontSize: '1.75rem', fontWeight: 800, letterSpacing: '-0.025em', color: 'var(--text-primary)' }}>
                 {alumno.nombres} {alumno.apellidos}
               </h2>
-              <div style={{ display: 'flex', gap: '1.25rem', alignItems: 'center', color: '#94a3b8', fontSize: '0.85rem', flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', gap: '1.25rem', alignItems: 'center', color: 'var(--text-secondary)', fontSize: '0.85rem', flexWrap: 'wrap' }}>
                 <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                   <MapPin size={14} style={{ color: '#f87171' }} /> {alumno.sucursal_nombre || 'Sede'}
                 </span>
@@ -349,12 +349,12 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                   
                   return (
                     <React.Fragment key={cxc.id}>
-                      <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', opacity: cxc.anulada ? 0.5 : 1 }}>
-                        <td style={{ padding: '0.5rem 0.75rem', verticalAlign: 'middle', whiteSpace: 'nowrap', border: '1px solid rgba(255,255,255,0.08)' }}>{formatFecha(cxc.fecha_emision || cxc.created_at)}</td>
-                        <td style={{ padding: '0.5rem 0.75rem', verticalAlign: 'middle', border: '1px solid rgba(255,255,255,0.08)' }}>
+                      <tr style={{ borderBottom: '1px solid var(--border)', opacity: cxc.anulada ? 0.5 : 1 }}>
+                        <td style={{ padding: '0.5rem 0.75rem', verticalAlign: 'middle', whiteSpace: 'nowrap', border: '1px solid var(--border)' }}>{formatFecha(cxc.fecha_emision || cxc.created_at)}</td>
+                        <td style={{ padding: '0.5rem 0.75rem', verticalAlign: 'middle', border: '1px solid var(--border)' }}>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
-                              <div style={{ fontWeight: 700, color: '#fff' }}>
+                              <div style={{ fontWeight: 700, color: 'var(--text-primary)' }}>
                                 {cxc.descripcion || 'Sin descripción'}
                                 {cxc.anulada && <span style={{ color: '#f87171', marginLeft: '0.4rem', fontSize: '0.7rem', background: 'rgba(248,113,113,0.1)', padding: '2px 6px', borderRadius: '4px' }}>ANULADA</span>}
                                 {isAnticipo && <span style={{ color: '#a855f7', marginLeft: '0.4rem', fontSize: '0.7rem', background: 'rgba(168,85,247,0.1)', padding: '2px 6px', borderRadius: '4px' }}>ANTICIPO</span>}
@@ -380,9 +380,9 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                               {cxc.observaciones && (
                                 <span style={{ 
                                   fontSize: '0.75rem', 
-                                  color: '#94a3b8', 
+                                  color: 'var(--text-tertiary)', 
                                   fontStyle: 'italic', 
-                                  borderLeft: '1px solid rgba(255,255,255,0.1)', 
+                                  borderLeft: '1px solid var(--border)', 
                                   paddingLeft: '0.6rem',
                                   marginLeft: '0.2rem'
                                 }}>
@@ -392,14 +392,14 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                             </div>
                           </div>
                         </td>
-                        <td style={{ padding: '0.5rem 0.75rem', verticalAlign: 'middle', border: '1px solid rgba(255,255,255,0.08)', fontWeight: 600 }}>
+                        <td style={{ padding: '0.5rem 0.75rem', verticalAlign: 'middle', border: '1px solid var(--border)', fontWeight: 600 }}>
                           Bs {fmtMonto(isAnticipo ? 0 : Number(cxc.monto_total))}
                         </td>
-                        <td style={{ padding: '0.5rem 0.75rem', verticalAlign: 'middle', border: '1px solid rgba(255,255,255,0.08)', color: '#4ade80', fontWeight: 600 }}>
+                        <td style={{ padding: '0.5rem 0.75rem', verticalAlign: 'middle', border: '1px solid var(--border)', color: '#4ade80', fontWeight: 600 }}>
                           Bs {fmtMonto(isAnticipo ? Number(cxc.total_cobrado) : cobrado)}
                         </td>
                         <td style={{ 
-                          padding: '0.5rem 0.75rem', verticalAlign: 'middle', border: '1px solid rgba(255,255,255,0.08)',
+                          padding: '0.5rem 0.75rem', verticalAlign: 'middle', border: '1px solid var(--border)',
                           fontWeight: 700, 
                           color: isAnticipo 
                             ? (Number(cxc.saldo_pendiente) >= 0 ? '#a855f7' : '#4ade80')
@@ -407,10 +407,10 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                         }}>
                           {isAnticipo ? '-' : ''} Bs {fmtMonto(isAnticipo ? Number(cxc.total_cobrado) : Number(cxc.saldo_pendiente))}
                         </td>
-                        <td style={{ padding: '0.5rem 0.75rem', verticalAlign: 'middle', border: '1px solid rgba(255,255,255,0.08)', fontSize: '0.75rem', color: '#94a3b8' }}>
+                        <td style={{ padding: '0.5rem 0.75rem', verticalAlign: 'middle', border: '1px solid var(--border)', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
                           {ultimoPago ? formatFecha(ultimoPago.fecha) : '—'}
                         </td>
-                        <td style={{ padding: '0.5rem 0.75rem', textAlign: 'center', verticalAlign: 'middle', border: '1px solid rgba(255,255,255,0.08)' }}>
+                        <td style={{ padding: '0.5rem 0.75rem', textAlign: 'center', verticalAlign: 'middle', border: '1px solid var(--border)' }}>
                           <div style={{ display: 'flex', gap: '0.35rem', justifyContent: 'center' }}>
                             <button onClick={() => setVerNotaId(cxc.id)} className="btn-compact-action" title="Ver"><Eye size={14} /></button>
                             {!cxc.anulada && puedeAnular() && (

@@ -11,6 +11,7 @@ import {
   ChevronDown, Search, ArrowUpDown
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useAuthSaaSport } from '../../lib/authHelper';
 
 /** Interfaz del registro de auditoría */
 interface AuditEntry {
@@ -28,23 +29,27 @@ interface AuditEntry {
 
 const RegistroActividad: React.FC = () => {
   const navigate = useNavigate();
+  const { escuelaId } = useAuthSaaSport();
   const [registros, setRegistros] = useState<AuditEntry[]>([]);
   const [cargando, setCargando] = useState(true);
   const [nombreEscuela, setNombreEscuela] = useState('PLANETA FUTBOL CLUB');
   
   // Filtros
   const [intervaloFechas, setIntervaloFechas] = useState('Este mes');
-  const [fechaDesde, setFechaDesde] = useState('');
-  const [fechaHasta, setFechaHasta] = useState('');
+  const [fechaDesde, setFechaDesde] = useState(new Date().toISOString().split('T')[0]);
+  const [fechaHasta, setFechaHasta] = useState(new Date().toISOString().split('T')[0]);
 
   /** Cargar datos de la base de datos */
   const cargarDatos = async () => {
     setCargando(true);
-    
-    // En una app real, filtraríamos por fecha aquí
+    if (!escuelaId) return;
+
     const { data, error } = await supabase
       .from('audit_log')
       .select('*')
+      .eq('escuela_id', escuelaId)
+      .gte('created_at', `${fechaDesde}T00:00:00`)
+      .lte('created_at', `${fechaHasta}T23:59:59`)
       .order('created_at', { ascending: false });
 
     if (!error && data) {
@@ -56,8 +61,8 @@ const RegistroActividad: React.FC = () => {
   };
 
   useEffect(() => {
-    cargarDatos();
-  }, []);
+    if (escuelaId) cargarDatos();
+  }, [escuelaId]);
 
   /** Formatea la fecha para la tabla */
   const formatTableDate = (iso: string) => {
@@ -77,13 +82,7 @@ const RegistroActividad: React.FC = () => {
 
   /** Obtener el rango de fechas para el subtítulo */
   const getSubtituloRango = () => {
-    const hoy = new Date();
-    const primerDia = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
-    const ultimoDia = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0);
-    
-    const fmt = (d: Date) => d.toLocaleDateString('es-BO', { day: '2-digit', month: 'short', year: 'numeric' }).replace('.', '');
-    
-    return `Desde ${fmt(primerDia)} A ${fmt(ultimoDia)}`;
+    return `Desde ${fechaDesde} A ${fechaHasta}`;
   };
 
   return (
@@ -106,45 +105,8 @@ const RegistroActividad: React.FC = () => {
           <strong>Filtros :</strong>
         </div>
 
-        <div className="filter-group" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <div className="custom-select-wrapper" style={{ position: 'relative' }}>
-            <select 
-              value={intervaloFechas} 
-              onChange={(e) => setIntervaloFechas(e.target.value)}
-              style={{
-                background: 'var(--bg-input)',
-                color: 'var(--text-primary)',
-                padding: '0.4rem 2rem 0.4rem 1rem',
-                borderRadius: '6px',
-                border: '1px solid var(--border)',
-                appearance: 'none',
-                fontSize: '0.9rem',
-                minWidth: '180px'
-              }}
-            >
-              <option>Este mes</option>
-              <option>Mes pasado</option>
-              <option>Este año</option>
-              <option>Personalizado</option>
-            </select>
-            <ChevronDown size={14} style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', color: '#6b7280', pointerEvents: 'none' }} />
-          </div>
-        </div>
-
-        <button style={{ 
-          display: 'flex', 
-          alignItems: 'center', 
-          gap: '0.5rem', 
-          padding: '0.4rem 1rem', 
-          borderRadius: '6px', 
-          border: '1px solid var(--border)', 
-          background: 'var(--bg-input)', 
-          color: 'var(--text-primary)',
-          fontSize: '0.9rem'
-        }}>
-          <div style={{ background: 'var(--primary)', color: '#fff', borderRadius: '50%', width: '18px', height: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px' }}>+</div>
-          Más filtros
-        </button>
+        <input type="date" value={fechaDesde} onChange={(e) => setFechaDesde(e.target.value)} style={{ background: 'var(--bg-input)', border: '1px solid var(--border)', padding: '0.3rem', borderRadius: '4px', color: 'var(--text-primary)' }} />
+        <input type="date" value={fechaHasta} onChange={(e) => setFechaHasta(e.target.value)} style={{ background: 'var(--bg-input)', border: '1px solid var(--border)', padding: '0.3rem', borderRadius: '4px', color: 'var(--text-primary)' }} />
 
         <button 
           onClick={cargarDatos}
@@ -182,19 +144,13 @@ const RegistroActividad: React.FC = () => {
           </div>
 
           {/* Tabla de Resultados */}
-          <div className="report-table-wrapper">
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
+          <div className="report-table-wrapper" style={{ overflowX: 'auto' }}>
+            <table className="report-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
               <thead>
                 <tr style={{ borderBottom: '2px solid var(--border)' }}>
-                  <th style={{ textAlign: 'left', padding: '1rem 0', color: 'var(--text-tertiary)', textTransform: 'uppercase', fontSize: '0.75rem', fontWeight: '700', letterSpacing: '0.5px', width: '25%' }}>
-                    FECHA <ArrowUpDown size={12} style={{ marginLeft: '4px', verticalAlign: 'middle' }} />
-                  </th>
-                  <th style={{ textAlign: 'left', padding: '1rem 0', color: 'var(--text-tertiary)', textTransform: 'uppercase', fontSize: '0.75rem', fontWeight: '700', letterSpacing: '0.5px' }}>
-                    DETALLES DE LA ACTIVIDAD
-                  </th>
-                  <th style={{ textAlign: 'left', padding: '1rem 0', color: 'var(--text-tertiary)', textTransform: 'uppercase', fontSize: '0.75rem', fontWeight: '700', letterSpacing: '0.5px', width: '30%' }}>
-                    DESCRIPCIÓN
-                  </th>
+                  <th style={{ textAlign: 'left', padding: '0.75rem', color: 'var(--text-tertiary)', fontWeight: '600', width: '150px' }}>FECHA Y HORA</th>
+                  <th style={{ textAlign: 'left', padding: '0.75rem', color: 'var(--text-tertiary)', fontWeight: '600', width: '250px' }}>REFERENCIA / ENTIDAD</th>
+                  <th style={{ textAlign: 'left', padding: '0.75rem', color: 'var(--text-tertiary)', fontWeight: '600' }}>ACTIVIDAD REALIZADA</th>
                 </tr>
               </thead>
               <tbody>
@@ -214,37 +170,39 @@ const RegistroActividad: React.FC = () => {
                 ) : (
                   registros.map((reg) => (
                     <tr key={reg.id} className="report-row" style={{ borderBottom: '1px solid var(--border)', transition: 'background 0.2s' }}>
-                      <td style={{ padding: '1.5rem 0', verticalAlign: 'top', color: 'var(--text-primary)' }}>
+                      <td style={{ padding: '0.6rem 0.75rem', verticalAlign: 'middle', color: 'var(--text-primary)', borderRight: '1px solid var(--border-subtle)', fontSize: '0.85rem' }}>
                         {formatTableDate(reg.created_at)}
                       </td>
-                      <td style={{ padding: '1.5rem 0', verticalAlign: 'top' }}>
-                        <div style={{ color: 'var(--primary)', fontWeight: '600', cursor: 'pointer', marginBottom: '0.2rem' }}>
-                          {reg.detalle?.referencia || (reg.accion === 'cobro' ? `Pago ${reg.detalle?.nro_comprobante || ''}` : reg.entidad_id.substring(0, 8))}
+                      <td style={{ padding: '0.6rem 0.75rem', verticalAlign: 'middle', borderRight: '1px solid var(--border-subtle)' }}>
+                        <div style={{ color: 'var(--primary)', fontWeight: '700', cursor: 'pointer', fontSize: '0.85rem' }}>
+                          {reg.detalle?.referencia || (reg.accion === 'cobro' ? `Pago ${reg.detalle?.nro_comprobante || ''}` : reg.entidad_id?.substring(0, 8) || 'N/A')}
                         </div>
-                        <div style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
-                          Cliente: <span style={{ color: 'var(--primary)', fontWeight: '500' }}>{reg.detalle?.cliente || 'N/A'}</span>
+                        <div style={{ color: 'var(--text-secondary)', fontSize: '0.75rem', opacity: 0.8 }}>
+                          Entidad: <span style={{ color: 'var(--text-primary)', fontWeight: '500' }}>{reg.detalle?.cliente || reg.detalle?.proveedor || 'N/A'}</span>
                         </div>
                       </td>
-                      <td style={{ padding: '1.5rem 0', verticalAlign: 'top', color: 'var(--text-secondary)' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.3rem' }}>
-                          <div style={{ fontWeight: '500', color: 'var(--text-primary)' }}>
+                      <td style={{ padding: '0.6rem 0.75rem', verticalAlign: 'middle', color: 'var(--text-secondary)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
+                          <div style={{ fontWeight: '500', color: 'var(--text-primary)', fontSize: '0.85rem' }}>
                             {reg.detalle?.descripcion || (reg.accion === 'cobro' ? `Cobro de Bs ${reg.detalle?.monto || 0} (${reg.detalle?.metodo_pago || 'efectivo'})` : reg.accion)}
                           </div>
-                          <span style={{ 
-                            fontSize: '0.65rem', 
-                            padding: '1px 6px', 
-                            borderRadius: '4px', 
-                            background: reg.ip_address === 'AsiSport' ? 'rgba(59, 130, 246, 0.1)' : 'rgba(16, 185, 129, 0.1)',
-                            color: reg.ip_address === 'AsiSport' ? '#60a5fa' : '#34d399',
-                            border: '1px solid currentColor',
-                            fontWeight: '700',
-                            textTransform: 'uppercase'
-                          }}>
-                            {reg.ip_address || 'SaaSport'}
-                          </span>
-                        </div>
-                        <div style={{ fontSize: '0.85rem', color: 'var(--text-tertiary)' }}>
-                          por {reg.usuario_nombre}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                            <span style={{ 
+                              fontSize: '0.6rem', 
+                              padding: '1px 5px', 
+                              borderRadius: '4px', 
+                              background: reg.ip_address === 'AsiSport' ? 'rgba(59, 130, 246, 0.1)' : 'rgba(16, 185, 129, 0.1)',
+                              color: reg.ip_address === 'AsiSport' ? '#60a5fa' : '#34d399',
+                              border: '1px solid currentColor',
+                              fontWeight: '800',
+                              textTransform: 'uppercase'
+                            }}>
+                              {reg.ip_address || 'SaaSport'}
+                            </span>
+                            <div style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', whiteSpace: 'nowrap' }}>
+                              por {reg.usuario_nombre.split(' ')[0]}
+                            </div>
+                          </div>
                         </div>
                       </td>
                     </tr>
@@ -255,7 +213,7 @@ const RegistroActividad: React.FC = () => {
           </div>
 
           {/* Footer del Reporte */}
-          <div className="report-footer" style={{ marginTop: '5rem', paddingTop: '2rem', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', color: 'var(--text-tertiary)', fontSize: '0.85rem' }}>
+          <div className="report-footer" style={{ marginTop: '3rem', paddingTop: '1.5rem', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', color: 'var(--text-tertiary)', fontSize: '0.75rem' }}>
             <div>Generado el {new Date().toLocaleString()}</div>
             <div>Página 1 de 1</div>
           </div>
@@ -263,10 +221,27 @@ const RegistroActividad: React.FC = () => {
       </div>
 
       <style>{`
-        .report-row:hover { background: rgba(255,255,255,0.02); cursor: default; }
+        .report-row:hover { background: rgba(var(--primary-rgb), 0.05); cursor: default; }
+        .report-row:nth-child(even) { background: rgba(255,255,255,0.01); }
         .spin { animation: spin 1s linear infinite; }
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
         
+        :root {
+          --border-subtle: rgba(255,255,255,0.05);
+        }
+        [data-theme='light'] :root {
+          --border-subtle: rgba(0,0,0,0.05);
+        }
+
+        .report-table-wrapper table {
+          border: 1px solid var(--border);
+        }
+        .report-table-wrapper th {
+          background: rgba(255,255,255,0.02);
+          border-right: 1px solid var(--border-subtle);
+          padding: 0.75rem !important;
+        }
+
         /* Estilos para impresión */
         @media print {
           .report-filter-bar, .navbar, .btn-volver { display: none !important; }
@@ -276,6 +251,7 @@ const RegistroActividad: React.FC = () => {
           .main-content { background: white !important; }
         }
       `}</style>
+
     </main>
   );
 };

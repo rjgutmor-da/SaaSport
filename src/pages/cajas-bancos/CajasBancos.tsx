@@ -537,9 +537,8 @@ const CajasBancos: React.FC = () => {
                         </tr>
                       ) : movsCaja.map(mov => {
                         const esIngreso = mov.debe > 0;
-                        const fechaObj = new Date(mov.fecha);
-                        const fechaStr = fechaObj.toLocaleDateString('es-BO');
-                        const horaStr = fechaObj.toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit' });
+                        const fechaStr = formatFecha(mov.fecha);
+
                         
                         return (
                           <tr 
