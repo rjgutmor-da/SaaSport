@@ -174,7 +174,7 @@ const fetchMovimientos = async (escuelaId: string, cajaIds: string[]) => {
     supabase.from('cobros_aplicados').select(`
       id, caja_id, monto_aplicado, fecha, conciliado, created_at, asiento_id, documento_referencia,
       cuentas_cobrar (
-        id, descripcion, nro_recibo,
+        id, descripcion, nro_recibo, es_anticipo,
         alumnos ( nombres, apellidos ),
         cxc_detalle (
           catalogo_items ( nombre )
@@ -213,7 +213,11 @@ const fetchMovimientos = async (escuelaId: string, cajaIds: string[]) => {
       cuenta_id: c.caja_id,
       cuenta_nombre: (() => {
         const items = c.cuentas_cobrar?.cxc_detalle?.map((d: any) => d.catalogo_items?.nombre).filter(Boolean);
-        if (!items || items.length === 0) return 'Concepto no especificado';
+        if (!items || items.length === 0) {
+          // Si es anticipo, mostrar la descripción de la nota; si no, fallback genérico
+          if (c.cuentas_cobrar?.es_anticipo) return c.cuentas_cobrar?.descripcion || 'Anticipo';
+          return c.cuentas_cobrar?.descripcion || 'Concepto no especificado';
+        }
         return Array.from(new Set(items)).join(', ');
       })(),
       conciliado: c.conciliado || false,

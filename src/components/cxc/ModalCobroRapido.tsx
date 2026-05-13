@@ -39,6 +39,8 @@ const ModalCobroRapido: React.FC<Props> = ({ alumnoInicial, visible, onCerrar, o
   const [error, setError] = useState<string | null>(null);
   const [exito, setExito] = useState<string | null>(null);
   const [mensajeWA, setMensajeWA] = useState<{ texto: string; telefono: string } | null>(null);
+  // Info sobre exceso convertido en anticipo
+  const [infoAnticipo, setInfoAnticipo] = useState<{ monto: number } | null>(null);
 
   // Cargar datos al abrir
   useEffect(() => {
@@ -119,7 +121,7 @@ const ModalCobroRapido: React.FC<Props> = ({ alumnoInicial, visible, onCerrar, o
     if (!montoNum || montoNum <= 0) { setError('Monto inválido.'); return; }
     if (!cuentaId) { setError('Selecciona la caja/banco destino.'); return; }
 
-    setGuardando(true); setError(null);
+    setGuardando(true); setError(null); setInfoAnticipo(null);
 
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -129,9 +131,26 @@ const ModalCobroRapido: React.FC<Props> = ({ alumnoInicial, visible, onCerrar, o
         .eq('id', user.id).single();
       if (!ctx) throw new Error('Error de contexto.');
 
+      const partesRef: string[] = [];
+      if (bancoOrigen.trim()) partesRef.push(bancoOrigen.trim());
+      if (nroDoc.trim()) partesRef.push(nroDoc.trim());
+      const concatDoc = partesRef.join(' | ');
+
+      let montoCobrado = montoNum;
+      let exceso = 0;
+
+      // Si es una nota pendiente y el monto excede el saldo, separar exceso como anticipo
+      if (cxcSelId !== 'anticipo') {
+        const cxcSel = cxcsPendientes.find(c => c.id === cxcSelId);
+        if (cxcSel && montoNum > Number(cxcSel.saldo_pendiente)) {
+          exceso = parseFloat((montoNum - Number(cxcSel.saldo_pendiente)).toFixed(2));
+          montoCobrado = Number(cxcSel.saldo_pendiente);
+        }
+      }
+
       let objetivoCxcId = cxcSelId;
-      
-      // Si es un anticipo, creamos una nota de cuentas_cobrar dinámica
+
+      // Si es anticipo directo, creamos la nota de anticipo
       if (cxcSelId === 'anticipo') {
           const { data: nuevaNota, error: errCxc } = await supabase.from('cuentas_cobrar').insert({
               escuela_id: ctx.escuela_id,
@@ -139,13 +158,13 @@ const ModalCobroRapido: React.FC<Props> = ({ alumnoInicial, visible, onCerrar, o
               alumno_id: alumnoSel.alumno_id,
               monto_total: montoNum,
               descripcion: 'Cobro Anticipado',
-              estado: 'pendiente'
+              estado: 'pendiente',
+              es_anticipo: true,
           }).select('id').single();
 
           if (errCxc || !nuevaNota) throw new Error('Error al crear nota de anticipo.');
           objetivoCxcId = nuevaNota.id;
 
-          // Crear detalle para consistencia
           await supabase.from('cxc_detalle').insert({
               escuela_id: ctx.escuela_id,
               cuenta_cobrar_id: nuevaNota.id,
@@ -155,31 +174,62 @@ const ModalCobroRapido: React.FC<Props> = ({ alumnoInicial, visible, onCerrar, o
           });
       }
 
-      const partesRef: string[] = [];
-      if (bancoOrigen.trim()) partesRef.push(bancoOrigen.trim());
-      if (nroDoc.trim()) partesRef.push(nroDoc.trim());
-      const concatDoc = partesRef.join(' | ');
-
-      // 1. Registrar cobro aplicado vía RPC (también actualiza estado de la nota)
+      // Cobrar el monto exacto (o el saldo si hubo exceso)
       const { error: rpcErr } = await supabase.rpc('rpc_registrar_cobro', {
         p_payload: {
           cuenta_cobrar_id: objetivoCxcId,
           escuela_id: ctx.escuela_id,
           sucursal_id: ctx.sucursal_id,
           usuario_id: ctx.id,
-          monto: montoNum,
+          monto: montoCobrado,
           cuenta_cobro_id: cuentaId,
           nro_comprobante: concatDoc || null,
           fecha: `${fecha}T${getHoraLocal()}:00`
         }
       });
-
       if (rpcErr) throw rpcErr;
 
-      // 3. Actualizar Saldo de Caja (AHORA SE ENCARGA EL TRIGGER)
+      // Si hubo exceso, registrar como anticipo
+      if (exceso > 0) {
+        const { data: notaAnticipo, error: errAnt } = await supabase.from('cuentas_cobrar').insert({
+          escuela_id: ctx.escuela_id,
+          sucursal_id: ctx.sucursal_id,
+          alumno_id: alumnoSel.alumno_id,
+          monto_total: exceso,
+          descripcion: 'Anticipo — Exceso de pago',
+          estado: 'pendiente',
+          es_anticipo: true,
+          observaciones: `Generado automáticamente por pago de Bs ${fmtMonto(montoNum)} con exceso de Bs ${fmtMonto(exceso)}.`
+        }).select('id').single();
 
+        if (errAnt || !notaAnticipo) throw new Error('Error al registrar el anticipo del exceso.');
 
-      // 4. Auditoría
+        await supabase.from('cxc_detalle').insert({
+          escuela_id: ctx.escuela_id,
+          cuenta_cobrar_id: notaAnticipo.id,
+          descripcion: 'Anticipo — Exceso de pago',
+          cantidad: 1,
+          precio_unitario: exceso
+        });
+
+        const { error: rpcAntErr } = await supabase.rpc('rpc_registrar_cobro', {
+          p_payload: {
+            cuenta_cobrar_id: notaAnticipo.id,
+            escuela_id: ctx.escuela_id,
+            sucursal_id: ctx.sucursal_id,
+            usuario_id: ctx.id,
+            monto: exceso,
+            cuenta_cobro_id: cuentaId,
+            nro_comprobante: concatDoc || null,
+            fecha: `${fecha}T${getHoraLocal()}:00`
+          }
+        });
+        if (rpcAntErr) throw rpcAntErr;
+
+        setInfoAnticipo({ monto: exceso });
+      }
+
+      // Auditoría
       try {
         const { logActivity } = await import('../../lib/auditLogger');
         logActivity({
@@ -192,12 +242,13 @@ const ModalCobroRapido: React.FC<Props> = ({ alumnoInicial, visible, onCerrar, o
           detalle: { 
             cliente: `${alumnoSel.nombres} ${alumnoSel.apellidos}`,
             monto: montoNum,
-            descripcion: `Cobro de Bs ${montoNum} para ${alumnoSel.nombres}.`
+            exceso_anticipo: exceso > 0 ? exceso : undefined,
+            descripcion: `Cobro de Bs ${fmtMonto(montoNum)} para ${alumnoSel.nombres}${exceso > 0 ? ` (Bs ${fmtMonto(exceso)} guardados como anticipo)` : ''}.`
           },
         });
       } catch (e) { console.error(e); }
 
-      // Mensaje WhatsApp de recibo
+      // Mensaje WhatsApp
       const esPadre = alumnoSel.whatsapp_preferido === 'padre';
       const telefono = esPadre
         ? (alumnoSel.telefono_padre || alumnoSel.telefono_madre)
@@ -207,7 +258,8 @@ const ModalCobroRapido: React.FC<Props> = ({ alumnoInicial, visible, onCerrar, o
       if (telefono) {
         const telF = telefono.replace(/\D/g, '');
         const telFinal = telF.startsWith('591') ? telF : `591${telF}`;
-        const texto = `Gracias por el pago de Bs ${fmtMonto(montoNum)} correspondiente a: ${cxcActual?.descripcion || 'servicios'}.`;
+        let texto = `Gracias por el pago de Bs ${fmtMonto(montoNum)} correspondiente a: ${cxcActual?.descripcion || 'servicios'}.`;
+        if (exceso > 0) texto += ` El exceso de Bs ${fmtMonto(exceso)} fue guardado como anticipo a su favor.`;
         setMensajeWA({ texto, telefono: telFinal });
       }
 
@@ -236,6 +288,10 @@ const ModalCobroRapido: React.FC<Props> = ({ alumnoInicial, visible, onCerrar, o
 
   const cxcSel = cxcsPendientes.find(c => c.id === cxcSelId);
   const saldoCxc = cxcSel ? Number(cxcSel.saldo_pendiente) : 0;
+  const montoIngresado = parseFloat(monto) || 0;
+  const excesoCalculado = cxcSelId !== 'anticipo' && montoIngresado > saldoCxc && saldoCxc > 0
+    ? parseFloat((montoIngresado - saldoCxc).toFixed(2))
+    : 0;
 
   return (
     <div className="cxc-modal-overlay">
@@ -336,13 +392,57 @@ const ModalCobroRapido: React.FC<Props> = ({ alumnoInicial, visible, onCerrar, o
                     <div className="form-campo">
                       <label><DollarSign size={14} /> Monto a cobrar *</label>
                       <input
-                        type="number" step="0.01" min="0.01" max={cxcSelId === 'anticipo' ? undefined : saldoCxc}
+                        type="number" step="0.01" min="0.01"
                         value={monto}
                         onChange={e => setMonto(e.target.value)}
                         required disabled={guardando}
                         placeholder="0.00"
-                        style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--success)' }}
+                        style={{ fontSize: '1.1rem', fontWeight: 700, color: excesoCalculado > 0 ? '#f59e0b' : 'var(--success)' }}
                       />
+                      {/* Aviso de exceso → anticipo */}
+                      {excesoCalculado > 0 && (
+                        <div style={{
+                          marginTop: '0.5rem',
+                          padding: '0.6rem 0.85rem',
+                          background: 'rgba(245,158,11,0.1)',
+                          border: '1px solid rgba(245,158,11,0.35)',
+                          borderRadius: '8px',
+                          fontSize: '0.78rem',
+                          color: '#f59e0b',
+                          display: 'flex',
+                          alignItems: 'flex-start',
+                          gap: '0.5rem',
+                          lineHeight: 1.5
+                        }}>
+                          <Info size={14} style={{ marginTop: '1px', flexShrink: 0 }} />
+                          <span>
+                            El pago excede el saldo en <strong>Bs {fmtMonto(excesoCalculado)}</strong>.
+                            Se cobrará <strong>Bs {fmtMonto(saldoCxc)}</strong> a la nota y el exceso
+                            se guardará como <strong>anticipo</strong> a favor del cliente.
+                          </span>
+                        </div>
+                      )}
+                      {/* Aviso de anticipo registrado exitosamente */}
+                      {infoAnticipo && (
+                        <div style={{
+                          marginTop: '0.5rem',
+                          padding: '0.6rem 0.85rem',
+                          background: 'rgba(168,85,247,0.1)',
+                          border: '1px solid rgba(168,85,247,0.35)',
+                          borderRadius: '8px',
+                          fontSize: '0.78rem',
+                          color: '#a855f7',
+                          display: 'flex',
+                          alignItems: 'flex-start',
+                          gap: '0.5rem',
+                          lineHeight: 1.5
+                        }}>
+                          <Check size={14} style={{ marginTop: '1px', flexShrink: 0 }} />
+                          <span>
+                            <strong>Bs {fmtMonto(infoAnticipo.monto)}</strong> guardados como anticipo exitosamente.
+                          </span>
+                        </div>
+                      )}
                     </div>
 
                     <div className="form-campo">

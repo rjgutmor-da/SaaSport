@@ -5,8 +5,7 @@
  * de Supabase y expone rol, escuela_id y sucursal_id.
  *
  * Reglas de acceso a SaaSport:
- *   ✅ SuperAdministrador → acceso completo + Panel Escuela
- *   ✅ Dueño              → acceso completo + Panel Escuela
+ *   ✅ SuperAdministrador → acceso total + Panel Escuela + eliminación
  *   ✅ Administrador      → acceso con restricción de sucursal (si aplica)
  *   ❌ Entrenador         → BLOQUEADO, solo puede usar AsisPort
  *   ❌ Entrenarqueros     → BLOQUEADO, solo puede usar AsisPort
@@ -21,7 +20,7 @@ export interface PerfilUsuario {
   email: string;
   nombres: string;
   apellidos: string;
-  rol: 'SuperAdministrador' | 'Dueño' | 'Administrador' | 'Entrenador' | 'Entrenarqueros';
+  rol: 'SuperAdministrador' | 'Administrador' | 'Entrenador' | 'Entrenarqueros';
   escuela_id: string;
   sucursal_id: string | null;
   activo: boolean;
@@ -33,8 +32,10 @@ interface AuthContextValue {
   cargando: boolean;
   /** true si el usuario puede acceder a SaaSport */
   tieneAcceso: boolean;
-  /** true si el usuario puede ver Panel de Escuela */
+  /** true si el usuario es SuperAdministrador */
   esSuperAdmin: boolean;
+  /** true si el usuario tiene permisos de eliminación */
+  puedeEliminar: boolean;
   /** sucursal_id para filtrar datos (null = sin restricción) */
   sucursalId: string | null;
   escuelaId: string | null;
@@ -50,7 +51,7 @@ export const useAuthSaaSport = (): AuthContextValue => {
 };
 
 /** Roles con acceso a SaaSport */
-const ROLES_PERMITIDOS = ['SuperAdministrador', 'Dueño', 'Administrador'];
+const ROLES_PERMITIDOS = ['SuperAdministrador', 'Administrador'];
 
 export const AuthProviderSaaSport = ({ children }: { children: ReactNode }) => {
   const [session, setSession] = useState<Session | null>(null);
@@ -136,8 +137,10 @@ export const AuthProviderSaaSport = ({ children }: { children: ReactNode }) => {
     : false;
 
   const esSuperAdmin = perfil
-    ? (perfil.rol === 'SuperAdministrador' || perfil.rol === 'Dueño') && perfil.activo
+    ? (perfil.rol === 'SuperAdministrador') && perfil.activo
     : false;
+
+  const puedeEliminar = esSuperAdmin;
 
   const value = React.useMemo(() => ({
     session,
@@ -145,10 +148,11 @@ export const AuthProviderSaaSport = ({ children }: { children: ReactNode }) => {
     cargando,
     tieneAcceso,
     esSuperAdmin,
+    puedeEliminar,
     sucursalId: perfil?.sucursal_id ?? null,
     escuelaId: perfil?.escuela_id ?? null,
     cerrarSesion,
-  }), [session, perfil, cargando, tieneAcceso, esSuperAdmin, cerrarSesion]);
+  }), [session, perfil, cargando, tieneAcceso, esSuperAdmin, puedeEliminar, cerrarSesion]);
 
   return (
     <AuthContext.Provider value={value}>

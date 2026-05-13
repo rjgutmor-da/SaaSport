@@ -1,26 +1,32 @@
 /**
- * PanelEscuela.tsx — Panel de información de la escuela en SaaSport.
+ * PanelEscuela.tsx — Panel central de la escuela en SaaSport.
  *
- * Muestra estadísticas generales (alumnos, entrenadores, usuarios) y
- * accesos rápidos a gestión de Sucursales, Usuarios, y Canchas/Horarios,
- * que navegan a AsisPort con SSO automático.
- *
- * Solo accesible para SuperAdministrador y Dueño.
+ * Accesible desde el sidebar principal (solo SuperAdministrador).
+ * Muestra:
+ *   - Hero card: nombre, logo/slogan dinámico e ID de la escuela
+ *   - Estadísticas: alumnos activos, entrenadores, usuarios totales
+ *   - Accesos rápidos: Sucursales, Usuarios, Canchas/Horarios (→ AsiSport)
+ *                       Estadísticas Financieras (→ /estadisticas)
+ *                       Auditoría (→ /configuraciones/auditoria)
  */
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  ChevronLeft, School, Users, UserCheck, GraduationCap,
-  Building2, UserCog, MapPin, ExternalLink
+  School, Users, UserCheck, GraduationCap,
+  Building2, UserCog, MapPin, BarChart2, Shield,
+  Activity, RefreshCw, ExternalLink
 } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import { navegarAAsisport } from '../../lib/navegacion';
+import LogoPlaneta from '../../assets/LogoPlaneta.png';
 
 interface EscuelaInfo {
   id: string;
   nombre: string;
   zona_horaria: string | null;
   activa: boolean;
+  logo_url?: string | null;
+  slogan?: string | null;
 }
 
 interface Estadisticas {
@@ -47,8 +53,8 @@ const PanelEscuela: React.FC = () => {
   const cargarDatos = async () => {
     try {
       setLoading(true);
+      setError(null);
 
-      // Obtener perfil del usuario actual para el escuela_id
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Sesión expirada.');
 
@@ -61,7 +67,6 @@ const PanelEscuela: React.FC = () => {
       if (perfilError || !perfil) throw new Error('No se encontró el perfil del usuario.');
       const { escuela_id } = perfil;
 
-      // Cargar datos en paralelo
       const [
         { data: escuelaData, error: escuelaError },
         { count: alumnosCount },
@@ -95,7 +100,8 @@ const PanelEscuela: React.FC = () => {
   if (loading) {
     return (
       <main className="main-content">
-        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}>
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh', flexDirection: 'column', gap: '1rem' }}>
+          <RefreshCw size={32} className="spin" style={{ color: 'var(--primary)' }} />
           <p style={{ color: 'var(--text-secondary)' }}>Cargando información de la escuela...</p>
         </div>
       </main>
@@ -104,21 +110,53 @@ const PanelEscuela: React.FC = () => {
 
   return (
     <main className="main-content">
-      {/* Header */}
-      <div className="pc-header">
-        <div className="pc-header-izq">
-          <button className="btn-volver" onClick={() => navigate('/configuraciones')} title="Volver">
-            <ChevronLeft size={20} />
-          </button>
-          <div>
-            <h1 className="pc-titulo">
-              <School size={28} style={{ marginRight: '0.5rem' }} />
-              Panel de Escuela
-            </h1>
-            <p className="pc-subtitulo">Información y estadísticas de tu academia</p>
+
+      {/* ─── HERO DE ESCUELA ─── */}
+      {escuela && (
+        <div className="pe-hero">
+          <div className="pe-hero-izq">
+            <div className="pe-hero-icon">
+              <School size={32} />
+            </div>
+            <div>
+              <h1 className="pe-hero-nombre">{escuela.nombre}</h1>
+              <p className="pe-hero-label">ID de Escuela</p>
+              <p className="pe-hero-id">{escuela.id}</p>
+              {escuela.zona_horaria && (
+                <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', marginTop: '0.25rem' }}>
+                  🕐 {escuela.zona_horaria}
+                </p>
+              )}
+            </div>
           </div>
+
+          {/* Logo dinámico */}
+          <div className="pe-hero-logo">
+            {escuela.logo_url ? (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem' }}>
+                <img
+                  src={escuela.logo_url}
+                  alt={`Logo ${escuela.nombre}`}
+                  className="pe-logo-img"
+                />
+                {escuela.slogan && (
+                  <p className="pe-hero-slogan">"{escuela.slogan}"</p>
+                )}
+              </div>
+            ) : (
+              <img
+                src={LogoPlaneta}
+                alt="Logo Planeta FC"
+                className="pe-logo-img"
+              />
+            )}
+          </div>
+
+          {/* Glow decorativo */}
+          <div className="pe-hero-glow-1" />
+          <div className="pe-hero-glow-2" />
         </div>
-      </div>
+      )}
 
       {error && (
         <div className="login-error" style={{ margin: '1rem 0' }}>
@@ -126,77 +164,97 @@ const PanelEscuela: React.FC = () => {
         </div>
       )}
 
-      {/* Hero — Info de la Escuela */}
-      {escuela && (
-        <div className="panel-escuela-hero">
-          <div className="panel-escuela-icon">
-            <School size={48} style={{ color: 'var(--primary)' }} />
+      {/* ─── ESTADÍSTICAS RÁPIDAS ─── */}
+      <div className="pe-stats-grid">
+        <div className="pe-stat-card pe-stat-orange">
+          <div className="pe-stat-icon">
+            <GraduationCap size={32} />
           </div>
           <div>
-            <h2 className="panel-escuela-nombre">{escuela.nombre}</h2>
-            <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', fontFamily: 'monospace', marginTop: '0.25rem' }}>
-              ID: {escuela.id}
-            </p>
-            {escuela.zona_horaria && (
-              <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', marginTop: '0.25rem' }}>
-                🕐 {escuela.zona_horaria}
-              </p>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Grid de Estadísticas */}
-      <div className="panel-escuela-stats">
-        <div className="stat-card stat-orange">
-          <div className="stat-icon"><GraduationCap size={32} /></div>
-          <div>
-            <p className="stat-label">Alumnos Activos</p>
-            <p className="stat-valor">{stats.alumnosActivos}</p>
+            <p className="pe-stat-label">Alumnos Activos</p>
+            <p className="pe-stat-valor">{stats.alumnosActivos}</p>
           </div>
         </div>
 
-        <div className="stat-card stat-green">
-          <div className="stat-icon"><UserCheck size={32} /></div>
+        <div className="pe-stat-card pe-stat-green">
+          <div className="pe-stat-icon">
+            <UserCheck size={32} />
+          </div>
           <div>
-            <p className="stat-label">Entrenadores</p>
-            <p className="stat-valor">{stats.entrenadoresActivos}</p>
+            <p className="pe-stat-label">Entrenadores</p>
+            <p className="pe-stat-valor">{stats.entrenadoresActivos}</p>
           </div>
         </div>
 
-        <div className="stat-card stat-blue">
-          <div className="stat-icon"><Users size={32} /></div>
+        <div className="pe-stat-card pe-stat-blue">
+          <div className="pe-stat-icon">
+            <Users size={32} />
+          </div>
           <div>
-            <p className="stat-label">Usuarios Totales</p>
-            <p className="stat-valor">{stats.usuariosActivos}</p>
+            <p className="pe-stat-label">Usuarios Totales</p>
+            <p className="pe-stat-valor">{stats.usuariosActivos}</p>
           </div>
         </div>
       </div>
 
-      {/* Accesos Rápidos → AsisPort vía SSO */}
-      <div style={{ marginTop: '2rem' }}>
-        <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-          <ExternalLink size={14} />
-          Se abrirán en AsiSport con tu sesión activa
+      {/* ─── ACCESOS RÁPIDOS ─── */}
+      <div style={{ marginTop: '2.5rem' }}>
+        <p style={{
+          color: 'var(--text-secondary)',
+          fontSize: '0.75rem',
+          fontWeight: 700,
+          textTransform: 'uppercase',
+          letterSpacing: '0.08em',
+          marginBottom: '1.25rem',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.5rem'
+        }}>
+          <ExternalLink size={13} />
+          Los módulos marcados con flecha se abren en AsiSport con tu sesión activa
         </p>
-        <div className="panel-escuela-accesos">
-          <button className="acceso-card" onClick={() => navegarAAsisport('/admin/sucursales')}>
-            <Building2 size={40} style={{ marginBottom: '0.75rem', color: 'var(--primary)' }} />
-            <h3>Sucursales</h3>
-            <p>Gestionar sedes y ubicaciones</p>
+
+        <div className="pe-accesos-grid">
+
+          {/* Sucursales → AsiSport */}
+          <button className="pe-acceso-card pe-acceso-orange" onClick={() => navegarAAsisport('/admin/sucursales')}>
+            <div className="pe-acceso-icon">
+              <MapPin size={32} />
+            </div>
+            <h3 className="pe-acceso-titulo">Sucursales</h3>
+            <p className="pe-acceso-desc">Gestionar sedes</p>
+            <ExternalLink size={14} className="pe-acceso-ext" />
           </button>
 
-          <button className="acceso-card" onClick={() => navegarAAsisport('/admin/usuarios')}>
-            <UserCog size={40} style={{ marginBottom: '0.75rem', color: 'var(--primary)' }} />
-            <h3>Usuarios</h3>
-            <p>Gestionar roles y permisos</p>
+          {/* Usuarios → AsiSport */}
+          <button className="pe-acceso-card pe-acceso-blue" onClick={() => navegarAAsisport('/admin/usuarios')}>
+            <div className="pe-acceso-icon">
+              <UserCog size={32} />
+            </div>
+            <h3 className="pe-acceso-titulo">Usuarios</h3>
+            <p className="pe-acceso-desc">Roles y permisos</p>
+            <ExternalLink size={14} className="pe-acceso-ext" />
           </button>
 
-          <button className="acceso-card" onClick={() => navegarAAsisport('/admin/configuraciones')}>
-            <MapPin size={40} style={{ marginBottom: '0.75rem', color: 'var(--primary)' }} />
-            <h3>Canchas y Horarios</h3>
-            <p>Configurar canchas y turnos</p>
+          {/* Canchas y Horarios → AsiSport */}
+          <button className="pe-acceso-card pe-acceso-green" onClick={() => navegarAAsisport('/admin/configuraciones')}>
+            <div className="pe-acceso-icon">
+              <Building2 size={32} />
+            </div>
+            <h3 className="pe-acceso-titulo">Canchas y Horarios</h3>
+            <p className="pe-acceso-desc">Configuración general</p>
+            <ExternalLink size={14} className="pe-acceso-ext" />
           </button>
+
+          {/* Registro de Actividad → ruta interna */}
+          <button className="pe-acceso-card pe-acceso-red" onClick={() => navigate('/finanzas/registro-actividad')}>
+            <div className="pe-acceso-icon">
+              <Activity size={32} />
+            </div>
+            <h3 className="pe-acceso-titulo">Reg. Actividad</h3>
+            <p className="pe-acceso-desc">Auditoría de acciones</p>
+          </button>
+
         </div>
       </div>
     </main>

@@ -6,6 +6,7 @@
  */
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabaseClient';
+import { useAuthSaaSport } from '../../lib/authHelper';
 import {
   X, FileText, Calendar, DollarSign, Check,
   Clock, AlertCircle, Hash, MessageSquare,
@@ -57,6 +58,7 @@ const ModalVerNotaCxP: React.FC<Props> = ({ visible, cxpId, onCerrar, onEditar, 
   const [movEditar, setMovEditar] = useState<MovimientoFinanciero | null>(null);
   const [cajas, setCajas] = useState<CajaBanco[]>([]);
   const [eliminandoId, setEliminandoId] = useState<string | null>(null);
+  const { puedeEliminar } = useAuthSaaSport();
 
   const cargarCajas = async () => {
     const { data } = await supabase.from('cajas_bancos').select('*').order('nombre');
@@ -449,22 +451,25 @@ const ModalVerNotaCxP: React.FC<Props> = ({ visible, cxpId, onCerrar, onEditar, 
                               >
                                 <Pencil size={14} />
                               </button>
-                              <button
-                                onClick={() => handleEliminarPago(pago.id)}
-                                disabled={eliminandoId === pago.id}
-                                style={{
-                                  background: 'rgba(248,113,113,0.1)',
-                                  border: 'none',
-                                  color: '#f87171',
-                                  padding: '0.35rem',
-                                  borderRadius: '6px',
-                                  cursor: 'pointer',
-                                  transition: 'all 0.2s'
-                                }}
-                                title="Eliminar Pago"
-                              >
-                                {eliminandoId === pago.id ? <RefreshCw size={14} className="spin" /> : <Trash2 size={14} />}
-                              </button>
+                              {/* Solo SuperAdministrador puede eliminar pagos */}
+                              {puedeEliminar && (
+                                <button
+                                  onClick={() => handleEliminarPago(pago.id)}
+                                  disabled={eliminandoId === pago.id}
+                                  style={{
+                                    background: 'rgba(248,113,113,0.1)',
+                                    border: 'none',
+                                    color: '#f87171',
+                                    padding: '0.35rem',
+                                    borderRadius: '6px',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.2s'
+                                  }}
+                                  title="Eliminar Pago"
+                                >
+                                  {eliminandoId === pago.id ? <RefreshCw size={14} className="spin" /> : <Trash2 size={14} />}
+                                </button>
+                              )}
                             </div>
                           )}
                         </div>

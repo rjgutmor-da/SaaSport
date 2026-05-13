@@ -9,12 +9,14 @@
  */
 import React, { useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, NavLink } from 'react-router-dom';
-import { 
-  Settings, Sun, Moon, Monitor, LogOut, 
-  HandCoins, PieChart, Landmark, BookOpen, Package, BarChart2
+import {
+  Settings, Sun, Moon, Monitor, LogOut,
+  HandCoins, PieChart, Landmark, BookOpen,
+  School, Activity, BarChart2
 } from 'lucide-react';
 import { supabase } from './lib/supabaseClient';
 import { AuthProviderSaaSport, useAuthSaaSport } from './lib/authHelper';
+import { getAsisportUrl } from './lib/navegacion';
 import Dashboard from './pages/Dashboard';
 import Login from './pages/Login';
 import CuentasCobrar from './pages/cxc/CuentasCobrar';
@@ -26,10 +28,11 @@ import PanelEscuela from './pages/config/PanelEscuela';
 import CajasBancos from './pages/cajas-bancos/CajasBancos';
 import Estadisticas from './pages/finanzas/estadisticas/Estadisticas';
 import RegistroActividad from './pages/finanzas/RegistroActividad';
-import { Activity } from 'lucide-react';
+
+
 import LogoPlaneta from './assets/LogoPlaneta.png';
 
-const ASISPORT_URL = 'https://asisport.saasport.pro';
+
 
 // ─── Sidebar Context ─────────────────────────────────────────────────────────
 
@@ -47,6 +50,8 @@ interface SidebarProps {
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ onLogout, theme, onCycleTheme, extra }) => {
+  const { esSuperAdmin } = useAuthSaaSport();
+
   const getThemeIcon = () => {
     if (theme === 'light') return <Sun size={18} />;
     if (theme === 'dark') return <Moon size={18} />;
@@ -89,17 +94,19 @@ const Sidebar: React.FC<SidebarProps> = ({ onLogout, theme, onCycleTheme, extra 
           </NavLink>
         </div>
 
+        {esSuperAdmin && (
+          <div className="sidebar-item-group">
+            <NavLink to="/panel-escuela" className={({ isActive }) => (isActive ? 'sidebar-link active' : 'sidebar-link')}>
+              <School size={20} strokeWidth={1.5} />
+              <span>Panel de Escuela</span>
+            </NavLink>
+          </div>
+        )}
+
         <div className="sidebar-item-group">
           <NavLink to="/estadisticas" className={({ isActive }) => (isActive ? 'sidebar-link active' : 'sidebar-link')}>
             <BarChart2 size={20} strokeWidth={1.5} />
             <span>Estadísticas</span>
-          </NavLink>
-        </div>
-
-        <div className="sidebar-item-group">
-          <NavLink to="/finanzas/registro-actividad" className={({ isActive }) => (isActive ? 'sidebar-link active' : 'sidebar-link')}>
-            <Activity size={20} strokeWidth={1.5} />
-            <span>Reg. Actividad</span>
           </NavLink>
         </div>
 
@@ -185,11 +192,11 @@ const AccesoDenegado: React.FC<{ rol: string; onLogout: () => void }> = ({ rol, 
         </p>
       </div>
       <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', lineHeight: '1.7' }}>
-        SaaSport es el módulo financiero para Administradores y Dueños.
+        SaaSport es el módulo financiero exclusivo para Administradores y SuperAdministradores.
         <br />Como <strong>{rol}</strong>, tu aplicación es <strong style={{ color: 'var(--primary)' }}>AsiSport</strong>.
       </p>
       <a
-        href={ASISPORT_URL}
+        href={getAsisportUrl()}
         className="login-btn"
         style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', textDecoration: 'none' }}
       >
@@ -264,9 +271,13 @@ const AppRouter: React.FC<AppRouterProps> = ({ onLogout, theme, onCycleTheme }) 
           <Route path="/estadisticas" element={<Estadisticas />} />
           <Route path="/finanzas/registro-actividad" element={<RegistroActividad />} />
 
+          {/* Panel de Escuela — ruta principal (solo SuperAdministrador) */}
+          <Route path="/panel-escuela" element={<PanelEscuela />} />
+
           {/* Configuraciones */}
           <Route path="/configuraciones" element={<Configuraciones />} />
           <Route path="/configuraciones/auditoria" element={<AuditLog />} />
+          {/* Ruta antigua mantenida para compatibilidad */}
           <Route path="/configuraciones/panel-escuela" element={<PanelEscuela />} />
         </Routes>
       </Layout>

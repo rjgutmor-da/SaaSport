@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { ClipboardList, HandCoins, PieChart, Shirt, TrendingUp, Landmark, BookOpen } from 'lucide-react';
+import { ClipboardList, HandCoins, PieChart, Shirt, TrendingUp, Landmark, BookOpen, BarChart2 } from 'lucide-react';
 import { navegarAAsisport } from '../lib/navegacion';
 import LogoPlaneta from '../assets/LogoPlaneta.png';
 
@@ -39,6 +39,14 @@ const Dashboard = () => {
             <BookOpen size={100} strokeWidth={1.2} />
           </div>
           <span className="card-title">Cuentas</span>
+        </button>
+
+        {/* 6. Estadísticas */}
+        <button className="dashboard-hero-card hover-color-purple" onClick={() => navigate('/estadisticas')}>
+          <div className="card-icon">
+            <BarChart2 size={100} strokeWidth={1.2} />
+          </div>
+          <span className="card-title">Estadísticas</span>
         </button>
 
       </div>

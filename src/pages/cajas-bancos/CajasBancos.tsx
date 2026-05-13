@@ -33,7 +33,7 @@ const fmtFechaLocal = (iso: string): string => formatFecha(iso);
 const CajasBancos: React.FC = () => {
   const navigate = useNavigate();
   const { setExtra } = useContext(SidebarContext);
-  const { esSuperAdmin, escuelaId } = useAuthSaaSport();
+  const { esSuperAdmin, escuelaId, puedeEliminar } = useAuthSaaSport();
   const queryClient = useQueryClient();
 
   // ── Hooks de datos con TanStack Query ──
@@ -634,34 +634,37 @@ const CajasBancos: React.FC = () => {
                                   >
                                     <Pencil size={15} />
                                   </button>
-                                  <button
-                                    onClick={async (e) => { 
-                                      e.stopPropagation(); 
-                                      if (window.confirm("¿Eliminar esta transacción definitivamente?")) {
-                                        try {
-                                          const tablaMaestra = mov.tipo_origen === 'cobro' ? 'cuentas_cobrar' : 'cuentas_pagar';
-                                          
-                                          if (mov.cuenta_maestra_id) {
-                                            const { error: errDel } = await supabase.from(tablaMaestra).delete().eq('id', mov.cuenta_maestra_id);
-                                            if (errDel) throw errDel;
-                                          } else {
-                                            const tablaApl = mov.tipo_origen === 'cobro' ? 'cobros_aplicados' : 'pagos_aplicados';
-                                            const { error: errDel } = await supabase.from(tablaApl).delete().eq('id', mov.id);
-                                            if (errDel) throw errDel;
+                                  {/* Solo SuperAdministrador puede eliminar transacciones */}
+                                  {puedeEliminar && (
+                                    <button
+                                      onClick={async (e) => { 
+                                        e.stopPropagation(); 
+                                        if (window.confirm("¿Eliminar esta transacción definitivamente?")) {
+                                          try {
+                                            const tablaMaestra = mov.tipo_origen === 'cobro' ? 'cuentas_cobrar' : 'cuentas_pagar';
+                                            
+                                            if (mov.cuenta_maestra_id) {
+                                              const { error: errDel } = await supabase.from(tablaMaestra).delete().eq('id', mov.cuenta_maestra_id);
+                                              if (errDel) throw errDel;
+                                            } else {
+                                              const tablaApl = mov.tipo_origen === 'cobro' ? 'cobros_aplicados' : 'pagos_aplicados';
+                                              const { error: errDel } = await supabase.from(tablaApl).delete().eq('id', mov.id);
+                                              if (errDel) throw errDel;
+                                            }
+                                            
+                                            manejarActualizacion();
+                                          } catch (err: any) {
+                                            console.error("Error al eliminar:", err);
+                                            alert("No se pudo eliminar la transacción: " + (err.message || "Error desconocido"));
                                           }
-                                          
-                                          manejarActualizacion();
-                                        } catch (err: any) {
-                                          console.error("Error al eliminar:", err);
-                                          alert("No se pudo eliminar la transacción: " + (err.message || "Error desconocido"));
                                         }
-                                      }
-                                    }}
-                                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--danger)' }}
-                                    title="Eliminar movimiento"
-                                  >
-                                    <Trash2 size={15} />
-                                  </button>
+                                      }}
+                                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--danger)' }}
+                                      title="Eliminar movimiento"
+                                    >
+                                      <Trash2 size={15} />
+                                    </button>
+                                  )}
                                 </div>
                               )}
                             </td>

@@ -6,6 +6,7 @@
  */
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabaseClient';
+import { useAuthSaaSport } from '../../lib/authHelper';
 import {
   X, DollarSign, Calendar, RefreshCw,
   AlertCircle, Check, CreditCard, CheckCircle2, Hash, Building2, Pencil, Trash2
@@ -86,6 +87,7 @@ const DetalleCxP: React.FC<Props> = ({ nota, visible, onCerrar, onActualizar }) 
   const [itemEditar, setItemEditar] = useState<any>(null);
   const [cabeceraEditar, setCabeceraEditar] = useState<boolean>(false);
   const [eliminandoId, setEliminandoId] = useState<string | null>(null);
+  const { puedeEliminar } = useAuthSaaSport();
 
   // Formulario de pago
   const [montoPago, setMontoPago] = useState('');
@@ -490,14 +492,17 @@ const DetalleCxP: React.FC<Props> = ({ nota, visible, onCerrar, onActualizar }) 
                               >
                                 <Pencil size={12} />
                               </button>
-                              <button
-                                className="btn-compact-action action-red"
-                                onClick={() => handleEliminarPago(p.id)}
-                                disabled={eliminandoId === p.id}
-                                title="Eliminar movimiento"
-                              >
-                                <Trash2 size={12} />
-                              </button>
+                              {/* Solo SuperAdministrador puede eliminar */}
+                              {puedeEliminar && (
+                                <button
+                                  className="btn-compact-action action-red"
+                                  onClick={() => handleEliminarPago(p.id)}
+                                  disabled={eliminandoId === p.id}
+                                  title="Eliminar movimiento"
+                                >
+                                  <Trash2 size={12} />
+                                </button>
+                              )}
                             </>
                           ) : (
                             <span style={{ fontSize: '0.75rem', color: '#10b981', display: 'flex', alignItems: 'center', gap: '0.2rem' }} title="Pago Conciliado">

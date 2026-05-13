@@ -9,6 +9,7 @@
  */
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabaseClient';
+import { getAsisportUrl } from '../lib/navegacion';
 import { Eye, EyeOff, AlertCircle, ShieldX } from 'lucide-react';
 
 interface LoginProps {
@@ -17,7 +18,7 @@ interface LoginProps {
 
 /** Roles que tienen acceso a SaaSport */
 const ROLES_PERMITIDOS = ['SuperAdministrador', 'Dueño', 'Administrador'];
-const ASISPORT_URL = 'https://asisport.saasport.pro';
+
 
 const Login: React.FC<LoginProps> = ({ onLoginExitoso }) => {
   const [email, setEmail] = useState('');
@@ -99,7 +100,7 @@ const Login: React.FC<LoginProps> = ({ onLoginExitoso }) => {
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '0.5rem' }}>
             <a
-              href={ASISPORT_URL}
+              href={getAsisportUrl()}
               className="login-btn"
               style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', textDecoration: 'none' }}
             >
@@ -218,7 +219,7 @@ const Login: React.FC<LoginProps> = ({ onLoginExitoso }) => {
           <p className="login-nota">
             ¿Olvidaste tu contraseña?{' '}
             <a
-              href={`${ASISPORT_URL}/recuperar-contrasena`}
+              href={`${getAsisportUrl()}/recuperar-contrasena`}
               style={{ color: 'var(--primary)', textDecoration: 'none' }}
             >
               Recupérala en AsiSport
