@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import { X, ArrowRightLeft, DollarSign, Calendar, Hash, AlignLeft, Building2, AlertCircle, Save, RefreshCw, Clock } from 'lucide-react';
-import { getHoyISO, getHoraLocal } from '../../lib/dateUtils';
+import { getHoyISO, getHoraLocal, buildTimestampLocal } from '../../lib/dateUtils';
 import type { CajaBanco } from '../../types/finanzas';
 
 interface Props {
@@ -74,7 +74,7 @@ const ModalTransferencia: React.FC<Props> = ({ visible, cajas, onCerrar, onCread
       const transferenciaItemId = itemData?.id;
       if (!transferenciaItemId) throw new Error('No se encontró el concepto "Transferencia de Fondos" en el catálogo.');
 
-      const timestamp = new Date(`${fecha}T${getHoraLocal()}:00`).toISOString();
+      const timestamp = buildTimestampLocal(fecha, getHoraLocal());
 
       // 3. Registrar EGRESO (Cuenta Origen)
       const { data: cxp, error: errCxP } = await supabase.from('cuentas_pagar').insert({

@@ -199,18 +199,18 @@ const ModalVerNotaCxC: React.FC<Props> = ({ visible, cxcId, onCerrar, onEditar, 
           <div style={{ padding: '1.25rem 1.5rem' }}>
             {/* ── Encabezado de la Nota ── */}
             <div style={{
-              background: 'rgba(255,255,255,0.03)',
+              background: 'var(--bg-glass)',
               borderRadius: '12px',
               padding: '1rem 1.25rem',
               marginBottom: '1.25rem',
-              border: '1px solid rgba(255,255,255,0.06)'
+              border: '1px solid var(--border)'
             }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
                 <div>
                   <p style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '0.25rem' }}>
                     {nota.descripcion || 'Sin descripción'}
                   </p>
-                  <div style={{ display: 'flex', gap: '1rem', fontSize: '0.8rem', color: '#94a3b8', flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', gap: '1rem', fontSize: '0.8rem', color: 'var(--text-tertiary)', flexWrap: 'wrap' }}>
                     <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
                       <Calendar size={13} /> Emitida: {formatFecha(nota.fecha_emision)}
                     </span>
@@ -246,15 +246,15 @@ const ModalVerNotaCxC: React.FC<Props> = ({ visible, cxcId, onCerrar, onEditar, 
                 alignItems: 'center', 
                 marginTop: '1rem',
                 paddingTop: '0.75rem',
-                borderTop: '1px solid rgba(255,255,255,0.06)'
+                borderTop: '1px solid var(--border)'
               }}>
                 <div style={{ display: 'flex', gap: '1.5rem' }}>
                   <div style={{ display: 'flex', flexDirection: 'column' }}>
-                    <span style={{ fontSize: '0.7rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total</span>
+                    <span style={{ fontSize: '0.7rem', color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total</span>
                     <span style={{ fontSize: '1rem', fontWeight: 700 }}>Bs {fmtMonto(montoTotal)}</span>
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column' }}>
-                    <span style={{ fontSize: '0.7rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Cobrado</span>
+                    <span style={{ fontSize: '0.7rem', color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Cobrado</span>
                     <span style={{ fontSize: '1rem', fontWeight: 700, color: '#4ade80' }}>Bs {fmtMonto(totalCobrado)}</span>
                   </div>
                 </div>
@@ -276,7 +276,7 @@ const ModalVerNotaCxC: React.FC<Props> = ({ visible, cxcId, onCerrar, onEditar, 
             {/* ── Ítems del Detalle ── */}
             <div style={{ marginBottom: '1.25rem' }}>
               <p style={{
-                fontSize: '0.85rem', fontWeight: 800, color: '#fff',
+                fontSize: '0.85rem', fontWeight: 800, color: 'var(--text-primary)',
                 textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.8rem',
                 display: 'flex', alignItems: 'center', gap: '0.5rem'
               }}>
@@ -287,9 +287,9 @@ const ModalVerNotaCxC: React.FC<Props> = ({ visible, cxcId, onCerrar, onEditar, 
                 <p style={{ fontSize: '0.85rem', color: '#64748b', fontStyle: 'italic' }}>Sin detalle de ítems</p>
               ) : (
                 <div style={{
-                  background: 'rgba(255,255,255,0.02)',
+                  background: 'var(--bg-glass)',
                   borderRadius: '10px',
-                  border: '1px solid rgba(255,255,255,0.05)',
+                  border: '1px solid var(--border)',
                   overflow: 'hidden'
                 }}>
                   {items.map((item, idx) => (
@@ -297,17 +297,17 @@ const ModalVerNotaCxC: React.FC<Props> = ({ visible, cxcId, onCerrar, onEditar, 
                       key={item.id}
                       style={{
                         padding: '0.75rem 1rem',
-                        borderBottom: idx < items.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none'
+                        borderBottom: idx < items.length - 1 ? '1px solid var(--border)' : 'none'
                       }}
                     >
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <div>
-                          <span style={{ fontWeight: 700, fontSize: '1.05rem', color: '#fff' }}>{item.nombre}</span>
-                          <span style={{ color: '#94a3b8', fontSize: '0.85rem', marginLeft: '0.6rem' }}>
+                          <span style={{ fontWeight: 700, fontSize: '1.05rem', color: 'var(--text-primary)' }}>{item.nombre}</span>
+                          <span style={{ color: 'var(--text-tertiary)', fontSize: '0.85rem', marginLeft: '0.6rem' }}>
                             × {item.cantidad} @ Bs {fmtMonto(item.precio_unitario)}
                           </span>
                         </div>
-                        <span style={{ fontWeight: 800, color: '#fff', fontSize: '1.1rem' }}>
+                        <span style={{ fontWeight: 800, color: 'var(--text-primary)', fontSize: '1.1rem' }}>
                           Bs {fmtMonto(item.subtotal)}
                         </span>
                       </div>
@@ -338,7 +338,7 @@ const ModalVerNotaCxC: React.FC<Props> = ({ visible, cxcId, onCerrar, onEditar, 
                   {/* Total */}
                   <div style={{
                     padding: '0.75rem 1rem',
-                    background: 'rgba(255,255,255,0.04)',
+                    background: 'var(--bg-glass-hover)',
                     display: 'flex',
                     justifyContent: 'space-between',
                     fontWeight: 800,
@@ -367,7 +367,7 @@ const ModalVerNotaCxC: React.FC<Props> = ({ visible, cxcId, onCerrar, onEditar, 
                   <MessageSquare size={13} style={{ display: 'inline', marginRight: '0.3rem' }} />
                   Observaciones
                 </p>
-                <p style={{ fontSize: '0.87rem', color: '#cbd5e1', lineHeight: '1.5' }}>
+                <p style={{ fontSize: '0.87rem', color: 'var(--text-secondary)', lineHeight: '1.5' }}>
                   {nota.observaciones}
                 </p>
               </div>
@@ -380,7 +380,7 @@ const ModalVerNotaCxC: React.FC<Props> = ({ visible, cxcId, onCerrar, onEditar, 
                 onClick={() => setMostrarCobros(!mostrarCobros)}
                 style={{
                   display: 'flex', alignItems: 'center', gap: '0.5rem',
-                  background: 'none', border: 'none', color: '#94a3b8',
+                  background: 'none', border: 'none', color: 'var(--text-tertiary)',
                   cursor: 'pointer', fontSize: '0.75rem', fontWeight: 700,
                   textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem',
                   padding: 0
@@ -397,9 +397,9 @@ const ModalVerNotaCxC: React.FC<Props> = ({ visible, cxcId, onCerrar, onEditar, 
                   </p>
                 ) : (
                   <div style={{
-                    background: 'rgba(255,255,255,0.02)',
+                    background: 'var(--bg-glass)',
                     borderRadius: '10px',
-                    border: '1px solid rgba(255,255,255,0.05)',
+                    border: '1px solid var(--border)',
                     overflow: 'hidden'
                   }}>
                     {cobros.map((cobro, idx) => (
@@ -410,12 +410,12 @@ const ModalVerNotaCxC: React.FC<Props> = ({ visible, cxcId, onCerrar, onEditar, 
                           justifyContent: 'space-between',
                           alignItems: 'center',
                           padding: '0.6rem 1rem',
-                          borderBottom: idx < cobros.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none',
+                          borderBottom: idx < cobros.length - 1 ? '1px solid var(--border)' : 'none',
                           background: cobro.es_aplicacion_anticipo ? 'rgba(168,85,247,0.04)' : 'transparent'
                         }}
                       >
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
-                          <span style={{ fontSize: '0.83rem', color: '#cbd5e1' }}>
+                          <span style={{ fontSize: '0.83rem', color: 'var(--text-secondary)' }}>
                             {formatFecha(cobro.fecha)}
                           </span>
                           <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
@@ -442,9 +442,9 @@ const ModalVerNotaCxC: React.FC<Props> = ({ visible, cxcId, onCerrar, onEditar, 
                                   caja_id: (cobro as any).caja_id,
                                 })}
                                 style={{
-                                  background: 'rgba(255,255,255,0.05)',
+                                  background: 'var(--bg-glass)',
                                   border: 'none',
-                                  color: '#94a3b8',
+                                  color: 'var(--text-tertiary)',
                                   padding: '0.35rem',
                                   borderRadius: '6px',
                                   cursor: 'pointer',
@@ -497,11 +497,11 @@ const ModalVerNotaCxC: React.FC<Props> = ({ visible, cxcId, onCerrar, onEditar, 
             {(nota.editado || nota.anulada) && (
               <div style={{
                 padding: '0.75rem 1rem',
-                background: 'rgba(255,255,255,0.02)',
+                background: 'var(--bg-glass)',
                 borderRadius: '8px',
                 fontSize: '0.75rem',
-                color: '#64748b',
-                border: '1px solid rgba(255,255,255,0.04)'
+                color: 'var(--text-tertiary)',
+                border: '1px solid var(--border)'
               }}>
                 {nota.editado && (
                   <p>✏️ Editada: {formatFechaHora(nota.editado_at)}</p>

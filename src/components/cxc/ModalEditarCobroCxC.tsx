@@ -8,7 +8,7 @@ import React, { useState, useEffect } from 'react';
 import ReactDOM from 'react-dom';
 import { X, Check, AlertCircle, DollarSign, RefreshCw } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
-import { getHoraLocal } from '../../lib/dateUtils';
+import { getHoraLocal, buildTimestampLocal } from '../../lib/dateUtils';
 import type { CajaBanco } from '../../types/finanzas';
 
 interface Props {
@@ -85,7 +85,7 @@ const ModalEditarCobroCxC: React.FC<Props> = ({ visible, cobro, cajas, onCerrar,
           tipo_origen: 'cobro',
           cuenta_id: cajaId || null,
           monto: valorMonto,
-          fecha: new Date(`${fecha}T${getHoraLocal()}:00`).toISOString(),
+          fecha: buildTimestampLocal(fecha, getHoraLocal()),
           descripcion: referencia.trim() || 'Cobro CxC',
           nro_transaccion: referencia.trim() || null,
         }

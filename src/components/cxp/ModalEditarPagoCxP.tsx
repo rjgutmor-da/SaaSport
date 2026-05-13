@@ -7,7 +7,7 @@ import React, { useState, useEffect } from 'react';
 import ReactDOM from 'react-dom';
 import { X, Check, AlertCircle, CreditCard, RefreshCw } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
-import { getHoraLocal } from '../../lib/dateUtils';
+import { getHoraLocal, buildTimestampLocal } from '../../lib/dateUtils';
 import type { CajaBanco } from '../../types/finanzas';
 
 interface Props {
@@ -38,12 +38,10 @@ const ModalEditarPagoCxP: React.FC<Props> = ({ visible, pago, cajas, onCerrar, o
   // Precargar datos del pago al abrir
   useEffect(() => {
     if (visible && pago) {
-      // Extraer fecha en formato YYYY-MM-DD local (evitar desfase UTC)
-      const d = new Date(pago.fecha);
-      const yyyy = d.getFullYear();
-      const mm = String(d.getMonth() + 1).padStart(2, '0');
-      const dd = String(d.getDate()).padStart(2, '0');
-      setFecha(`${yyyy}-${mm}-${dd}`);
+      // Extraer YYYY-MM-DD directamente del ISO string para evitar desfase UTC
+      const isoStr = String(pago.fecha);
+      const datePart = isoStr.includes('T') ? isoStr.split('T')[0] : isoStr.split(' ')[0];
+      setFecha(datePart);
       setMonto(String(pago.monto_aplicado));
       setCajaId(pago.caja_id || '');
       setReferencia(pago.referencia || '');
@@ -84,7 +82,7 @@ const ModalEditarPagoCxP: React.FC<Props> = ({ visible, pago, cajas, onCerrar, o
           tipo_origen: 'pago',
           cuenta_id: cajaId || null,
           monto: valorMonto,
-          fecha: new Date(`${fecha}T${getHoraLocal()}:00`).toISOString(),
+          fecha: buildTimestampLocal(fecha, getHoraLocal()),
           descripcion: referencia.trim() || 'Pago CxP',
           nro_transaccion: referencia.trim() || null,
         }

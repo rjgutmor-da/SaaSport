@@ -25,6 +25,31 @@ export const getHoraLocal = (): string => {
 };
 
 /**
+ * Construye un timestamp ISO con el offset de zona horaria local explícito.
+ * Evita el bug de new Date(...).toISOString() que convierte a UTC y desplaza
+ * la fecha un día en zonas UTC negativas (ej: Bolivia UTC-4).
+ *
+ * Ejemplo:
+ *   buildTimestampLocal('2026-05-11', '20:00')
+ *   => '2026-05-11T20:00:00-04:00'  (correcto para Bolivia)
+ *
+ *   new Date('2026-05-11T20:00').toISOString()
+ *   => '2026-05-12T00:00:00.000Z'   (INCORRECTO, desplaza un día)
+ *
+ * @param fecha  Fecha en formato YYYY-MM-DD
+ * @param hora   Hora en formato HH:mm (opcional, usa hora actual si se omite)
+ */
+export const buildTimestampLocal = (fecha: string, hora?: string): string => {
+  const horaFinal = hora || getHoraLocal();
+  const offsetMin = -new Date().getTimezoneOffset(); // positivo = adelante de UTC
+  const offsetSign = offsetMin >= 0 ? '+' : '-';
+  const absOffset = Math.abs(offsetMin);
+  const offsetHH = String(Math.floor(absOffset / 60)).padStart(2, '0');
+  const offsetMM = String(absOffset % 60).padStart(2, '0');
+  return `${fecha}T${horaFinal}:00${offsetSign}${offsetHH}:${offsetMM}`;
+};
+
+/**
  * Formatea una fecha ISO (YYYY-MM-DD o ISO8601) a formato legible local (DD/MM/YYYY).
  * Evita el error de "un día antes" al no interpretar el string como UTC absoluto.
  */

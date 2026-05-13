@@ -6,7 +6,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import { X, Pencil, DollarSign, Calendar, Hash, AlignLeft, Building2, AlertCircle, Save, RefreshCw, Check, Clock } from 'lucide-react';
-import { getHoyISO, getHoraLocal } from '../../lib/dateUtils';
+import { getHoyISO, getHoraLocal, buildTimestampLocal } from '../../lib/dateUtils';
 import type { CajaBanco } from '../../types/finanzas';
 import { type MovimientoFinanciero } from '../../hooks/useFinanzas';
 
@@ -40,13 +40,14 @@ const ModalEditarMovimiento: React.FC<Props> = ({ visible, movimiento, cajas, on
       const montoOriginal = movimiento.debe > 0 ? movimiento.debe : movimiento.haber;
       setMonto(String(montoOriginal));
       if (movimiento.fecha) {
-        const d = new Date(movimiento.fecha);
-        // Extraer componentes locales para que coincida con la tabla (evitar desfase UTC)
-        const yyyy = d.getFullYear();
-        const mmLocal = String(d.getMonth() + 1).padStart(2, '0');
-        const ddLocal = String(d.getDate()).padStart(2, '0');
-        setFecha(`${yyyy}-${mmLocal}-${ddLocal}`);
+        // Extraer la parte YYYY-MM-DD directamente del string ISO para evitar desfase
+        // de zona horaria. new Date(iso) interpreta en UTC y lo convierte a local.
+        const isoStr = String(movimiento.fecha);
+        const datePart = isoStr.includes('T') ? isoStr.split('T')[0] : isoStr.split(' ')[0];
+        setFecha(datePart);
 
+        // Preservar la hora original del movimiento para no desplazar la fecha al guardar
+        const d = new Date(isoStr);
         const hh = String(d.getHours()).padStart(2, '0');
         const mm = String(d.getMinutes()).padStart(2, '0');
         setHora(`${hh}:${mm}`);
@@ -83,13 +84,17 @@ const ModalEditarMovimiento: React.FC<Props> = ({ visible, movimiento, cajas, on
         userRol = usrData?.rol || '';
       }
 
+      // Usar buildTimestampLocal para construir el timestamp con offset local correcto
+      const horaParaGuardar = hora || getHoraLocal();
+      const fechaConTZ = buildTimestampLocal(fecha, horaParaGuardar);
+
       const { data, error: rpcErr } = await supabase.rpc('rpc_editar_movimiento_simple', {
         p_payload: {
           movimiento_id: movimiento.id,
           tipo_origen: movimiento.tipo_origen,
           cuenta_id: cajaId,
           monto: valorMonto,
-          fecha: new Date(`${fecha}T${getHoraLocal()}:00`).toISOString(),
+          fecha: fechaConTZ,
           descripcion: descripcion.trim(),
           nro_transaccion: nroTransaccion.trim() || null
         }

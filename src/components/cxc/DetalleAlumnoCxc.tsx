@@ -393,19 +393,20 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                           </div>
                         </td>
                         <td style={{ padding: '0.5rem 0.75rem', verticalAlign: 'middle', border: '1px solid var(--border)', fontWeight: 600 }}>
-                          Bs {fmtMonto(isAnticipo ? 0 : Number(cxc.monto_total))}
+                          Bs {fmtMonto(Number(cxc.monto_total))}
                         </td>
                         <td style={{ padding: '0.5rem 0.75rem', verticalAlign: 'middle', border: '1px solid var(--border)', color: '#4ade80', fontWeight: 600 }}>
-                          Bs {fmtMonto(isAnticipo ? Number(cxc.total_cobrado) : cobrado)}
+                          Bs {fmtMonto(isAnticipo ? (Number(cxc.monto_total) - Number(cxc.saldo_pendiente)) : cobrado)}
                         </td>
                         <td style={{ 
                           padding: '0.5rem 0.75rem', verticalAlign: 'middle', border: '1px solid var(--border)',
                           fontWeight: 700, 
                           color: isAnticipo 
-                            ? (Number(cxc.saldo_pendiente) >= 0 ? '#a855f7' : '#4ade80')
+                            ? (Number(cxc.saldo_pendiente) > 0 ? '#a855f7' : '#4ade80')
                             : (Number(cxc.saldo_pendiente) > 0 ? '#38bdf8' : '#4ade80') 
                         }}>
-                          {isAnticipo ? '-' : ''} Bs {fmtMonto(isAnticipo ? Number(cxc.total_cobrado) : Number(cxc.saldo_pendiente))}
+                          {isAnticipo && Number(cxc.saldo_pendiente) > 0 ? '+ ' : ''}
+                          Bs {fmtMonto(Number(cxc.saldo_pendiente))}
                         </td>
                         <td style={{ padding: '0.5rem 0.75rem', verticalAlign: 'middle', border: '1px solid var(--border)', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
                           {ultimoPago ? formatFecha(ultimoPago.fecha) : '—'}
@@ -433,7 +434,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                                 setModalNotaVisible(true); 
                               }} className="btn-compact-action action-blue" title="Editar"><Pencil size={14} /></button>
                             )}
-                            {!cxc.anulada && cxc.estado !== 'pagada' && (
+                            {!cxc.anulada && cxc.estado !== 'pagada' && !isAnticipo && (
                               <button onClick={() => { setCobroCxcId(cxc.id); setCobroMonto(String(cxc.saldo_pendiente)); }} className="btn-compact-action action-green" title="Cobrar"><DollarSign size={14} /></button>
                             )}
                             {puedeAnular() && !cxc.anulada && (

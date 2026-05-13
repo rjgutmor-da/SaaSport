@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import { X, ArrowDownRight, ArrowUpRight, DollarSign, Calendar, Hash, AlignLeft, Building2, Tag, AlertCircle, Save, RefreshCw, Clock } from 'lucide-react';
-import { getHoyISO, getHoraLocal } from '../../lib/dateUtils';
+import { getHoyISO, getHoraLocal, buildTimestampLocal } from '../../lib/dateUtils';
 import type { CajaBanco } from '../../types/finanzas';
 import type { CatalogoItem } from '../../types/cuentas';
 
@@ -127,7 +127,7 @@ const ModalMovimientoDirecto: React.FC<Props> = ({ visible, tipo, cajas, onCerra
           cuenta_cobrar_id: cxc.id,
           caja_id: cajaId,
           monto_aplicado: valorMonto,
-          fecha: new Date(`${fecha}T${getHoraLocal()}:00`).toISOString(),
+          fecha: buildTimestampLocal(fecha, getHoraLocal()),
           documento_referencia: nroTransaccion.trim() || null
         });
 
@@ -159,7 +159,7 @@ const ModalMovimientoDirecto: React.FC<Props> = ({ visible, tipo, cajas, onCerra
           cuenta_pagar_id: cxp.id,
           caja_id: cajaId,
           monto_aplicado: valorMonto,
-          fecha: new Date(`${fecha}T${getHoraLocal()}:00`).toISOString(),
+          fecha: buildTimestampLocal(fecha, getHoraLocal()),
           referencia: nroTransaccion.trim() || null
         });
       }
