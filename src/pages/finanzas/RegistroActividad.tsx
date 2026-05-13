@@ -34,10 +34,17 @@ const RegistroActividad: React.FC = () => {
   const [cargando, setCargando] = useState(true);
   const [nombreEscuela, setNombreEscuela] = useState('PLANETA FUTBOL CLUB');
   
-  // Filtros
+  // Filtros — se usa fecha local para evitar desfase por timezone (UTC)
+  const hoyLocal = (() => {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  })();
   const [intervaloFechas, setIntervaloFechas] = useState('Este mes');
-  const [fechaDesde, setFechaDesde] = useState(new Date().toISOString().split('T')[0]);
-  const [fechaHasta, setFechaHasta] = useState(new Date().toISOString().split('T')[0]);
+  const [fechaDesde, setFechaDesde] = useState(hoyLocal);
+  const [fechaHasta, setFechaHasta] = useState(hoyLocal);
 
   /** Cargar datos de la base de datos */
   const cargarDatos = async () => {
