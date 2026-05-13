@@ -112,21 +112,22 @@ const ModalSaldoInicialCxC: React.FC<Props> = ({ visible, onCerrar, onCreado, ed
 
       if (errCxc || !nuevaCxc) throw new Error(`Error al crear CxC: ${errCxc?.message || 'desconocido'}`);
 
-      // 2. Si es anticipo, lo "aplicamos" inmediatamente para que el saldo esté a favor
+      // 2. Si es anticipo de migración: insertar cobro de CARGA (entrada del saldo a favor)
+      // IMPORTANTE: es_aplicacion_anticipo = false significa "entrada/carga del anticipo"
+      // La vista calcula: saldo_pendiente = entrada(false) - consumos(true) = monto - 0 = monto disponible
+      // Con true la vista calculaba: saldo_pendiente = 0 - monto = -monto (nunca aparecía disponible)
       if (esAnticipo) {
         const { error: errCobro } = await supabase.from('cobros_aplicados').insert({
           escuela_id: ctx.escuela_id,
           cuenta_cobrar_id: nuevaCxc.id,
           monto_aplicado: valorMonto,
-          fecha: fecha + 'T12:00:00', // hora ficticia para el día
-          caja_id: null, // No afecta cajas reales
-          es_aplicacion_anticipo: true,
+          fecha: fecha + 'T12:00:00', // Hora ficticia para el día de migración
+          caja_id: null,              // No afecta cajas reales (es una carga de saldo)
+          es_aplicacion_anticipo: false, // false = CARGA/ENTRADA del anticipo (ya nos pagaron)
           conciliado: true
         });
         if (errCobro) throw errCobro;
-        
-        // Actualizar estado de la CxC a pagada
-        await supabase.from('cuentas_cobrar').update({ estado: 'pagada' }).eq('id', nuevaCxc.id);
+        // Estado permanece 'pendiente' para que sea aplicable a notas futuras
       }
 
       // 3. Auditoría

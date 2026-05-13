@@ -139,7 +139,10 @@ const ModalSaldoInicialCxP: React.FC<Props> = ({ visible, onCerrar, onCreado, ed
         precio_unitario: valorMonto,
       });
 
-      // 2. Si es anticipo, lo "aplicamos" inmediatamente
+      // 2. Si es anticipo de migración: insertar pago de CARGA (entrada del saldo a favor)
+      // IMPORTANTE: es_aplicacion_anticipo = false significa "entrada/carga del anticipo"
+      // Esto hace que la vista calcule: deuda_restante = entrada(10000) - aplicaciones(0) = 10000
+      // Con true sería: deuda_restante = 0 - 10000 = -10000 (¡incorrecto!)
       if (esAnticipo) {
         const { error: errPago } = await supabase.from('pagos_aplicados').insert({
           escuela_id: ctx.escuela_id,
@@ -147,13 +150,13 @@ const ModalSaldoInicialCxP: React.FC<Props> = ({ visible, onCerrar, onCreado, ed
           monto_aplicado: valorMonto,
           fecha: fecha + 'T12:00:00',
           caja_id: null,
-          es_aplicacion_anticipo: true,
-          conciliado: true
+          es_aplicacion_anticipo: false,  // false = CARGA del saldo, no consumo
+          conciliado: true                // conciliado = no editable (es migración)
         });
         if (errPago) throw errPago;
         
-        // Actualizar estado de la CxP a pagada
-        await supabase.from('cuentas_pagar').update({ estado: 'pagada' }).eq('id', nuevaCxp.id);
+        // El estado queda 'pendiente' para que sea aplicable a notas futuras
+        // (NO marcar como 'pagada', ya que aún tiene saldo disponible)
       }
 
       // 3. Auditoría
