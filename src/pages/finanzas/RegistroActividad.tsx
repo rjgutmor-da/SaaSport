@@ -51,12 +51,18 @@ const RegistroActividad: React.FC = () => {
     setCargando(true);
     if (!escuelaId) return;
 
+    // Convertir la fecha local a UTC para que la query coincida con los timestamps guardados en BD
+    // Sin esto, Supabase interpreta los strings como UTC y los registros de las 8pm-11pm local
+    // (que en UTC son el día siguiente) no aparecen al filtrar por la fecha local correcta.
+    const inicioUTC = new Date(`${fechaDesde}T00:00:00`).toISOString();
+    const finUTC = new Date(`${fechaHasta}T23:59:59`).toISOString();
+
     const { data, error } = await supabase
       .from('audit_log')
       .select('*')
       .eq('escuela_id', escuelaId)
-      .gte('created_at', `${fechaDesde}T00:00:00`)
-      .lte('created_at', `${fechaHasta}T23:59:59`)
+      .gte('created_at', inicioUTC)
+      .lte('created_at', finUTC)
       .order('created_at', { ascending: false });
 
     if (!error && data) {
