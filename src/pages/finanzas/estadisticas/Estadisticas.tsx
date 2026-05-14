@@ -19,7 +19,7 @@ import { supabase } from '../../../lib/supabaseClient';
 
 // Sub-componentes
 import SelectorFechas from './components/SelectorFechas';
-import GraficoBarras from './components/GraficoBarras';
+import GraficoDistribucion from './components/GraficoDistribucion';
 import TablaAlumnos from './components/TablaAlumnos';
 
 // Hooks
@@ -258,18 +258,18 @@ const Estadisticas: React.FC = () => {
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                 {/* Ingresos */}
-                <GraficoBarras
+                <GraficoDistribucion
                   items={resumen.ingresos}
                   total={resumen.totalIngresos}
-                  titulo="Top Ingresos"
+                  titulo="Análisis de Ingresos"
                   isIngreso={true}
                 />
 
                 {/* Egresos */}
-                <GraficoBarras
+                <GraficoDistribucion
                   items={resumen.egresos}
                   total={resumen.totalEgresos}
-                  titulo="Top Egresos"
+                  titulo="Análisis de Egresos"
                   isIngreso={false}
                 />
               </div>
