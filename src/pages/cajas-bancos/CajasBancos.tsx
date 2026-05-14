@@ -212,12 +212,21 @@ const CajasBancos: React.FC = () => {
   const toggleConciliar = async (mov: MovimientoFinanciero) => {
     try {
       const tabla = mov.tipo_origen === 'cobro' ? 'cobros_aplicados' : 'pagos_aplicados';
-      const { error: errUpd } = await supabase
-        .from(tabla)
-        .update({ conciliado: !mov.conciliado })
-        .eq('id', mov.id);
+      const isGrouped = (mov as any).is_grouped;
 
-      if (errUpd) throw errUpd;
+      if (isGrouped) {
+        const ids = (mov as any).original_ids || [];
+        for (const id of ids) {
+          await supabase.from(tabla).update({ conciliado: !mov.conciliado }).eq('id', id);
+        }
+      } else {
+        const { error: errUpd } = await supabase
+          .from(tabla)
+          .update({ conciliado: !mov.conciliado })
+          .eq('id', mov.id);
+
+        if (errUpd) throw errUpd;
+      }
 
       manejarActualizacion();
     } catch (err: any) {
@@ -640,18 +649,25 @@ const CajasBancos: React.FC = () => {
                                       onClick={async (e) => { 
                                         e.stopPropagation(); 
                                         if (window.confirm("¿Eliminar esta transacción definitivamente?")) {
-                                          try {
-                                            const tablaMaestra = mov.tipo_origen === 'cobro' ? 'cuentas_cobrar' : 'cuentas_pagar';
-                                            
-                                            if (mov.cuenta_maestra_id) {
-                                              const { error: errDel } = await supabase.from(tablaMaestra).delete().eq('id', mov.cuenta_maestra_id);
-                                              if (errDel) throw errDel;
-                                            } else {
+                                        try {
+                                            const isGrouped = (mov as any).is_grouped;
+                                            if (isGrouped) {
                                               const tablaApl = mov.tipo_origen === 'cobro' ? 'cobros_aplicados' : 'pagos_aplicados';
-                                              const { error: errDel } = await supabase.from(tablaApl).delete().eq('id', mov.id);
-                                              if (errDel) throw errDel;
+                                              const ids = (mov as any).original_ids || [];
+                                              for (const id of ids) {
+                                                await supabase.from(tablaApl).delete().eq('id', id);
+                                              }
+                                            } else {
+                                              const tablaMaestra = mov.tipo_origen === 'cobro' ? 'cuentas_cobrar' : 'cuentas_pagar';
+                                              if (mov.cuenta_maestra_id) {
+                                                const { error: errDel } = await supabase.from(tablaMaestra).delete().eq('id', mov.cuenta_maestra_id);
+                                                if (errDel) throw errDel;
+                                              } else {
+                                                const tablaApl = mov.tipo_origen === 'cobro' ? 'cobros_aplicados' : 'pagos_aplicados';
+                                                const { error: errDel } = await supabase.from(tablaApl).delete().eq('id', mov.id);
+                                                if (errDel) throw errDel;
+                                              }
                                             }
-                                            
                                             manejarActualizacion();
                                           } catch (err: any) {
                                             console.error("Error al eliminar:", err);

@@ -161,54 +161,47 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
       const { data: ctx } = await supabase.from('usuarios').select('*').eq('id', user.id).single();
       if (!ctx) throw new Error('Error de contexto.');
 
-      const cxcActual = cxcs.find(c => c.id === cobroCxcId);
-      if (!cxcActual) throw new Error('No se encontró la deuda.');
+      const concatDoc = cobroNroDoc.trim() || null;
 
-      if (usarAnticipo) {
-        if (!anticipoId) throw new Error('Seleccione un anticipo.');
+      if (cobroCxcId === 'TODO') {
+        if (usarAnticipo) throw new Error('No se pueden usar anticipos para el pago múltiple.');
+        const cxcsPendientes = cxcs.filter(c => !c.anulada && c.estado !== 'pagada' && !(c as any).es_anticipo);
         
-        const { error: rpcErr } = await supabase.rpc('rpc_aplicar_anticipo_cxc', {
-          p_payload: {
-            nota_id: cobroCxcId,
-            anticipo_id: anticipoId,
-            monto: monto,
-            usuario_id: ctx.id,
-            escuela_id: ctx.escuela_id,
-            sucursal_id: ctx.sucursal_id,
-            fecha: `${cobroFecha}T${getHoraLocal()}:00`
+        let montoRestante = monto;
+        const cobrosPayload: any[] = [];
+        let totalPendiente = 0;
+
+        for (const c of cxcsPendientes) {
+          const saldo = Number(c.saldo_pendiente);
+          totalPendiente += saldo;
+          if (montoRestante > 0) {
+            const montoACobrar = Math.min(saldo, montoRestante);
+            cobrosPayload.push({
+              cuenta_cobrar_id: c.id,
+              monto: parseFloat(montoACobrar.toFixed(2))
+            });
+            montoRestante -= montoACobrar;
           }
-        });
-
-        if (rpcErr) throw rpcErr;
-      } else {
-        // Detectar si el monto excede el saldo pendiente
-        const saldoActual = Number(cxcActual.saldo_pendiente);
-        let montoCobrar = monto;
-        let exceso = 0;
-
-        if (monto > saldoActual) {
-          exceso = parseFloat((monto - saldoActual).toFixed(2));
-          montoCobrar = saldoActual;
         }
 
-        const concatDoc = cobroNroDoc.trim() || null;
+        if (cobrosPayload.length === 0) {
+          throw new Error('No hay deuda pendiente para cobrar.');
+        }
 
-        // Cobrar el saldo exacto de la nota
-        const { error: rpcErr } = await supabase.rpc('rpc_registrar_cobro', {
+        const { error: rpcErr } = await supabase.rpc('rpc_cobrar_multiple_cxc', {
           p_payload: {
-            cuenta_cobrar_id: cobroCxcId,
             escuela_id: ctx.escuela_id,
             sucursal_id: ctx.sucursal_id,
             usuario_id: ctx.id,
-            monto: montoCobrar,
             cuenta_cobro_id: cobroCuentaId,
             nro_comprobante: concatDoc,
-            fecha: `${cobroFecha}T${getHoraLocal()}:00`
+            fecha: `${cobroFecha}T${getHoraLocal()}:00`,
+            cobros: cobrosPayload
           }
         });
         if (rpcErr) throw rpcErr;
 
-        // Si hay exceso, crear anticipo automáticamente
+        let exceso = parseFloat((montoRestante).toFixed(2));
         if (exceso > 0) {
           const { data: notaAnticipo, error: errAnt } = await supabase.from('cuentas_cobrar').insert({
             escuela_id: ctx.escuela_id,
@@ -218,7 +211,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
             descripcion: 'Anticipo — Exceso de pago',
             estado: 'pendiente',
             es_anticipo: true,
-            observaciones: `Generado automáticamente por pago de Bs ${fmtMonto(monto)} con exceso de Bs ${fmtMonto(exceso)}.`
+            observaciones: `Generado automáticamente por pago múltiple de Bs ${fmtMonto(monto)} con exceso de Bs ${fmtMonto(exceso)}.`
           }).select('id').single();
 
           if (errAnt || !notaAnticipo) throw new Error('Error al registrar el anticipo del exceso.');
@@ -246,6 +239,92 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
           if (rpcAntErr) throw rpcAntErr;
 
           setCobroInfoAnticipo({ monto: exceso });
+        }
+      } else {
+        const cxcActual = cxcs.find(c => c.id === cobroCxcId);
+        if (!cxcActual) throw new Error('No se encontró la deuda.');
+
+        if (usarAnticipo) {
+          if (!anticipoId) throw new Error('Seleccione un anticipo.');
+          
+          const { error: rpcErr } = await supabase.rpc('rpc_aplicar_anticipo_cxc', {
+            p_payload: {
+              nota_id: cobroCxcId,
+              anticipo_id: anticipoId,
+              monto: monto,
+              usuario_id: ctx.id,
+              escuela_id: ctx.escuela_id,
+              sucursal_id: ctx.sucursal_id,
+              fecha: `${cobroFecha}T${getHoraLocal()}:00`
+            }
+          });
+
+          if (rpcErr) throw rpcErr;
+        } else {
+          // Detectar si el monto excede el saldo pendiente
+          const saldoActual = Number(cxcActual.saldo_pendiente);
+          let montoCobrar = monto;
+          let exceso = 0;
+
+          if (monto > saldoActual) {
+            exceso = parseFloat((monto - saldoActual).toFixed(2));
+            montoCobrar = saldoActual;
+          }
+
+          // Cobrar el saldo exacto de la nota
+          const { error: rpcErr } = await supabase.rpc('rpc_registrar_cobro', {
+            p_payload: {
+              cuenta_cobrar_id: cobroCxcId,
+              escuela_id: ctx.escuela_id,
+              sucursal_id: ctx.sucursal_id,
+              usuario_id: ctx.id,
+              monto: montoCobrar,
+              cuenta_cobro_id: cobroCuentaId,
+              nro_comprobante: concatDoc,
+              fecha: `${cobroFecha}T${getHoraLocal()}:00`
+            }
+          });
+          if (rpcErr) throw rpcErr;
+
+          // Si hay exceso, crear anticipo automáticamente
+          if (exceso > 0) {
+            const { data: notaAnticipo, error: errAnt } = await supabase.from('cuentas_cobrar').insert({
+              escuela_id: ctx.escuela_id,
+              sucursal_id: ctx.sucursal_id,
+              alumno_id: alumno.alumno_id,
+              monto_total: exceso,
+              descripcion: 'Anticipo — Exceso de pago',
+              estado: 'pendiente',
+              es_anticipo: true,
+              observaciones: `Generado automáticamente por pago de Bs ${fmtMonto(monto)} con exceso de Bs ${fmtMonto(exceso)}.`
+            }).select('id').single();
+
+            if (errAnt || !notaAnticipo) throw new Error('Error al registrar el anticipo del exceso.');
+
+            await supabase.from('cxc_detalle').insert({
+              escuela_id: ctx.escuela_id,
+              cuenta_cobrar_id: notaAnticipo.id,
+              descripcion: 'Anticipo — Exceso de pago',
+              cantidad: 1,
+              precio_unitario: exceso
+            });
+
+            const { error: rpcAntErr } = await supabase.rpc('rpc_registrar_cobro', {
+              p_payload: {
+                cuenta_cobrar_id: notaAnticipo.id,
+                escuela_id: ctx.escuela_id,
+                sucursal_id: ctx.sucursal_id,
+                usuario_id: ctx.id,
+                monto: exceso,
+                cuenta_cobro_id: cobroCuentaId,
+                nro_comprobante: concatDoc,
+                fecha: `${cobroFecha}T${getHoraLocal()}:00`
+              }
+            });
+            if (rpcAntErr) throw rpcAntErr;
+
+            setCobroInfoAnticipo({ monto: exceso });
+          }
         }
       }
 
@@ -325,6 +404,27 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
               </div>
             </div>
             <div style={{ display: 'flex', gap: '0.85rem', alignItems: 'center' }}>
+              {(() => {
+                const totalDeudaNum = cxcs.reduce((s, c) => s + (!(c as any).es_anticipo && c.estado !== 'pagada' && !c.anulada ? Number(c.saldo_pendiente) : 0), 0);
+                if (totalDeudaNum > 0) {
+                  return (
+                    <button 
+                      onClick={() => {
+                        setCobroCxcId('TODO');
+                        setCobroMonto(String(totalDeudaNum));
+                      }}
+                      className="btn-premium"
+                      style={{ 
+                        padding: '0.75rem 1.25rem', display: 'flex', alignItems: 'center', gap: '0.6rem', 
+                        fontWeight: 800, background: '#10b981', color: '#fff', borderRadius: '10px'
+                      }}
+                    >
+                      <DollarSign size={18} /> PAGAR TODO
+                    </button>
+                  );
+                }
+                return null;
+              })()}
               <button 
                 onClick={() => setMostrarNuevaNotaManual(true)}
                 className="btn-premium"
@@ -400,6 +500,83 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                 </tr>
               </thead>
               <tbody>
+                {cobroCxcId === 'TODO' && (
+                  <tr>
+                    <td colSpan={7} style={{ padding: '1rem', background: 'rgba(16, 185, 129, 0.05)', borderBottom: '1px solid rgba(16, 185, 129, 0.2)' }}>
+                      <form onSubmit={registrarCobro}>
+                        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                          <span style={{ fontWeight: 800, color: '#10b981', marginRight: '1rem' }}>PAGO MÚLTIPLE DE DEUDA</span>
+                          <select value={cobroCuentaId} onChange={e => setCobroCuentaId(e.target.value)} required className="detalle-cobro-select" style={{ flex: 1 }}>
+                            <option value="">Destino Caja/Banco</option>
+                            {cuentasCobro.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                          </select>
+                          <input type="text" value={cobroNroDoc} onChange={e => setCobroNroDoc(e.target.value)} placeholder="Nro Transacción" style={{ width: '130px' }} className="detalle-cobro-input" />
+                          <input
+                            type="number" step="0.01"
+                            value={cobroMonto}
+                            onChange={e => setCobroMonto(e.target.value)}
+                            placeholder="Monto" required
+                            style={{ width: '100px' }}
+                            className="detalle-cobro-input"
+                          />
+                          <input type="date" value={cobroFecha} onChange={e => setCobroFecha(e.target.value)} className="detalle-cobro-input" style={{ width: '160px' }} />
+                          <button type="submit" disabled={guardandoCobro} className="btn-guardar-cuenta" style={{ width: 'auto', padding: '0.5rem 1rem', background: '#10b981' }}>{guardandoCobro ? '...' : 'Cobrar Todo'}</button>
+                          <button type="button" onClick={() => setCobroCxcId(null)} className="btn-refrescar" style={{ width: 'auto', padding: '0.5rem' }}>Cancelar</button>
+                        </div>
+                        {(() => {
+                          const cxcsPendientes = cxcs.filter(c => !c.anulada && c.estado !== 'pagada' && !(c as any).es_anticipo);
+                          const totalPendiente = cxcsPendientes.reduce((acc, c) => acc + Number(c.saldo_pendiente), 0);
+                          const montoIn = parseFloat(cobroMonto) || 0;
+                          const exc = montoIn > totalPendiente && totalPendiente > 0 ? parseFloat((montoIn - totalPendiente).toFixed(2)) : 0;
+                          return exc > 0 ? (
+                            <p style={{
+                              marginTop: '0.4rem',
+                              fontSize: '0.72rem',
+                              color: '#f59e0b',
+                              background: 'rgba(245,158,11,0.08)',
+                              border: '1px solid rgba(245,158,11,0.3)',
+                              borderRadius: '6px',
+                              padding: '0.4rem 0.7rem',
+                              display: 'flex', alignItems: 'center', gap: '0.4rem'
+                            }}>
+                              ⚠ Exceso de <strong>Bs {fmtMonto(exc)}</strong> — se guardará automáticamente como anticipo a favor del cliente.
+                            </p>
+                          ) : (
+                             montoIn > 0 && montoIn < totalPendiente ? (
+                               <p style={{
+                                marginTop: '0.4rem',
+                                fontSize: '0.72rem',
+                                color: '#3b82f6',
+                                background: 'rgba(59,130,246,0.08)',
+                                border: '1px solid rgba(59,130,246,0.3)',
+                                borderRadius: '6px',
+                                padding: '0.4rem 0.7rem',
+                                display: 'flex', alignItems: 'center', gap: '0.4rem'
+                              }}>
+                                ℹ️ Pago parcial: Se cubrirán las deudas más antiguas hasta agotar los Bs {fmtMonto(montoIn)}.
+                              </p>
+                             ) : null
+                          );
+                        })()}
+                        {cobroInfoAnticipo && (
+                          <p style={{
+                            marginTop: '0.4rem',
+                            fontSize: '0.72rem',
+                            color: '#a855f7',
+                            background: 'rgba(168,85,247,0.08)',
+                            border: '1px solid rgba(168,85,247,0.3)',
+                            borderRadius: '6px',
+                            padding: '0.4rem 0.7rem',
+                            display: 'flex', alignItems: 'center', gap: '0.4rem'
+                          }}>
+                            ✓ Bs {fmtMonto(cobroInfoAnticipo.monto)} guardados como anticipo exitosamente.
+                          </p>
+                        )}
+                        {cobroError && <p style={{ color: '#f87171', fontSize: '0.75rem', marginTop: '0.5rem' }}>{cobroError}</p>}
+                      </form>
+                    </td>
+                  </tr>
+                )}
                 {cxcs.map(cxc => {
                   const isCobro = cobroCxcId === cxc.id;
                   const isAnticipo = (cxc as any).es_anticipo;

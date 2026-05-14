@@ -231,10 +231,43 @@ const fetchMovimientos = async (escuelaId: string, cajaIds: string[]) => {
   if (cobros.error) throw cobros.error;
   if (pagos.error) throw pagos.error;
 
-  const movs: any[] = [];
-  
+  const movsAgrupados = new Map<string, any>();
+  const movsFinales: any[] = [];
+
+  const addMov = (mov: any) => {
+    if (mov.asiento_id) {
+      if (!movsAgrupados.has(mov.asiento_id)) {
+        movsAgrupados.set(mov.asiento_id, {
+          ...mov,
+          descripcion: mov.tipo_origen === 'cobro' ? 'Cobro Consolidado de Deuda' : 'Pago Consolidado',
+          debe: 0,
+          haber: 0,
+          cuenta_nombre_list: [],
+          id: mov.asiento_id,
+          is_grouped: true,
+          original_ids: [],
+          conciliados_count: 0,
+          total_count: 0
+        });
+      }
+      const g = movsAgrupados.get(mov.asiento_id);
+      g.debe += mov.debe;
+      g.haber += mov.haber;
+      if (mov.cuenta_nombre && !g.cuenta_nombre_list.includes(mov.cuenta_nombre)) {
+        g.cuenta_nombre_list.push(mov.cuenta_nombre);
+      }
+      g.original_ids.push(mov.id);
+      g.total_count += 1;
+      if (mov.conciliado) g.conciliados_count += 1;
+      g.conciliado = g.conciliados_count === g.total_count;
+      g.cuenta_nombre = g.cuenta_nombre_list.join(', ');
+    } else {
+      movsFinales.push(mov);
+    }
+  };
+
   cobros.data.forEach((c: any) => {
-    movs.push({
+    addMov({
       id: c.id,
       tipo_origen: 'cobro',
       debe: Number(c.monto_aplicado) || 0,
@@ -248,7 +281,6 @@ const fetchMovimientos = async (escuelaId: string, cajaIds: string[]) => {
       cuenta_nombre: (() => {
         const items = c.cuentas_cobrar?.cxc_detalle?.map((d: any) => d.catalogo_items?.nombre).filter(Boolean);
         if (!items || items.length === 0) {
-          // Si es anticipo, mostrar la descripción de la nota; si no, fallback genérico
           if (c.cuentas_cobrar?.es_anticipo) return c.cuentas_cobrar?.descripcion || 'Anticipo';
           return c.cuentas_cobrar?.descripcion || 'Concepto no especificado';
         }
@@ -261,7 +293,7 @@ const fetchMovimientos = async (escuelaId: string, cajaIds: string[]) => {
   });
 
   pagos.data.forEach((p: any) => {
-    movs.push({
+    addMov({
       id: p.id,
       tipo_origen: 'pago',
       debe: 0,
@@ -276,7 +308,6 @@ const fetchMovimientos = async (escuelaId: string, cajaIds: string[]) => {
         const items = p.cuentas_pagar?.cxp_detalle?.map((d: any) => d.catalogo_items?.nombre).filter(Boolean);
         if (!items || items.length === 0) return 'Concepto no especificado';
         let res = Array.from(new Set(items)).join(', ');
-        // Si es un pago a personal y el item es ACF, mostrar Sueldos y Salarios
         if (p.cuentas_pagar?.personal && res === 'ACF') return 'Sueldos y Salarios';
         return res;
       })(),
@@ -286,8 +317,10 @@ const fetchMovimientos = async (escuelaId: string, cajaIds: string[]) => {
     });
   });
 
+  movsFinales.push(...Array.from(movsAgrupados.values()));
+
   // Ordenar descendente: 1ero por Fecha (solo el día), 2do por fecha de creación real (para ordenar correctamente los ingresos del mismo día)
-  return movs.sort((a, b) => {
+  return movsFinales.sort((a, b) => {
     const getJustDate = (f: string) => {
       if (!f) return 0;
       const match = f.match(/^(\d{4})-(\d{2})-(\d{2})/);
