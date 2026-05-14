@@ -155,6 +155,9 @@ const Estadisticas: React.FC = () => {
       const vistos = new Set<string>();
       const unicos: CatalogoItem[] = [];
       for (const item of (data ?? []) as CatalogoItem[]) {
+        const nombreBajo = item.nombre.toLowerCase();
+        if (nombreBajo.includes('saldo inicial')) continue;
+
         if (item.es_ingreso && !vistos.has(item.nombre)) {
           vistos.add(item.nombre);
           unicos.push(item);

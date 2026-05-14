@@ -164,6 +164,23 @@ const ModalNotaMasiva: React.FC<ModalNotaMasivaProps> = ({
                     const f = e.target.value;
                     setFechaEmision(f);
                     setVencimiento(f);
+
+                    // Sincronizar meses de mensualidad si existen
+                    if (f) {
+                      const monthIdx = parseInt(f.split('-')[1]) - 1;
+                      const nuevasLineas = lineas.map(l => {
+                        if (l.nombre === 'Mensualidad') {
+                          return { 
+                            ...l, 
+                            periodo_meses: [MESES_ANIO[monthIdx]],
+                            cantidad: 1,
+                            subtotal: l.precio_unitario
+                          };
+                        }
+                        return l;
+                      });
+                      setLineas(nuevasLineas);
+                    }
                   }} 
                   required 
                 />
@@ -186,13 +203,17 @@ const ModalNotaMasiva: React.FC<ModalNotaMasivaProps> = ({
                         const it = catalogo.find(c => c.id === e.target.value);
                         if (it) {
                           const nuevas = [...lineas];
+                          const esMensualidad = it.nombre === 'Mensualidad';
+                          const monthIdx = parseInt(fechaEmision.split('-')[1]) - 1;
+                          const mesesIniciales = esMensualidad ? [MESES_ANIO[monthIdx]] : [];
+
                           nuevas[idx] = { 
                             ...nuevas[idx], 
                             catalogo_item_id: it.id, 
                             nombre: it.nombre, 
                             precio_unitario: Number(it.precio_venta) || 0, 
                             subtotal: (Number(it.precio_venta) || 0) * nuevas[idx].cantidad,
-                            periodo_meses: [],
+                            periodo_meses: mesesIniciales,
                             detalle_personalizado: ''
                           };
                           setLineas(nuevas);

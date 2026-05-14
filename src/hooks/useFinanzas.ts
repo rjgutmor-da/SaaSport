@@ -5,7 +5,7 @@ const normalizar = (str: string) =>
   str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
 
 export const queryKeys = {
-  cxc_resumen: ['cxc-resumen'] as const,
+  cxc_resumen: (filtros: any) => ['cxc-resumen', filtros] as const,
   cxp_resumen: ['cxp-resumen'] as const,
   cxc_alumnos: (filtros: any) => ['cxc-alumnos', filtros] as const,
   cxp_entidades: (filtros: any) => ['cxp-entidades', filtros] as const,
@@ -30,14 +30,48 @@ export interface MovimientoFinanciero {
 
 // --- Resúmenes (Fase 1: Cálculos en DB) ---
 
-const fetchCxcResumen = async (escuelaId: string) => {
-  const { data, error } = await supabase
-    .from('v_cxc_resumen')
-    .select('*')
-    .eq('escuela_id', escuelaId)
-    .single();
+const fetchCxcResumen = async (escuelaId: string, filtros: any) => {
+  // Si no hay filtros relevantes, usamos la vista de resumen pre-calculada para mayor velocidad
+  const tieneFiltros = filtros.sucursalId || filtros.entrenadorId || filtros.canchaId || filtros.horarioId || filtros.busqueda?.trim();
+  
+  if (!tieneFiltros) {
+    const { data, error } = await supabase
+      .from('v_cxc_resumen')
+      .select('*')
+      .eq('escuela_id', escuelaId)
+      .single();
+    if (error) throw error;
+    return data;
+  }
+
+  // Si hay filtros, calculamos el resumen dinámicamente desde v_alumnos_deuda
+  let query = supabase
+    .from('v_alumnos_deuda')
+    .select('saldo_pendiente')
+    .eq('escuela_id', escuelaId);
+
+  if (filtros.sucursalId) query = query.eq('sucursal_id', filtros.sucursalId);
+  if (filtros.entrenadorId) query = query.eq('entrenador_id', filtros.entrenadorId);
+  if (filtros.canchaId) query = query.eq('cancha_id', filtros.canchaId);
+  if (filtros.horarioId) query = query.eq('horario_id', filtros.horarioId);
+  
+  if (filtros.busqueda?.trim()) {
+    const q = `%${normalizar(filtros.busqueda)}%`;
+    query = query.ilike('terminos_busqueda', q);
+  }
+
+  const { data, error } = await query;
   if (error) throw error;
-  return data;
+
+  const totalAlumnos = data.length;
+  const conDeuda = data.filter(a => Number(a.saldo_pendiente) > 0).length;
+  const totalPendiente = data.reduce((acc, a) => acc + Number(a.saldo_pendiente), 0);
+
+  return {
+    total_alumnos: totalAlumnos,
+    con_deuda: conDeuda,
+    total_pendiente: totalPendiente
+  };
 };
 
 const fetchCxpResumen = async (escuelaId: string) => {
@@ -123,10 +157,10 @@ const fetchCxpEntidades = async (escuelaId: string, filtros: any) => {
 
 // --- Hooks ---
 
-export const useCxcResumen = (escuelaId: string | null) =>
+export const useCxcResumen = (escuelaId: string | null, filtros: any) =>
   useQuery({
-    queryKey: queryKeys.cxc_resumen,
-    queryFn: () => fetchCxcResumen(escuelaId!),
+    queryKey: queryKeys.cxc_resumen(filtros),
+    queryFn: () => fetchCxcResumen(escuelaId!, filtros),
     enabled: !!escuelaId,
     staleTime: 1000 * 60 * 5, // 5 minutos
   });

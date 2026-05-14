@@ -110,13 +110,14 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
           setAlumnoId(data.alumnoId || alumnoPreseleccionado?.id || '');
           setLineas(data.lineas || [lineaVacia()]);
           setObservaciones(data.observaciones || '');
-          setVencimiento(data.vencimiento || getHoyISO());
-          setFechaEmision(data.fechaEmision || getHoyISO());
+          // Para notas nuevas, siempre sugerir la fecha de hoy aunque haya borrador
+          setVencimiento(getHoyISO());
+          setFechaEmision(getHoyISO());
+          setFechaPago(getHoyISO());
           setPagarAlCrear(data.pagarAlCrear || esAnticipo);
           setCuentaCobroId(data.cuentaCobroId || '');
           setMontoPago(data.montoPago || '');
           setCobroNroDoc(data.cobroNroDoc || '');
-          setFechaPago(data.fechaPago || getHoyISO());
         } catch (e) {
           console.error("Error cargando borrador", e);
         }
@@ -126,6 +127,7 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
         setObservaciones(esAnticipo ? 'Cobro Anticipado - Saldo a Favor' : '');
         setFechaEmision(getHoyISO());
         setVencimiento(getHoyISO());
+        setFechaPago(getHoyISO());
       }
     }
     setError(null); setExito(null);
@@ -323,7 +325,23 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
                     const f = e.target.value;
                     setFechaEmision(f);
                     setVencimiento(f);
-                    setFechaPago(f);
+                    
+                    // Sincronizar meses de mensualidad si existen
+                    if (f) {
+                      const monthIdx = parseInt(f.split('-')[1]) - 1;
+                      const nuevasLineas = lineas.map(l => {
+                        if (l.nombre === 'Mensualidad') {
+                          return { 
+                            ...l, 
+                            periodo_meses: [MESES_ANIO[monthIdx]],
+                            cantidad: 1,
+                            subtotal: l.precio_unitario
+                          };
+                        }
+                        return l;
+                      });
+                      setLineas(nuevasLineas);
+                    }
                   }} 
                   required 
                 />
@@ -350,7 +368,8 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
                           if (it) {
                             const nuevas = [...lineas];
                             const esMensualidad = it.nombre === 'Mensualidad';
-                            const mesesIniciales = esMensualidad ? [MESES_ANIO[new Date().getMonth()]] : [];
+                            const monthIdx = parseInt(fechaEmision.split('-')[1]) - 1;
+                            const mesesIniciales = esMensualidad ? [MESES_ANIO[monthIdx]] : [];
                             const cantidadInicial = esMensualidad ? 1 : nuevas[idx].cantidad;
 
                             nuevas[idx] = { 
@@ -498,7 +517,16 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
 
             <div style={{ background: 'rgba(255,255,255,0.03)', padding: '1rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
               <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', marginBottom: '1rem' }}>
-                <input type="checkbox" checked={pagarAlCrear} onChange={e => setPagarAlCrear(e.target.checked)} disabled={esAnticipo} />
+                <input 
+                  type="checkbox" 
+                  checked={pagarAlCrear} 
+                  onChange={e => {
+                    const val = e.target.checked;
+                    setPagarAlCrear(val);
+                    if (val) setFechaPago(getHoyISO());
+                  }} 
+                  disabled={esAnticipo} 
+                />
                 <span style={{ fontWeight: 700 }}>{esAnticipo ? 'Registro de Ingreso de Dinero' : '¿Registrar pago ahora?'}</span>
               </label>
 

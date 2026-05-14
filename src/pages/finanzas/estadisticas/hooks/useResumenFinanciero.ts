@@ -1,11 +1,13 @@
 /**
  * useResumenFinanciero.ts
- * Hook que consulta los datos de ingresos y egresos agrupados por ítem del catálogo.
- * Permite filtrar por rango de fechas.
+ * Hook que resume ingresos y egresos reales de Cajas/Bancos.
  *
  * Fuente de datos:
- *   - Ingresos: tabla cxc_detalle + catalogo_items (notas de servicios / cobros)
- *   - Egresos: tabla cxp_detalle + catalogo_items (cuentas por pagar)
+ *   - Ingresos: cobros_aplicados con caja_id real.
+ *   - Egresos: pagos_aplicados con caja_id real.
+ *
+ * Los saldos iniciales, ajustes o aplicaciones de anticipos sin caja_id no se
+ * incluyen porque no mueven efectivo en Cajas/Bancos.
  */
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../../../../lib/supabaseClient';
@@ -26,6 +28,19 @@ export interface ResumenFinanciero {
   error: string | null;
   recargar: () => void;
 }
+
+const convertirLista = (mapa: Record<string, number>): { lista: ItemResumen[]; total: number } => {
+  const total = Object.values(mapa).reduce((s, v) => s + v, 0);
+  const lista = Object.entries(mapa)
+    .map(([nombre, monto]) => ({
+      nombre,
+      monto,
+      porcentaje: total > 0 ? (monto / total) * 100 : 0,
+    }))
+    .sort((a, b) => b.monto - a.monto);
+
+  return { lista, total };
+};
 
 export function useResumenFinanciero(
   escuelaId: string | null,
@@ -55,81 +70,132 @@ export function useResumenFinanciero(
     setError(null);
 
     try {
-      // ── Ingresos: cxc_detalle (via cuentas_cobrar para filtrar fecha) ──
-      const { data: ingData, error: ingErr } = await supabase
-        .from('cxc_detalle')
-        .select(`
-          subtotal,
-          catalogo_items!cxc_detalle_catalogo_item_id_fkey (nombre),
-          cuentas_cobrar!cxc_detalle_cuenta_cobrar_id_fkey (fecha_emision, anulada)
-        `)
-        .eq('escuela_id', eid);
+      const { data: cajasData, error: cajasErr } = await supabase
+        .from('cajas_bancos')
+        .select('id')
+        .eq('escuela_id', eid)
+        .eq('activo', true);
 
-      if (ingErr) throw new Error(`Ingresos: ${ingErr.message}`);
+      if (cajasErr) throw new Error(`Cajas/Bancos: ${cajasErr.message}`);
 
-      // Filtrar por fecha y no anuladas en JS (para mayor compatibilidad con tipos)
-      const ingFiltrados = (ingData || []).filter((row: any) => {
-        if (row.cuentas_cobrar?.anulada) return false;
-        const fecha = row.cuentas_cobrar?.fecha_emision;
-        if (!fecha) return false;
-        return fecha >= desde && fecha <= hasta;
-      });
-
-      // Agrupar por nombre de ítem
-      const mapIng: Record<string, number> = {};
-      for (const row of ingFiltrados) {
-        const nombre = (row as any).catalogo_items?.nombre ?? 'Sin categoría';
-        mapIng[nombre] = (mapIng[nombre] ?? 0) + Number((row as any).subtotal ?? 0);
+      const cajaIds = (cajasData || []).map((c: any) => c.id).filter(Boolean);
+      if (cajaIds.length === 0) {
+        setIngresos([]);
+        setEgresos([]);
+        setTotalIngresos(0);
+        setTotalEgresos(0);
+        return;
       }
 
-      const totalIng = Object.values(mapIng).reduce((s, v) => s + v, 0);
-      const listaIng: ItemResumen[] = Object.entries(mapIng)
-        .map(([nombre, monto]) => ({
-          nombre,
-          monto,
-          porcentaje: totalIng > 0 ? (monto / totalIng) * 100 : 0,
-        }))
-        .sort((a, b) => b.monto - a.monto);
-
-      setIngresos(listaIng);
-      setTotalIngresos(totalIng);
-
-      // ── Egresos: cxp_detalle (via cuentas_pagar para filtrar fecha) ──
-      const { data: egData, error: egErr } = await supabase
-        .from('cxp_detalle')
+      // Ingresos: cobros que entraron efectivamente a una caja/banco.
+      const { data: cobrosData, error: cobrosErr } = await supabase
+        .from('cobros_aplicados')
         .select(`
-          subtotal,
-          catalogo_items!cxp_detalle_catalogo_item_id_fkey (nombre),
-          cuentas_pagar!cxp_detalle_cuenta_pagar_id_fkey (fecha_emision, anulada)
+          monto_aplicado,
+          fecha,
+          caja_id,
+          cuentas_cobrar!cobros_aplicados_cuenta_cobrar_id_fkey (
+            id,
+            monto_total,
+            descripcion,
+            anulada,
+            cxc_detalle (
+              subtotal,
+              catalogo_items!cxc_detalle_catalogo_item_id_fkey (nombre)
+            )
+          )
         `)
-        .eq('escuela_id', eid);
+        .eq('escuela_id', eid)
+        .in('caja_id', cajaIds);
 
-      if (egErr) throw new Error(`Egresos: ${egErr.message}`);
+      if (cobrosErr) throw new Error(`Ingresos: ${cobrosErr.message}`);
 
-      const egFiltrados = (egData || []).filter((row: any) => {
-        if (row.cuentas_pagar?.anulada) return false;
-        const fecha = row.cuentas_pagar?.fecha_emision;
-        if (!fecha) return false;
-        return fecha >= desde && fecha <= hasta;
-      });
+      const mapIng: Record<string, number> = {};
+      for (const cobro of (cobrosData || [])) {
+        const fechaCobro = cobro.fecha?.split('T')[0];
+        if (!fechaCobro || fechaCobro < desde || fechaCobro > hasta) continue;
+
+        const cc = (cobro as any).cuentas_cobrar;
+        if (!cc || cc.anulada) continue;
+
+        const montoCobrado = Number(cobro.monto_aplicado || 0);
+        const detalles = cc.cxc_detalle || [];
+
+        if (montoCobrado <= 0) continue;
+
+        const totalDetalles = detalles.reduce((sum: number, det: any) => sum + Number(det.subtotal || 0), 0);
+
+        if (detalles.length === 0 || totalDetalles <= 0) {
+          const desc = cc.descripcion || 'Otros Ingresos';
+          mapIng[desc] = (mapIng[desc] ?? 0) + montoCobrado;
+          continue;
+        }
+
+        for (const det of detalles) {
+          const nombre = det.catalogo_items?.nombre ?? cc.descripcion ?? 'Otros Ingresos';
+          const proporcion = Number(det.subtotal || 0) / totalDetalles;
+          mapIng[nombre] = (mapIng[nombre] ?? 0) + montoCobrado * proporcion;
+        }
+      }
+
+      const ingresosCalc = convertirLista(mapIng);
+      setIngresos(ingresosCalc.lista);
+      setTotalIngresos(ingresosCalc.total);
+
+      // Egresos: pagos que salieron efectivamente de una caja/banco.
+      const { data: pagosData, error: pagosErr } = await supabase
+        .from('pagos_aplicados')
+        .select(`
+          monto_aplicado,
+          fecha,
+          caja_id,
+          cuentas_pagar!pagos_aplicados_cuenta_pagar_id_fkey (
+            id,
+            monto_total,
+            descripcion,
+            anulada,
+            cxp_detalle (
+              subtotal,
+              catalogo_items!cxp_detalle_catalogo_item_id_fkey (nombre)
+            )
+          )
+        `)
+        .eq('escuela_id', eid)
+        .in('caja_id', cajaIds);
+
+      if (pagosErr) throw new Error(`Egresos: ${pagosErr.message}`);
 
       const mapEg: Record<string, number> = {};
-      for (const row of egFiltrados) {
-        const nombre = (row as any).catalogo_items?.nombre ?? 'Sin categoría';
-        mapEg[nombre] = (mapEg[nombre] ?? 0) + Number((row as any).subtotal ?? 0);
+      for (const pago of (pagosData || [])) {
+        const fechaPago = pago.fecha?.split('T')[0];
+        if (!fechaPago || fechaPago < desde || fechaPago > hasta) continue;
+
+        const cp = (pago as any).cuentas_pagar;
+        if (!cp || cp.anulada) continue;
+
+        const montoPagado = Number(pago.monto_aplicado || 0);
+        const detalles = cp.cxp_detalle || [];
+
+        if (montoPagado <= 0) continue;
+
+        const totalDetalles = detalles.reduce((sum: number, det: any) => sum + Number(det.subtotal || 0), 0);
+
+        if (detalles.length === 0 || totalDetalles <= 0) {
+          const desc = cp.descripcion || 'Otros Egresos';
+          mapEg[desc] = (mapEg[desc] ?? 0) + montoPagado;
+          continue;
+        }
+
+        for (const det of detalles) {
+          const nombre = det.catalogo_items?.nombre ?? cp.descripcion ?? 'Otros Egresos';
+          const proporcion = Number(det.subtotal || 0) / totalDetalles;
+          mapEg[nombre] = (mapEg[nombre] ?? 0) + montoPagado * proporcion;
+        }
       }
 
-      const totalEg = Object.values(mapEg).reduce((s, v) => s + v, 0);
-      const listaEg: ItemResumen[] = Object.entries(mapEg)
-        .map(([nombre, monto]) => ({
-          nombre,
-          monto,
-          porcentaje: totalEg > 0 ? (monto / totalEg) * 100 : 0,
-        }))
-        .sort((a, b) => b.monto - a.monto);
-
-      setEgresos(listaEg);
-      setTotalEgresos(totalEg);
+      const egresosCalc = convertirLista(mapEg);
+      setEgresos(egresosCalc.lista);
+      setTotalEgresos(egresosCalc.total);
     } catch (e: any) {
       setError(e.message ?? 'Error desconocido');
     } finally {

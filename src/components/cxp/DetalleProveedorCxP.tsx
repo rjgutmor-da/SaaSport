@@ -235,14 +235,24 @@ const DetalleProveedorCxP: React.FC<Props> = ({ entidad, visible, onCerrar, onAc
 
         {/* ── Ficha Premium de 4 Columnas ── */}
         <div className="detalle-resumen-premium" style={{ gap: '1.25rem', padding: '1.5rem 2rem', background: 'transparent', borderBottom: '1px solid var(--border)' }}>
-          <div className="resumen-card" style={{ border: '1px solid rgba(248,113,113,0.2)' }}>
-            <span className="resumen-label">DEUDA PENDIENTE</span>
-            <span className="resumen-valor color-deuda">Bs {fmtMonto(stats.montoPendiente)}</span>
-            <div className="resumen-footer">
-              <AlertCircle size={12} /> {stats.pendientes} notas por pagar
-            </div>
-            <div className="resumen-icon-bg" style={{ opacity: 0.15 }}><AlertCircle size={28} className="color-deuda" /></div>
-          </div>
+          {(() => {
+            const esSaldoAFavor = stats.montoPendiente < 0;
+            return (
+              <div className="resumen-card" style={{ border: esSaldoAFavor ? '1px solid rgba(74,222,128,0.2)' : '1px solid rgba(248,113,113,0.2)' }}>
+                <span className="resumen-label">{esSaldoAFavor ? 'SALDO A FAVOR' : 'DEUDA PENDIENTE'}</span>
+                <span className={`resumen-valor ${esSaldoAFavor ? 'color-ingreso' : 'color-deuda'}`}>
+                  Bs {fmtMonto(Math.abs(stats.montoPendiente))}
+                </span>
+                <div className="resumen-footer">
+                  {esSaldoAFavor ? <Check size={12} /> : <AlertCircle size={12} />} 
+                  {esSaldoAFavor ? 'Crédito disponible' : `${stats.pendientes} notas por pagar`}
+                </div>
+                <div className="resumen-icon-bg" style={{ opacity: 0.15 }}>
+                  {esSaldoAFavor ? <CheckCircle2 size={28} className="color-ingreso" /> : <AlertCircle size={28} className="color-deuda" />}
+                </div>
+              </div>
+            );
+          })()}
 
           <div className="resumen-card" style={{ border: '1px solid rgba(74,222,128,0.2)' }}>
             <span className="resumen-label">TOTAL PAGADO</span>

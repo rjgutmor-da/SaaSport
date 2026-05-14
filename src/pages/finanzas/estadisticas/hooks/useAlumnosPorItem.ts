@@ -76,21 +76,28 @@ export function useAlumnosPorItem(
     setError(null);
 
     try {
+      // Consultamos cobros_aplicados para que la estadística sea basada en efectivo (percibido)
       const { data, error: err } = await supabase
-        .from('cxc_detalle')
+        .from('cobros_aplicados')
         .select(`
           id,
-          subtotal,
-          periodo_meses,
-          detalle_extra,
-          cuenta_cobrar_id,
-          cuentas_cobrar!cxc_detalle_cuenta_cobrar_id_fkey (
+          monto_aplicado,
+          fecha,
+          cuentas_cobrar!cobros_aplicados_cuenta_cobrar_id_fkey (
+            id,
+            monto_total,
             fecha_emision,
             anulada,
             alumno_id,
-            monto_total,
+            descripcion,
             estado,
-            cobros_aplicados ( monto_aplicado ),
+            cxc_detalle (
+              id,
+              subtotal,
+              periodo_meses,
+              detalle_extra,
+              catalogo_item_id
+            ),
             alumnos!cuentas_cobrar_alumno_id_fkey (
               nombres, 
               apellidos,
@@ -103,101 +110,89 @@ export function useAlumnosPorItem(
             )
           )
         `)
-        .eq('escuela_id', eid)
-        .eq('catalogo_item_id', itemId);
+        .eq('escuela_id', eid);
 
       if (err) throw new Error(err.message);
 
-      // Filtrar por fecha, no anuladas y filtros adicionales (entrenador/sucursal)
-      let filtrados = (data || []).filter((row: any) => {
-        if (row.cuentas_cobrar?.anulada) return false;
-        const fecha = row.cuentas_cobrar?.fecha_emision;
-        if (!fecha) return false;
-        
-        // Rango de fechas
-        if (!(fecha >= desde && fecha <= hasta)) return false;
+      const resultado: AlumnoPorItem[] = [];
 
-        // Filtro Entrenador
-        if (entrenadorId && row.cuentas_cobrar?.alumnos?.profesor_asignado_id !== entrenadorId) return false;
+      for (const cobro of (data || [])) {
+        const fechaCobro = cobro.fecha?.split('T')[0];
+        if (!fechaCobro || fechaCobro < desde || fechaCobro > hasta) continue;
 
-        // Filtro Sucursal (Categoría)
-        if (sucursalId && row.cuentas_cobrar?.alumnos?.sucursal_id !== sucursalId) return false;
+        const cxc = (cobro as any).cuentas_cobrar;
+        if (!cxc || cxc.anulada) continue;
 
-        // Filtro Horario
-        if (horarioId && row.cuentas_cobrar?.alumnos?.horario_id !== horarioId) return false;
+        // Filtros adicionales de Alumno
+        if (entrenadorId && cxc.alumnos?.profesor_asignado_id !== entrenadorId) continue;
+        if (sucursalId && cxc.alumnos?.sucursal_id !== sucursalId) continue;
+        if (horarioId && cxc.alumnos?.horario_id !== horarioId) continue;
+        if (canchaId && cxc.alumnos?.cancha_id !== canchaId) continue;
 
-        // Filtro Cancha
-        if (canchaId && row.cuentas_cobrar?.alumnos?.cancha_id !== canchaId) return false;
+        const montoTotalNota = Number(cxc.monto_total || 0);
+        const montoCobrado = Number(cobro.monto_aplicado || 0);
+        const detalles = cxc.cxc_detalle || [];
 
-        return true;
-      });
+        if (montoTotalNota <= 0) continue;
 
-      // Aplicar subfiltro de meses (periodo_meses es un array JSONB)
-      if (filtroSubItems && filtroSubItems.length > 0) {
-        filtrados = filtrados.filter((row: any) => {
-          // Para Mensualidad: periodo_meses es array de meses
-          if (Array.isArray(row.periodo_meses)) {
-            return (row.periodo_meses as string[]).some(m => filtroSubItems.includes(m));
+        // Buscamos si esta nota tiene el ítem que nos interesa
+        const detInteres = detalles.find((d: any) => d.catalogo_item_id === itemId);
+        if (!detInteres) continue;
+
+        // Exclusión de Saldos Iniciales
+        const descNota = cxc.descripcion || '';
+        if (descNota.toLowerCase().includes('saldo inicial')) continue;
+        // El nombre del ítem ya lo tenemos validado por el itemId que entra al hook, 
+        // pero si fuera necesario filtrar por nombre aquí se podría.
+
+        // Filtro de sub-ítems (Meses o Torneos)
+        if (filtroSubItems && filtroSubItems.length > 0) {
+          let cumpleSub = false;
+          if (Array.isArray(detInteres.periodo_meses)) {
+            cumpleSub = (detInteres.periodo_meses as string[]).some(m => filtroSubItems.includes(m));
+          } else if (detInteres.detalle_extra) {
+            cumpleSub = filtroSubItems.some(f => detInteres.detalle_extra.toLowerCase().includes(f.toLowerCase()));
           }
-          // Para Torneos: detalle_extra contiene el nombre del torneo
-          if (row.detalle_extra) {
-            return filtroSubItems.some(f =>
-              row.detalle_extra.toLowerCase().includes(f.toLowerCase())
-            );
-          }
-          return false;
-        });
-      }
+          if (!cumpleSub) continue;
+        }
 
-      // Mapear a la estructura final
-      const resultado: AlumnoPorItem[] = filtrados.map((row: any) => {
-        const cxc = row.cuentas_cobrar ?? {};
         const alu = cxc.alumnos ?? {};
         const nombres = alu.nombres ?? '';
         const apellidos = alu.apellidos ?? '';
 
         // Construir descripción del detalle
-        let detalle = '';
-        if (Array.isArray(row.periodo_meses) && row.periodo_meses.length > 0) {
-          detalle = (row.periodo_meses as string[]).join(', ');
-        } else if (row.detalle_extra) {
-          detalle = String(row.detalle_extra);
+        let detalleStr = '';
+        if (Array.isArray(detInteres.periodo_meses) && detInteres.periodo_meses.length > 0) {
+          detalleStr = (detInteres.periodo_meses as string[]).join(', ');
+        } else if (detInteres.detalle_extra) {
+          detalleStr = String(detInteres.detalle_extra);
         }
 
-        // Calcular estado de pago de la nota principal
-        const cTotal = Number(cxc.monto_total ?? 0);
-        let cCobrado = 0;
-        if (cxc.cobros_aplicados && Array.isArray(cxc.cobros_aplicados)) {
-          cCobrado = cxc.cobros_aplicados.reduce((sum: number, apl: any) => sum + Number(apl.monto_aplicado ?? 0), 0);
-        }
-        let cSaldo = cTotal - cCobrado;
-        if (cSaldo < 0) cSaldo = 0;
-        let pagadoStatus: 'Si' | 'No' | 'Parcial' = 'No';
-        if (cSaldo <= 0) {
-          pagadoStatus = 'Si';
-        } else if (cSaldo < cTotal) {
-          pagadoStatus = 'Parcial';
-        }
+        // Proporción del pago para este ítem
+        const proporcion = Number(detInteres.subtotal || 0) / montoTotalNota;
+        const montoItemPercibido = montoCobrado * proporcion;
 
-        return {
+        resultado.push({
           alumno_id: cxc.alumno_id ?? '',
           nombre_completo: `${nombres} ${apellidos}`.trim() || 'Sin nombre',
-          monto: Number(row.subtotal ?? 0),
-          fecha: cxc.fecha_emision ?? '',
-          detalle,
-          nota_id: row.id,
-          cxc_id: row.cuenta_cobrar_id ?? '',
+          monto: montoItemPercibido,
+          fecha: fechaCobro, // Usamos la fecha del cobro, no de la nota
+          detalle: detalleStr,
+          nota_id: detInteres.id,
+          cxc_id: cxc.id,
           concepto: conceptoNombre ?? 'Desconocido',
           sub: alu.sucursales?.nombre ?? 'Sin Categoría',
           entrenador: alu.usuarios ? `${alu.usuarios.nombres} ${alu.usuarios.apellidos}`.trim() : 'Sin Entrenador',
-          saldo_pendiente: cSaldo,
-          pagado: pagadoStatus
-        };
-      });
+          saldo_pendiente: 0, // En vista de "percibido", mostramos lo que entró
+          pagado: 'Si'
+        });
+      }
 
       let finalResultado = resultado;
-      if (pagadoFiltro) {
-        finalResultado = finalResultado.filter(r => r.pagado === pagadoFiltro);
+      if (pagadoFiltro && pagadoFiltro !== 'Si') {
+        // Si el filtro de pagado es "No" o "Parcial", en modo percibido no habrá resultados 
+        // porque solo listamos cobros realizados.
+        finalResultado = [];
       }
 
       // Ordenar por apellido+nombre
@@ -208,6 +203,7 @@ export function useAlumnosPorItem(
     } finally {
       setCargando(false);
     }
+
   }
 
   return { alumnos, cargando, error, recargar };

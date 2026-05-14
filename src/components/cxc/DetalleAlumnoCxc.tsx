@@ -351,13 +351,21 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
 
           {/* Ficha Premium de 4 Columnas */}
           <div className="detalle-resumen-premium" style={{ gap: '1.25rem', padding: '1.5rem 2rem' }}>
-            <div className="resumen-card" style={{ border: '1px solid rgba(248,113,113,0.2)' }}>
-              <span className="resumen-label">TOTAL DEUDA</span>
-              <span className="resumen-valor color-deuda" style={{ fontSize: '1.8rem' }}>
-                Bs {fmtMonto(cxcs.reduce((s, c) => s + ((c as any).es_anticipo ? -Number(c.saldo_pendiente) : Number(c.saldo_pendiente)), 0))}
-              </span>
-              <div className="resumen-icon-bg" style={{ opacity: 0.15 }}><AlertCircle size={28} className="color-deuda" /></div>
-            </div>
+            {(() => {
+              const totalDeuda = cxcs.reduce((s, c) => s + ((c as any).es_anticipo ? -Number(c.saldo_pendiente) : Number(c.saldo_pendiente)), 0);
+              const esSaldoAFavor = totalDeuda < 0;
+              return (
+                <div className="resumen-card" style={{ border: esSaldoAFavor ? '1px solid rgba(74,222,128,0.2)' : '1px solid rgba(248,113,113,0.2)' }}>
+                  <span className="resumen-label">{esSaldoAFavor ? 'SALDO A FAVOR' : 'TOTAL DEUDA'}</span>
+                  <span className={`resumen-valor ${esSaldoAFavor ? 'color-ingreso' : 'color-deuda'}`} style={{ fontSize: '1.8rem' }}>
+                    Bs {fmtMonto(Math.abs(totalDeuda))}
+                  </span>
+                  <div className="resumen-icon-bg" style={{ opacity: 0.15 }}>
+                    {esSaldoAFavor ? <Check size={28} className="color-ingreso" /> : <AlertCircle size={28} className="color-deuda" />}
+                  </div>
+                </div>
+              );
+            })()}
 
             <div className="resumen-card" style={{ border: '1px solid rgba(74,222,128,0.2)' }}>
               <span className="resumen-label">TOTAL INGRESOS</span>
@@ -457,7 +465,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                             ? (Number(cxc.saldo_pendiente) > 0 ? '#a855f7' : '#4ade80')
                             : (Number(cxc.saldo_pendiente) > 0 ? '#38bdf8' : '#4ade80') 
                         }}>
-                          {isAnticipo && Number(cxc.saldo_pendiente) > 0 ? '+ ' : ''}
+                          {isAnticipo && Number(cxc.saldo_pendiente) > 0 ? '- ' : ''}
                           Bs {fmtMonto(Number(cxc.saldo_pendiente))}
                         </td>
                         <td style={{ padding: '0.5rem 0.75rem', verticalAlign: 'middle', border: '1px solid var(--border)', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>

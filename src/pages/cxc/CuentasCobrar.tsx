@@ -56,7 +56,7 @@ const CuentasCobrar: React.FC = () => {
 
   // Paginación
   const [pagina, setPagina] = useState(1);
-  const itemsPorPagina = 20;
+  const itemsPorPagina = 30;
 
   // Hooks de datos (Fase 1: Cálculos en DB + Fase 2: Caché)
   const filtros = {
@@ -71,7 +71,7 @@ const CuentasCobrar: React.FC = () => {
   };
 
   const { data: alumnosData, isLoading: cargandoAlumnos, error: errorAlumnos, refetch: refetchAlumnos } = useCxcAlumnos(escuelaId, filtros);
-  const { data: resumenData, isLoading: cargandoResumen, refetch: refetchResumen } = useCxcResumen(escuelaId);
+  const { data: resumenData, isLoading: cargandoResumen, refetch: refetchResumen } = useCxcResumen(escuelaId, filtros);
 
   const cargando = cargandoAlumnos || cargandoResumen;
   const alumnosDeuda = (alumnosData?.data as unknown as AlumnoDeuda[]) || [];
@@ -102,8 +102,8 @@ const CuentasCobrar: React.FC = () => {
       if (yaMarcado) {
         return prev.filter(a => a.alumno_id !== alumno.alumno_id);
       }
-      if (prev.length >= 20) {
-        alert('Por seguridad, solo puedes seleccionar un máximo de 20 alumnos a la vez.');
+      if (prev.length >= 30) {
+        alert('Por seguridad, solo puedes seleccionar un máximo de 30 alumnos a la vez.');
         return prev;
       }
       return [...prev, alumno];
@@ -114,10 +114,10 @@ const CuentasCobrar: React.FC = () => {
     if (alumnosMarcados.length === actuales.length && actuales.length > 0) {
       setAlumnosMarcados([]);
     } else {
-      const nuevos = actuales.slice(0, 20);
+      const nuevos = actuales.slice(0, 30);
       setAlumnosMarcados(nuevos);
-      if (actuales.length > 20) {
-        alert('Se han marcado los primeros 20 alumnos de la lista (límite por seguridad).');
+      if (actuales.length > 30) {
+        alert('Se han marcado los primeros 30 alumnos de la lista (límite por seguridad).');
       }
     }
   };
@@ -297,9 +297,11 @@ const CuentasCobrar: React.FC = () => {
               {stats.conDeuda}
             </span>
           </div>
-          <div className="cxc-stat-pill cxc-stat-pill--danger">
-            <span className="cxc-pill-label">Pendiente</span>
-            <span className="cxc-pill-value">Bs {fmtMonto(stats.totalPendiente)}</span>
+          <div className="cxc-stat-pill" style={{ borderColor: stats.totalPendiente < 0 ? '#a855f7' : undefined }}>
+            <span className="cxc-pill-label">{stats.totalPendiente < 0 ? 'Saldo a Favor' : 'Pendiente'}</span>
+            <span className="cxc-pill-value" style={{ color: stats.totalPendiente < 0 ? '#a855f7' : undefined }}>
+              {stats.totalPendiente < 0 ? '- ' : ''}Bs {fmtMonto(Math.abs(stats.totalPendiente))}
+            </span>
           </div>
           <span className="cxc-divider-mini" />
           <span className="cxc-result-count">
@@ -344,9 +346,9 @@ const CuentasCobrar: React.FC = () => {
                   <input 
                     type="checkbox" 
                     onChange={() => toggleMarcarTodos(alumnosDeuda)}
-                    checked={alumnosMarcados.length > 0 && alumnosMarcados.length === Math.min(alumnosDeuda.length, 20)}
+                    checked={alumnosMarcados.length > 0 && alumnosMarcados.length === Math.min(alumnosDeuda.length, 30)}
                     style={{ cursor: 'pointer' }}
-                    title="Marcar todos (Max 20)"
+                    title="Marcar todos (Max 30)"
                   />
                 </th>
                 <th className="cxc-th cxc-th-alumno">Alumno</th>
@@ -393,8 +395,10 @@ const CuentasCobrar: React.FC = () => {
                       ) : <span className="cxc-td-dash">—</span>}
                     </td>
                     <td className="cxc-td cxc-td-right">
-                      {tieneDeuda
-                        ? <span className="cxc-monto-deuda">Bs {fmtMonto(Number(alumno.saldo_pendiente))}</span>
+                      {Number(alumno.saldo_pendiente) !== 0
+                        ? <span className="cxc-monto-deuda" style={{ color: Number(alumno.saldo_pendiente) < 0 ? '#a855f7' : undefined }}>
+                            {Number(alumno.saldo_pendiente) < 0 ? '- ' : ''}Bs {fmtMonto(Math.abs(Number(alumno.saldo_pendiente)))}
+                          </span>
                         : <span className="cxc-al-dia">✓ Al día</span>
                       }
                     </td>

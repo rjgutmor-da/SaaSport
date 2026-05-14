@@ -39,14 +39,14 @@ const GraficoBarras: React.FC<Props> = ({ items, total, titulo, isIngreso }) => 
   // Ordenar de mayor a menor monto
   const ordenados = [...items].sort((a, b) => b.monto - a.monto);
   
-  // Tomar los top 4
-  const top4 = ordenados.slice(0, 4);
+  // Tomar los top 5
+  const top5 = ordenados.slice(0, 5);
   
   // El resto sumarlos a "Otros"
-  const otrosMonto = ordenados.slice(4).reduce((sum, item) => sum + item.monto, 0);
-  const otrosPct = ordenados.slice(4).reduce((sum, item) => sum + item.porcentaje, 0);
+  const otrosMonto = ordenados.slice(5).reduce((sum, item) => sum + item.monto, 0);
+  const otrosPct = ordenados.slice(5).reduce((sum, item) => sum + item.porcentaje, 0);
   
-  const datosFinales = [...top4];
+  const datosFinales = [...top5];
   if (otrosMonto > 0) {
     datosFinales.push({
       nombre: 'Otros',
