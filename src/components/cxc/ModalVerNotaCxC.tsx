@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import ModalEditarCobroCxC from './ModalEditarCobroCxC';
 import type { CajaBanco } from '../../types/finanzas';
-import { formatFecha, formatFechaHora } from '../../lib/dateUtils';
+import { formatFecha, formatFechaHora, ordenarMesesCalendario } from '../../lib/dateUtils';
 
 interface Props {
   visible: boolean;
@@ -317,7 +317,7 @@ const ModalVerNotaCxC: React.FC<Props> = ({ visible, cxcId, onCerrar, onEditar, 
                       {/* Detalle específico: meses o torneo */}
                       {item.periodo_meses && item.periodo_meses.length > 0 && (
                         <div style={{ marginTop: '0.4rem', display: 'flex', gap: '0.3rem', flexWrap: 'wrap' }}>
-                          {item.periodo_meses.map((mes: string) => (
+                          {ordenarMesesCalendario(item.periodo_meses).map((mes: string) => (
                             <span key={mes} style={{
                               background: 'rgba(59,130,246,0.15)',
                               color: '#60a5fa',

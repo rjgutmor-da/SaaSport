@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../lib/supabaseClient';
+import { obtenerOrdenMes } from '../lib/dateUtils';
 
 const normalizar = (str: string) =>
   str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
@@ -111,7 +112,58 @@ const fetchCxcAlumnos = async (escuelaId: string, filtros: any) => {
     .range(desde, hasta);
 
   if (error) throw error;
-  return { data, count };
+
+  const lista = data || [];
+  const alumnoIds = lista.map((a: any) => a.alumno_id).filter(Boolean);
+
+  if (alumnoIds.length === 0) return { data: lista, count };
+
+  const { data: mensualidades, error: errMensualidades } = await supabase
+    .from('cuentas_cobrar')
+    .select(`
+      alumno_id,
+      fecha_emision,
+      cxc_detalle (
+        id,
+        periodo_meses,
+        catalogo_items!cxc_detalle_catalogo_item_id_fkey (nombre)
+      )
+    `)
+    .eq('escuela_id', escuelaId)
+    .eq('anulada', false)
+    .in('alumno_id', alumnoIds);
+
+  if (errMensualidades) throw errMensualidades;
+
+  const ultimaPorAlumno: Record<string, { mes: string; fecha: string; orden: number }> = {};
+
+  for (const nota of (mensualidades || []) as any[]) {
+    const detallesMensualidad = (nota.cxc_detalle || []).filter((det: any) =>
+      det.catalogo_items?.nombre?.toLowerCase().includes('mensualidad')
+    );
+
+    for (const det of detallesMensualidad) {
+      const meses = Array.isArray(det.periodo_meses) ? det.periodo_meses : [];
+      for (const mes of meses) {
+        const orden = obtenerOrdenMes(mes);
+        if (!orden) continue;
+
+        const actual = ultimaPorAlumno[nota.alumno_id];
+        const fecha = nota.fecha_emision || '';
+        if (!actual || fecha > actual.fecha || (fecha === actual.fecha && orden > actual.orden)) {
+          ultimaPorAlumno[nota.alumno_id] = { mes, fecha, orden };
+        }
+      }
+    }
+  }
+
+  return {
+    data: lista.map((alumno: any) => ({
+      ...alumno,
+      ultima_mensualidad: ultimaPorAlumno[alumno.alumno_id]?.mes ?? alumno.ultima_mensualidad,
+    })),
+    count,
+  };
 };
 
 const fetchCxpEntidades = async (escuelaId: string, filtros: any) => {

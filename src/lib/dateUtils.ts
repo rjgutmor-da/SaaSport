@@ -136,3 +136,46 @@ export const formatFechaHora = (iso: string | null | undefined): string => {
     minute: '2-digit'
   });
 };
+
+const ORDEN_MESES: Record<string, number> = {
+  ene: 1,
+  enero: 1,
+  feb: 2,
+  febrero: 2,
+  mar: 3,
+  marzo: 3,
+  abr: 4,
+  abril: 4,
+  may: 5,
+  mayo: 5,
+  jun: 6,
+  junio: 6,
+  jul: 7,
+  julio: 7,
+  ago: 8,
+  agosto: 8,
+  sep: 9,
+  sept: 9,
+  septiembre: 9,
+  set: 9,
+  setiembre: 9,
+  oct: 10,
+  octubre: 10,
+  nov: 11,
+  noviembre: 11,
+  dic: 12,
+  diciembre: 12,
+};
+
+const normalizarMes = (mes: string): string =>
+  mes.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim().replace(/\.$/, '');
+
+export const obtenerOrdenMes = (mes: string | null | undefined): number =>
+  mes ? (ORDEN_MESES[normalizarMes(mes)] ?? 0) : 0;
+
+export const ordenarMesesCalendario = (meses: string[] | null | undefined): string[] =>
+  [...(meses || [])].sort((a, b) => {
+    const ordenA = obtenerOrdenMes(a) || 99;
+    const ordenB = obtenerOrdenMes(b) || 99;
+    return ordenA - ordenB;
+  });

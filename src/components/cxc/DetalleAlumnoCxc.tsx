@@ -17,7 +17,7 @@ import ModalVerNotaCxC from './ModalVerNotaCxC';
 import ModalEditarMovimiento from '../cajas-bancos/ModalEditarMovimiento';
 import ModalDetalleMovimiento from '../cajas-bancos/ModalDetalleMovimiento';
 import FichaAnticiposCxC from './FichaAnticiposCxC';
-import { getHoraLocal, getHoyISO, formatFecha, formatFechaCorta } from '../../lib/dateUtils';
+import { getHoraLocal, getHoyISO, formatFecha, formatFechaCorta, ordenarMesesCalendario } from '../../lib/dateUtils';
 
 interface DetalleAlumnoProps {
   alumno: AlumnoDeuda | null;
@@ -605,7 +605,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                                           {item.item_nombre}
                                         </span>
                                       )}
-                                      {item.periodo_meses && item.periodo_meses.map((mes: string, mi: number) => (
+                                      {item.periodo_meses && ordenarMesesCalendario(item.periodo_meses).map((mes: string, mi: number) => (
                                         <span key={`${i}-${mi}`} style={{ fontSize: '0.65rem', padding: '1px 6px', borderRadius: '4px', background: 'rgba(74,222,128,0.15)', color: '#4ade80', fontWeight: 600 }}>
                                           {mes}
                                         </span>

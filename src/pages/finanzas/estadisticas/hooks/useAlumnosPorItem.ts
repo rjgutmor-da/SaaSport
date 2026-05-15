@@ -9,6 +9,7 @@
  */
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../../../../lib/supabaseClient';
+import { ordenarMesesCalendario } from '../../../../lib/dateUtils';
 import { calcularRango, type IntervaloPredefinido } from '../utils/estadisticasUtils';
 
 export interface AlumnoPorItem {
@@ -163,7 +164,7 @@ export function useAlumnosPorItem(
         // Construir descripción del detalle
         let detalleStr = '';
         if (Array.isArray(detInteres.periodo_meses) && detInteres.periodo_meses.length > 0) {
-          detalleStr = (detInteres.periodo_meses as string[]).join(', ');
+          detalleStr = ordenarMesesCalendario(detInteres.periodo_meses as string[]).join(', ');
         } else if (detInteres.detalle_extra) {
           detalleStr = String(detInteres.detalle_extra);
         }
