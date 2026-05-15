@@ -12,7 +12,7 @@ import { BrowserRouter, Routes, Route, NavLink } from 'react-router-dom';
 import {
   Settings, Sun, Moon, Monitor, LogOut,
   HandCoins, PieChart, Landmark, BookOpen,
-  School, Activity, BarChart2
+  School, Activity, BarChart2, Users
 } from 'lucide-react';
 import { supabase } from './lib/supabaseClient';
 import { AuthProviderSaaSport, useAuthSaaSport } from './lib/authHelper';
@@ -108,6 +108,19 @@ const Sidebar: React.FC<SidebarProps> = ({ onLogout, theme, onCycleTheme, extra 
             <BarChart2 size={20} strokeWidth={1.5} />
             <span>Estadísticas</span>
           </NavLink>
+        </div>
+
+        {/* Botón AsiSport Estético */}
+        <div className="sidebar-asisport-container">
+          <a 
+            href="https://asisport.saasport.pro" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="sidebar-asisport-btn"
+          >
+            <Users size={24} className="asisport-icon" />
+            <span className="asisport-text">AsiSport</span>
+          </a>
         </div>
 
         {/* Sección de filtros/stats imbuidos */}

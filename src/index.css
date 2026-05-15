@@ -246,6 +246,75 @@ select option {
   gap: 0.4rem;
 }
 
+/* --- ASISPORT PREMIUM SIDEBAR BUTTON --- */
+.sidebar-asisport-container {
+  margin-top: 2rem;
+  padding: 0 0.5rem;
+}
+
+.sidebar-asisport-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 1rem 1.25rem;
+  background: rgba(255, 107, 43, 0.05);
+  color: #FF6B2B !important;
+  text-decoration: none;
+  border-radius: 14px;
+  font-weight: 900;
+  font-size: 1.25rem;
+  letter-spacing: -0.03em;
+  transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  border: 1px solid rgba(255, 107, 43, 0.2);
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 10px 20px -10px rgba(0, 0, 0, 0.5);
+}
+
+.sidebar-asisport-btn::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 107, 43, 0.1),
+    transparent
+  );
+  transition: 0.6s;
+}
+
+.sidebar-asisport-btn:hover {
+  transform: translateY(-5px) scale(1.03);
+  background: rgba(255, 107, 43, 0.1);
+  border-color: #FF6B2B;
+  box-shadow: 0 15px 30px -12px rgba(255, 107, 43, 0.3);
+  text-shadow: 0 0 15px rgba(255, 107, 43, 0.4);
+}
+
+.sidebar-asisport-btn:hover .asisport-icon {
+  transform: rotate(15deg) scale(1.2);
+  color: #FF8A50;
+}
+
+.sidebar-asisport-btn:hover::before {
+  left: 100%;
+}
+
+.asisport-text {
+  font-family: 'Inter', sans-serif;
+  text-transform: none;
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.1));
+}
+
+.asisport-icon {
+  transition: all 0.4s ease;
+  color: #FF6B2B;
+}
+
 .main-wrapper {
   flex: 1;
   display: flex;
