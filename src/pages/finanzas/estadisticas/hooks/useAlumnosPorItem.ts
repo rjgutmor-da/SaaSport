@@ -9,7 +9,7 @@
  */
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../../../../lib/supabaseClient';
-import { ordenarMesesCalendario } from '../../../../lib/dateUtils';
+import { ordenarMesesCalendario, obtenerOrdenMes } from '../../../../lib/dateUtils';
 import { calcularRango, type IntervaloPredefinido } from '../utils/estadisticasUtils';
 
 export interface AlumnoPorItem {
@@ -102,6 +102,7 @@ export function useAlumnosPorItem(
             alumnos!cuentas_cobrar_alumno_id_fkey (
               nombres, 
               apellidos,
+              fecha_nacimiento,
               profesor_asignado_id,
               sucursal_id,
               horario_id,
@@ -150,7 +151,12 @@ export function useAlumnosPorItem(
         if (filtroSubItems && filtroSubItems.length > 0) {
           let cumpleSub = false;
           if (Array.isArray(detInteres.periodo_meses)) {
-            cumpleSub = (detInteres.periodo_meses as string[]).some(m => filtroSubItems.includes(m));
+            // Comparación robusta de meses (coincidir "Abr" con "Abril" usando el orden del mes)
+            const ordenesFiltro = filtroSubItems.map(f => obtenerOrdenMes(f)).filter(o => o > 0);
+            cumpleSub = (detInteres.periodo_meses as string[]).some(m => {
+              const ordenM = obtenerOrdenMes(m);
+              return filtroSubItems.includes(m) || (ordenM > 0 && ordenesFiltro.includes(ordenM));
+            });
           } else if (detInteres.detalle_extra) {
             cumpleSub = filtroSubItems.some(f => detInteres.detalle_extra.toLowerCase().includes(f.toLowerCase()));
           }
@@ -160,6 +166,21 @@ export function useAlumnosPorItem(
         const alu = cxc.alumnos ?? {};
         const nombres = alu.nombres ?? '';
         const apellidos = alu.apellidos ?? '';
+
+        // Calcular SUB (Categoría por edad)
+        let subCalculado = '—';
+        if (alu.fecha_nacimiento) {
+          try {
+            // Extraer el año de forma segura (YYYY-MM-DD)
+            const anioNac = parseInt(alu.fecha_nacimiento.split('-')[0], 10);
+            const anioActual = new Date().getFullYear();
+            if (!isNaN(anioNac)) {
+              subCalculado = `Sub-${anioActual - anioNac}`;
+            }
+          } catch (e) {
+            subCalculado = '—';
+          }
+        }
 
         // Construir descripción del detalle
         let detalleStr = '';
@@ -182,7 +203,7 @@ export function useAlumnosPorItem(
           nota_id: detInteres.id,
           cxc_id: cxc.id,
           concepto: conceptoNombre ?? 'Desconocido',
-          sub: alu.sucursales?.nombre ?? 'Sin Categoría',
+          sub: subCalculado,
           entrenador: alu.usuarios ? `${alu.usuarios.nombres} ${alu.usuarios.apellidos}`.trim() : 'Sin Entrenador',
           saldo_pendiente: 0, // En vista de "percibido", mostramos lo que entró
           pagado: 'Si'

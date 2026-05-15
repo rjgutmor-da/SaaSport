@@ -21,11 +21,13 @@ import { supabase } from '../../../lib/supabaseClient';
 import SelectorFechas from './components/SelectorFechas';
 import GraficoDistribucion from './components/GraficoDistribucion';
 import TablaAlumnos from './components/TablaAlumnos';
+import TablaCuentasPorCobrar from './components/TablaCuentasPorCobrar';
 
 // Hooks
 import { useEscuelaId } from './hooks/useEscuelaId';
 import { useResumenFinanciero } from './hooks/useResumenFinanciero';
 import { useAlumnosPorItem } from './hooks/useAlumnosPorItem';
+import { useCuentasPorCobrar } from './hooks/useCuentasPorCobrar';
 
 // Utilidades
 import type { IntervaloPredefinido } from './utils/estadisticasUtils';
@@ -55,7 +57,7 @@ interface CatalogoItem {
   activo: boolean;
 }
 
-type Pestaña = 'resumen' | 'alumnos';
+type Pestaña = 'resumen' | 'alumnos' | 'cxc';
 
 const Estadisticas: React.FC = () => {
   const navigate = useNavigate();
@@ -138,6 +140,17 @@ const Estadisticas: React.FC = () => {
     canchaId,
     itemSeleccionado?.nombre,
     pagadoFiltro
+  );
+
+  const cxcResult = useCuentasPorCobrar(
+    escuelaId,
+    intervalo,
+    desdePersonalizado,
+    hastaPersonalizado,
+    entrenadorId,
+    sucursalId,
+    horarioId,
+    canchaId
   );
 
   // ─── Cargar catálogo ───
@@ -238,6 +251,12 @@ const Estadisticas: React.FC = () => {
           onClick={() => setPestaña('alumnos')}
         >
           <Users size={16} /> Alumnos por Ítem
+        </button>
+        <button
+          className={`est-tab ${pestaña === 'cxc' ? 'est-tab--activo est-tab--ingreso' : ''}`}
+          onClick={() => setPestaña('cxc')}
+        >
+          <TrendingDown size={16} /> Cuentas x Cobrar
         </button>
       </div>
 
@@ -503,6 +522,77 @@ const Estadisticas: React.FC = () => {
                 <p>Selecciona un ítem del catálogo para ver los alumnos asociados</p>
               </div>
             )}
+          </div>
+        )}
+
+        {/* ══════ PESTAÑA CUENTAS POR COBRAR ══════ */}
+        {pestaña === 'cxc' && (
+          <div className="est-panel">
+            <div className="est-filtros-alumnos-v3" style={{ marginBottom: '1rem' }}>
+              <div className="est-filtros-laterales-wrap" style={{ width: '100%' }}>
+                <div className="est-filtro-item-label" style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', flex: 1 }}>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 500, paddingLeft: '2px' }}>Entrenador</span>
+                  <select 
+                    className="est-select-premium"
+                    value={entrenadorId}
+                    onChange={e => setEntrenadorId(e.target.value)}
+                  >
+                    <option value="">Todos</option>
+                    {entrenadores.map(e => (
+                      <option key={e.id} value={e.id}>{e.nombres} {e.apellidos}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="est-filtro-item-label" style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', flex: 1 }}>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 500, paddingLeft: '2px' }}>Categoría (Sub)</span>
+                  <select 
+                    className="est-select-premium"
+                    value={sucursalId}
+                    onChange={e => setSucursalId(e.target.value)}
+                  >
+                    <option value="">Todas</option>
+                    {sucursales.map(s => (
+                      <option key={s.id} value={s.id}>{s.nombre}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="est-filtro-item-label" style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', flex: 1 }}>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 500, paddingLeft: '2px' }}>Horario</span>
+                  <select 
+                    className="est-select-premium"
+                    value={horarioId}
+                    onChange={e => setHorarioId(e.target.value)}
+                  >
+                    <option value="">Todos</option>
+                    {horarios.map(h => (
+                      <option key={h.id} value={h.id}>{h.hora}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="est-filtro-item-label" style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', flex: 1 }}>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 500, paddingLeft: '2px' }}>Cancha</span>
+                  <select 
+                    className="est-select-premium"
+                    value={canchaId}
+                    onChange={e => setCanchaId(e.target.value)}
+                  >
+                    <option value="">Todas</option>
+                    {canchas.map(c => (
+                      <option key={c.id} value={c.id}>{c.nombre}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <TablaCuentasPorCobrar 
+              datos={cxcResult.datos}
+              cargando={cxcResult.cargando}
+              error={cxcResult.error}
+            />
           </div>
         )}
       </div>
