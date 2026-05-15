@@ -45,6 +45,7 @@ const RegistroActividad: React.FC = () => {
   const [intervaloFechas, setIntervaloFechas] = useState('Este mes');
   const [fechaDesde, setFechaDesde] = useState(hoyLocal);
   const [fechaHasta, setFechaHasta] = useState(hoyLocal);
+  const [filtroUsuario, setFiltroUsuario] = useState('');
 
   /** Cargar datos de la base de datos */
   const cargarDatos = async () => {
@@ -52,8 +53,6 @@ const RegistroActividad: React.FC = () => {
     if (!escuelaId) return;
 
     // Convertir la fecha local a UTC para que la query coincida con los timestamps guardados en BD
-    // Sin esto, Supabase interpreta los strings como UTC y los registros de las 8pm-11pm local
-    // (que en UTC son el día siguiente) no aparecen al filtrar por la fecha local correcta.
     const inicioUTC = new Date(`${fechaDesde}T00:00:00`).toISOString();
     const finUTC = new Date(`${fechaHasta}T23:59:59`).toISOString();
 
@@ -76,6 +75,18 @@ const RegistroActividad: React.FC = () => {
   useEffect(() => {
     if (escuelaId) cargarDatos();
   }, [escuelaId]);
+
+  /** Lista de usuarios únicos para el filtro */
+  const listaUsuarios = useMemo(() => {
+    const usuarios = registros.map(r => r.usuario_nombre).filter(Boolean);
+    return Array.from(new Set(usuarios)).sort();
+  }, [registros]);
+
+  /** Registros filtrados por usuario */
+  const registrosFiltrados = useMemo(() => {
+    if (!filtroUsuario) return registros;
+    return registros.filter(r => r.usuario_nombre === filtroUsuario);
+  }, [registros, filtroUsuario]);
 
   /** Formatea la fecha para la tabla */
   const formatTableDate = (iso: string) => {
@@ -107,7 +118,11 @@ const RegistroActividad: React.FC = () => {
         padding: '0.75rem 2rem', 
         background: 'rgba(255,255,255,0.02)', 
         borderBottom: '1px solid var(--border)',
-        gap: '1rem'
+        gap: '1rem',
+        position: 'sticky',
+        top: 0,
+        zIndex: 100,
+        backdropFilter: 'blur(10px)'
       }}>
         <button className="btn-volver" onClick={() => navigate('/contabilidad')} style={{ background: 'transparent', border: 'none', color: 'var(--text-primary)' }}>
           <ChevronLeft size={20} />
@@ -120,6 +135,26 @@ const RegistroActividad: React.FC = () => {
 
         <input type="date" value={fechaDesde} onChange={(e) => setFechaDesde(e.target.value)} style={{ background: 'var(--bg-input)', border: '1px solid var(--border)', padding: '0.3rem', borderRadius: '4px', color: 'var(--text-primary)' }} />
         <input type="date" value={fechaHasta} onChange={(e) => setFechaHasta(e.target.value)} style={{ background: 'var(--bg-input)', border: '1px solid var(--border)', padding: '0.3rem', borderRadius: '4px', color: 'var(--text-primary)' }} />
+
+        {/* Filtro de Usuario */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <select 
+            value={filtroUsuario} 
+            onChange={(e) => setFiltroUsuario(e.target.value)}
+            style={{ 
+              background: 'var(--bg-input)', 
+              border: '1px solid var(--border)', 
+              padding: '0.3rem 0.6rem', 
+              borderRadius: '4px', 
+              color: 'var(--text-primary)',
+              fontSize: '0.85rem',
+              minWidth: '150px'
+            }}
+          >
+            <option value="">Todos los usuarios</option>
+            {listaUsuarios.map(u => <option key={u} value={u}>{u}</option>)}
+          </select>
+        </div>
 
         <button 
           onClick={cargarDatos}
@@ -161,9 +196,9 @@ const RegistroActividad: React.FC = () => {
             <table className="report-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
               <thead>
                 <tr style={{ borderBottom: '2px solid var(--border)' }}>
-                  <th style={{ textAlign: 'left', padding: '0.75rem', color: 'var(--text-tertiary)', fontWeight: '600', width: '150px' }}>FECHA Y HORA</th>
-                  <th style={{ textAlign: 'left', padding: '0.75rem', color: 'var(--text-tertiary)', fontWeight: '600', width: '250px' }}>REFERENCIA / ENTIDAD</th>
-                  <th style={{ textAlign: 'left', padding: '0.75rem', color: 'var(--text-tertiary)', fontWeight: '600' }}>ACTIVIDAD REALIZADA</th>
+                  <th style={{ textAlign: 'left', padding: '0.75rem', color: 'var(--text-tertiary)', fontWeight: '600', width: '150px', position: 'sticky', top: 0, background: 'var(--bg-card)', zIndex: 10 }}>FECHA Y HORA</th>
+                  <th style={{ textAlign: 'left', padding: '0.75rem', color: 'var(--text-tertiary)', fontWeight: '600', width: '250px', position: 'sticky', top: 0, background: 'var(--bg-card)', zIndex: 10 }}>REFERENCIA / ENTIDAD</th>
+                  <th style={{ textAlign: 'left', padding: '0.75rem', color: 'var(--text-tertiary)', fontWeight: '600', position: 'sticky', top: 0, background: 'var(--bg-card)', zIndex: 10 }}>ACTIVIDAD REALIZADA</th>
                 </tr>
               </thead>
               <tbody>
@@ -174,14 +209,14 @@ const RegistroActividad: React.FC = () => {
                       <p>Generando informe...</p>
                     </td>
                   </tr>
-                ) : registros.length === 0 ? (
+                ) : registrosFiltrados.length === 0 ? (
                   <tr>
                     <td colSpan={3} style={{ padding: '3rem', textAlign: 'center', color: '#90949c' }}>
-                      No se encontraron registros para este período.
+                      No se encontraron registros para este período o usuario.
                     </td>
                   </tr>
                 ) : (
-                  registros.map((reg) => (
+                  registrosFiltrados.map((reg) => (
                     <tr key={reg.id} className="report-row" style={{ borderBottom: '1px solid var(--border)', transition: 'background 0.2s' }}>
                       <td style={{ padding: '0.6rem 0.75rem', verticalAlign: 'middle', color: 'var(--text-primary)', borderRight: '1px solid var(--border-subtle)', fontSize: '0.85rem' }}>
                         {formatTableDate(reg.created_at)}
@@ -191,7 +226,7 @@ const RegistroActividad: React.FC = () => {
                           {reg.detalle?.referencia || (reg.accion === 'cobro' ? `Pago ${reg.detalle?.nro_comprobante || ''}` : reg.entidad_id?.substring(0, 8) || 'N/A')}
                         </div>
                         <div style={{ color: 'var(--text-secondary)', fontSize: '0.75rem', opacity: 0.8 }}>
-                          Entidad: <span style={{ color: 'var(--text-primary)', fontWeight: '500' }}>{reg.detalle?.cliente || reg.detalle?.proveedor || 'N/A'}</span>
+                          Entidad: <span style={{ color: 'var(--text-primary)', fontWeight: '500' }}>{reg.detalle?.cliente || reg.detalle?.proveedor || reg.detalle?.alumno || 'N/A'}</span>
                         </div>
                       </td>
                       <td style={{ padding: '0.6rem 0.75rem', verticalAlign: 'middle', color: 'var(--text-secondary)' }}>
