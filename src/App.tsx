@@ -322,7 +322,8 @@ function AppInterna() {
 
   // Sin sesión → login
   if (!session) {
-    return <Login onLoginExitoso={() => { /* onAuthStateChange lo maneja */ }} />;
+    window.location.href = `${import.meta.env.VITE_URL_LOGIN}?redirect=finanzas`;
+    return null;
   }
 
   // Con sesión → app completa

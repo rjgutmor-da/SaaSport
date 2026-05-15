@@ -88,6 +88,7 @@ const cookieStorage = {
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
+    storageKey: 'saasport-auth',
     storage: cookieStorage,
     autoRefreshToken: true,
     persistSession: true,
