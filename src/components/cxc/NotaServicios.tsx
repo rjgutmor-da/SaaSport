@@ -107,13 +107,14 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
       if (borrador) {
         try {
           const data = JSON.parse(borrador);
-          setAlumnoId(data.alumnoId || alumnoPreseleccionado?.id || '');
+          // PRIORIDAD: Si se pasa un alumno explícitamente desde la tarjeta de cliente, tiene prioridad sobre el borrador.
+          setAlumnoId(alumnoPreseleccionado?.id || data.alumnoId || '');
           setLineas(data.lineas || [lineaVacia()]);
           setObservaciones(data.observaciones || '');
-          // Para notas nuevas, siempre sugerir la fecha de hoy aunque haya borrador
-          setVencimiento(getHoyISO());
-          setFechaEmision(getHoyISO());
-          setFechaPago(getHoyISO());
+          // Cargar fechas desde el borrador si existen, de lo contrario usar la fecha de hoy
+          setVencimiento(data.vencimiento || getHoyISO());
+          setFechaEmision(data.fechaEmision || getHoyISO());
+          setFechaPago(data.fechaPago || getHoyISO());
           setPagarAlCrear(data.pagarAlCrear || esAnticipo);
           setCuentaCobroId(data.cuentaCobroId || '');
           setMontoPago(data.montoPago || '');

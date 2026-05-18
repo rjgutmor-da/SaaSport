@@ -46,6 +46,8 @@ const ModalCobroRapido: React.FC<Props> = ({ alumnoInicial, visible, onCerrar, o
   useEffect(() => {
     if (!visible) return;
     setError(null); setExito(null); setMensajeWA(null);
+    // Sincronizar el alumno seleccionado con el alumno preseleccionado al abrir el modal
+    setAlumnoSel(alumnoInicial);
 
     const cargar = async () => {
       const { data: { user } } = await supabase.auth.getUser();
