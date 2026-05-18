@@ -32,6 +32,7 @@ import { useDebounce } from '../../hooks/useDebounce';
 import { useAuthSaaSport } from '../../lib/authHelper';
 import { useCxcAlumnos, useCxcResumen } from '../../hooks/useFinanzas';
 import { useQueryClient } from '@tanstack/react-query';
+import { useIsMobile } from '../../hooks/useIsMobile';
 
 /** Formatea un número como moneda (Bs) */
 const fmtMonto = (n: number): string =>
@@ -42,6 +43,7 @@ const CuentasCobrar: React.FC = () => {
   const { setExtra } = useContext(SidebarContext);
   const { escuelaId } = useAuthSaaSport();
   const queryClient = useQueryClient();
+  const isMobile = useIsMobile();
 
   // Búsqueda con Debounce
   const [busqueda, setBusqueda] = useState('');
@@ -58,13 +60,12 @@ const CuentasCobrar: React.FC = () => {
   const [pagina, setPagina] = useState(1);
   const itemsPorPagina = 30;
 
-  // Hooks de datos (Fase 1: Cálculos en DB + Fase 2: Caché)
   const filtros = {
     sucursalId: filtroSucursal,
     entrenadorId: filtroEntrenador,
     canchaId: filtroCancha,
     horarioId: filtroHorario,
-    soloConDeuda,
+    soloConDeuda: isMobile ? (busqueda.trim() === '') : soloConDeuda,
     busqueda: debouncedBusqueda,
     pagina,
     itemsPorPagina
@@ -216,149 +217,234 @@ const CuentasCobrar: React.FC = () => {
       alignItems: 'stretch',
       minHeight: 'auto'
     }}>
-      {/* ─── Barra de Control Simplificada ─── */}
-      <div className="cxc-barra-control" style={{ margin: 0, padding: '0.5rem 1.25rem' }}>
-        <div className="cxc-filtros-inline" style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-            <FiltrosCxc
-              sucursalId={filtroSucursal}
-              entrenadorId={filtroEntrenador}
-              canchaId={filtroCancha}
-              horarioId={filtroHorario}
-              onChangeSucursal={setFiltroSucursal}
-              onChangeEntrenador={setFiltroEntrenador}
-              onChangeCancha={setFiltroCancha}
-              onChangeHorario={setFiltroHorario}
-              onLimpiar={() => {
-                setFiltroSucursal(''); setFiltroEntrenador('');
-                setFiltroCancha(''); setFiltroHorario('');
-              }}
-              compact
-            />
+      {isMobile ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', width: '100%', boxSizing: 'border-box' }}>
+          {/* Buscador y Chip de Resumen */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', width: '100%', marginTop: '1rem' }}>
+            <div style={{ flex: 1, position: 'relative' }}>
+              <Search size={16} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-tertiary)' }} />
+              <input
+                type="text"
+                placeholder="Buscador de Alumno"
+                value={busqueda}
+                onChange={e => setBusqueda(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '0.6rem 0.75rem 0.6rem 2.2rem',
+                  borderRadius: '10px',
+                  border: '1px solid var(--border)',
+                  background: 'var(--bg-card)',
+                  color: 'var(--text-primary)',
+                  fontSize: '0.9rem',
+                  boxSizing: 'border-box'
+                }}
+              />
+            </div>
+            {(() => {
+              const totalDeudaVal = stats.totalPendiente;
+              const hasDeuda = totalDeudaVal > 0;
+              const hasFavor = totalDeudaVal < 0;
+              const badgeColor = hasDeuda ? '#ef4444' : (hasFavor ? '#a855f7' : '#10b981');
+              const badgeBg = hasDeuda ? 'rgba(239, 68, 68, 0.08)' : (hasFavor ? 'rgba(168, 85, 247, 0.08)' : 'rgba(16, 185, 129, 0.08)');
+              const badgeBorder = hasDeuda ? 'rgba(239, 68, 68, 0.2)' : (hasFavor ? 'rgba(168, 85, 247, 0.2)' : 'rgba(16, 185, 129, 0.2)');
+              const badgeText = hasDeuda ? 'PENDIENTE' : (hasFavor ? 'A FAVOR' : 'AL DÍA');
+              
+              return (
+                <div style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'flex-end',
+                  background: badgeBg,
+                  border: `1px solid ${badgeBorder}`,
+                  borderRadius: '10px',
+                  padding: '0.4rem 0.75rem',
+                  gap: '2px'
+                }}>
+                  <span style={{ fontSize: '0.65rem', fontWeight: 800, color: badgeColor, letterSpacing: '0.05em' }}>{badgeText}</span>
+                  <span style={{ fontSize: '0.95rem', fontWeight: 800, color: badgeColor }}>
+                    Bs {fmtMonto(Math.abs(totalDeudaVal))}
+                  </span>
+                </div>
+              );
+            })()}
           </div>
 
-          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
-            <button
-              className="btn-excel btn-cobro"
-              onClick={() => { setAlumnoParaCobro(null); setMostrarCobroRapido(true); }}
-              title="Nuevo Cobro"
-            >
-              <CreditCard size={14} /> <span>Cobro</span>
-            </button>
-            <button
-              className="btn-excel btn-nota"
-              onClick={() => { setAlumnoParaNota(null); setMostrarNota(true); }}
-              title="Nueva Nota"
-            >
-              <Plus size={14} /> <span>Nota</span>
-            </button>
-            <button
-              className="btn-excel btn-nota"
-              onClick={() => setMostrarNotaMasiva(true)}
-              disabled={alumnosMarcados.length === 0}
-              title="Notas de Servicio Masivas"
-              style={{ opacity: alumnosMarcados.length === 0 ? 0.5 : 1, cursor: alumnosMarcados.length === 0 ? 'not-allowed' : 'pointer' }}
-            >
-              <Users size={14} /> <span>Notas Masivas ({alumnosMarcados.length})</span>
-            </button>
-            <button
-              className="btn-excel-icon"
-              onClick={() => setMostrarSaldoInicial(true)}
-              title="Migración"
-            >
-              <BookOpen size={14} />
-            </button>
-            <button className="btn-refrescar" onClick={manejarActualizacion} disabled={cargando} title="Actualizar">
-              <RefreshCw size={14} className={cargando ? 'spin' : ''} />
-            </button>
+          {/* Tabla Simple: 2 Columnas (ALUMNO y DEUDA TOTAL) */}
+          <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: '10px', overflow: 'hidden' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
+              <thead>
+                <tr style={{ background: 'var(--bg-table-header)', borderBottom: '1px solid var(--border)' }}>
+                  <th style={{ padding: '0.75rem 1rem', textAlign: 'left', width: '70%', fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-table-header)' }}>ALUMNO</th>
+                  <th style={{ padding: '0.75rem 1rem', textAlign: 'right', width: '30%', fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-table-header)' }}>DEUDA TOTAL</th>
+                </tr>
+              </thead>
+              <tbody>
+                {alumnosDeuda.map((alumno) => {
+                  const saldoVal = Number(alumno.saldo_pendiente);
+                  const isDeudor = saldoVal > 0;
+                  const isAnticipo = saldoVal < 0;
+                  return (
+                    <tr
+                      key={alumno.alumno_id}
+                      onClick={() => setAlumnoSeleccionado(alumno)}
+                      style={{ borderBottom: '1px solid var(--border)', cursor: 'pointer' }}
+                    >
+                      <td style={{ padding: '0.75rem 1rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                        {alumno.nombres} {alumno.apellidos}
+                      </td>
+                      <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontWeight: 700, color: isDeudor ? '#38bdf8' : (isAnticipo ? '#a855f7' : '#10b981') }}>
+                        Bs {fmtMonto(saldoVal)}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
-        </div>
-      </div>
 
-      <div className="cxc-search-row" style={{ margin: '0 0 0.5rem 0', padding: '0 1.25rem', border: 'none', background: 'transparent' }}>
-        <div className="cxc-search-container" style={{ background: 'var(--bg-card)' }}>
-          <Search size={14} className="cxc-search-icon" />
-          <input
-            type="text"
-            placeholder="Filtrar por nombre del alumno..."
-            value={busqueda}
-            onChange={e => setBusqueda(e.target.value)}
-            className="cxc-search-input"
-          />
-          {busqueda && (
-            <button className="cxc-search-clear" onClick={() => setBusqueda('')}>✕</button>
-          )}
-        </div>
-
-        <div className="cxc-stats-horizontal">
-          <div className="cxc-stat-pill" onClick={() => setSoloConDeuda(!soloConDeuda)} style={{ cursor: 'pointer' }}>
-            <span className="cxc-pill-label">Deudores</span>
-            <span className={`cxc-pill-value ${soloConDeuda ? 'text-warn' : ''}`}>
-              {stats.conDeuda}
-            </span>
-          </div>
-          <div className="cxc-stat-pill" style={{ borderColor: stats.totalPendiente < 0 ? '#a855f7' : undefined }}>
-            <span className="cxc-pill-label">{stats.totalPendiente < 0 ? 'Saldo a Favor' : 'Pendiente'}</span>
-            <span className="cxc-pill-value" style={{ color: stats.totalPendiente < 0 ? '#a855f7' : undefined }}>
-              {stats.totalPendiente < 0 ? '- ' : ''}Bs {fmtMonto(Math.abs(stats.totalPendiente))}
-            </span>
-          </div>
-          <span className="cxc-divider-mini" />
-          <span className="cxc-result-count">
-            {totalResultados} alumnos
-          </span>
-        </div>
-      </div>
-
-      {/* ─── Error ─── */}
-      {errorAlumnos && (
-        <div className="pc-error">
-          <p>⚠️ {errorAlumnos instanceof Error ? errorAlumnos.message : 'Error desconocido'}</p>
-          <button onClick={manejarActualizacion}>Reintentar</button>
-        </div>
-      )}
-
-      {/* ─── Lista de alumnos tipo hoja de cálculo ─── */}
-      {cargando ? (
-        <div className="pc-cargando">
-          <RefreshCw size={32} className="spin" />
-          <p>Cargando alumnos...</p>
-        </div>
-      ) : alumnosDeuda.length === 0 ? (
-        <div className="arbol-vacio">
-          <Users size={40} style={{ marginBottom: '0.75rem', opacity: 0.4 }} />
-          <p>{soloConDeuda ? 'No hay alumnos con deuda en los filtros actuales.' : 'No se encontraron alumnos con los filtros actuales.'}</p>
-          {soloConDeuda && (
-            <button
-              onClick={() => setSoloConDeuda(false)}
-              style={{ marginTop: '0.5rem', color: 'var(--secondary)', background: 'none', border: '1px solid var(--secondary)', padding: '0.4rem 1rem', borderRadius: '6px', cursor: 'pointer' }}
-            >
-              Mostrar todos los alumnos
-            </button>
+          {/* Paginación en móvil */}
+          {totalResultados > itemsPorPagina && (
+            <div className="cxc-paginacion" style={{ marginTop: '0.5rem', justifyContent: 'center' }}>
+              <button 
+                className="btn-pagi" 
+                disabled={pagina === 1} 
+                onClick={() => setPagina(p => p - 1)}
+              >
+                Anterior
+              </button>
+              <span className="pagi-info">Pág. {pagina} / {Math.ceil(totalResultados / itemsPorPagina)}</span>
+              <button 
+                className="btn-pagi" 
+                disabled={pagina >= Math.ceil(totalResultados / itemsPorPagina)} 
+                onClick={() => setPagina(p => p + 1)}
+              >
+                Siguiente
+              </button>
+            </div>
           )}
         </div>
       ) : (
-        <div className="cxc-tabla-wrapper">
+        <>
+          {/* ─── Barra de Control Simplificada ─── */}
+          <div className="cxc-barra-control" style={{ margin: 0, padding: '0.5rem 1.25rem' }}>
+            <div className="cxc-filtros-inline" style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
+              {!isMobile && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                  <FiltrosCxc
+                    sucursalId={filtroSucursal}
+                    entrenadorId={filtroEntrenador}
+                    canchaId={filtroCancha}
+                    horarioId={filtroHorario}
+                    onChangeSucursal={setFiltroSucursal}
+                    onChangeEntrenador={setFiltroEntrenador}
+                    onChangeCancha={setFiltroCancha}
+                    onChangeHorario={setFiltroHorario}
+                    onLimpiar={() => {
+                      setFiltroSucursal(''); setFiltroEntrenador('');
+                      setFiltroCancha(''); setFiltroHorario('');
+                    }}
+                    compact
+                  />
+                </div>
+              )}
+
+              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                <button
+                  className="btn-excel btn-cobro"
+                  onClick={() => { setAlumnoParaCobro(null); setMostrarCobroRapido(true); }}
+                  title="Nuevo Cobro"
+                >
+                  <CreditCard size={14} /> <span>Cobro</span>
+                </button>
+                <button
+                  className="btn-excel btn-nota"
+                  onClick={() => { setAlumnoParaNota(null); setMostrarNota(true); }}
+                  title="Nueva Nota"
+                >
+                  <Plus size={14} /> <span>Nota</span>
+                </button>
+                <button
+                  className="btn-excel btn-nota"
+                  onClick={() => setMostrarNotaMasiva(true)}
+                  disabled={alumnosMarcados.length === 0}
+                  title="Notas de Servicio Masivas"
+                  style={{ opacity: alumnosMarcados.length === 0 ? 0.5 : 1, cursor: alumnosMarcados.length === 0 ? 'not-allowed' : 'pointer' }}
+                >
+                  <Users size={14} /> <span>Notas Masivas ({alumnosMarcados.length})</span>
+                </button>
+                <button
+                  className="btn-excel-icon"
+                  onClick={() => setMostrarSaldoInicial(true)}
+                  title="Migración"
+                >
+                  <BookOpen size={14} />
+                </button>
+                <button className="btn-refrescar" onClick={manejarActualizacion} disabled={cargando} title="Actualizar">
+                  <RefreshCw size={14} className={cargando ? 'spin' : ''} />
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="cxc-search-row" style={{ margin: '0 0 0.5rem 0', padding: '0 1.25rem', border: 'none', background: 'transparent' }}>
+            <div className="cxc-search-container" style={{ background: 'var(--bg-card)' }}>
+              <Search size={14} className="cxc-search-icon" />
+              <input
+                type="text"
+                placeholder="Filtrar por nombre del alumno..."
+                value={busqueda}
+                onChange={e => setBusqueda(e.target.value)}
+                className="cxc-search-input"
+              />
+              {busqueda && (
+                <button className="cxc-search-clear" onClick={() => setBusqueda('')}>✕</button>
+              )}
+            </div>
+
+            {!isMobile && (
+              <div className="cxc-stats-horizontal">
+                <div className="cxc-stat-pill" onClick={() => setSoloConDeuda(!soloConDeuda)} style={{ cursor: 'pointer' }}>
+                  <span className="cxc-pill-label">Deudores</span>
+                  <span className={`cxc-pill-value ${soloConDeuda ? 'text-warn' : ''}`}>
+                    {stats.conDeuda}
+                  </span>
+                </div>
+                <div className="cxc-stat-pill" style={{ borderColor: stats.totalPendiente < 0 ? '#a855f7' : undefined }}>
+                  <span className="cxc-pill-label">{stats.totalPendiente < 0 ? 'Saldo a Favor' : 'Pendiente'}</span>
+                  <span className="cxc-pill-value" style={{ color: stats.totalPendiente < 0 ? '#a855f7' : undefined }}>
+                    {stats.totalPendiente < 0 ? '- ' : ''}Bs {fmtMonto(Math.abs(stats.totalPendiente))}
+                  </span>
+                </div>
+                <span className="cxc-divider-mini" />
+                <span className="cxc-result-count">
+                  {totalResultados} alumnos
+                </span>
+              </div>
+            )}
+          </div>
+          <div className="cxc-tabla-wrapper">
           <table className="cxc-tabla cxc-tabla-fixed">
             <thead>
               <tr>
-                <th className="cxc-th cxc-th-sm" style={{ width: '40px', textAlign: 'center' }}>
-                  <input 
-                    type="checkbox" 
-                    onChange={() => toggleMarcarTodos(alumnosDeuda)}
-                    checked={alumnosMarcados.length > 0 && alumnosMarcados.length === Math.min(alumnosDeuda.length, 30)}
-                    style={{ cursor: 'pointer' }}
-                    title="Marcar todos (Max 30)"
-                  />
-                </th>
+                {!isMobile && (
+                  <th className="cxc-th cxc-th-sm" style={{ width: '40px', textAlign: 'center' }}>
+                    <input 
+                      type="checkbox" 
+                      onChange={() => toggleMarcarTodos(alumnosDeuda)}
+                      checked={alumnosMarcados.length > 0 && alumnosMarcados.length === Math.min(alumnosDeuda.length, 30)}
+                      style={{ cursor: 'pointer' }}
+                      title="Marcar todos (Max 30)"
+                    />
+                  </th>
+                )}
                 <th className="cxc-th cxc-th-alumno">Alumno</th>
-                <th className="cxc-th cxc-th-sucursal" title="Última Mensualidad">Ult. Mes.</th>
-                <th className="cxc-th cxc-th-sm">Sub</th>
-                <th className="cxc-th cxc-th-sm">{mesAnteriorStr}</th>
-                <th className="cxc-th cxc-th-sm">{mesActualStr}</th>
-                <th className="cxc-th cxc-th-sm">PEND</th>
+                {!isMobile && <th className="cxc-th cxc-th-sucursal" title="Última Mensualidad">Ult. Mes.</th>}
+                {!isMobile && <th className="cxc-th cxc-th-sm">Sub</th>}
+                {!isMobile && <th className="cxc-th cxc-th-sm">{mesAnteriorStr}</th>}
+                {!isMobile && <th className="cxc-th cxc-th-sm">{mesActualStr}</th>}
+                {!isMobile && <th className="cxc-th cxc-th-sm">PEND</th>}
                 <th className="cxc-th cxc-th-monto">Deuda Total</th>
-                <th className="cxc-th cxc-th-acciones">Acciones</th>
+                {!isMobile && <th className="cxc-th cxc-th-acciones">Acciones</th>}
               </tr>
             </thead>
             <tbody>
@@ -372,28 +458,32 @@ const CuentasCobrar: React.FC = () => {
                     title="Clic para ver detalle de movimientos"
                     style={{ background: alumnosMarcados.some(a => a.alumno_id === alumno.alumno_id) ? 'rgba(59,130,246,0.1)' : undefined }}
                   >
-                    <td className="cxc-td cxc-td-center" onClick={e => e.stopPropagation()}>
-                      <input 
-                        type="checkbox" 
-                        checked={alumnosMarcados.some(a => a.alumno_id === alumno.alumno_id)}
-                        onChange={() => toggleMarcarAlumno(alumno)}
-                        style={{ cursor: 'pointer', transform: 'scale(1.2)' }}
-                      />
-                    </td>
+                    {!isMobile && (
+                      <td className="cxc-td cxc-td-center" onClick={e => e.stopPropagation()}>
+                        <input 
+                          type="checkbox" 
+                          checked={alumnosMarcados.some(a => a.alumno_id === alumno.alumno_id)}
+                          onChange={() => toggleMarcarAlumno(alumno)}
+                          style={{ cursor: 'pointer', transform: 'scale(1.2)' }}
+                        />
+                      </td>
+                    )}
                     <td className="cxc-td cxc-td-alumno">
                       <div className="cxc-alumno-info">
                         <span className="cxc-alumno-nombre">{alumno.nombres} {alumno.apellidos}</span>
                       </div>
                     </td>
-                    <td className="cxc-td cxc-td-meta">{alumno.ultima_mensualidad || '—'}</td>
-                    <td className="cxc-td cxc-td-center cxc-td-meta">{alumno.sub ? `Sub ${alumno.sub}` : '—'}</td>
-                    <td className="cxc-td cxc-td-center cxc-td-asist">{alumno.asistencias_anterior || 0}</td>
-                    <td className="cxc-td cxc-td-center cxc-td-asist cxc-td-asist--actual">{alumno.asistencias_actual || 0}</td>
-                    <td className="cxc-td cxc-td-right">
-                      {Number(alumno.cxc_pendientes) > 0 ? (
-                        <span className="cxc-badge-num">{alumno.cxc_pendientes}</span>
-                      ) : <span className="cxc-td-dash">—</span>}
-                    </td>
+                    {!isMobile && <td className="cxc-td cxc-td-meta">{alumno.ultima_mensualidad || '—'}</td>}
+                    {!isMobile && <td className="cxc-td cxc-td-center cxc-td-meta">{alumno.sub ? `Sub ${alumno.sub}` : '—'}</td>}
+                    {!isMobile && <td className="cxc-td cxc-td-center cxc-td-asist">{alumno.asistencias_anterior || 0}</td>}
+                    {!isMobile && <td className="cxc-td cxc-td-center cxc-td-asist cxc-td-asist--actual">{alumno.asistencias_actual || 0}</td>}
+                    {!isMobile && (
+                      <td className="cxc-td cxc-td-right">
+                        {Number(alumno.cxc_pendientes) > 0 ? (
+                          <span className="cxc-badge-num">{alumno.cxc_pendientes}</span>
+                        ) : <span className="cxc-td-dash">—</span>}
+                      </td>
+                    )}
                     <td className="cxc-td cxc-td-right">
                       {Number(alumno.saldo_pendiente) !== 0
                         ? <span className="cxc-monto-deuda" style={{ color: Number(alumno.saldo_pendiente) < 0 ? '#a855f7' : undefined }}>
@@ -403,36 +493,38 @@ const CuentasCobrar: React.FC = () => {
                       }
                     </td>
                     {/* Acciones por alumno */}
-                    <td className="cxc-td cxc-td-acciones" onClick={e => e.stopPropagation()}>
-                      <div className="cxc-acciones-wrap">
-                        <button
-                          className="cxc-accion-btn cxc-accion-btn--nota"
-                          onClick={e => abrirNotaParaAlumno(e, alumno)}
-                          title="Crear Nota de Servicio"
-                        >
-                          <FileText size={13} />
-                          <span>Nota</span>
-                        </button>
-                        {tieneDeuda && (
+                    {!isMobile && (
+                      <td className="cxc-td cxc-td-acciones" onClick={e => e.stopPropagation()}>
+                        <div className="cxc-acciones-wrap">
                           <button
-                            className="cxc-accion-btn cxc-accion-btn--cobro"
-                            onClick={e => abrirCobroRapido(e, alumno)}
-                            title="Registrar Pago"
+                            className="cxc-accion-btn cxc-accion-btn--nota"
+                            onClick={e => abrirNotaParaAlumno(e, alumno)}
+                            title="Crear Nota de Servicio"
                           >
-                            <CreditCard size={13} />
-                            <span>Cobrar</span>
+                            <FileText size={13} />
+                            <span>Nota</span>
                           </button>
-                        )}
-                        <button
-                          className="cxc-accion-btn cxc-accion-btn--wa"
-                          onClick={e => enviarWhatsApp(e, alumno)}
-                          title="Enviar mensaje WhatsApp"
-                        >
-                          <MessageCircle size={13} />
-                          <span>WA</span>
-                        </button>
-                      </div>
-                    </td>
+                          {tieneDeuda && (
+                            <button
+                              className="cxc-accion-btn cxc-accion-btn--cobro"
+                              onClick={e => abrirCobroRapido(e, alumno)}
+                              title="Registrar Pago"
+                            >
+                              <CreditCard size={13} />
+                              <span>Cobrar</span>
+                            </button>
+                          )}
+                          <button
+                            className="cxc-accion-btn cxc-accion-btn--wa"
+                            onClick={e => enviarWhatsApp(e, alumno)}
+                            title="Enviar mensaje WhatsApp"
+                          >
+                            <MessageCircle size={13} />
+                            <span>WA</span>
+                          </button>
+                        </div>
+                      </td>
+                    )}
                   </tr>
                 );
               })}
@@ -460,7 +552,8 @@ const CuentasCobrar: React.FC = () => {
             </div>
           )}
         </div>
-      )}
+      </>
+    )}
 
       {/* Modal: Nota de Servicios */}
       <NotaServicios

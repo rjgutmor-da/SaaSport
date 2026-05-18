@@ -39,15 +39,15 @@ const cookieStorage = {
     return result || null;
   },
   setItem: (key: string, value: string): void => {
-    const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    const isProduction = window.location.hostname.endsWith('saasport.pro');
     const opts: any = {
       expires: 7,
       path: '/',
       sameSite: 'lax' as const,
-      secure: !isLocalhost,
+      secure: isProduction || window.location.protocol === 'https:',
     };
 
-    if (!isLocalhost) {
+    if (isProduction) {
       opts.domain = '.saasport.pro';
     }
 
@@ -68,9 +68,9 @@ const cookieStorage = {
     });
   },
   removeItem: (key: string): void => {
-    const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    const isProduction = window.location.hostname.endsWith('saasport.pro');
     const opts: any = { path: '/' };
-    if (!isLocalhost) {
+    if (isProduction) {
       opts.domain = '.saasport.pro';
     }
     

@@ -17,6 +17,7 @@ import { useNavigate } from 'react-router-dom';
 
 import { SidebarContext } from '../../App';
 import { useContext, useEffect } from 'react';
+import { useIsMobile } from '../../hooks/useIsMobile';
 
 // Componentes del módulo
 import FiltrosCxP, { CATEGORIAS_PROVEEDOR } from '../../components/cxp/FiltrosCxP';
@@ -41,6 +42,7 @@ const CuentasPagar: React.FC = () => {
   const { setExtra } = useContext(SidebarContext);
   const { escuelaId } = useAuthSaaSport();
   const queryClient = useQueryClient();
+  const isMobile = useIsMobile();
 
   // ── Búsqueda y filtros ──
   const [busqueda, setBusqueda]         = useState('');
@@ -59,6 +61,16 @@ const CuentasPagar: React.FC = () => {
 
   const cargando = cargandoEntidades || cargandoResumen;
   const entidadesFiltradas = (entidadesRaw as unknown as EntidadCxP[]) || [];
+
+  const entidadesFiltradasEx = useMemo(() => {
+    if (isMobile) {
+      if (busqueda.trim() === '') {
+        return entidadesFiltradas.filter(e => e.saldo_pendiente > 0);
+      }
+      return entidadesFiltradas;
+    }
+    return entidadesFiltradas;
+  }, [isMobile, busqueda, entidadesFiltradas]);
   
   const statsGlobales = {
     totalEntidades: resumenData?.total_entidades || 0,
@@ -114,7 +126,6 @@ const CuentasPagar: React.FC = () => {
 
 
 
-  // ── Vista: Panel de administración ──
   if (mostrarAdmin) {
     return <AdminEntidadesCxP onVolver={() => { setMostrarAdmin(false); manejarActualizacion(); }} />;
   }
@@ -133,232 +144,316 @@ const CuentasPagar: React.FC = () => {
       alignItems: 'stretch',
       minHeight: 'auto'
     }}>
-
-      {/* ─── Barra de Control Simplificada ─── */}
-      <div className="cxc-barra-control" style={{ margin: 0, padding: '0.5rem 1.25rem' }}>
-        <div className="cxc-filtros-inline" style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-            <FiltrosCxP
-              categoria={filtroCategoria}
-              antiguedad={filtroAntiguedad}
-              onChangeCategoria={setFiltroCategoria}
-              onChangeAntiguedad={setFiltroAntiguedad}
-              onLimpiar={() => { setFiltroCategoria(''); setFiltroAntiguedad(''); }}
-              compact
-            />
+      {isMobile ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', width: '100%', boxSizing: 'border-box' }}>
+          {/* Buscador y Chip de Resumen */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', width: '100%', marginTop: '1rem' }}>
+            <div style={{ flex: 1, position: 'relative' }}>
+              <Search size={16} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-tertiary)' }} />
+              <input
+                type="text"
+                placeholder="Buscador de Proveedor"
+                value={busqueda}
+                onChange={e => setBusqueda(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '0.6rem 0.75rem 0.6rem 2.2rem',
+                  borderRadius: '10px',
+                  border: '1px solid var(--border)',
+                  background: 'var(--bg-card)',
+                  color: 'var(--text-primary)',
+                  fontSize: '0.9rem',
+                  boxSizing: 'border-box'
+                }}
+              />
+            </div>
+            {(() => {
+              const totalDeudaVal = statsGlobales.totalPendiente;
+              const hasDeuda = totalDeudaVal > 0;
+              const badgeColor = hasDeuda ? '#ef4444' : '#10b981';
+              const badgeBg = hasDeuda ? 'rgba(239, 68, 68, 0.08)' : 'rgba(16, 185, 129, 0.08)';
+              const badgeBorder = hasDeuda ? 'rgba(239, 68, 68, 0.2)' : 'rgba(16, 185, 129, 0.2)';
+              const badgeText = 'PENDIENTE';
+              
+              return (
+                <div style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'flex-end',
+                  background: badgeBg,
+                  border: `1px solid ${badgeBorder}`,
+                  borderRadius: '10px',
+                  padding: '0.4rem 0.75rem',
+                  gap: '2px'
+                }}>
+                  <span style={{ fontSize: '0.65rem', fontWeight: 800, color: badgeColor, letterSpacing: '0.05em' }}>{badgeText}</span>
+                  <span style={{ fontSize: '0.95rem', fontWeight: 800, color: badgeColor }}>
+                    Bs {fmtMonto(Math.abs(totalDeudaVal))}
+                  </span>
+                </div>
+              );
+            })()}
           </div>
 
-          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
-            <button
-              className="btn-excel btn-cobro"
-              onClick={() => { setEntidadParaPagoRapido(null); setMostrarPagoRapido(true); }}
-              title="Nuevo Pago"
-            >
-              <CreditCard size={14} /> <span>Pago</span>
-            </button>
-            <button
-              className="btn-excel btn-nota"
-              onClick={() => { setEntidadParaNota(null); setTipoNotaInicial('proveedor'); setMostrarNota(true); }}
-              title="Nueva Nota"
-            >
-              <Plus size={14} /> <span>Nota</span>
-            </button>
-            <button
-              className="btn-excel-icon"
-              onClick={() => setMostrarAdmin(true)}
-              title="Administrar Entidades"
-            >
-              <UserPlus size={14} />
-            </button>
-            <button
-              className="btn-excel-icon"
-              onClick={() => setMostrarSaldoInicial(true)}
-              title="Migración"
-            >
-              <BookOpen size={14} />
-            </button>
-            <button className="btn-excel-icon" onClick={manejarActualizacion} disabled={cargando} title="Actualizar">
-              <RefreshCw size={14} className={cargando ? 'spin' : ''} />
-            </button>
+          {/* Tabla Simple: 2 Columnas (PROVEEDOR y DEUDA TOTAL) */}
+          <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: '10px', overflow: 'hidden' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
+              <thead>
+                <tr style={{ background: 'var(--bg-table-header)', borderBottom: '1px solid var(--border)' }}>
+                  <th style={{ padding: '0.75rem 1rem', textAlign: 'left', width: '70%', fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-table-header)' }}>PROVEEDOR</th>
+                  <th style={{ padding: '0.75rem 1rem', textAlign: 'right', width: '30%', fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-table-header)' }}>DEUDA TOTAL</th>
+                </tr>
+              </thead>
+              <tbody>
+                {entidadesFiltradasEx.map((entidad) => {
+                  const saldoVal = Number(entidad.saldo_pendiente);
+                  const isDeudor = saldoVal > 0;
+                  const isAnticipo = saldoVal < 0;
+                  return (
+                    <tr
+                      key={entidad.id}
+                      onClick={() => abrirDetalle(entidad)}
+                      style={{ borderBottom: '1px solid var(--border)', cursor: 'pointer' }}
+                    >
+                      <td style={{ padding: '0.75rem 1rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                        {entidad.nombre}
+                      </td>
+                      <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontWeight: 700, color: isDeudor ? '#ef4444' : (isAnticipo ? '#a855f7' : '#10b981') }}>
+                        Bs {fmtMonto(saldoVal)}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
-        </div>
-      </div>
-
-      <div className="cxc-search-row" style={{ margin: '0 0 0.5rem 0', padding: '0 1.25rem', border: 'none', background: 'transparent' }}>
-        <div className="cxc-search-container" style={{ background: 'var(--bg-card)' }}>
-          <Search size={14} className="cxc-search-icon" />
-          <input
-            type="text"
-            placeholder="Buscar proveedor o personal por nombre..."
-            value={busqueda}
-            onChange={e => setBusqueda(e.target.value)}
-            className="cxc-search-input"
-          />
-          {busqueda && (
-            <button className="cxc-search-clear" onClick={() => setBusqueda('')}>✕</button>
-          )}
-        </div>
-
-        <div className="cxc-stats-horizontal">
-          <div className="cxc-stat-pill">
-            <span className="cxc-pill-label">Con Deuda</span>
-            <span className="cxc-pill-value text-warn">
-              {statsGlobales.conDeuda}
-            </span>
-          </div>
-          <div className="cxc-stat-pill cxc-stat-pill--danger">
-            <span className="cxc-pill-label">Pendiente</span>
-            <span className="cxc-pill-value">Bs {fmtMonto(statsGlobales.totalPendiente)}</span>
-          </div>
-          <span className="cxc-divider-mini" />
-          <span className="cxc-result-count">
-            {entidadesFiltradas.length} entidades
-          </span>
-        </div>
-      </div>
-
-      {/* ─── Error ─── */}
-      {errorEntidades && (
-        <div className="pc-error">
-          <p>⚠️ {errorEntidades instanceof Error ? errorEntidades.message : 'Error desconocido'}</p>
-          <button onClick={manejarActualizacion}>Reintentar</button>
-        </div>
-      )}
-
-      {/* ─── Lista de proveedores tipo hoja de cálculo ─── */}
-      {cargando ? (
-        <div className="pc-cargando">
-          <RefreshCw size={32} className="spin" />
-          <p>Cargando proveedores...</p>
-        </div>
-      ) : entidadesFiltradas.length === 0 ? (
-        <div className="arbol-vacio">
-          <Truck size={40} style={{ marginBottom: '0.75rem', opacity: 0.4 }} />
-          <p>
-            {busqueda || filtroCategoria || filtroAntiguedad
-              ? 'No se encontraron proveedores con los filtros actuales.'
-              : 'No hay proveedores registrados. Agrega el primero.'
-            }
-          </p>
-          {!busqueda && !filtroCategoria && !filtroAntiguedad && (
-            <button
-              className="btn-nueva-cuenta"
-              style={{ marginTop: '0.75rem' }}
-              onClick={() => setMostrarAdmin(true)}
-            >
-              <UserPlus size={16} /> Agregar Proveedor
-            </button>
-          )}
         </div>
       ) : (
-        <div className="cxc-tabla-wrapper">
-          <table className="cxc-tabla cxc-tabla-fixed">
-            <thead>
-              <tr>
-                <th className="cxc-th cxp-th-alumno">Proveedor</th>
-                <th className="cxc-th cxc-th-center">Contacto</th>
-                <th className="cxc-th cxc-th-center">Notas Pend.</th>
-                <th className="cxc-th cxc-th-center">Antigüedad</th>
-                <th className="cxc-th cxc-th-right">Total Deuda</th>
-                <th className="cxc-th cxc-th-acciones">Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {entidadesFiltradas.map(entidad => {
-                const tieneDeuda  = entidad.saldo_pendiente > 0;
-                const dias        = calcularDias(entidad.fecha_mas_antigua);
-                const labelCat    = CATEGORIAS_PROVEEDOR.find(c => c.value === entidad.categoria)?.label ?? 'Otro';
-                const colorDias   = dias > 45 ? 'var(--danger)' : dias > 30 ? 'var(--primary)' : 'var(--text-tertiary)';
+        <>
+          {/* ─── Barra de Control Simplificada ─── */}
+          <div className="cxc-barra-control" style={{ margin: 0, padding: '0.5rem 1.25rem' }}>
+            <div className="cxc-filtros-inline" style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                <FiltrosCxP
+                  categoria={filtroCategoria}
+                  antiguedad={filtroAntiguedad}
+                  onChangeCategoria={setFiltroCategoria}
+                  onChangeAntiguedad={setFiltroAntiguedad}
+                  onLimpiar={() => { setFiltroCategoria(''); setFiltroAntiguedad(''); }}
+                  compact
+                />
+              </div>
 
-                return (
-                  <tr
-                    key={entidad.id}
-                    className={`cxc-tr cxc-tr-clickable ${tieneDeuda ? 'cxc-tr--deuda' : ''}`}
-                    onClick={() => abrirDetalle(entidad)}
-                    title="Clic para ver movimientos del proveedor"
-                  >
-                    {/* Nombre */}
-                    <td className="cxc-td cxp-th-alumno">
-                      <div className="cxc-alumno-info">
-                        <span className="cxc-alumno-nombre">{entidad.nombre}</span>
-                        {entidad.cargo && (
-                          <span style={{ fontSize: '0.76rem', color: 'var(--text-tertiary)' }}>
-                            {entidad.cargo}
-                          </span>
-                        )}
-                      </div>
-                    </td>
+              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                <button
+                  className="btn-excel btn-cobro"
+                  onClick={() => { setEntidadParaPagoRapido(null); setMostrarPagoRapido(true); }}
+                  title="Nuevo Pago"
+                >
+                  <CreditCard size={14} /> <span>Pago</span>
+                </button>
+                <button
+                  className="btn-excel btn-nota"
+                  onClick={() => { setEntidadParaNota(null); setTipoNotaInicial('proveedor'); setMostrarNota(true); }}
+                  title="Nueva Nota"
+                >
+                  <Plus size={14} /> <span>Nota</span>
+                </button>
+                <button
+                  className="btn-excel-icon"
+                  onClick={() => setMostrarAdmin(true)}
+                  title="Administrar Entidades"
+                >
+                  <UserPlus size={14} />
+                </button>
+                <button
+                  className="btn-excel-icon"
+                  onClick={() => setMostrarSaldoInicial(true)}
+                  title="Migración"
+                >
+                  <BookOpen size={14} />
+                </button>
+                <button className="btn-excel-icon" onClick={manejarActualizacion} disabled={cargando} title="Actualizar">
+                  <RefreshCw size={14} className={cargando ? 'spin' : ''} />
+                </button>
+              </div>
+            </div>
+          </div>
 
+          <div className="cxc-search-row" style={{ margin: '0 0 0.5rem 0', padding: '0 1.25rem', border: 'none', background: 'transparent' }}>
+            <div className="cxc-search-container" style={{ background: 'var(--bg-card)' }}>
+              <Search size={14} className="cxc-search-icon" />
+              <input
+                type="text"
+                placeholder="Buscar proveedor o personal por nombre..."
+                value={busqueda}
+                onChange={e => setBusqueda(e.target.value)}
+                className="cxc-search-input"
+              />
+              {busqueda && (
+                <button className="cxc-search-clear" onClick={() => setBusqueda('')}>✕</button>
+              )}
+            </div>
 
-                    {/* Teléfono */}
-                    <td className="cxc-td cxc-td-center cxc-td-meta">
-                      {entidad.telefono || '—'}
-                    </td>
+            <div className="cxc-stats-horizontal">
+              <div className="cxc-stat-pill">
+                <span className="cxc-pill-label">Con Deuda</span>
+                <span className="cxc-pill-value text-warn">
+                  {statsGlobales.conDeuda}
+                </span>
+              </div>
+              <div className="cxc-stat-pill cxc-stat-pill--danger">
+                <span className="cxc-pill-label">Pendiente</span>
+                <span className="cxc-pill-value">Bs {fmtMonto(statsGlobales.totalPendiente)}</span>
+              </div>
+              <span className="cxc-divider-mini" />
+              <span className="cxc-result-count">
+                {entidadesFiltradas.length} entidades
+              </span>
+            </div>
+          </div>
 
-                    {/* Notas pendientes */}
-                    <td className="cxc-td cxc-td-center">
-                      {entidad.notas_pendientes > 0
-                        ? <span className="cxc-badge-num">{entidad.notas_pendientes}</span>
-                        : <span className="cxc-td-dash">—</span>
-                      }
-                    </td>
+          {/* ─── Error ─── */}
+          {errorEntidades && (
+            <div className="pc-error">
+              <p>⚠️ {errorEntidades instanceof Error ? errorEntidades.message : 'Error desconocido'}</p>
+              <button onClick={manejarActualizacion}>Reintentar</button>
+            </div>
+          )}
 
-                    {/* Antigüedad */}
-                    <td className="cxc-td cxc-td-center">
-                      {tieneDeuda && dias > 0
-                        ? <span style={{ color: colorDias, fontWeight: 600, fontSize: '0.85rem' }}>
-                            {dias} días
-                          </span>
-                        : <span className="cxc-td-dash">—</span>
-                      }
-                    </td>
-
-                    {/* Total deuda */}
-                    <td className="cxc-td cxc-td-right">
-                      {Math.abs(entidad.saldo_pendiente) > 0.01
-                        ? <span className={entidad.saldo_pendiente > 0 ? "cxc-monto-deuda" : "cxc-monto-anticipo"}>
-                            {entidad.saldo_pendiente < 0 ? '- ' : ''}Bs {fmtMonto(Math.abs(entidad.saldo_pendiente))}
-                          </span>
-                        : <span className="cxc-al-dia">✓ Al día</span>
-                      }
-                    </td>
-
-                    {/* Acciones inline */}
-                    <td className="cxc-td cxc-td-acciones" onClick={e => e.stopPropagation()}>
-                      <div className="cxc-acciones-wrap">
-                        {/* Nueva nota para esta entidad */}
-                        <button
-                          className="cxc-accion-btn cxc-accion-btn--nota"
-                          onClick={e => abrirNotaParaEntidad(e, entidad)}
-                          title="Crear Nota de Pago"
-                        >
-                          <FileText size={13} />
-                          <span>Nota</span>
-                        </button>
-
-                        {/* Pago rápido / Anticipo */}
-                        <button
-                          className="cxc-accion-btn cxc-accion-btn--cobro"
-                          onClick={e => {
-                            e.stopPropagation();
-                            setEntidadParaPagoRapido(entidad);
-                            setMostrarPagoRapido(true);
-                          }}
-                          title="Ver y registrar pago o anticipo"
-                        >
-                          <CreditCard size={13} />
-                          <span>Pagar</span>
-                        </button>
-
-
-                      </div>
-                    </td>
+          {/* ─── Lista de proveedores tipo hoja de cálculo ─── */}
+          {cargando ? (
+            <div className="pc-cargando">
+              <RefreshCw size={32} className="spin" />
+              <p>Cargando proveedores...</p>
+            </div>
+          ) : entidadesFiltradas.length === 0 ? (
+            <div className="arbol-vacio">
+              <Truck size={40} style={{ marginBottom: '0.75rem', opacity: 0.4 }} />
+              <p>
+                {busqueda || filtroCategoria || filtroAntiguedad
+                  ? 'No se encontraron proveedores con los filtros actuales.'
+                  : 'No hay proveedores registrados. Agrega el primero.'
+                }
+              </p>
+              {!busqueda && !filtroCategoria && !filtroAntiguedad && (
+                <button
+                  className="btn-nueva-cuenta"
+                  style={{ marginTop: '0.75rem' }}
+                  onClick={() => setMostrarAdmin(true)}
+                >
+                  <UserPlus size={16} /> Agregar Proveedor
+                </button>
+              )}
+            </div>
+          ) : (
+            <div className="cxc-tabla-wrapper">
+              <table className="cxc-tabla cxc-tabla-fixed">
+                <thead>
+                  <tr>
+                    <th className="cxc-th cxp-th-alumno">Proveedor</th>
+                    <th className="cxc-th cxc-th-center">Contacto</th>
+                    <th className="cxc-th cxc-th-center">Notas Pend.</th>
+                    <th className="cxc-th cxc-th-center">Antigüedad</th>
+                    <th className="cxc-th cxc-th-right">Total Deuda</th>
+                    <th className="cxc-th cxc-th-acciones">Acciones</th>
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                </thead>
+                <tbody>
+                  {entidadesFiltradas.map(entidad => {
+                    const tieneDeuda  = entidad.saldo_pendiente > 0;
+                    const dias        = calcularDias(entidad.fecha_mas_antigua);
+                    const labelCat    = CATEGORIAS_PROVEEDOR.find(c => c.value === entidad.categoria)?.label ?? 'Otro';
+                    const colorDias   = dias > 45 ? 'var(--danger)' : dias > 30 ? 'var(--primary)' : 'var(--text-tertiary)';
+
+                    return (
+                      <tr
+                        key={entidad.id}
+                        className={`cxc-tr cxc-tr-clickable ${tieneDeuda ? 'cxc-tr--deuda' : ''}`}
+                        onClick={() => abrirDetalle(entidad)}
+                        title="Clic para ver movimientos del proveedor"
+                      >
+                        {/* Nombre */}
+                        <td className="cxc-td cxp-th-alumno">
+                          <div className="cxc-alumno-info">
+                            <span className="cxc-alumno-nombre">{entidad.nombre}</span>
+                            {entidad.cargo && (
+                              <span style={{ fontSize: '0.76rem', color: 'var(--text-tertiary)' }}>
+                                {entidad.cargo}
+                              </span>
+                            )}
+                          </div>
+                        </td>
+
+                        {/* Teléfono */}
+                        <td className="cxc-td cxc-td-center cxc-td-meta">
+                          {entidad.telefono || '—'}
+                        </td>
+
+                        {/* Notas pendientes */}
+                        <td className="cxc-td cxc-td-center">
+                          {entidad.notas_pendientes && entidad.notas_pendientes > 0
+                            ? <span className="cxc-badge-num">{entidad.notas_pendientes}</span>
+                            : <span className="cxc-td-dash">—</span>
+                          }
+                        </td>
+
+                        {/* Antigüedad */}
+                        <td className="cxc-td cxc-td-center">
+                          {tieneDeuda && dias > 0
+                            ? <span style={{ color: colorDias, fontWeight: 600, fontSize: '0.85rem' }}>
+                                {dias} días
+                              </span>
+                            : <span className="cxc-td-dash">—</span>
+                          }
+                        </td>
+
+                        {/* Total deuda */}
+                        <td className="cxc-td cxc-td-right">
+                          {Math.abs(entidad.saldo_pendiente) > 0.01
+                            ? <span className={entidad.saldo_pendiente > 0 ? "cxc-monto-deuda" : "cxc-monto-anticipo"}>
+                                {entidad.saldo_pendiente < 0 ? '- ' : ''}Bs {fmtMonto(Math.abs(entidad.saldo_pendiente))}
+                              </span>
+                            : <span className="cxc-al-dia">✓ Al día</span>
+                          }
+                        </td>
+
+                        {/* Acciones inline */}
+                        <td className="cxc-td cxc-td-acciones" onClick={e => e.stopPropagation()}>
+                          <div className="cxc-acciones-wrap">
+                            {/* Nueva nota para esta entidad */}
+                            <button
+                              className="cxc-accion-btn cxc-accion-btn--nota"
+                              onClick={e => abrirNotaParaEntidad(e, entidad)}
+                              title="Crear Nota de Pago"
+                            >
+                              <FileText size={13} />
+                              <span>Nota</span>
+                            </button>
+
+                            {/* Pago rápido / Anticipo */}
+                            <button
+                              className="cxc-accion-btn cxc-accion-btn--cobro"
+                              onClick={e => {
+                                e.stopPropagation();
+                                setEntidadParaPagoRapido(entidad);
+                                setMostrarPagoRapido(true);
+                              }}
+                              title="Ver y registrar pago o anticipo"
+                            >
+                              <CreditCard size={13} />
+                              <span>Pagar</span>
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
       )}
 
       {/* ─── Modal: Nueva Nota de Pago ─── */}

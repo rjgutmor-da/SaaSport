@@ -3169,3 +3169,34 @@ input[type=number] {
   color: var(--text-primary);
 }
 
+/* ============================================
+   MOBILE OVERRIDES — agregado para optimización
+   ============================================ */
+
+@media (max-width: 767px) {
+
+  /* Ocultar sidebar en móvil */
+  .sidebar,
+  [class*="sidebar"],
+  aside {
+    display: none !important;
+  }
+
+  /* Eliminar el margen/padding que el sidebar empujaba al contenido */
+  .main-content,
+  [class*="main-content"],
+  main {
+    margin-left: 0 !important;
+    padding-left: 0 !important;
+    width: 100% !important;
+  }
+
+  /* Espacio inferior para que el contenido no quede detrás del MobileNav */
+  #root main,
+  #root .content,
+  #root [class*="content"] {
+    padding-bottom: calc(64px + env(safe-area-inset-bottom));
+  }
+
+}
+

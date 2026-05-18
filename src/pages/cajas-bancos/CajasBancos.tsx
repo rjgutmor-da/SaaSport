@@ -14,6 +14,7 @@ import ModalDetalleMovimiento from '../../components/cajas-bancos/ModalDetalleMo
 import ModalNuevaCaja from '../../components/cajas-bancos/ModalNuevaCaja';
 import ModalCobroRapido from '../../components/cxc/ModalCobroRapido';
 import ModalPagoRapidoCxP from '../../components/cxp/ModalPagoRapidoCxP';
+import DropdownAcciones from '../../components/cajas-bancos/DropdownAcciones';
 import { formatFecha } from '../../lib/dateUtils';
 import type { EntidadCxP } from '../../types/cxp';
 
@@ -22,6 +23,7 @@ import { useContext } from 'react';
 import { useAuthSaaSport } from '../../lib/authHelper';
 import { useCajasBancos, useMovimientos, useCxpEntidades, type MovimientoFinanciero } from '../../hooks/useFinanzas';
 import { useQueryClient } from '@tanstack/react-query';
+import { useIsMobile } from '../../hooks/useIsMobile';
 
 const fmtMonto = (n: number) =>
   n.toLocaleString('es-BO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -35,6 +37,7 @@ const CajasBancos: React.FC = () => {
   const { setExtra } = useContext(SidebarContext);
   const { esSuperAdmin, escuelaId, puedeEliminar } = useAuthSaaSport();
   const queryClient = useQueryClient();
+  const isMobile = useIsMobile();
 
   // ── Hooks de datos con TanStack Query ──
   const { data: cajas = [], isLoading: cargandoCajas } = useCajasBancos(escuelaId);
@@ -48,6 +51,8 @@ const CajasBancos: React.FC = () => {
   // Filtros
   const [filtroCuenta, setFiltroCuenta] = useState<string>('todas');
   const [busqueda, setBusqueda] = useState('');
+  const [busquedaCuenta, setBusquedaCuenta] = useState('');
+  const [cajaSeleccionadaMovs, setCajaSeleccionadaMovs] = useState<CajaBanco | null>(null);
 
   // ── Drag-and-drop de tarjetas (solo super admin) ──
   const [cajasOrdenadas, setCajasOrdenadas] = useState<typeof cajas>([]);
@@ -236,482 +241,710 @@ const CajasBancos: React.FC = () => {
 
   return (
     <main className="main-content cxc-main">
-      <div className="sticky-header-container">
-        {/* 1. Header Card */}
-        <div className="cxc-header-bar" style={{ borderRadius: '12px 12px 0 0', borderBottom: '1px solid var(--border-light)', marginBottom: 0 }}>
-          <div className="cxc-header-izq">
-            <h1 className="cxc-titulo-principal" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              Caja y Bancos
-            </h1>
-          </div>
-          <div className="cxc-header-acciones">
-            {/* 1. Cobro */}
-            <button 
-              className="cxc-accion-btn" 
-              onClick={() => setShowCobro(true)} 
-              title="Registrar cobro a un alumno (CxC)"
-              style={{ 
-                fontWeight: 700, padding: '0.5rem 1rem', 
-                background: '#E5E7EB', color: '#000', 
-                border: 'none', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-              }}
-            >
-              <ArrowDownRight size={16} /> Cobro
-            </button>
-
-            {/* 2. Pago */}
-            <button 
-              className="cxc-accion-btn" 
-              onClick={() => setShowPago(true)} 
-              title="Registrar pago a proveedor/personal (CxP)"
-              style={{ 
-                fontWeight: 700, padding: '0.5rem 1rem', 
-                background: '#E5E7EB', color: '#000', 
-                border: 'none', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-              }}
-            >
-              <ArrowUpRight size={16} /> Pago
-            </button>
-
-            {/* 3. Ingreso */}
-            <button 
-              className="cxc-accion-btn" 
-              onClick={() => toggleForm('ingreso')} 
-              title="Registrar un ingreso directo"
-              style={{ 
-                fontWeight: 700, padding: '0.5rem 1rem', 
-                background: activeForm === 'ingreso' ? 'var(--primary-glow)' : '#E5E7EB', 
-                color: activeForm === 'ingreso' ? 'var(--primary)' : '#000', 
-                border: activeForm === 'ingreso' ? '1px solid var(--primary)' : 'none', 
-                borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-              }}
-            >
-              <ArrowDownRight size={16} /> {activeForm === 'ingreso' ? 'Cerrar Ingreso' : 'Ingreso'}
-            </button>
-            
-            {/* 4. Gasto */}
-            <button 
-              className="cxc-accion-btn" 
-              onClick={() => toggleForm('salida')} 
-              title="Registrar un gasto/salida directa"
-              style={{ 
-                fontWeight: 700, padding: '0.5rem 1rem', 
-                background: activeForm === 'salida' ? 'var(--primary-glow)' : '#E5E7EB', 
-                color: activeForm === 'salida' ? 'var(--primary)' : '#000', 
-                border: activeForm === 'salida' ? '1px solid var(--primary)' : 'none', 
-                borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-              }}
-            >
-              <ArrowUpRight size={16} /> {activeForm === 'salida' ? 'Cerrar Gasto' : 'Gasto'}
-            </button>
-
-            {/* 5. Transferencia */}
-            <button 
-              className="cxc-accion-btn" 
-              onClick={() => toggleForm('transferencia')} 
-              title="Transferir dinero entre dos cajas/bancos"
-              style={{ 
-                fontWeight: 700, padding: '0.5rem 1rem', 
-                background: activeForm === 'transferencia' ? 'var(--primary-glow)' : '#E5E7EB', 
-                color: activeForm === 'transferencia' ? 'var(--primary)' : '#000', 
-                border: activeForm === 'transferencia' ? '1px solid var(--primary)' : 'none', 
-                borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-              }}
-            >
-              <ArrowRightLeft size={16} /> {activeForm === 'transferencia' ? 'Cerrar Transf.' : 'Transferencia'}
-            </button>
-
-            {/* 6. Nueva Caja */}
-            <button 
-              className="cxc-accion-btn" 
-              onClick={() => toggleForm('nueva_caja')} 
-              title="Crear una nueva caja o cuenta bancaria"
-              style={{ 
-                fontWeight: 700, padding: '0.5rem 1rem', 
-                background: activeForm === 'nueva_caja' ? 'var(--primary-glow)' : '#E5E7EB', 
-                color: activeForm === 'nueva_caja' ? 'var(--primary)' : '#000', 
-                border: activeForm === 'nueva_caja' ? '1px solid var(--primary)' : 'none', 
-                borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-              }}
-            >
-              <Landmark size={16} /> {activeForm === 'nueva_caja' ? 'Cerrar Nueva' : 'Nueva Caja'}
-            </button>
-
-            <button className="btn-refrescar" onClick={manejarActualizacion} disabled={cargando}>
-              <RefreshCw size={18} className={cargando ? 'spin' : ''} />
-            </button>
-          </div>
-        </div>
-
-        {/* 3. Buscador */}
-        <div className="cxc-busqueda-bar" style={{ 
-          borderRadius: '0 0 12px 12px', 
-          marginBottom: '0.5rem', 
-          background: 'var(--bg-card)', 
-          padding: '0.5rem 1.5rem', 
-          border: '1px solid var(--border)', 
-          borderTop: 'none',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '1rem',
-          flexWrap: 'wrap'
-        }}>
-          <div className="pc-busqueda" style={{ flexShrink: 0, width: '300px' }}>
-            <Search size={16} className="pc-busqueda-icono" />
-            <input
-              type="text"
-              placeholder="Buscar movimientos..."
-              value={busqueda}
-              onChange={e => setBusqueda(e.target.value)}
-              className="pc-busqueda-input"
-            />
+      {isMobile ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', width: '100%', boxSizing: 'border-box' }}>
+          {/* Buscador de Cuenta */}
+          <div style={{ display: 'flex', gap: '0.75rem', width: '100%', marginTop: '1rem', alignItems: 'center' }}>
+            <div style={{ flex: 1, position: 'relative' }}>
+              <Search size={16} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-tertiary)' }} />
+              <input
+                type="text"
+                placeholder="Buscador de Cuenta"
+                value={busquedaCuenta}
+                onChange={e => setBusquedaCuenta(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '0.6rem 0.75rem 0.6rem 2.2rem',
+                  borderRadius: '10px',
+                  border: '1px solid var(--border)',
+                  background: 'var(--bg-card)',
+                  color: 'var(--text-primary)',
+                  fontSize: '0.9rem',
+                  boxSizing: 'border-box'
+                }}
+              />
+            </div>
+            {busquedaCuenta && (
+              <button 
+                onClick={() => setBusquedaCuenta('')}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--text-tertiary)',
+                  cursor: 'pointer',
+                  fontSize: '1rem'
+                }}
+              >
+                ✕
+              </button>
+            )}
           </div>
 
-          {/* Tarjetas de Cajas/Bancos — drag-and-drop (solo super admin) */}
-          <div className="cajas-grid-header" style={{ 
-            display: 'flex', 
-            gap: '0.75rem', 
-            flex: 1, 
-            overflowX: 'auto', 
-            padding: '0.25rem 0' 
-          }}>
-            {/* Tarjeta de Saldo Consolidado */}
-            <div 
-              onClick={() => setFiltroCuenta('todas')}
-              style={{
-                background: filtroCuenta === 'todas' ? 'var(--primary-glow)' : 'rgba(255,255,255,0.05)',
-                border: `2px solid ${filtroCuenta === 'todas' ? 'var(--primary)' : '#E5E7EB'}`,
-                borderRadius: '10px',
-                padding: '0.4rem 1rem',
-                cursor: 'pointer',
-                minWidth: '160px',
+          {/* Listado de Cuentas */}
+          <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: '10px', overflow: 'hidden' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
+              <thead>
+                <tr style={{ background: 'var(--bg-table-header)', borderBottom: '1px solid var(--border)' }}>
+                  <th style={{ padding: '0.75rem 1rem', textAlign: 'left', width: '70%', fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-table-header)' }}>CUENTA</th>
+                  <th style={{ padding: '0.75rem 1rem', textAlign: 'right', width: '30%', fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-table-header)' }}>SALDO</th>
+                </tr>
+              </thead>
+              <tbody>
+                {cajas
+                  .filter(caja => caja.nombre.toLowerCase().includes(busquedaCuenta.toLowerCase()))
+                  .map((caja) => {
+                    const saldoVal = Number(caja.saldo_actual) || 0;
+                    return (
+                      <tr
+                        key={caja.id}
+                        onClick={() => setCajaSeleccionadaMovs(caja)}
+                        style={{ borderBottom: '1px solid var(--border)', cursor: 'pointer' }}
+                      >
+                        <td style={{ padding: '0.75rem 1rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                          {caja.nombre}
+                        </td>
+                        <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontWeight: 700, color: saldoVal >= 0 ? '#10b981' : '#ef4444' }}>
+                          Bs {fmtMonto(saldoVal)}
+                        </td>
+                      </tr>
+                    );
+                  })}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Modal Detallado de Movimientos de la Cuenta */}
+          {cajaSeleccionadaMovs && (
+            <div style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              background: 'rgba(0,0,0,0.6)',
+              backdropFilter: 'blur(4px)',
+              zIndex: 9999,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '1rem',
+              boxSizing: 'border-box'
+            }}>
+              <div style={{
+                background: 'var(--bg-card)',
+                border: '1px solid var(--border)',
+                borderRadius: '16px',
+                width: '100%',
+                maxWidth: '480px',
+                maxHeight: '80vh',
                 display: 'flex',
                 flexDirection: 'column',
-                justifyContent: 'center',
-                transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-                boxShadow: filtroCuenta === 'todas' ? '0 0 15px var(--primary-glow)' : 'none',
-                position: 'relative',
-                overflow: 'hidden'
-              }}
-            >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '2px' }}>
-                <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                  Resumen
-                </span>
-                <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--primary)' }}></div>
+                overflow: 'hidden',
+                boxShadow: '0 20px 25px -5px rgba(0,0,0,0.3)'
+              }}>
+                {/* Header del Modal */}
+                <div style={{
+                  padding: '1.25rem',
+                  borderBottom: '1px solid var(--border)',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  background: 'var(--bg-table-header)'
+                }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>
+                      {cajaSeleccionadaMovs.tipo === 'caja_chica' ? 'Caja Chica' : 'Cuenta Bancaria'}
+                    </span>
+                    <span style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                      {cajaSeleccionadaMovs.nombre}
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => setCajaSeleccionadaMovs(null)}
+                    style={{
+                      background: 'rgba(255,255,255,0.08)',
+                      border: 'none',
+                      borderRadius: '50%',
+                      width: '32px',
+                      height: '32px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: 'var(--text-primary)',
+                      cursor: 'pointer',
+                      fontSize: '1rem'
+                    }}
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                {/* Subheader: Saldo Actual */}
+                <div style={{
+                  padding: '1rem 1.25rem',
+                  background: 'var(--bg-card)',
+                  borderBottom: '1px solid var(--border)',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center'
+                }}>
+                  <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Saldo Actual</span>
+                  <span style={{
+                    fontSize: '1.2rem',
+                    fontWeight: 900,
+                    color: (Number(cajaSeleccionadaMovs.saldo_actual) || 0) >= 0 ? '#10b981' : '#ef4444'
+                  }}>
+                    Bs {fmtMonto(Number(cajaSeleccionadaMovs.saldo_actual) || 0)}
+                  </span>
+                </div>
+
+                {/* Lista de Movimientos */}
+                <div style={{
+                  flex: 1,
+                  overflowY: 'auto',
+                  padding: '0.5rem 0'
+                }}>
+                  {(() => {
+                    const movs = movimientos.filter(m => m.cuenta_id === cajaSeleccionadaMovs.id);
+                    if (movs.length === 0) {
+                      return (
+                        <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-tertiary)' }}>
+                          No hay movimientos registrados en esta cuenta.
+                        </div>
+                      );
+                    }
+                    return movs.map((mov) => {
+                      const esIngreso = mov.debe > 0;
+                      const fechaStr = formatFecha(mov.fecha);
+                      const cliente = mov.cliente && mov.cliente !== '—' ? mov.cliente : '';
+                      let desc = mov.descripcion?.trim() || '';
+                      return (
+                        <div
+                          key={mov.id}
+                          style={{
+                            padding: '0.85rem 1.25rem',
+                            borderBottom: '1px solid var(--border)',
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            gap: '1rem'
+                          }}
+                        >
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', overflow: 'hidden' }}>
+                            <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 500 }}>
+                              {fechaStr}
+                            </span>
+                            <span style={{
+                              fontSize: '0.9rem',
+                              fontWeight: 600,
+                              color: 'var(--text-primary)',
+                              whiteSpace: 'nowrap',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis'
+                            }}>
+                              {cliente || desc || 'Movimiento'}
+                            </span>
+                            {cliente && desc && (
+                              <span style={{
+                                fontSize: '0.8rem',
+                                color: 'var(--text-tertiary)',
+                                whiteSpace: 'nowrap',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis'
+                              }}>
+                                {desc}
+                              </span>
+                            )}
+                          </div>
+                          <div style={{
+                            fontSize: '0.95rem',
+                            fontWeight: 700,
+                            color: esIngreso ? '#10b981' : '#ef4444',
+                            whiteSpace: 'nowrap'
+                          }}>
+                            {esIngreso ? '+' : '-'} Bs {fmtMonto(esIngreso ? mov.debe : mov.haber)}
+                          </div>
+                        </div>
+                      );
+                    });
+                  })()}
+                </div>
               </div>
-              <span style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.2 }}>
-                Saldo Consolidado
-              </span>
-              <span style={{ fontSize: '1rem', color: 'var(--primary)', fontWeight: 900, marginTop: '2px' }}>
-                Bs {fmtMonto(saldoTotal)}
-              </span>
+            </div>
+          )}
+        </div>
+      ) : (
+        <>
+          <div className="sticky-header-container">
+            {/* 1. Header Card */}
+            <div className="cxc-header-bar" style={{ borderRadius: '12px 12px 0 0', borderBottom: '1px solid var(--border-light)', marginBottom: 0 }}>
+              <div className="cxc-header-izq">
+                <h1 className="cxc-titulo-principal" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  Caja y Bancos
+                </h1>
+              </div>
+              <div className="cxc-header-acciones">
+                {/* Dropdown unificado para Ingresos (Cobro e Ingreso Directo) */}
+                <DropdownAcciones
+                  label="Ingresos"
+                  icon={<ArrowDownRight size={16} />}
+                  tooltip="Opciones de ingreso de dinero"
+                  opciones={[
+                    {
+                      label: "Cobro a Alumno (CxC)",
+                      descripcion: "Registrar cobro de mensualidad o deuda",
+                      icon: <ArrowDownRight size={16} />,
+                      onClick: () => setShowCobro(true)
+                    },
+                    {
+                      label: "Ingreso Directo",
+                      descripcion: "Registrar otro tipo de ingreso a caja",
+                      icon: <ArrowDownRight size={16} />,
+                      onClick: () => toggleForm('ingreso')
+                    }
+                  ]}
+                />
+
+                {/* Dropdown unificado para Egresos (Pago y Gasto Directo) */}
+                <DropdownAcciones
+                  label="Egresos"
+                  icon={<ArrowUpRight size={16} />}
+                  tooltip="Opciones de egreso de dinero"
+                  opciones={[
+                    {
+                      label: "Pago a Proveedor (CxP)",
+                      descripcion: "Registrar pago de cuenta por pagar",
+                      icon: <ArrowUpRight size={16} />,
+                      onClick: () => setShowPago(true)
+                    },
+                    {
+                      label: "Gasto Directo",
+                      descripcion: "Registrar egreso o gasto inmediato",
+                      icon: <ArrowUpRight size={16} />,
+                      onClick: () => toggleForm('salida')
+                    }
+                  ]}
+                />
+
+                {/* 5. Transferencia */}
+                <button 
+                  className="cxc-accion-btn" 
+                  onClick={() => toggleForm('transferencia')} 
+                  title="Transferir dinero entre dos cajas/bancos"
+                  style={{ 
+                    fontWeight: 700, padding: '0.5rem 1rem', 
+                    background: activeForm === 'transferencia' ? 'var(--primary-glow)' : '#E5E7EB', 
+                    color: activeForm === 'transferencia' ? 'var(--primary)' : '#000', 
+                    border: activeForm === 'transferencia' ? '1px solid var(--primary)' : 'none', 
+                    borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                  }}
+                >
+                  <ArrowRightLeft size={16} /> {activeForm === 'transferencia' ? 'Cerrar Transf.' : 'Transferencia'}
+                </button>
+
+                {/* 6. Nueva Caja */}
+                {!isMobile && (
+                  <button 
+                    className="cxc-accion-btn" 
+                    onClick={() => toggleForm('nueva_caja')} 
+                    title="Crear una nueva caja o cuenta bancaria"
+                    style={{ 
+                      fontWeight: 700, padding: '0.5rem 1rem', 
+                      background: activeForm === 'nueva_caja' ? 'var(--primary-glow)' : '#E5E7EB', 
+                      color: activeForm === 'nueva_caja' ? 'var(--primary)' : '#000', 
+                      border: activeForm === 'nueva_caja' ? '1px solid var(--primary)' : 'none', 
+                      borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                    }}
+                  >
+                    <Landmark size={16} /> {activeForm === 'nueva_caja' ? 'Cerrar Nueva' : 'Nueva Caja'}
+                  </button>
+                )}
+
+                <button className="btn-refrescar" onClick={manejarActualizacion} disabled={cargando}>
+                  <RefreshCw size={18} className={cargando ? 'spin' : ''} />
+                </button>
+              </div>
             </div>
 
-            {cajasOrdenadas.map(c => {
+            {/* 3. Buscador */}
+            <div className="cxc-busqueda-bar" style={{ 
+              borderRadius: '0 0 12px 12px', 
+              marginBottom: '0.5rem', 
+              background: 'var(--bg-card)', 
+              padding: '0.5rem 1.5rem', 
+              border: '1px solid var(--border)', 
+              borderTop: 'none',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '1rem',
+              flexWrap: 'wrap'
+            }}>
+              <div className="pc-busqueda" style={{ flexShrink: 0, width: '300px' }}>
+                <Search size={16} className="pc-busqueda-icono" />
+                <input
+                  type="text"
+                  placeholder="Buscar movimientos..."
+                  value={busqueda}
+                  onChange={e => setBusqueda(e.target.value)}
+                  className="pc-busqueda-input"
+                />
+              </div>
 
-              const esActiva = filtroCuenta === c.id;
-              const esPred   = c.es_predeterminada;
-              const esDragOver = dragOverId === c.id;
-              return (
+              {/* Tarjetas de Cajas/Bancos — drag-and-drop (solo super admin) */}
+              <div className="cajas-grid-header" style={{ 
+                display: 'flex', 
+                gap: '0.75rem', 
+                flex: 1, 
+                overflowX: 'auto', 
+                padding: '0.25rem 0' 
+              }}>
+                {/* Tarjeta de Saldo Consolidado */}
                 <div 
-                  key={c.id}
-                  draggable={esSuperAdmin}
-                  onDragStart={esSuperAdmin ? e => handleDragStart(e, c.id) : undefined}
-                  onDragOver={esSuperAdmin ? e => handleDragOver(e, c.id) : undefined}
-                  onDrop={esSuperAdmin ? e => handleDrop(e, c.id) : undefined}
-                  onDragEnd={esSuperAdmin ? handleDragEnd : undefined}
-                  onClick={() => setFiltroCuenta(filtroCuenta === c.id ? 'todas' : c.id)}
+                  onClick={() => setFiltroCuenta('todas')}
                   style={{
-                    background: esActiva ? 'var(--primary-glow)' : esPred ? 'rgba(255,200,0,0.07)' : 'rgba(255,255,255,0.05)',
-                    border: `2px solid ${esActiva ? 'var(--primary)' : esPred ? '#f59e0b' : esDragOver ? 'var(--primary)' : '#E5E7EB'}`,
+                    background: filtroCuenta === 'todas' ? 'var(--primary-glow)' : 'rgba(255,255,255,0.05)',
+                    border: `2px solid ${filtroCuenta === 'todas' ? 'var(--primary)' : '#E5E7EB'}`,
                     borderRadius: '10px',
                     padding: '0.4rem 1rem',
-                    cursor: esSuperAdmin ? 'grab' : 'pointer',
+                    cursor: 'pointer',
                     minWidth: '160px',
                     display: 'flex',
                     flexDirection: 'column',
                     justifyContent: 'center',
                     transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-                    boxShadow: esActiva ? '0 0 15px var(--primary-glow)' : esPred ? '0 0 10px rgba(245,158,11,0.25)' : 'none',
-                    opacity: draggingId === c.id ? 0.5 : 1,
-                    transform: esDragOver ? 'scale(1.03)' : 'scale(1)',
+                    boxShadow: filtroCuenta === 'todas' ? '0 0 15px var(--primary-glow)' : 'none',
                     position: 'relative',
                     overflow: 'hidden'
                   }}
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '2px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                      {esSuperAdmin && (
-                        <GripVertical size={12} style={{ color: 'var(--text-tertiary)', flexShrink: 0, cursor: 'grab' }} />
-                      )}
-                      <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                        {c.tipo === 'caja_chica' ? 'Caja' : 'Banco'}
-                      </span>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      {esPred && (
-                        <span title="Predeterminada" style={{ lineHeight: 1, display: 'flex' }}>
-                          <Star size={11} fill="#f59e0b" stroke="#f59e0b" />
-                        </span>
-                      )}
-                      <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: c.activo ? 'var(--success)' : 'var(--danger)' }}></div>
-                    </div>
+                    <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      Resumen
+                    </span>
+                    <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--primary)' }}></div>
                   </div>
                   <span style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.2 }}>
-                    {c.nombre}
+                    Saldo Consolidado
                   </span>
-                  <span style={{ fontSize: '1rem', color: 'var(--success)', fontWeight: 900, marginTop: '2px' }}>
-                    Bs {fmtMonto(Number(c.saldo_actual) || 0)}
+                  <span style={{ fontSize: '1rem', color: 'var(--primary)', fontWeight: 900, marginTop: '2px' }}>
+                    Bs {fmtMonto(saldoTotal)}
                   </span>
-                  {esSuperAdmin && !esPred && (
-                    <button
-                      onClick={e => { e.stopPropagation(); marcarPredeterminada(c.id); }}
-                      title="Marcar como predeterminada"
+                </div>
+
+                {cajasOrdenadas.map(c => {
+                  const esActiva = filtroCuenta === c.id;
+                  const esPred   = c.es_predeterminada;
+                  const esDragOver = dragOverId === c.id;
+                  return (
+                    <div 
+                      key={c.id}
+                      draggable={esSuperAdmin}
+                      onDragStart={esSuperAdmin ? e => handleDragStart(e, c.id) : undefined}
+                      onDragOver={esSuperAdmin ? e => handleDragOver(e, c.id) : undefined}
+                      onDrop={esSuperAdmin ? e => handleDrop(e, c.id) : undefined}
+                      onDragEnd={esSuperAdmin ? handleDragEnd : undefined}
+                      onClick={() => setFiltroCuenta(filtroCuenta === c.id ? 'todas' : c.id)}
                       style={{
-                        position: 'absolute', bottom: '4px', right: '6px',
-                        background: 'none', border: 'none', cursor: 'pointer',
-                        color: 'var(--text-tertiary)', padding: '2px', lineHeight: 1
+                        background: esActiva ? 'var(--primary-glow)' : esPred ? 'rgba(255,200,0,0.07)' : 'rgba(255,255,255,0.05)',
+                        border: `2px solid ${esActiva ? 'var(--primary)' : esPred ? '#f59e0b' : esDragOver ? 'var(--primary)' : '#E5E7EB'}`,
+                        borderRadius: '10px',
+                        padding: '0.4rem 1rem',
+                        cursor: esSuperAdmin ? 'grab' : 'pointer',
+                        minWidth: '160px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'center',
+                        transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                        boxShadow: esActiva ? '0 0 15px var(--primary-glow)' : esPred ? '0 0 10px rgba(245,158,11,0.25)' : 'none',
+                        opacity: draggingId === c.id ? 0.5 : 1,
+                        transform: esDragOver ? 'scale(1.03)' : 'scale(1)',
+                        position: 'relative',
+                        overflow: 'hidden'
                       }}
                     >
-                      <Star size={12} />
-                    </button>
-                  )}
-                </div>
-              );
-            })}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '2px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                          {esSuperAdmin && (
+                            <GripVertical size={12} style={{ color: 'var(--text-tertiary)', flexShrink: 0, cursor: 'grab' }} />
+                          )}
+                          <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                            {c.tipo === 'caja_chica' ? 'Caja' : 'Banco'}
+                          </span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          {esPred && (
+                            <span title="Predeterminada" style={{ lineHeight: 1, display: 'flex' }}>
+                              <Star size={11} fill="#f59e0b" stroke="#f59e0b" />
+                            </span>
+                          )}
+                          <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: c.activo ? 'var(--success)' : 'var(--danger)' }}></div>
+                        </div>
+                      </div>
+                      <span style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.2 }}>
+                        {c.nombre}
+                      </span>
+                      <span style={{ fontSize: '1rem', color: 'var(--success)', fontWeight: 900, marginTop: '2px' }}>
+                        Bs {fmtMonto(Number(c.saldo_actual) || 0)}
+                      </span>
+                      {esSuperAdmin && !esPred && (
+                        <button
+                          onClick={e => { e.stopPropagation(); marcarPredeterminada(c.id); }}
+                          title="Marcar como predeterminada"
+                          style={{
+                            position: 'absolute', bottom: '4px', right: '6px',
+                            background: 'none', border: 'none', cursor: 'pointer',
+                            color: 'var(--text-tertiary)', padding: '2px', lineHeight: 1
+                          }}
+                        >
+                          <Star size={12} />
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {busqueda && (
+                <button className="cxc-limpiar-busqueda" onClick={() => setBusqueda('')}>✕</button>
+              )}
+              {!isMobile && (
+                <span className="cxc-conteo-resultado" style={{ marginLeft: 'auto' }}>
+                  {movimientosFiltrados.length} mov.
+                </span>
+              )}
+            </div>
           </div>
 
-          {busqueda && (
-            <button className="cxc-limpiar-busqueda" onClick={() => setBusqueda('')}>✕</button>
+          {/* 4. Lista de Movimientos */}
+          {error && (
+            <div className="pc-error" style={{ marginBottom: '1rem' }}>
+              <p>⚠️ {error}</p>
+            </div>
           )}
-          <span className="cxc-conteo-resultado" style={{ marginLeft: 'auto' }}>
-            {movimientosFiltrados.length} mov.
-          </span>
-        </div>
-      </div>
 
-      {/* 4. Lista de Movimientos */}
-      {error && (
-        <div className="pc-error" style={{ marginBottom: '1rem' }}>
-          <p>⚠️ {error}</p>
-        </div>
-      )}
+          {cargando ? (
+            <div className="pc-cargando">
+              <RefreshCw size={32} className="spin" />
+              <p>Cargando movimientos...</p>
+            </div>
+          ) : cajas.length === 0 ? (
+            <div className="arbol-vacio">
+              <Landmark size={40} style={{ marginBottom: '0.75rem', opacity: 0.4 }} />
+              <p>No tienes Cajas ni Bancos configurados en el Plan de Cuentas.</p>
+            </div>
+          ) : (
+            <div className="cajas-tablas-container" style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+              {cajasOrdenadas.filter(c => filtroCuenta === 'todas' || c.id === filtroCuenta).map(caja => {
+                const movsCaja = movimientosFiltrados.filter(m => m.cuenta_id === caja.id);
 
-      {cargando ? (
-        <div className="pc-cargando">
-          <RefreshCw size={32} className="spin" />
-          <p>Cargando movimientos...</p>
-        </div>
-      ) : cajas.length === 0 ? (
-        <div className="arbol-vacio">
-          <Landmark size={40} style={{ marginBottom: '0.75rem', opacity: 0.4 }} />
-          <p>No tienes Cajas ni Bancos configurados en el Plan de Cuentas.</p>
-        </div>
-      ) : (
-        <div className="cajas-tablas-container" style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-          {cajasOrdenadas.filter(c => filtroCuenta === 'todas' || c.id === filtroCuenta).map(caja => {
-            const movsCaja = movimientosFiltrados.filter(m => m.cuenta_id === caja.id);
+                // Si hay búsqueda y esta caja no tiene movimientos coincidentes, la ocultamos para limpiar la UI
+                if (busqueda && movsCaja.length === 0) return null;
 
-            // Si hay búsqueda y esta caja no tiene movimientos coincidentes, la ocultamos para limpiar la UI
-            if (busqueda && movsCaja.length === 0) return null;
-
-            return (
-              <div key={caja.id} className="caja-seccion">
-                <h3 style={{ marginBottom: '1rem', color: 'var(--text-primary)', fontSize: '1.2rem', fontWeight: 700 }}>
-                  <Landmark size={20} style={{ display: 'inline-block', verticalAlign: 'middle', marginRight: '8px', color: 'var(--primary)' }} />
-                  {caja.nombre}
-                </h3>
-                <div className="cxc-tabla-wrapper" style={{ borderRadius: '12px' }}>
-                  <table className="cxc-tabla">
-                    <thead>
-                      <tr>
-                        <th className="cxc-th" style={{ width: '100px' }}>Fecha</th>
-                        <th className="cxc-th" style={{ width: '120px' }}>Documento</th>
-                        <th className="cxc-th" style={{ maxWidth: '280px' }}>Alumno / Proveedor</th>
-                        <th className="cxc-th" style={{ width: '240px' }}>Cuentas</th>
-                        <th className="cxc-th cxc-th-right" style={{ width: '120px' }}>Ingreso</th>
-                        <th className="cxc-th cxc-th-right" style={{ width: '120px' }}>Salida</th>
-                        <th className="cxc-th cxc-th-right" style={{ width: '120px' }}>Saldo</th>
-                        <th className="cxc-th cxc-th-center" style={{ width: '100px' }}>Acciones</th>
-                        <th className="cxc-th cxc-th-center" style={{ width: '100px' }}>Conciliado</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {movsCaja.length === 0 ? (
-                        <tr>
-                          <td colSpan={9} className="cxc-td cxc-td-center cxc-td-meta" style={{ padding: '2rem' }}>
-                            {busqueda ? 'No se encontraron movimientos para esta búsqueda en esta cuenta.' : 'No hay movimientos registrados en esta cuenta.'}
-                          </td>
-                        </tr>
-                      ) : movsCaja.map(mov => {
-                        const esIngreso = mov.debe > 0;
-                        const fechaStr = formatFecha(mov.fecha);
-
-                        
-                        return (
-                          <tr 
-                            key={mov.id} 
-                            className="cxc-tr cxc-tr-clickable"
-                            onClick={() => setMovDetalle(mov)}
-                          >
-                            <td className="cxc-td cxc-td-meta" style={{ whiteSpace: 'nowrap' }}>
-                              {fechaStr}
-                            </td>
-                            <td className="cxc-td cxc-td-meta">
-                              {/* Mostrar nro_transaccion en Documento (Amarillo) */}
-                              {(() => {
-                                if (!mov.nro_transaccion) return null;
-                                const nroTrim = mov.nro_transaccion.trim();
-                                if (!nroTrim) return null;
-                                
-                                const esMetodo = /^(efectivo|transferencia|qr|transferencia bancaria|pago qr)$/i.test(nroTrim);
-                                if (esMetodo) return null;
-
-                                return <div style={{ fontWeight: 400, color: 'var(--text-primary)' }}>{nroTrim}</div>;
-                              })()}
-                            </td>
-                            <td className="cxc-td" style={{ maxWidth: '280px' }}>
-                              {(() => {
-                                const cliente = mov.cliente && mov.cliente !== '—' ? mov.cliente : '';
-                                let desc = mov.descripcion?.trim() || '';
-                                const cuentaTrim = mov.cuenta_nombre?.trim() || '';
-                                
-                                if (desc === cuentaTrim) desc = '';
-                                else if (cuentaTrim && desc.startsWith(cuentaTrim)) {
-                                  desc = desc.substring(cuentaTrim.length).trim().replace(/^[:\-\s,]+/, '').trim();
-                                }
-                                
-                                // Quitar métodos de pago genéricos
-                                desc = desc.replace(/\b(efectivo|transferencia|qr|transferencia bancaria|pago qr)\b/gi, '').replace(/^[:\-\s,]+/, '').trim();
-
-                                return (
-                                  <div style={{ 
-                                    color: 'var(--text-primary)',
-                                    whiteSpace: 'nowrap',
-                                    overflow: 'hidden',
-                                    textOverflow: 'ellipsis',
-                                    display: 'flex',
-                                    alignItems: 'baseline',
-                                    gap: '6px'
-                                  }} title={`${cliente}${desc ? ' - ' + desc : ''}`}>
-                                    <span style={{ fontWeight: 600 }}>{cliente || '—'}</span>
-                                    {desc && (
-                                      <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontWeight: 400 }}>
-                                        - {desc}
-                                      </span>
-                                    )}
-                                  </div>
-                                );
-                              })()}
-                            </td>
-                            <td className="cxc-td cxc-td-meta">
-                              <div style={{ fontWeight: 400, color: 'var(--text-primary)', fontSize: '0.9rem' }}>
-                                {mov.cuenta_nombre}
-                              </div>
-                            </td>
-                            <td className="cxc-td cxc-td-right">
-                              {esIngreso ? (
-                                <span style={{ color: 'var(--success)', fontWeight: 600 }}>
-                                  +{fmtMonto(mov.debe)}
-                                </span>
-                              ) : (
-                                <span className="cxc-td-dash">—</span>
-                              )}
-                            </td>
-                            <td className="cxc-td cxc-td-right">
-                              {!esIngreso ? (
-                                <span style={{ color: 'var(--danger)', fontWeight: 600 }}>
-                                  -{fmtMonto(mov.haber)}
-                                </span>
-                              ) : (
-                                <span className="cxc-td-dash">—</span>
-                              )}
-                            </td>
-                            <td className="cxc-td cxc-td-right">
-                              <span style={{ fontWeight: 700, color: (mov as any).saldo_historico >= 0 ? 'var(--text-primary)' : 'var(--danger)' }}>
-                                {fmtMonto((mov as any).saldo_historico || 0)}
-                              </span>
-                            </td>
-                            <td className="cxc-td cxc-td-center">
-                              {!mov.conciliado && (
-                                <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
-                                  <button
-                                    onClick={(e) => { e.stopPropagation(); setMovEditar(mov); }}
-                                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--secondary)' }}
-                                    title="Editar movimiento"
-                                  >
-                                    <Pencil size={15} />
-                                  </button>
-                                  {/* Solo SuperAdministrador puede eliminar transacciones */}
-                                  {puedeEliminar && (
-                                    <button
-                                      onClick={async (e) => { 
-                                        e.stopPropagation(); 
-                                        if (window.confirm("¿Eliminar esta transacción definitivamente?")) {
-                                        try {
-                                            const isGrouped = (mov as any).is_grouped;
-                                            if (isGrouped) {
-                                              const tablaApl = mov.tipo_origen === 'cobro' ? 'cobros_aplicados' : 'pagos_aplicados';
-                                              const ids = (mov as any).original_ids || [];
-                                              for (const id of ids) {
-                                                await supabase.from(tablaApl).delete().eq('id', id);
-                                              }
-                                            } else {
-                                              const tablaMaestra = mov.tipo_origen === 'cobro' ? 'cuentas_cobrar' : 'cuentas_pagar';
-                                              if (mov.cuenta_maestra_id) {
-                                                const { error: errDel } = await supabase.from(tablaMaestra).delete().eq('id', mov.cuenta_maestra_id);
-                                                if (errDel) throw errDel;
-                                              } else {
-                                                const tablaApl = mov.tipo_origen === 'cobro' ? 'cobros_aplicados' : 'pagos_aplicados';
-                                                const { error: errDel } = await supabase.from(tablaApl).delete().eq('id', mov.id);
-                                                if (errDel) throw errDel;
-                                              }
-                                            }
-                                            manejarActualizacion();
-                                          } catch (err: any) {
-                                            console.error("Error al eliminar:", err);
-                                            alert("No se pudo eliminar la transacción: " + (err.message || "Error desconocido"));
-                                          }
-                                        }
-                                      }}
-                                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--danger)' }}
-                                      title="Eliminar movimiento"
-                                    >
-                                      <Trash2 size={15} />
-                                    </button>
-                                  )}
-                                </div>
-                              )}
-                            </td>
-                            <td className="cxc-td cxc-td-center">
-                              <button 
-                                onClick={(e) => { 
-                                  e.stopPropagation(); 
-                                  if (esSuperAdmin) toggleConciliar(mov); 
-                                }}
-                                style={{ 
-                                  background: 'none', border: 'none', 
-                                  cursor: esSuperAdmin ? 'pointer' : 'default', 
-                                  color: mov.conciliado ? 'var(--success)' : 'var(--text-tertiary)',
-                                  opacity: esSuperAdmin ? 1 : 0.6
-                                }}
-                                title={mov.conciliado ? "Conciliado" : (esSuperAdmin ? "Marcar como conciliado" : "Solo el super admin puede conciliar")}
-                                disabled={!esSuperAdmin}
-                              >
-                                {mov.conciliado ? <CheckSquare size={18} /> : <Square size={18} />}
-                              </button>
-                            </td>
+                return (
+                  <div key={caja.id} className="caja-seccion">
+                    <h3 style={{ marginBottom: '1rem', color: 'var(--text-primary)', fontSize: '1.2rem', fontWeight: 700 }}>
+                      <Landmark size={20} style={{ display: 'inline-block', verticalAlign: 'middle', marginRight: '8px', color: 'var(--primary)' }} />
+                      {caja.nombre}
+                    </h3>
+                    <div className="cxc-tabla-wrapper" style={{ borderRadius: '12px', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+                      <table className="cxc-tabla" style={{ minWidth: isMobile ? '600px' : 'auto' }}>
+                        <thead>
+                          <tr>
+                            <th className="cxc-th" style={{ width: '100px' }}>Fecha</th>
+                            {!isMobile && <th className="cxc-th" style={{ width: '120px' }}>Documento</th>}
+                            <th className="cxc-th" style={{ maxWidth: '280px' }}>Alumno / Proveedor</th>
+                            {!isMobile && <th className="cxc-th" style={{ width: '240px' }}>Cuentas</th>}
+                            <th className="cxc-th cxc-th-right" style={{ width: '120px' }}>Ingreso</th>
+                            <th className="cxc-th cxc-th-right" style={{ width: '120px' }}>Salida</th>
+                            <th className="cxc-th cxc-th-right" style={{ width: '120px' }}>Saldo</th>
+                            {!isMobile && <th className="cxc-th cxc-th-center" style={{ width: '100px' }}>Acciones</th>}
+                            {!isMobile && <th className="cxc-th cxc-th-center" style={{ width: '100px' }}>Conciliado</th>}
                           </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            );
-          })}
-        </div>
+                        </thead>
+                        <tbody>
+                          {movsCaja.length === 0 ? (
+                            <tr>
+                              <td colSpan={isMobile ? 5 : 9} className="cxc-td cxc-td-center cxc-td-meta" style={{ padding: '2rem' }}>
+                                {busqueda ? 'No se encontraron movimientos para esta búsqueda en esta cuenta.' : 'No hay movimientos registrados en esta cuenta.'}
+                              </td>
+                            </tr>
+                          ) : movsCaja.map(mov => {
+                            const esIngreso = mov.debe > 0;
+                            const fechaStr = formatFecha(mov.fecha);
+
+                            return (
+                              <tr 
+                                key={mov.id} 
+                                className="cxc-tr cxc-tr-clickable"
+                                onClick={() => setMovDetalle(mov)}
+                              >
+                                <td className="cxc-td cxc-td-meta" style={{ whiteSpace: 'nowrap' }}>
+                                  {fechaStr}
+                                </td>
+                                {!isMobile && (
+                                  <td className="cxc-td cxc-td-meta">
+                                    {/* Mostrar nro_transaccion en Documento (Amarillo) */}
+                                    {(() => {
+                                      if (!mov.nro_transaccion) return null;
+                                      const nroTrim = mov.nro_transaccion.trim();
+                                      if (!nroTrim) return null;
+                                      
+                                      const esMetodo = /^(efectivo|transferencia|qr|transferencia bancaria|pago qr)$/i.test(nroTrim);
+                                      if (esMetodo) return null;
+
+                                      return <div style={{ fontWeight: 400, color: 'var(--text-primary)' }}>{nroTrim}</div>;
+                                    })()}
+                                  </td>
+                                )}
+                                <td className="cxc-td" style={{ maxWidth: '280px' }}>
+                                  {(() => {
+                                    const cliente = mov.cliente && mov.cliente !== '—' ? mov.cliente : '';
+                                    let desc = mov.descripcion?.trim() || '';
+                                    const cuentaTrim = mov.cuenta_nombre?.trim() || '';
+                                    
+                                    if (desc === cuentaTrim) desc = '';
+                                    else if (cuentaTrim && desc.startsWith(cuentaTrim)) {
+                                      desc = desc.substring(cuentaTrim.length).trim().replace(/^[:\-\s,]+/, '').trim();
+                                    }
+                                    
+                                    // Quitar métodos de pago genéricos
+                                    desc = desc.replace(/\b(efectivo|transferencia|qr|transferencia bancaria|pago qr)\b/gi, '').replace(/^[:\-\s,]+/, '').trim();
+
+                                    return (
+                                      <div style={{ 
+                                        color: 'var(--text-primary)',
+                                        whiteSpace: 'nowrap',
+                                        overflow: 'hidden',
+                                        textOverflow: 'ellipsis',
+                                        display: 'flex',
+                                        alignItems: 'baseline',
+                                        gap: '6px'
+                                      }} title={`${cliente}${desc ? ' - ' + desc : ''}`}>
+                                        <span style={{ fontWeight: 600 }}>{cliente || '—'}</span>
+                                        {desc && (
+                                          <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontWeight: 400 }}>
+                                            - {desc}
+                                          </span>
+                                        )}
+                                      </div>
+                                    );
+                                  })()}
+                                </td>
+                                {!isMobile && (
+                                  <td className="cxc-td cxc-td-meta">
+                                    <div style={{ fontWeight: 400, color: 'var(--text-primary)', fontSize: '0.9rem' }}>
+                                      {mov.cuenta_nombre}
+                                    </div>
+                                  </td>
+                                )}
+                                <td className="cxc-td cxc-td-right">
+                                  {esIngreso ? (
+                                    <span style={{ color: 'var(--success)', fontWeight: 600 }}>
+                                      +{fmtMonto(mov.debe)}
+                                    </span>
+                                  ) : (
+                                    <span className="cxc-td-dash">—</span>
+                                  )}
+                                </td>
+                                <td className="cxc-td cxc-td-right">
+                                  {!esIngreso ? (
+                                    <span style={{ color: 'var(--danger)', fontWeight: 600 }}>
+                                      -{fmtMonto(mov.haber)}
+                                    </span>
+                                  ) : (
+                                    <span className="cxc-td-dash">—</span>
+                                  )}
+                                </td>
+                                <td className="cxc-td cxc-td-right">
+                                  <span style={{ fontWeight: 700, color: (mov as any).saldo_historico >= 0 ? 'var(--text-primary)' : 'var(--danger)' }}>
+                                    {fmtMonto((mov as any).saldo_historico || 0)}
+                                  </span>
+                                </td>
+                                {!isMobile && (
+                                  <td className="cxc-td cxc-td-center">
+                                    {!mov.conciliado && (
+                                      <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
+                                        <button
+                                          onClick={(e) => { e.stopPropagation(); setMovEditar(mov); }}
+                                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--secondary)' }}
+                                          title="Editar movimiento"
+                                        >
+                                          <Pencil size={15} />
+                                        </button>
+                                        {/* Solo SuperAdministrador puede eliminar transacciones */}
+                                        {puedeEliminar && (
+                                          <button
+                                            onClick={async (e) => { 
+                                              e.stopPropagation(); 
+                                              if (window.confirm("¿Eliminar esta transacción definitivamente?")) {
+                                              try {
+                                                  const isGrouped = (mov as any).is_grouped;
+                                                  if (isGrouped) {
+                                                    const tablaApl = mov.tipo_origen === 'cobro' ? 'cobros_aplicados' : 'pagos_aplicados';
+                                                    const ids = (mov as any).original_ids || [];
+                                                    for (const id of ids) {
+                                                      await supabase.from(tablaApl).delete().eq('id', id);
+                                                    }
+                                                  } else {
+                                                    const tablaMaestra = mov.tipo_origen === 'cobro' ? 'cuentas_cobrar' : 'cuentas_pagar';
+                                                    if (mov.cuenta_maestra_id) {
+                                                      const { error: errDel } = await supabase.from(tablaMaestra).delete().eq('id', mov.cuenta_maestra_id);
+                                                      if (errDel) throw errDel;
+                                                    } else {
+                                                      const tablaApl = mov.tipo_origen === 'cobro' ? 'cobros_aplicados' : 'pagos_aplicados';
+                                                      const { error: errDel } = await supabase.from(tablaApl).delete().eq('id', mov.id);
+                                                      if (errDel) throw errDel;
+                                                    }
+                                                  }
+                                                  manejarActualizacion();
+                                                } catch (err: any) {
+                                                  console.error("Error al eliminar:", err);
+                                                  alert("No se pudo eliminar la transacción: " + (err.message || "Error desconocido"));
+                                                }
+                                              }
+                                            }}
+                                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--danger)' }}
+                                            title="Eliminar movimiento"
+                                          >
+                                            <Trash2 size={15} />
+                                          </button>
+                                        )}
+                                      </div>
+                                    )}
+                                  </td>
+                                )}
+                                {!isMobile && (
+                                  <td className="cxc-td cxc-td-center">
+                                    <button 
+                                      onClick={(e) => { 
+                                        e.stopPropagation(); 
+                                        if (esSuperAdmin) toggleConciliar(mov); 
+                                      }}
+                                      style={{ 
+                                        background: 'none', border: 'none', 
+                                        cursor: esSuperAdmin ? 'pointer' : 'default', 
+                                        color: mov.conciliado ? 'var(--success)' : 'var(--text-tertiary)',
+                                        opacity: esSuperAdmin ? 1 : 0.6
+                                      }}
+                                      title={mov.conciliado ? "Conciliado" : (esSuperAdmin ? "Marcar como conciliado" : "Solo el super admin puede conciliar")}
+                                      disabled={!esSuperAdmin}
+                                    >
+                                      {mov.conciliado ? <CheckSquare size={18} /> : <Square size={18} />}
+                                    </button>
+                                  </td>
+                                )}
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </>
       )}
 
       {/* Modales */}

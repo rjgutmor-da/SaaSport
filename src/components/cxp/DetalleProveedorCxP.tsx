@@ -12,7 +12,8 @@ import {
   FileText, TrendingDown, Edit2, Wallet, Eye,
   User, Clock, Plus
 } from 'lucide-react';
-import { formatFecha } from '../../lib/dateUtils';
+import { formatFecha, getHoyISO, getHoraLocal } from '../../lib/dateUtils';
+import { usePagoMultiple } from './usePagoMultiple';
 import NotaPago from './NotaPago';
 import DetalleCxP from './DetalleCxP';
 import ModalVerNotaCxP from './ModalVerNotaCxP';
@@ -57,6 +58,25 @@ const DetalleProveedorCxP: React.FC<Props> = ({ entidad, visible, onCerrar, onAc
   const [verNotaId, setVerNotaId] = useState<string | null>(null);
   const [detallesItems, setDetallesItems] = useState<Record<string, any[]>>({});
   const [historialPagos, setHistorialPagos] = useState<Record<string, any[]>>({});
+
+  // Pago Múltiple
+  const [isMobile, setIsMobile] = useState(false);
+  const [cajasBancos, setCajasBancos] = useState<any[]>([]);
+  const [pagoCxpId, setPagoCxpId] = useState<string | null>(null);
+  const [pagoCuentaId, setPagoCuentaId] = useState('');
+  const [pagoNroDoc, setPagoNroDoc] = useState('');
+  const [pagoFecha, setPagoFecha] = useState('');
+  const [guardandoPago, setGuardandoPago] = useState(false);
+  const [pagoError, setPagoError] = useState<string | null>(null);
+
+  const pagoMultiple = usePagoMultiple(notas);
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   /** Carga las notas del proveedor/personal */
   const cargarNotas = async () => {
@@ -145,8 +165,89 @@ const DetalleProveedorCxP: React.FC<Props> = ({ entidad, visible, onCerrar, onAc
     }
   };
 
+  const cargarCajasBancos = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data: usr } = await supabase.from('usuarios')
+        .select('escuela_id').eq('id', user.id).single();
+      if (!usr) return;
+
+      const { data } = await supabase
+        .from('cajas_bancos')
+        .select('id, nombre')
+        .eq('escuela_id', usr.escuela_id)
+        .eq('activo', true)
+        .order('nombre');
+
+      setCajasBancos(data ?? []);
+    } catch (err) {
+      console.error('Error al cargar cajas/bancos:', err);
+    }
+  };
+
+  const registrarPagoMultiple = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!entidad) return;
+    setPagoError(null);
+
+    const totalAPagar = pagoMultiple.obtenerTotalPagado();
+    if (totalAPagar <= 0) {
+      setPagoError('El monto total a pagar debe ser mayor a 0.');
+      return;
+    }
+
+    if (!pagoCuentaId) {
+      setPagoError('Selecciona la caja/banco de salida.');
+      return;
+    }
+
+    setGuardandoPago(true);
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Usuario no autenticado.');
+
+      const { data: usr } = await supabase
+        .from('usuarios')
+        .select('id, escuela_id, sucursal_id')
+        .eq('id', user.id)
+        .single();
+      if (!usr) throw new Error('Error al obtener contexto del usuario.');
+
+      const pagosPayload = pagoMultiple.generarPayloadPagos();
+
+      const { error: errRpc } = await supabase.rpc('rpc_pagar_multiple_cxp', {
+        p_payload: {
+          escuela_id: usr.escuela_id,
+          sucursal_id: usr.sucursal_id,
+          usuario_id: usr.id,
+          cuenta_pago_id: pagoCuentaId,
+          fecha: `${pagoFecha || getHoyISO()}T${getHoraLocal()}:00`,
+          nro_comprobante: pagoNroDoc.trim() || null,
+          pagos: pagosPayload
+        }
+      });
+
+      if (errRpc) throw errRpc;
+
+      setPagoCxpId(null);
+      cargarNotas();
+      onActualizar();
+    } catch (err: any) {
+      console.error(err);
+      setPagoError(err.message || 'Error al registrar el pago múltiple.');
+    } finally {
+      setGuardandoPago(false);
+    }
+  };
+
   useEffect(() => {
-    if (visible && entidad) cargarNotas();
+    if (visible && entidad) {
+      cargarNotas();
+      cargarCajasBancos();
+      setPagoCxpId(null);
+    }
   }, [visible, entidad]);
 
   /** Notas filtradas por estado */
@@ -209,6 +310,25 @@ const DetalleProveedorCxP: React.FC<Props> = ({ entidad, visible, onCerrar, onAc
           </div>
 
           <div style={{ display: 'flex', gap: '0.85rem', alignItems: 'center' }}>
+            {stats.montoPendiente > 0 && (
+              <button 
+                onClick={() => {
+                  setPagoCxpId('TODO');
+                  pagoMultiple.inicializar();
+                  setPagoFecha(getHoyISO());
+                  setPagoCuentaId('');
+                  setPagoNroDoc('');
+                  setPagoError(null);
+                }}
+                className="btn-premium"
+                style={{ 
+                  padding: '0.75rem 1.25rem', display: 'flex', alignItems: 'center', gap: '0.6rem', 
+                  fontWeight: 700, background: '#10b981', borderRadius: '10px'
+                }}
+              >
+                <DollarSign size={18} /> PAGAR
+              </button>
+            )}
             <button 
               onClick={() => { setMostrarNuevaNota(true); setModoAnticipo(false); }}
               className="btn-premium"
@@ -282,88 +402,272 @@ const DetalleProveedorCxP: React.FC<Props> = ({ entidad, visible, onCerrar, onAc
           </div>
         </div>
 
+        {/* Mobile Multi-Payment Form Panel */}
+        {isMobile && pagoCxpId === 'TODO' && (
+          <div style={{ padding: '1rem', background: 'rgba(16, 185, 129, 0.02)', borderBottom: '1px solid rgba(16, 185, 129, 0.2)', borderTop: '1px solid var(--border)' }}>
+            <form onSubmit={registrarPagoMultiple}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                  <span style={{ fontWeight: 800, color: '#10b981', fontSize: '0.85rem' }}>PAGO MÚLTIPLE (SALIDA)</span>
+                  <span style={{ fontWeight: 800, color: '#10b981', fontSize: '1.05rem', background: 'rgba(16, 185, 129, 0.1)', padding: '0.35rem 0.75rem', borderRadius: '6px', textAlign: 'center' }}>
+                    Total a Pagar: Bs {fmtMonto(pagoMultiple.obtenerTotalPagado())}
+                  </span>
+                </div>
+                <select value={pagoCuentaId} onChange={e => setPagoCuentaId(e.target.value)} required className="detalle-cobro-select" style={{ width: '100%' }}>
+                  <option value="">Origen Caja/Banco *</option>
+                  {cajasBancos.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                </select>
+                <input type="text" value={pagoNroDoc} onChange={e => setPagoNroDoc(e.target.value)} placeholder="Nro Transacción" style={{ width: '100%' }} className="detalle-cobro-input" />
+                <input type="date" value={pagoFecha} onChange={e => setPagoFecha(e.target.value)} className="detalle-cobro-input" style={{ width: '100%' }} />
+                
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', background: 'var(--bg-main)', padding: '0.5rem', borderRadius: '6px', border: '1px solid var(--border)', maxHeight: '150px', overflowY: 'auto' }}>
+                  {notas.filter(n => !(n as any).anulada && n.estado !== 'pagada' && !n.es_anticipo).map(nota => {
+                    const seleccionado = !!pagoMultiple.seleccionados[nota.id];
+                    const montoCxp = pagoMultiple.montos[nota.id] || '';
+                    return (
+                      <div key={nota.id} style={{ display: 'flex', alignItems: 'center', justifySelf: 'stretch', justifyContent: 'space-between', padding: '0.4rem 0.6rem', background: 'var(--bg-card)', border: seleccionado ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid var(--border)', borderRadius: '6px', opacity: seleccionado ? 1 : 0.65 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <input 
+                            type="checkbox" 
+                            checked={seleccionado} 
+                            onChange={() => pagoMultiple.toggleSeleccion(nota.id, nota.deuda_restante)}
+                            style={{ width: '16px', height: '16px', cursor: 'pointer', accentColor: '#10b981' }}
+                          />
+                          <div style={{ display: 'flex', flexDirection: 'column' }}>
+                            <span style={{ fontWeight: 700, fontSize: '0.7rem', color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '120px' }}>
+                              {nota.descripcion || 'Nota'}
+                            </span>
+                            <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)' }}>
+                              Saldo: <strong style={{ color: '#38bdf8' }}>Bs {fmtMonto(nota.deuda_restante)}</strong>
+                            </span>
+                          </div>
+                        </div>
+                        {seleccionado && (
+                          <input 
+                            type="number" 
+                            step="0.01"
+                            min="0"
+                            max={nota.deuda_restante}
+                            value={montoCxp}
+                            onChange={(e) => pagoMultiple.cambiarMonto(nota.id, e.target.value, nota.deuda_restante)}
+                            placeholder="0.00"
+                            style={{ 
+                              width: '75px', 
+                              padding: '0.2rem 0.3rem', 
+                              borderRadius: '4px', 
+                              border: '1px solid var(--border)', 
+                              background: 'var(--bg-main)', 
+                              color: 'var(--text-primary)', 
+                              fontWeight: 700,
+                              fontSize: '0.75rem',
+                              textAlign: 'right'
+                            }}
+                          />
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {pagoError && <p style={{ color: '#f87171', fontSize: '0.75rem', margin: 0 }}>{pagoError}</p>}
+                
+                <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.25rem' }}>
+                  <button type="submit" disabled={guardandoPago || pagoMultiple.obtenerTotalPagado() <= 0} className="btn-guardar-cuenta" style={{ flex: 1, padding: '0.5rem', background: '#10b981', fontWeight: 700, fontSize: '0.8rem' }}>
+                    {guardandoPago ? '...' : 'Registrar Pago'}
+                  </button>
+                  <button type="button" onClick={() => setPagoCxpId(null)} className="btn-refrescar" style={{ padding: '0.5rem', fontSize: '0.8rem' }}>Cancelar</button>
+                </div>
+              </div>
+            </form>
+          </div>
+        )}
+
         {/* ── Lista de notas estilo Excel ── */}
         <div className="detalle-cxc-lista" style={{ padding: '0 1rem 1rem 1rem', overflowY: 'auto', maxHeight: '55vh' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
-            <thead>
-              <tr style={{ background: 'var(--bg-table-header)', color: 'var(--text-table-header)' }}>
-                <th style={{ padding: '0.6rem 0.75rem', border: '1px solid var(--border)', textAlign: 'left', fontSize: '0.7rem', fontWeight: 800 }}>CONCEPTO / DETALLE</th>
-                <th style={{ padding: '0.6rem 0.75rem', border: '1px solid var(--border)', textAlign: 'center', width: '120px', fontSize: '0.7rem', fontWeight: 800 }}>FECHA</th>
-                <th style={{ padding: '0.6rem 0.75rem', border: '1px solid var(--border)', textAlign: 'center', width: '120px', fontSize: '0.7rem', fontWeight: 800 }}>ESTADO</th>
-                <th style={{ padding: '0.6rem 0.75rem', border: '1px solid var(--border)', textAlign: 'right', width: '130px', fontSize: '0.7rem', fontWeight: 800 }}>TOTAL</th>
-                <th style={{ padding: '0.6rem 0.75rem', border: '1px solid var(--border)', textAlign: 'right', width: '130px', fontSize: '0.7rem', fontWeight: 800 }}>ABONADO</th>
-                <th style={{ padding: '0.6rem 0.75rem', border: '1px solid var(--border)', textAlign: 'right', width: '130px', fontSize: '0.7rem', fontWeight: 800 }}>SALDO</th>
-                <th style={{ padding: '0.6rem 0.75rem', border: '1px solid var(--border)', textAlign: 'left', width: '100px', fontSize: '0.7rem', fontWeight: 800 }}>ULT. PAGO</th>
-                <th style={{ padding: '0.6rem 0.75rem', border: '1px solid var(--border)', textAlign: 'center', width: '140px', fontSize: '0.7rem', fontWeight: 800 }}>ACCIONES</th>
-              </tr>
-            </thead>
-            <tbody>
+          {isMobile ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
               {notasFiltradas.map(nota => {
                 const isAnticipo = (nota as any).es_anticipo;
                 const badge = isAnticipo 
                   ? { label: 'Anticipo', color: '#a855f7', bg: 'rgba(168,85,247,0.15)' }
                   : (BADGE_ESTADOS[nota.estado] ?? BADGE_ESTADOS.pendiente);
                 const tieneSaldo = nota.deuda_restante > 0;
-                const itemsDeLaNota = detallesItems[nota.id] || [];
-                const ultimoPago = historialPagos[nota.id]?.[0];
                 
                 return (
-                  <tr key={nota.id} style={{ borderBottom: '1px solid var(--border)' }}>
-                    <td style={{ padding: '0.5rem 0.75rem', verticalAlign: 'middle', border: '1px solid var(--border)' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
-                        <div style={{ fontWeight: 700, color: 'var(--text-primary)' }}>
-                          {nota.descripcion || 'Sin descripción'}
-                          {isAnticipo && <span style={{ color: '#a855f7', marginLeft: '0.4rem', fontSize: '0.7rem', background: 'rgba(168,85,247,0.1)', padding: '2px 6px', borderRadius: '4px' }}>ANTICIPO</span>}
-                        </div>
-                        {!isAnticipo && itemsDeLaNota.length > 0 && (
-                          <div style={{ display: 'flex', gap: '0.25rem', flexWrap: 'wrap' }}>
-                            {itemsDeLaNota.map((item: any, i: number) => (
-                              <span key={i} style={{ fontSize: '0.65rem', padding: '1px 6px', borderRadius: '4px', background: 'rgba(245,158,11,0.15)', color: '#fbbf24' }}>
-                                {item.item_nombre}
-                              </span>
-                            ))}
-                          </div>
-                        )}
-                        {(nota as any).observaciones && (
-                          <span style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', fontStyle: 'italic', borderLeft: '1px solid var(--border)', paddingLeft: '0.6rem', marginLeft: '0.2rem' }}>
-                            {(nota as any).observaciones}
-                          </span>
-                        )}
-                      </div>
-                    </td>
-                    <td style={{ padding: '0.5rem 0.75rem', textAlign: 'center', border: '1px solid var(--border)', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                      {fmtFecha(nota.fecha_emision || nota.created_at)}
-                    </td>
-                    <td style={{ padding: '0.5rem 0.75rem', textAlign: 'center', border: '1px solid var(--border)' }}>
-                      <span style={{ background: badge.bg, color: badge.color, borderRadius: '4px', padding: '2px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase' }}>
+                  <div key={nota.id} style={{ background: 'var(--bg-card)', padding: '0.85rem', borderRadius: '8px', border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontWeight: 800, color: 'var(--text-primary)', fontSize: '0.85rem' }}>
+                        {nota.descripcion || 'Sin descripción'}
+                      </span>
+                      <span style={{ background: badge.bg, color: badge.color, borderRadius: '4px', padding: '1px 6px', fontSize: '0.65rem', fontWeight: 700, textTransform: 'uppercase' }}>
                         {badge.label}
                       </span>
-                    </td>
-                    <td style={{ padding: '0.5rem 0.75rem', textAlign: 'right', border: '1px solid var(--border)', fontWeight: 600 }}>
-                      Bs {fmtMonto(isAnticipo ? 0 : nota.monto_total)}
-                    </td>
-                    <td style={{ padding: '0.5rem 0.75rem', textAlign: 'right', border: '1px solid var(--border)', color: '#4ade80', fontWeight: 600 }}>
-                      Bs {fmtMonto(isAnticipo ? nota.monto_pagado : (Number(nota.monto_total) - Number(nota.deuda_restante)))}
-                    </td>
-                    <td style={{ padding: '0.5rem 0.75rem', textAlign: 'right', border: '1px solid var(--border)', fontWeight: 700, color: isAnticipo ? '#a855f7' : (tieneSaldo ? '#38bdf8' : '#4ade80') }}>
-                      {isAnticipo ? '-' : ''} Bs {fmtMonto(nota.deuda_restante)}
-                    </td>
-                    <td style={{ padding: '0.5rem 0.75rem', border: '1px solid var(--border)', fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>
-                      {ultimoPago ? fmtFecha(ultimoPago.fecha) : '—'}
-                    </td>
-                    <td style={{ padding: '0.5rem 0.75rem', textAlign: 'center', border: '1px solid var(--border)' }}>
-                      <div style={{ display: 'flex', gap: '0.4rem', justifyContent: 'center' }}>
-                        <button className="btn-compact-action" onClick={() => setVerNotaId(nota.id)} title="Ver documento"><Eye size={14}/></button>
-                        <button className="btn-compact-action action-green" onClick={() => setNotaSeleccionada({...nota})} title="Pagar/Editar"><CreditCard size={14}/></button>
-                        <button className="btn-compact-action action-red" onClick={() => handleAnularNota(nota.id)} title="Anular"><X size={14}/></button>
-                      </div>
-
-                    </td>
-                  </tr>
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.4rem', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                      <div>Fecha: <strong>{fmtFecha(nota.fecha_emision || nota.created_at)}</strong></div>
+                      <div style={{ textAlign: 'right' }}>Total: <strong>Bs {fmtMonto(isAnticipo ? 0 : nota.monto_total)}</strong></div>
+                      <div>Abonado: <strong style={{ color: '#4ade80' }}>Bs {fmtMonto(isAnticipo ? nota.monto_pagado : (Number(nota.monto_total) - Number(nota.deuda_restante)))}</strong></div>
+                      <div style={{ textAlign: 'right' }}>Saldo: <strong style={{ color: isAnticipo ? '#a855f7' : (tieneSaldo ? '#38bdf8' : '#4ade80') }}>Bs {fmtMonto(nota.deuda_restante)}</strong></div>
+                    </div>
+                    <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end', marginTop: '0.25rem', paddingTop: '0.5rem', borderTop: '1px solid var(--border)' }}>
+                      <button className="btn-compact-action" style={{ padding: '0.25rem 0.5rem' }} onClick={() => setVerNotaId(nota.id)}><Eye size={12}/> Ver</button>
+                      <button className="btn-compact-action action-green" style={{ padding: '0.25rem 0.5rem' }} onClick={() => setNotaSeleccionada({...nota})}><CreditCard size={12}/> Pagar</button>
+                      <button className="btn-compact-action action-red" style={{ padding: '0.25rem 0.5rem' }} onClick={() => handleAnularNota(nota.id)}><X size={12}/> Anular</button>
+                    </div>
+                  </div>
                 );
               })}
-            </tbody>
-          </table>
+            </div>
+          ) : (
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
+              <thead>
+                <tr style={{ background: 'var(--bg-table-header)', color: 'var(--text-table-header)' }}>
+                  <th style={{ padding: '0.6rem 0.75rem', border: '1px solid var(--border)', textAlign: 'left', fontSize: '0.7rem', fontWeight: 800 }}>CONCEPTO / DETALLE</th>
+                  <th style={{ padding: '0.6rem 0.75rem', border: '1px solid var(--border)', textAlign: 'center', width: '120px', fontSize: '0.7rem', fontWeight: 800 }}>FECHA</th>
+                  <th style={{ padding: '0.6rem 0.75rem', border: '1px solid var(--border)', textAlign: 'center', width: '120px', fontSize: '0.7rem', fontWeight: 800 }}>ESTADO</th>
+                  <th style={{ padding: '0.6rem 0.75rem', border: '1px solid var(--border)', textAlign: 'right', width: '130px', fontSize: '0.7rem', fontWeight: 800 }}>TOTAL</th>
+                  <th style={{ padding: '0.6rem 0.75rem', border: '1px solid var(--border)', textAlign: 'right', width: '130px', fontSize: '0.7rem', fontWeight: 800 }}>ABONADO</th>
+                  <th style={{ padding: '0.6rem 0.75rem', border: '1px solid var(--border)', textAlign: 'right', width: '130px', fontSize: '0.7rem', fontWeight: 800 }}>SALDO</th>
+                  <th style={{ padding: '0.6rem 0.75rem', border: '1px solid var(--border)', textAlign: 'left', width: '100px', fontSize: '0.7rem', fontWeight: 800 }}>ULT. PAGO</th>
+                  <th style={{ padding: '0.6rem 0.75rem', border: '1px solid var(--border)', textAlign: 'center', width: '140px', fontSize: '0.7rem', fontWeight: 800 }}>ACCIONES</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pagoCxpId === 'TODO' && (
+                  <tr>
+                    <td colSpan={8} style={{ padding: '1.25rem', background: 'rgba(16, 185, 129, 0.02)', borderBottom: '1px solid rgba(16, 185, 129, 0.2)' }}>
+                      <form onSubmit={registrarPagoMultiple}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                              <span style={{ fontWeight: 800, color: '#10b981', fontSize: '0.95rem' }}>PAGO MÚLTIPLE DE DEUDA</span>
+                              <span style={{ fontWeight: 800, color: '#10b981', fontSize: '1.1rem', background: 'rgba(16, 185, 129, 0.1)', padding: '0.35rem 0.75rem', borderRadius: '6px' }}>
+                                Total a Pagar: Bs {fmtMonto(pagoMultiple.obtenerTotalPagado())}
+                              </span>
+                            </div>
+                            <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+                              <select value={pagoCuentaId} onChange={e => setPagoCuentaId(e.target.value)} required className="detalle-cobro-select" style={{ width: '220px' }}>
+                                <option value="">Origen Caja/Banco *</option>
+                                {cajasBancos.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                              </select>
+                              <input type="text" value={pagoNroDoc} onChange={e => setPagoNroDoc(e.target.value)} placeholder="Nro Transacción" style={{ width: '130px' }} className="detalle-cobro-input" />
+                              <input type="date" value={pagoFecha} onChange={e => setPagoFecha(e.target.value)} className="detalle-cobro-input" style={{ width: '160px' }} />
+                              <button type="submit" disabled={guardandoPago || pagoMultiple.obtenerTotalPagado() <= 0} className="btn-guardar-cuenta" style={{ width: 'auto', padding: '0.55rem 1.25rem', background: '#10b981', fontWeight: 700 }}>
+                                {guardandoPago ? '...' : 'Registrar Pago'}
+                              </button>
+                              <button type="button" onClick={() => setPagoCxpId(null)} className="btn-refrescar" style={{ width: 'auto', padding: '0.55rem 1rem' }}>Cancelar</button>
+                            </div>
+                          </div>
+
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '0.75rem', background: 'var(--bg-main)', padding: '0.75rem', borderRadius: '8px', border: '1px solid var(--border)', maxHeight: '180px', overflowY: 'auto' }}>
+                            {notas.filter(n => !(n as any).anulada && n.estado !== 'pagada' && !n.es_anticipo).map(nota => {
+                              const seleccionado = !!pagoMultiple.seleccionados[nota.id];
+                              const montoCxp = pagoMultiple.montos[nota.id] || '';
+                              return (
+                                <div key={nota.id} style={{ display: 'flex', alignItems: 'center', justifySelf: 'stretch', justifyContent: 'space-between', padding: '0.5rem 0.75rem', background: 'var(--bg-card)', border: seleccionado ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid var(--border)', borderRadius: '6px', opacity: seleccionado ? 1 : 0.65, transition: 'all 0.2s' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                                    <input 
+                                      type="checkbox" 
+                                      checked={seleccionado} 
+                                      onChange={() => pagoMultiple.toggleSeleccion(nota.id, nota.deuda_restante)}
+                                      style={{ width: '17px', height: '17px', cursor: 'pointer', accentColor: '#10b981' }}
+                                    />
+                                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                      <span style={{ fontWeight: 700, fontSize: '0.75rem', color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '150px' }}>
+                                        {nota.descripcion || 'Nota'}
+                                      </span>
+                                      <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>
+                                        Saldo: <strong style={{ color: '#38bdf8' }}>Bs {fmtMonto(nota.deuda_restante)}</strong>
+                                      </span>
+                                    </div>
+                                  </div>
+                                  {seleccionado && (
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                                      <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>Monto:</span>
+                                      <input 
+                                        type="number" 
+                                        step="0.01"
+                                        min="0"
+                                        max={nota.deuda_restante}
+                                        value={montoCxp}
+                                        onChange={(e) => pagoMultiple.cambiarMonto(nota.id, e.target.value, nota.deuda_restante)}
+                                        placeholder="0.00"
+                                        style={{ 
+                                          width: '85px', 
+                                          padding: '0.25rem 0.4rem', 
+                                          borderRadius: '4px', 
+                                          border: '1px solid var(--border)', 
+                                          background: 'var(--bg-main)', 
+                                          color: 'var(--text-primary)', 
+                                          fontWeight: 700,
+                                          fontSize: '0.8rem',
+                                          textAlign: 'right'
+                                        }}
+                                      />
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                          {pagoError && <p style={{ color: '#f87171', fontSize: '0.8rem', margin: 0 }}>{pagoError}</p>}
+                        </div>
+                      </form>
+                    </td>
+                  </tr>
+                )}
+                {notasFiltradas.map(nota => {
+                  const isAnticipo = (nota as any).es_anticipo;
+                  const badge = isAnticipo 
+                    ? { label: 'Anticipo', color: '#a855f7', bg: 'rgba(168,85,247,0.15)' }
+                    : (BADGE_ESTADOS[nota.estado] ?? BADGE_ESTADOS.pendiente);
+                  const tieneSaldo = nota.deuda_restante > 0;
+                  
+                  // Buscar último pago
+                  const pagos = historialPagos[nota.id] ?? [];
+                  const ultimoPago = pagos[0];
+
+                  return (
+                    <tr key={nota.id} className="hover-row">
+                      <td style={{ padding: '0.5rem 0.75rem', border: '1px solid var(--border)' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                          <span style={{ fontWeight: 700 }}>{nota.descripcion || 'Sin descripción'}</span>
+                          <span style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>{nota.tipo_gasto}</span>
+                        </div>
+                      </td>
+                      <td style={{ padding: '0.5rem 0.75rem', border: '1px solid var(--border)', textAlign: 'center' }}>
+                        {fmtFecha(nota.fecha_emision || nota.created_at)}
+                      </td>
+                      <td style={{ padding: '0.5rem 0.75rem', border: '1px solid var(--border)', textAlign: 'center' }}>
+                        <span className="badge-premium" style={{ background: badge.bg, color: badge.color, borderRadius: '6px', padding: '0.2rem 0.5rem', fontWeight: 700, fontSize: '0.75rem' }}>
+                          {badge.label}
+                        </span>
+                      </td>
+                      <td style={{ padding: '0.5rem 0.75rem', border: '1px solid var(--border)', textAlign: 'right', fontWeight: 700 }}>
+                        Bs {fmtMonto(isAnticipo ? 0 : nota.monto_total)}
+                      </td>
+                      <td style={{ padding: '0.5rem 0.75rem', border: '1px solid var(--border)', textAlign: 'right', color: '#4ade80', fontWeight: 700 }}>
+                        Bs {fmtMonto(isAnticipo ? nota.monto_pagado : (Number(nota.monto_total) - Number(nota.deuda_restante)))}
+                      </td>
+                      <td style={{ padding: '0.5rem 0.75rem', border: '1px solid var(--border)', textAlign: 'right', fontWeight: 800, color: isAnticipo ? '#a855f7' : (tieneSaldo ? '#38bdf8' : '#4ade80') }}>
+                        Bs {fmtMonto(nota.deuda_restante)}
+                      </td>
+                      <td style={{ padding: '0.5rem 0.75rem', border: '1px solid var(--border)', fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>
+                        {ultimoPago ? fmtFecha(ultimoPago.fecha) : '—'}
+                      </td>
+                      <td style={{ padding: '0.5rem 0.75rem', textAlign: 'center', border: '1px solid var(--border)' }}>
+                        <div style={{ display: 'flex', gap: '0.4rem', justifyContent: 'center' }}>
+                          <button className="btn-compact-action" onClick={() => setVerNotaId(nota.id)} title="Ver documento"><Eye size={14}/></button>
+                          <button className="btn-compact-action action-green" onClick={() => setNotaSeleccionada({...nota})} title="Pagar/Editar"><CreditCard size={14}/></button>
+                          <button className="btn-compact-action action-red" onClick={() => handleAnularNota(nota.id)} title="Anular"><X size={14}/></button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
         </div>
 
         {/* ── Modales Internos ── */}

@@ -7,8 +7,8 @@
  * - Navbar: icono Settings → /configuraciones, botón LogOut separado
  * - Rutas: agregado /configuraciones/panel-escuela
  */
-import React, { useEffect, useState } from 'react';
-import { BrowserRouter, Routes, Route, NavLink } from 'react-router-dom';
+import React, { useEffect, useState, Suspense } from 'react';
+import { BrowserRouter, Routes, Route, NavLink, Navigate } from 'react-router-dom';
 import {
   Settings, Sun, Moon, Monitor, LogOut,
   HandCoins, PieChart, Landmark, BookOpen,
@@ -17,17 +17,23 @@ import {
 import { supabase } from './lib/supabaseClient';
 import { AuthProviderSaaSport, useAuthSaaSport } from './lib/authHelper';
 import { getAsisportUrl } from './lib/navegacion';
-import Dashboard from './pages/Dashboard';
-import Login from './pages/Login';
+import { useIsMobile } from './hooks/useIsMobile';
+import { MobileNav } from './components/MobileNav';
+
+// Estáticos — siempre en el bundle (móvil los necesita)
+import Dashboard     from './pages/Dashboard';
+import Login         from './pages/Login';
 import CuentasCobrar from './pages/cxc/CuentasCobrar';
-import CuentasPagar from './pages/cxp/CuentasPagar';
-import Cuentas from './pages/cuentas/Cuentas';
-import Configuraciones from './pages/config/Configuraciones';
-import AuditLog from './pages/config/AuditLog';
-import PanelEscuela from './pages/config/PanelEscuela';
-import CajasBancos from './pages/cajas-bancos/CajasBancos';
-import Estadisticas from './pages/finanzas/estadisticas/Estadisticas';
-import RegistroActividad from './pages/finanzas/RegistroActividad';
+import CajasBancos   from './pages/cajas-bancos/CajasBancos';
+
+// Lazy — solo se descargan cuando el usuario navega a esa ruta
+const CuentasPagar      = React.lazy(() => import('./pages/cxp/CuentasPagar'));
+const Cuentas           = React.lazy(() => import('./pages/cuentas/Cuentas'));
+const Configuraciones   = React.lazy(() => import('./pages/config/Configuraciones'));
+const AuditLog          = React.lazy(() => import('./pages/config/AuditLog'));
+const PanelEscuela      = React.lazy(() => import('./pages/config/PanelEscuela'));
+const Estadisticas      = React.lazy(() => import('./pages/finanzas/estadisticas/Estadisticas'));
+const RegistroActividad = React.lazy(() => import('./pages/finanzas/RegistroActividad'));
 
 
 import LogoPlaneta from './assets/LogoPlaneta.png';
@@ -179,11 +185,13 @@ interface LayoutProps {
 
 const Layout: React.FC<LayoutProps> = ({ children, onLogout, theme, onCycleTheme }) => {
   const [extra, setExtra] = useState<React.ReactNode>(null);
+  const isMobile = useIsMobile();
 
   return (
     <SidebarContext.Provider value={{ setExtra }}>
       <div className="app-container">
-        <Sidebar onLogout={onLogout} theme={theme} onCycleTheme={onCycleTheme} extra={extra} />
+        {!isMobile && <Sidebar onLogout={onLogout} theme={theme} onCycleTheme={onCycleTheme} extra={extra} />}
+        {isMobile && <MobileNav />}
         <div className="main-wrapper">
           {children}
         </div>
@@ -232,6 +240,7 @@ interface AppRouterProps {
 
 const AppRouter: React.FC<AppRouterProps> = ({ onLogout, theme, onCycleTheme }) => {
   const { tieneAcceso, perfil, cargando } = useAuthSaaSport();
+  const isMobile = useIsMobile();
 
   if (cargando) {
     return (
@@ -273,26 +282,35 @@ const AppRouter: React.FC<AppRouterProps> = ({ onLogout, theme, onCycleTheme }) 
   return (
     <BrowserRouter>
       <Layout onLogout={onLogout} theme={theme} onCycleTheme={onCycleTheme}>
-        <Routes>
-          {/* Al abrir se ve siempre primero Alumnos */}
-          <Route path="/" element={<CuentasCobrar />} />
+        <Suspense fallback={
+          <div style={{ display: 'flex', height: '100vh', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)' }}>
+            Cargando módulo...
+          </div>
+        }>
+          <Routes>
+            {/* Rutas siempre disponibles (móvil y desktop) */}
+            <Route path="/"              element={<CuentasCobrar />} />
+            <Route path="/cxc"           element={<CuentasCobrar />} />
+            <Route path="/cxp"           element={<CuentasPagar />} />
+            <Route path="/cajas-bancos"  element={<CajasBancos />} />
 
-          <Route path="/cxc" element={<CuentasCobrar />} />
-          <Route path="/cxp" element={<CuentasPagar />} />
-          <Route path="/cuentas" element={<Cuentas />} />
-          <Route path="/cajas-bancos" element={<CajasBancos />} />
-          <Route path="/estadisticas" element={<Estadisticas />} />
-          <Route path="/finanzas/registro-actividad" element={<RegistroActividad />} />
+            {/* Rutas solo para desktop — el celular nunca descarga estos módulos */}
+            {!isMobile && (
+              <>
+                <Route path="/cuentas"            element={<Cuentas />} />
+                <Route path="/estadisticas"       element={<Estadisticas />} />
+                <Route path="/finanzas/registro-actividad" element={<RegistroActividad />} />
+                <Route path="/configuraciones"    element={<Configuraciones />} />
+                <Route path="/configuraciones/auditoria" element={<AuditLog />} />
+                <Route path="/panel-escuela"      element={<PanelEscuela />} />
+                <Route path="/configuraciones/panel-escuela" element={<PanelEscuela />} />
+              </>
+            )}
 
-          {/* Panel de Escuela — ruta principal (solo SuperAdministrador) */}
-          <Route path="/panel-escuela" element={<PanelEscuela />} />
-
-          {/* Configuraciones */}
-          <Route path="/configuraciones" element={<Configuraciones />} />
-          <Route path="/configuraciones/auditoria" element={<AuditLog />} />
-          {/* Ruta antigua mantenida para compatibilidad */}
-          <Route path="/configuraciones/panel-escuela" element={<PanelEscuela />} />
-        </Routes>
+            {/* Si un móvil intenta acceder a una ruta de desktop, redirigir al inicio */}
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </Suspense>
       </Layout>
     </BrowserRouter>
   );
@@ -335,7 +353,15 @@ function AppInterna() {
 
   // Sin sesión → login
   if (!session) {
-    window.location.href = `${import.meta.env.VITE_URL_LOGIN}?redirect=finanzas`;
+    const loginUrl = import.meta.env.VITE_URL_LOGIN || '';
+    let resolvedLoginUrl = loginUrl;
+    if (window.location.hostname !== 'finanzas.saasport.pro' && window.location.hostname !== 'saasport.pro') {
+      if (loginUrl.includes('localhost') || loginUrl.includes('127.0.0.1') || /https?:\/\/\d+\.\d+\.\d+\.\d+/.test(loginUrl)) {
+        const currentHostname = window.location.hostname;
+        resolvedLoginUrl = loginUrl.replace(/(https?:\/\/)([^:/]+)(:\d+)?/, `$1${currentHostname}$3`);
+      }
+    }
+    window.location.href = `${resolvedLoginUrl}?redirect=finanzas`;
     return null;
   }
 
