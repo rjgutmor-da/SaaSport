@@ -211,7 +211,9 @@ const ModalVerNotaCxC: React.FC<Props> = ({ visible, cxcId, onCerrar, onEditar, 
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
                 <div>
                   <p style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '0.25rem' }}>
-                    {nota.descripcion || 'Sin descripción'}
+                    {nota.alumno_nombres || nota.alumno_apellidos 
+                      ? `${nota.alumno_nombres || ''} ${nota.alumno_apellidos || ''}`.trim() 
+                      : (nota.descripcion || 'Sin descripción')}
                   </p>
                   <div style={{ display: 'flex', gap: '1rem', fontSize: '0.8rem', color: 'var(--text-tertiary)', flexWrap: 'wrap' }}>
                     <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>

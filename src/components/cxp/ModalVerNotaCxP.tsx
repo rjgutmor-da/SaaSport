@@ -83,7 +83,34 @@ const ModalVerNotaCxP: React.FC<Props> = ({ visible, cxpId, onCerrar, onEditar, 
       .eq('id', cxpId)
       .single();
 
-    setNota({ ...notaData, ...notaBase });
+    // Enriquecer con el nombre del proveedor o personal para mostrarlo en el título
+    let proveedorNombre = '';
+    let personalNombre = '';
+
+    if (notaData?.proveedor_id) {
+      const { data: prov } = await supabase
+        .from('proveedores')
+        .select('nombre')
+        .eq('id', notaData.proveedor_id)
+        .single();
+      if (prov) proveedorNombre = prov.nombre;
+    }
+
+    if (notaData?.personal_id) {
+      const { data: pers } = await supabase
+        .from('personal')
+        .select('nombres, apellidos')
+        .eq('id', notaData.personal_id)
+        .single();
+      if (pers) personalNombre = `${pers.nombres} ${pers.apellidos}`.trim();
+    }
+
+    setNota({ 
+      ...notaData, 
+      ...notaBase,
+      proveedor_nombre: proveedorNombre,
+      personal_nombre: personalNombre
+    });
 
     // Ítems del detalle
     const { data: itemsData } = await supabase
@@ -217,7 +244,7 @@ const ModalVerNotaCxP: React.FC<Props> = ({ visible, cxpId, onCerrar, onEditar, 
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
                 <div>
                   <p style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '0.25rem' }}>
-                    {nota.descripcion || 'Sin descripción'}
+                    {nota.proveedor_nombre || nota.personal_nombre || nota.descripcion || 'Sin descripción'}
                   </p>
                   <div style={{ display: 'flex', gap: '1rem', fontSize: '0.8rem', color: '#94a3b8', flexWrap: 'wrap' }}>
                     <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
