@@ -678,13 +678,13 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                 )}
 
                 {/* Tabla de Movimientos Simple: EXACTAMENTE 3 columnas (FECHA, CONCEPTO/DETALLE, SALDO) */}
-                <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: '10px', overflow: 'hidden' }}>
+                <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: '10px', overflow: 'hidden', width: '100%', boxSizing: 'border-box' }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
                     <thead>
                       <tr style={{ background: 'var(--bg-table-header)', borderBottom: '1px solid var(--border)' }}>
-                        <th style={{ padding: '0.6rem 0.75rem', textAlign: 'left', width: '25%', fontSize: '0.7rem', fontWeight: 800, color: 'var(--text-table-header)' }}>FECHA</th>
-                        <th style={{ padding: '0.6rem 0.75rem', textAlign: 'left', width: '55%', fontSize: '0.7rem', fontWeight: 800, color: 'var(--text-table-header)' }}>CONCEPTO / DETALLE</th>
-                        <th style={{ padding: '0.6rem 0.75rem', textAlign: 'right', width: '20%', fontSize: '0.7rem', fontWeight: 800, color: 'var(--text-table-header)' }}>SALDO</th>
+                        <th style={{ padding: '0.6rem 0.5rem', textAlign: 'left', width: '25%', fontSize: '0.7rem', fontWeight: 800, color: 'var(--text-table-header)', whiteSpace: 'nowrap' }}>FECHA</th>
+                        <th style={{ padding: '0.6rem 0.5rem', textAlign: 'left', width: '47%', fontSize: '0.7rem', fontWeight: 800, color: 'var(--text-table-header)' }}>CONCEPTO / DETALLE</th>
+                        <th style={{ padding: '0.6rem 0.5rem', textAlign: 'right', width: '28%', fontSize: '0.7rem', fontWeight: 800, color: 'var(--text-table-header)', whiteSpace: 'nowrap' }}>SALDO</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -695,15 +695,15 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                         
                         return (
                           <tr key={cxc.id} style={{ borderBottom: '1px solid var(--border)' }}>
-                            <td style={{ padding: '0.6rem 0.75rem', color: 'var(--text-secondary)' }}>
+                            <td style={{ padding: '0.6rem 0.5rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
                               {formatFechaCorta(cxc.fecha_emision || cxc.created_at)}
                             </td>
-                            <td style={{ padding: '0.6rem 0.75rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                            <td style={{ padding: '0.6rem 0.5rem', fontWeight: 600, color: 'var(--text-primary)' }}>
                               {cxc.descripcion || 'Sin descripción'}
                               {cxc.anulada && <span style={{ color: '#f87171', marginLeft: '0.4rem', fontSize: '0.65rem', background: 'rgba(248,113,113,0.1)', padding: '2px 4px', borderRadius: '4px' }}>ANULADA</span>}
                               {isAnticipo && <span style={{ color: '#a855f7', marginLeft: '0.4rem', fontSize: '0.65rem', background: 'rgba(168,85,247,0.1)', padding: '2px 4px', borderRadius: '4px' }}>ANTICIPO</span>}
                             </td>
-                            <td style={{ padding: '0.6rem 0.75rem', textAlign: 'right', fontWeight: 700, color: isDeudor ? '#ef4444' : '#10b981' }}>
+                            <td style={{ padding: '0.6rem 0.5rem', textAlign: 'right', fontWeight: 700, color: isDeudor ? '#ef4444' : '#10b981', whiteSpace: 'nowrap' }}>
                               Bs {fmtMonto(saldoVal)}
                             </td>
                           </tr>
