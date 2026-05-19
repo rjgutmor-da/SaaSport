@@ -36,11 +36,10 @@ const TablaCuentasPorCobrar: React.FC<Props> = ({ datos, cargando, error }) => {
 
   /** Copia la tabla como texto TSV */
   const copiarTabla = () => {
-    const cabecera = ['#', 'Alumno', 'Entrenador', 'Concepto', 'Sub', 'Monto Adeudado', 'Teléfono'].join('\t');
+    const cabecera = ['#', 'Alumno', 'Concepto', 'Sub', 'Monto Adeudado', 'Teléfono'].join('\t');
     const filas = datosFiltrados.map((d, idx) => [
       idx + 1,
       d.alumno,
-      d.entrenador,
       d.concepto,
       d.sub,
       d.monto_adeudado.toFixed(2),
@@ -100,7 +99,6 @@ const TablaCuentasPorCobrar: React.FC<Props> = ({ datos, cargando, error }) => {
             <tr>
               <th className="est-th est-th-num">#</th>
               <th className="est-th">Alumno</th>
-              <th className="est-th">Entrenador</th>
               <th className="est-th">Concepto</th>
               <th className="est-th">Sub</th>
               <th className="est-th est-th-right">Monto Adeudado</th>
@@ -110,13 +108,13 @@ const TablaCuentasPorCobrar: React.FC<Props> = ({ datos, cargando, error }) => {
           <tbody>
             {cargando ? (
               <tr>
-                <td colSpan={7} className="est-td-cargando">
+                <td colSpan={6} className="est-td-cargando">
                   <RefreshCw size={20} className="spin" /> Cargando datos...
                 </td>
               </tr>
             ) : datosFiltrados.length === 0 ? (
               <tr>
-                <td colSpan={7} className="est-td-vacio">
+                <td colSpan={6} className="est-td-vacio">
                   {busqueda ? 'Sin resultados para la búsqueda.' : 'No hay deudas pendientes en este período.'}
                 </td>
               </tr>
@@ -125,7 +123,6 @@ const TablaCuentasPorCobrar: React.FC<Props> = ({ datos, cargando, error }) => {
                 <tr key={`${d.detalle_id}`} className="est-tr">
                   <td className="est-td est-td-num">{idx + 1}</td>
                   <td className="est-td est-td-nombre">{d.alumno}</td>
-                  <td className="est-td">{d.entrenador}</td>
                   <td className="est-td est-td-detalle">{d.concepto}</td>
                   <td className="est-td">{d.sub}</td>
                   <td className="est-td est-td-right text-error font-bold">
@@ -139,7 +136,7 @@ const TablaCuentasPorCobrar: React.FC<Props> = ({ datos, cargando, error }) => {
           {!cargando && datosFiltrados.length > 0 && (
             <tfoot>
               <tr className="est-tfoot-tr">
-                <td colSpan={5} className="est-td est-tfoot-label">Total Pendiente</td>
+                <td colSpan={4} className="est-td est-tfoot-label">Total Pendiente</td>
                 <td className="est-td est-td-right est-tfoot-total text-error">
                   {fmtMonto(totalAdeudado)}
                 </td>

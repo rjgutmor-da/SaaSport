@@ -88,7 +88,8 @@ export function useCuentasPorCobrar(
 
       if (err) throw new Error(err.message);
 
-      const rows: CuentaPorCobrarRow[] = [];
+      // Agrupamos las deudas por alumno (cliente) para consolidar su deuda total
+      const agrupados: { [key: string]: CuentaPorCobrarRow } = {};
 
       (data || []).forEach((cxc: any) => {
         const detalles = cxc.cxc_detalle || [];
@@ -120,23 +121,64 @@ export function useCuentasPorCobrar(
             ? (cxc.telefono_madre || cxc.telefono_padre) 
             : (cxc.telefono_padre || cxc.telefono_madre);
 
-          rows.push({
-            detalle_id: d.id,
-            cxc_id: cxc.id,
-            alumno: `${cxc.alumno_nombres} ${cxc.alumno_apellidos}`.trim(),
-            entrenador: cxc.entrenador_nombre || 'Sin Entrenador',
-            concepto: conceptoStr,
-            sub: subCalculado,
-            monto_adeudado: montoAdeudadoItem,
-            telefono: tel || '—',
-            fecha: cxc.fecha_emision,
-            sucursal_id: cxc.alumno_sucursal_id,
-            entrenador_id: cxc.alumno_entrenador_id,
-            horario_id: cxc.alumno_horario_id,
-            cancha_id: cxc.alumno_cancha_id
-          });
+          const alumnoNombre = `${cxc.alumno_nombres} ${cxc.alumno_apellidos}`.trim();
+          const claveCliente = cxc.alumno_id || alumnoNombre;
+
+          if (!agrupados[claveCliente]) {
+            agrupados[claveCliente] = {
+              detalle_id: d.id,
+              cxc_id: cxc.id,
+              alumno: alumnoNombre,
+              entrenador: cxc.entrenador_nombre || 'Sin Entrenador',
+              concepto: conceptoStr,
+              sub: subCalculado,
+              monto_adeudado: montoAdeudadoItem,
+              telefono: tel || '—',
+              fecha: cxc.fecha_emision,
+              sucursal_id: cxc.alumno_sucursal_id,
+              entrenador_id: cxc.alumno_entrenador_id,
+              horario_id: cxc.alumno_horario_id,
+              cancha_id: cxc.alumno_cancha_id
+            };
+          } else {
+            const itemExistente = agrupados[claveCliente];
+            itemExistente.monto_adeudado += montoAdeudadoItem;
+            // Concatenamos las IDs de los detalles para que la clave/key sea única en la tabla de React
+            itemExistente.detalle_id += `_${d.id}`;
+
+            // Concatenamos el concepto separado por coma
+            if (conceptoStr) {
+              itemExistente.concepto += `, ${conceptoStr}`;
+            }
+
+            // Consolidar entrenadores si difieren
+            if (cxc.entrenador_nombre && itemExistente.entrenador !== cxc.entrenador_nombre) {
+              const entrenadores = itemExistente.entrenador.split(', ');
+              if (!entrenadores.includes(cxc.entrenador_nombre)) {
+                if (itemExistente.entrenador === 'Sin Entrenador') {
+                  itemExistente.entrenador = cxc.entrenador_nombre;
+                } else {
+                  itemExistente.entrenador += `, ${cxc.entrenador_nombre}`;
+                }
+              }
+            }
+
+            // Consolidar Sub (Categorías) si difieren
+            if (subCalculado && subCalculado !== '—' && itemExistente.sub !== subCalculado) {
+              const subs = itemExistente.sub.split(', ');
+              if (!subs.includes(subCalculado)) {
+                if (itemExistente.sub === '—') {
+                  itemExistente.sub = subCalculado;
+                } else {
+                  itemExistente.sub += `, ${subCalculado}`;
+                }
+              }
+            }
+          }
         });
       });
+
+      const rows = Object.values(agrupados);
 
       // Ordenar por alumno
       rows.sort((a, b) => a.alumno.localeCompare(b.alumno));

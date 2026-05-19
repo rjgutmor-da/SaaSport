@@ -179,11 +179,12 @@ const Estadisticas: React.FC = () => {
       setCatalogo(unicos);
       setCargandoCatalogo(false);
 
-      // Cargar Entrenadores (Usuarios de la escuela)
+      // Cargar Entrenadores (Usuarios de la escuela con rol de Entrenador o Entrenarqueros)
       const { data: users } = await supabase
         .from('usuarios')
         .select('id, nombres, apellidos')
         .eq('escuela_id', escuelaId)
+        .in('rol', ['Entrenador', 'Entrenarqueros'])
         .order('nombres');
       setEntrenadores(users ?? []);
 
