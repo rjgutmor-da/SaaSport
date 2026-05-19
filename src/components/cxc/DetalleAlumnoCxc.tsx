@@ -438,6 +438,50 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                   <Plus size={16} /> + NUEVA NOTA
                 </button>
               </div>
+
+              {/* Botón WhatsApp — solo móvil */}
+              {(() => {
+                // Lógica de selección: preseleccionado → papá → mamá
+                const preferido = alumno.whatsapp_preferido;
+                let telefono: string | null = null;
+                if (preferido === 'padre') {
+                  telefono = alumno.telefono_padre || alumno.telefono_madre;
+                } else if (preferido === 'madre') {
+                  telefono = alumno.telefono_madre || alumno.telefono_padre;
+                } else {
+                  // Sin preseleccionado: papá primero, luego mamá
+                  telefono = alumno.telefono_padre || alumno.telefono_madre;
+                }
+                if (!telefono) return null;
+                const telLimpio = telefono.replace(/\D/g, '');
+                const telFinal = telLimpio.startsWith('591') ? telLimpio : `591${telLimpio}`;
+                const url = `https://wa.me/${telFinal}`;
+                return (
+                  <a
+                    href={url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '0.5rem',
+                      width: '100%',
+                      padding: '0.75rem',
+                      background: '#25D366',
+                      color: '#ffffff',
+                      border: 'none',
+                      borderRadius: '10px',
+                      fontWeight: 800,
+                      fontSize: '0.9rem',
+                      textDecoration: 'none',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <MessageCircle size={16} /> WHATSAPP
+                  </a>
+                );
+              })()}
             </div>
           ) : (
             /* Header con Efecto Glass y Metadatos Premium para Desktop */

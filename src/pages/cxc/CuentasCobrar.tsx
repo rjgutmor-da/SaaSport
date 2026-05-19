@@ -13,7 +13,7 @@ import { supabase } from '../../lib/supabaseClient';
 import type { AlumnoDeuda } from '../../types/cxc';
 import {
   RefreshCw, Plus, Search,
-  Users, CreditCard, FileText, BookOpen, MessageCircle
+  Users, CreditCard, FileText, BookOpen
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
@@ -153,56 +153,7 @@ const CuentasCobrar: React.FC = () => {
     setMostrarCobroRapido(true);
   };
 
-  // Cargar nombre de la escuela para el mensaje de WhatsApp
-  const [escuelaNombre, setEscuelaNombre] = useState<string>('la Escuela');
 
-  React.useEffect(() => {
-    if (!escuelaId) return;
-    supabase
-      .from('escuelas')
-      .select('nombre')
-      .eq('id', escuelaId)
-      .single()
-      .then(({ data }) => {
-        if (data?.nombre) setEscuelaNombre(data.nombre);
-      });
-  }, [escuelaId]);
-
-  // Enviar WhatsApp al padre/madre del alumno
-  const enviarWhatsApp = (e: React.MouseEvent, alumno: AlumnoDeuda) => {
-    e.stopPropagation();
-    const esPadre = alumno.whatsapp_preferido === 'padre';
-    const esMadre = alumno.whatsapp_preferido === 'madre';
-    
-    // Si no tiene preferencia, intentamos ver cuál tiene teléfono
-    const prefierePadre = esPadre || (!esMadre && alumno.telefono_padre);
-    
-    const saludo = prefierePadre ? 'Estimado señor' : 'Estimada señora';
-    const nombrePadreMadre = prefierePadre
-      ? (alumno.nombre_padre || 'Padre')
-      : (alumno.nombre_madre || 'Madre');
-    
-    const telefono = prefierePadre
-      ? (alumno.telefono_padre || alumno.telefono_madre)
-      : (alumno.telefono_madre || alumno.telefono_padre);
-
-    if (!telefono) {
-      alert('No se encontró un número de teléfono registrado para este alumno.');
-      return;
-    }
-    const telLimpio = telefono.replace(/\D/g, '');
-    const telFinal = telLimpio.startsWith('591') ? telLimpio : `591${telLimpio}`;
-    const saldo = Number(alumno.saldo_pendiente);
-    
-    // Nombres del alumno sin apellidos
-    const nombresAlumno = alumno.nombres;
-
-    const mensaje = saldo > 0
-      ? `${saludo} ${nombrePadreMadre}, le escribimos de la administración de ${escuelaNombre} para recordarle que ${nombresAlumno} tiene una deuda de Bs ${fmtMonto(saldo)}. Le pedimos regularizar el pago lo antes posible.`
-      : `${saludo} ${nombrePadreMadre}, le informamos que la cuenta de ${nombresAlumno} está al día. ¡Gracias por su puntualidad!`;
-      
-    window.open(`https://wa.me/${telFinal}?text=${encodeURIComponent(mensaje)}`, '_blank');
-  };
 
   return (
     <main className="main-content cxc-main-sticky" style={{ 
@@ -507,23 +458,13 @@ const CuentasCobrar: React.FC = () => {
                             <FileText size={13} />
                             <span>Nota</span>
                           </button>
-                          {tieneDeuda && (
-                            <button
-                              className="cxc-accion-btn cxc-accion-btn--cobro"
-                              onClick={e => abrirCobroRapido(e, alumno)}
-                              title="Registrar Pago"
-                            >
-                              <CreditCard size={13} />
-                              <span>Cobrar</span>
-                            </button>
-                          )}
                           <button
-                            className="cxc-accion-btn cxc-accion-btn--wa"
-                            onClick={e => enviarWhatsApp(e, alumno)}
-                            title="Enviar mensaje WhatsApp"
+                            className="cxc-accion-btn cxc-accion-btn--cobro"
+                            onClick={e => abrirCobroRapido(e, alumno)}
+                            title="Registrar Pago"
                           >
-                            <MessageCircle size={13} />
-                            <span>WA</span>
+                            <CreditCard size={13} />
+                            <span>Cobrar</span>
                           </button>
                         </div>
                       </td>

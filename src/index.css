@@ -1003,7 +1003,7 @@ input[type=number] {
 }
 
 .cxc-th-acciones {
-  width: 220px !important; /* Aumentado de 180px para evitar desborde */
+  width: 160px !important; /* Ajustado para dos botones (Nota y Cobrar/Pagar) */
 }
 
 /* Clases específicas para CxP para restaurar su distribución anterior */
