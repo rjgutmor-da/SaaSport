@@ -34,6 +34,9 @@ const AuditLog          = React.lazy(() => import('./pages/config/AuditLog'));
 const PanelEscuela      = React.lazy(() => import('./pages/config/PanelEscuela'));
 const Estadisticas      = React.lazy(() => import('./pages/finanzas/estadisticas/Estadisticas'));
 const RegistroActividad = React.lazy(() => import('./pages/finanzas/RegistroActividad'));
+const GestorSucursales  = React.lazy(() => import('./pages/config/GestorSucursales'));
+const AdminUsuarios     = React.lazy(() => import('./pages/config/AdminUsuarios'));
+const ConfiguracionCanchas = React.lazy(() => import('./pages/config/ConfiguracionCanchas'));
 
 
 import LogoPlaneta from './assets/LogoPlaneta.png';
@@ -304,6 +307,9 @@ const AppRouter: React.FC<AppRouterProps> = ({ onLogout, theme, onCycleTheme }) 
                 <Route path="/configuraciones/auditoria" element={<AuditLog />} />
                 <Route path="/panel-escuela"      element={<PanelEscuela />} />
                 <Route path="/configuraciones/panel-escuela" element={<PanelEscuela />} />
+                <Route path="/panel-escuela/sucursales" element={<GestorSucursales />} />
+                <Route path="/panel-escuela/usuarios" element={<AdminUsuarios />} />
+                <Route path="/panel-escuela/canchas-horarios" element={<ConfiguracionCanchas />} />
               </>
             )}
 

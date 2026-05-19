@@ -14,10 +14,9 @@ import { useNavigate } from 'react-router-dom';
 import {
   School, Users, UserCheck, GraduationCap,
   Building2, UserCog, MapPin, BarChart2, Shield,
-  Activity, RefreshCw, ExternalLink
+  Activity, RefreshCw
 } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
-import { navegarAAsisport } from '../../lib/navegacion';
 import LogoPlaneta from '../../assets/LogoPlaneta.png';
 
 interface EscuelaInfo {
@@ -199,51 +198,33 @@ const PanelEscuela: React.FC = () => {
 
       {/* ─── ACCESOS RÁPIDOS ─── */}
       <div style={{ marginTop: '2.5rem' }}>
-        <p style={{
-          color: 'var(--text-secondary)',
-          fontSize: '0.75rem',
-          fontWeight: 700,
-          textTransform: 'uppercase',
-          letterSpacing: '0.08em',
-          marginBottom: '1.25rem',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '0.5rem'
-        }}>
-          <ExternalLink size={13} />
-          Los módulos marcados con flecha se abren en AsiSport con tu sesión activa
-        </p>
-
         <div className="pe-accesos-grid">
 
-          {/* Sucursales → AsiSport */}
-          <button className="pe-acceso-card pe-acceso-orange" onClick={() => navegarAAsisport('/admin/sucursales')}>
+          {/* Sucursales → ruta interna */}
+          <button className="pe-acceso-card pe-acceso-orange" onClick={() => navigate('/panel-escuela/sucursales')}>
             <div className="pe-acceso-icon">
               <MapPin size={32} />
             </div>
             <h3 className="pe-acceso-titulo">Sucursales</h3>
             <p className="pe-acceso-desc">Gestionar sedes</p>
-            <ExternalLink size={14} className="pe-acceso-ext" />
           </button>
 
-          {/* Usuarios → AsiSport */}
-          <button className="pe-acceso-card pe-acceso-blue" onClick={() => navegarAAsisport('/admin/usuarios')}>
+          {/* Usuarios → ruta interna */}
+          <button className="pe-acceso-card pe-acceso-blue" onClick={() => navigate('/panel-escuela/usuarios')}>
             <div className="pe-acceso-icon">
               <UserCog size={32} />
             </div>
             <h3 className="pe-acceso-titulo">Usuarios</h3>
             <p className="pe-acceso-desc">Roles y permisos</p>
-            <ExternalLink size={14} className="pe-acceso-ext" />
           </button>
 
-          {/* Canchas y Horarios → AsiSport */}
-          <button className="pe-acceso-card pe-acceso-green" onClick={() => navegarAAsisport('/admin/configuraciones')}>
+          {/* Canchas y Horarios → ruta interna */}
+          <button className="pe-acceso-card pe-acceso-green" onClick={() => navigate('/panel-escuela/canchas-horarios')}>
             <div className="pe-acceso-icon">
               <Building2 size={32} />
             </div>
             <h3 className="pe-acceso-titulo">Canchas y Horarios</h3>
             <p className="pe-acceso-desc">Configuración general</p>
-            <ExternalLink size={14} className="pe-acceso-ext" />
           </button>
 
           {/* Registro de Actividad → ruta interna */}
