@@ -242,236 +242,202 @@ const CajasBancos: React.FC = () => {
   return (
     <main className="main-content cxc-main">
       {isMobile ? (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', width: '100%', boxSizing: 'border-box' }}>
-          {/* Buscador de Cuenta */}
-          <div style={{ display: 'flex', gap: '0.75rem', width: '100%', marginTop: '1rem', alignItems: 'center' }}>
-            <div style={{ flex: 1, position: 'relative' }}>
-              <Search size={16} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-tertiary)' }} />
-              <input
-                type="text"
-                placeholder="Buscador de Cuenta"
-                value={busquedaCuenta}
-                onChange={e => setBusquedaCuenta(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '0.6rem 0.75rem 0.6rem 2.2rem',
-                  borderRadius: '10px',
-                  border: '1px solid var(--border)',
-                  background: 'var(--bg-card)',
-                  color: 'var(--text-primary)',
-                  fontSize: '0.9rem',
-                  boxSizing: 'border-box'
-                }}
-              />
-            </div>
-            {busquedaCuenta && (
-              <button 
-                onClick={() => setBusquedaCuenta('')}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: 'var(--text-tertiary)',
-                  cursor: 'pointer',
-                  fontSize: '1rem'
-                }}
-              >
-                ✕
-              </button>
-            )}
-          </div>
-
-          {/* Listado de Cuentas */}
-          <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: '10px', overflow: 'hidden' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
-              <thead>
-                <tr style={{ background: 'var(--bg-table-header)', borderBottom: '1px solid var(--border)' }}>
-                  <th style={{ padding: '0.75rem 1rem', textAlign: 'left', width: '70%', fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-table-header)' }}>CUENTA</th>
-                  <th style={{ padding: '0.75rem 1rem', textAlign: 'right', width: '30%', fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-table-header)' }}>SALDO</th>
-                </tr>
-              </thead>
-              <tbody>
-                {cajas
-                  .filter(caja => caja.nombre.toLowerCase().includes(busquedaCuenta.toLowerCase()))
-                  .map((caja) => {
-                    const saldoVal = Number(caja.saldo_actual) || 0;
-                    return (
-                      <tr
-                        key={caja.id}
-                        onClick={() => setCajaSeleccionadaMovs(caja)}
-                        style={{ borderBottom: '1px solid var(--border)', cursor: 'pointer' }}
-                      >
-                        <td style={{ padding: '0.75rem 1rem', fontWeight: 600, color: 'var(--text-primary)' }}>
-                          {caja.nombre}
-                        </td>
-                        <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontWeight: 700, color: saldoVal >= 0 ? '#10b981' : '#ef4444' }}>
-                          Bs {fmtMonto(saldoVal)}
-                        </td>
-                      </tr>
-                    );
-                  })}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Modal Detallado de Movimientos de la Cuenta */}
-          {cajaSeleccionadaMovs && (
-            <div style={{
-              position: 'fixed',
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              background: 'rgba(0,0,0,0.6)',
-              backdropFilter: 'blur(4px)',
-              zIndex: 9999,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: '1rem',
-              boxSizing: 'border-box'
-            }}>
-              <div style={{
-                background: 'var(--bg-card)',
-                border: '1px solid var(--border)',
-                borderRadius: '16px',
-                width: '100%',
-                maxWidth: '480px',
-                maxHeight: '80vh',
-                display: 'flex',
-                flexDirection: 'column',
-                overflow: 'hidden',
-                boxShadow: '0 20px 25px -5px rgba(0,0,0,0.3)'
-              }}>
-                {/* Header del Modal */}
-                <div style={{
-                  padding: '1.25rem',
-                  borderBottom: '1px solid var(--border)',
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  background: 'var(--bg-table-header)'
-                }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                    <span style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>
-                      {cajaSeleccionadaMovs.tipo === 'caja_chica' ? 'Caja Chica' : 'Cuenta Bancaria'}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', width: '100%', boxSizing: 'border-box', overflow: 'hidden' }}>
+          {/* Tarjetas de Cajas/Bancos — scroll horizontal */}
+          <div style={{
+            display: 'flex',
+            gap: '0.75rem',
+            overflowX: 'auto',
+            padding: '0.75rem 0.25rem',
+            WebkitOverflowScrolling: 'touch',
+            scrollbarWidth: 'none',
+          }}>
+            {cajasOrdenadas.map(c => {
+              const esActiva = filtroCuenta === c.id;
+              const esPred = c.es_predeterminada;
+              const saldoCaja = Number(c.saldo_actual) || 0;
+              return (
+                <div
+                  key={c.id}
+                  onClick={() => setFiltroCuenta(filtroCuenta === c.id ? 'todas' : c.id)}
+                  style={{
+                    flexShrink: 0,
+                    minWidth: '160px',
+                    maxWidth: '200px',
+                    background: esActiva ? 'var(--primary-glow)' : esPred ? 'rgba(255,200,0,0.07)' : 'var(--bg-card)',
+                    border: `2px solid ${esActiva ? 'var(--primary)' : esPred ? '#f59e0b' : 'var(--border)'}`,
+                    borderRadius: '12px',
+                    padding: '0.6rem 0.85rem',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '2px',
+                    position: 'relative',
+                    transition: 'all 0.2s ease',
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '0.6rem', fontWeight: 800, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      {c.tipo === 'caja_chica' ? 'CAJA' : 'BANCO'}
                     </span>
-                    <span style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-                      {cajaSeleccionadaMovs.nombre}
-                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+                      {esPred && <Star size={10} fill="#f59e0b" stroke="#f59e0b" />}
+                      <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: c.activo ? 'var(--success)' : 'var(--danger)' }} />
+                    </div>
                   </div>
-                  <button
-                    onClick={() => setCajaSeleccionadaMovs(null)}
-                    style={{
-                      background: 'rgba(255,255,255,0.08)',
-                      border: 'none',
-                      borderRadius: '50%',
-                      width: '32px',
-                      height: '32px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      color: 'var(--text-primary)',
-                      cursor: 'pointer',
-                      fontSize: '1rem'
-                    }}
-                  >
-                    ✕
-                  </button>
-                </div>
-
-                {/* Subheader: Saldo Actual */}
-                <div style={{
-                  padding: '1rem 1.25rem',
-                  background: 'var(--bg-card)',
-                  borderBottom: '1px solid var(--border)',
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center'
-                }}>
-                  <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Saldo Actual</span>
                   <span style={{
-                    fontSize: '1.2rem',
-                    fontWeight: 900,
-                    color: (Number(cajaSeleccionadaMovs.saldo_actual) || 0) >= 0 ? '#10b981' : '#ef4444'
+                    fontSize: '0.85rem', fontWeight: 800, color: 'var(--text-primary)',
+                    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.2
                   }}>
-                    Bs {fmtMonto(Number(cajaSeleccionadaMovs.saldo_actual) || 0)}
+                    {c.nombre}
+                  </span>
+                  <span style={{ fontSize: '0.95rem', fontWeight: 900, color: saldoCaja >= 0 ? 'var(--success)' : '#ef4444', marginTop: '2px' }}>
+                    Bs {fmtMonto(saldoCaja)}
                   </span>
                 </div>
+              );
+            })}
+          </div>
 
-                {/* Lista de Movimientos */}
-                <div style={{
-                  flex: 1,
-                  overflowY: 'auto',
-                  padding: '0.5rem 0'
-                }}>
-                  {(() => {
-                    const movs = movimientos.filter(m => m.cuenta_id === cajaSeleccionadaMovs.id);
-                    if (movs.length === 0) {
-                      return (
-                        <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-tertiary)' }}>
-                          No hay movimientos registrados en esta cuenta.
-                        </div>
-                      );
-                    }
-                    return movs.map((mov) => {
+          {/* Botones de acción: Ingresos, Egresos, Transferencia */}
+          <div style={{ display: 'flex', gap: '0.5rem', width: '100%' }}>
+            <button
+              onClick={() => setShowCobro(true)}
+              style={{
+                flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem',
+                padding: '0.6rem 0.5rem', borderRadius: '10px', fontWeight: 700, fontSize: '0.75rem',
+                background: 'rgba(16, 185, 129, 0.1)', color: '#10b981',
+                border: '1px solid rgba(16, 185, 129, 0.3)', cursor: 'pointer'
+              }}
+            >
+              <ArrowDownRight size={14} /> Ingresos
+            </button>
+            <button
+              onClick={() => setShowPago(true)}
+              style={{
+                flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem',
+                padding: '0.6rem 0.5rem', borderRadius: '10px', fontWeight: 700, fontSize: '0.75rem',
+                background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444',
+                border: '1px solid rgba(239, 68, 68, 0.3)', cursor: 'pointer'
+              }}
+            >
+              <ArrowUpRight size={14} /> Egresos
+            </button>
+            <button
+              onClick={() => toggleForm('transferencia')}
+              style={{
+                flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem',
+                padding: '0.6rem 0.5rem', borderRadius: '10px', fontWeight: 700, fontSize: '0.75rem',
+                background: activeForm === 'transferencia' ? 'var(--primary-glow)' : 'rgba(56, 189, 248, 0.1)',
+                color: activeForm === 'transferencia' ? 'var(--primary)' : '#38bdf8',
+                border: `1px solid ${activeForm === 'transferencia' ? 'var(--primary)' : 'rgba(56, 189, 248, 0.3)'}`,
+                cursor: 'pointer'
+              }}
+            >
+              <ArrowRightLeft size={14} /> Transf.
+            </button>
+          </div>
+
+          {/* Tabla de movimientos de la caja seleccionada (inline, sin modal) */}
+          {(() => {
+            const cajasFiltradas = filtroCuenta === 'todas' ? cajasOrdenadas : cajasOrdenadas.filter(c => c.id === filtroCuenta);
+            const movsFiltrados = filtroCuenta === 'todas' ? movimientosFiltrados : movimientosFiltrados.filter(m => m.cuenta_id === filtroCuenta);
+            const cajaActiva = filtroCuenta !== 'todas' ? cajas.find(c => c.id === filtroCuenta) : null;
+
+            return (
+              <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: '10px', overflow: 'hidden' }}>
+                {/* Header de la tabla */}
+                {cajaActiva && (
+                  <div style={{
+                    padding: '0.75rem 1rem', borderBottom: '1px solid var(--border)',
+                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                    background: 'var(--bg-table-header)'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <Landmark size={16} style={{ color: 'var(--text-table-header)' }} />
+                      <span style={{ fontWeight: 800, fontSize: '0.85rem', color: 'var(--text-table-header)' }}>
+                        {cajaActiva.nombre}
+                      </span>
+                    </div>
+                    <span style={{ fontWeight: 900, fontSize: '0.9rem', color: (Number(cajaActiva.saldo_actual) || 0) >= 0 ? '#10b981' : '#ef4444' }}>
+                      Bs {fmtMonto(Number(cajaActiva.saldo_actual) || 0)}
+                    </span>
+                  </div>
+                )}
+                {!cajaActiva && (
+                  <div style={{
+                    padding: '0.75rem 1rem', borderBottom: '1px solid var(--border)',
+                    background: 'var(--bg-table-header)',
+                    display: 'flex', justifyContent: 'space-between', alignItems: 'center'
+                  }}>
+                    <span style={{ fontWeight: 800, fontSize: '0.85rem', color: 'var(--text-table-header)' }}>
+                      Todos los movimientos
+                    </span>
+                    <span style={{ fontWeight: 900, fontSize: '0.9rem', color: 'var(--primary)' }}>
+                      Bs {fmtMonto(saldoTotal)}
+                    </span>
+                  </div>
+                )}
+
+                {/* Lista de movimientos tipo tarjeta */}
+                <div style={{ maxHeight: '50vh', overflowY: 'auto' }}>
+                  {movsFiltrados.length === 0 ? (
+                    <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-tertiary)', fontSize: '0.85rem' }}>
+                      {filtroCuenta === 'todas' ? 'No hay movimientos registrados.' : 'No hay movimientos en esta cuenta.'}
+                    </div>
+                  ) : (
+                    movsFiltrados.map(mov => {
                       const esIngreso = mov.debe > 0;
                       const fechaStr = formatFecha(mov.fecha);
                       const cliente = mov.cliente && mov.cliente !== '—' ? mov.cliente : '';
-                      let desc = mov.descripcion?.trim() || '';
+                      const desc = mov.descripcion?.trim() || '';
+
                       return (
                         <div
                           key={mov.id}
                           style={{
-                            padding: '0.85rem 1.25rem',
+                            padding: '0.7rem 1rem',
                             borderBottom: '1px solid var(--border)',
                             display: 'flex',
                             justifyContent: 'space-between',
                             alignItems: 'center',
-                            gap: '1rem'
+                            gap: '0.75rem'
                           }}
                         >
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', overflow: 'hidden' }}>
-                            <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 500 }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', overflow: 'hidden', flex: 1, minWidth: 0 }}>
+                            <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', fontWeight: 500 }}>
                               {fechaStr}
                             </span>
                             <span style={{
-                              fontSize: '0.9rem',
-                              fontWeight: 600,
-                              color: 'var(--text-primary)',
-                              whiteSpace: 'nowrap',
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis'
+                              fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)',
+                              whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'
                             }}>
                               {cliente || desc || 'Movimiento'}
                             </span>
                             {cliente && desc && (
                               <span style={{
-                                fontSize: '0.8rem',
-                                color: 'var(--text-tertiary)',
-                                whiteSpace: 'nowrap',
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis'
+                                fontSize: '0.75rem', color: 'var(--text-tertiary)',
+                                whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'
                               }}>
                                 {desc}
                               </span>
                             )}
                           </div>
                           <div style={{
-                            fontSize: '0.95rem',
-                            fontWeight: 700,
+                            fontSize: '0.9rem', fontWeight: 700,
                             color: esIngreso ? '#10b981' : '#ef4444',
-                            whiteSpace: 'nowrap'
+                            whiteSpace: 'nowrap', flexShrink: 0
                           }}>
                             {esIngreso ? '+' : '-'} Bs {fmtMonto(esIngreso ? mov.debe : mov.haber)}
                           </div>
                         </div>
                       );
-                    });
-                  })()}
+                    })
+                  )}
                 </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
         </div>
       ) : (
         <>

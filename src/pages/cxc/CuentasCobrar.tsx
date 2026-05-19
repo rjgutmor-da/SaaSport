@@ -208,14 +208,17 @@ const CuentasCobrar: React.FC = () => {
     <main className="main-content cxc-main-sticky" style={{ 
       paddingTop: 0, 
       paddingBottom: '1rem', 
-      paddingLeft: '1.5rem', 
-      paddingRight: '1.5rem', 
+      paddingLeft: isMobile ? '0.75rem' : '1.5rem', 
+      paddingRight: isMobile ? '0.75rem' : '1.5rem', 
       margin: 0,
       display: 'flex',
       flexDirection: 'column',
       justifyContent: 'flex-start',
       alignItems: 'stretch',
-      minHeight: 'auto'
+      minHeight: 'auto',
+      maxWidth: '100vw',
+      boxSizing: 'border-box',
+      overflow: 'hidden'
     }}>
       {isMobile ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', width: '100%', boxSizing: 'border-box' }}>

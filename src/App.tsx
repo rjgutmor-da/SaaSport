@@ -19,6 +19,7 @@ import { AuthProviderSaaSport, useAuthSaaSport } from './lib/authHelper';
 import { getAsisportUrl } from './lib/navegacion';
 import { useIsMobile } from './hooks/useIsMobile';
 import { MobileNav } from './components/MobileNav';
+import { MobileHeader } from './components/MobileHeader';
 
 // Estáticos — siempre en el bundle (móvil los necesita)
 import Dashboard     from './pages/Dashboard';
@@ -194,10 +195,11 @@ const Layout: React.FC<LayoutProps> = ({ children, onLogout, theme, onCycleTheme
     <SidebarContext.Provider value={{ setExtra }}>
       <div className="app-container">
         {!isMobile && <Sidebar onLogout={onLogout} theme={theme} onCycleTheme={onCycleTheme} extra={extra} />}
-        {isMobile && <MobileNav />}
+        {isMobile && <MobileHeader />}
         <div className="main-wrapper">
           {children}
         </div>
+        {isMobile && <MobileNav />}
       </div>
     </SidebarContext.Provider>
   );

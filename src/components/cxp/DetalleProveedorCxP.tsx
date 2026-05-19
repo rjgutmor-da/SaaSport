@@ -12,6 +12,7 @@ import {
   FileText, TrendingDown, Edit2, Wallet, Eye,
   User, Clock, Plus
 } from 'lucide-react';
+import { useIsMobile } from '../../hooks/useIsMobile';
 import { formatFecha, getHoyISO, getHoraLocal } from '../../lib/dateUtils';
 import { usePagoMultiple } from './usePagoMultiple';
 import NotaPago from './NotaPago';
@@ -60,7 +61,7 @@ const DetalleProveedorCxP: React.FC<Props> = ({ entidad, visible, onCerrar, onAc
   const [historialPagos, setHistorialPagos] = useState<Record<string, any[]>>({});
 
   // Pago Múltiple
-  const [isMobile, setIsMobile] = useState(false);
+  const isMobile = useIsMobile();
   const [cajasBancos, setCajasBancos] = useState<any[]>([]);
   const [pagoCxpId, setPagoCxpId] = useState<string | null>(null);
   const [pagoCuentaId, setPagoCuentaId] = useState('');
@@ -70,13 +71,6 @@ const DetalleProveedorCxP: React.FC<Props> = ({ entidad, visible, onCerrar, onAc
   const [pagoError, setPagoError] = useState<string | null>(null);
 
   const pagoMultiple = usePagoMultiple(notas);
-
-  useEffect(() => {
-    const handleResize = () => setIsMobile(window.innerWidth < 768);
-    handleResize();
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
 
   /** Carga las notas del proveedor/personal */
   const cargarNotas = async () => {
@@ -276,40 +270,119 @@ const DetalleProveedorCxP: React.FC<Props> = ({ entidad, visible, onCerrar, onAc
   const tipoGastoInicial = entidad.tipo === 'proveedor' ? 'proveedor' : 'personal';
 
   return (
-    <div className="cxc-modal-overlay">
+    <div className="cxc-modal-overlay" onClick={isMobile ? undefined : undefined} style={isMobile ? { padding: 0 } : undefined}>
       <div
         className="cxc-modal cxc-modal--detalle cxc-modal--wide"
         onClick={e => e.stopPropagation()}
+        style={isMobile ? {
+          width: '100%', maxWidth: '100vw', height: '100vh', maxHeight: '100vh',
+          borderRadius: 0, display: 'flex', flexDirection: 'column',
+          boxSizing: 'border-box', overflow: 'hidden'
+        } : undefined}
       >
-        {/* ── Header con Metadatos Premium ── */}
-        <div className="modal-header-glass" style={{ padding: '1.5rem 2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border)' }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-            <h2 style={{ margin: 0, fontSize: '1.75rem', fontWeight: 800, letterSpacing: '-0.025em', color: 'var(--text-primary)' }}>
-              {entidad.nombre}
-            </h2>
-            <div style={{ display: 'flex', gap: '1.25rem', alignItems: 'center', color: 'var(--text-tertiary)', fontSize: '0.85rem', flexWrap: 'wrap' }}>
-              {entidad.tipo === 'proveedor' && entidad.categoria && (
-                <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                  <TrendingDown size={14} style={{ color: '#f87171' }} /> {labelCategoria(entidad.categoria)}
+        {isMobile ? (
+          /* ── Header Móvil Compacto ── */
+          <div style={{ padding: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+              <h2 style={{ margin: 0, fontSize: '1.3rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                {entidad.nombre}
+              </h2>
+              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', color: 'var(--text-secondary)', fontSize: '0.75rem', flexWrap: 'wrap' }}>
+                {entidad.tipo === 'proveedor' && entidad.categoria && (
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '0.2rem' }}>
+                    <TrendingDown size={11} style={{ color: '#f87171' }} /> {labelCategoria(entidad.categoria)}
+                  </span>
+                )}
+                {entidad.cargo && (
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '0.2rem' }}>
+                    <User size={11} style={{ color: '#4ade80' }} /> {entidad.cargo}
+                  </span>
+                )}
+                <span style={{ color: 'var(--secondary)', display: 'flex', alignItems: 'center', gap: '0.2rem' }}>
+                  <Clock size={11} /> {entidad.tipo === 'proveedor' ? 'Proveedor' : 'Personal'}
                 </span>
-              )}
-              {entidad.cargo && (
-                <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                  <User size={14} style={{ color: '#4ade80' }} /> {entidad.cargo}
+              </div>
+            </div>
+            <button onClick={onCerrar} style={{ background: 'transparent', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', padding: '0.25rem' }}>
+              <X size={22} />
+            </button>
+          </div>
+        ) : (
+          <div className="modal-header-glass" style={{ padding: '1.5rem 2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border)' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+              <h2 style={{ margin: 0, fontSize: '1.75rem', fontWeight: 800, letterSpacing: '-0.025em', color: 'var(--text-primary)' }}>
+                {entidad.nombre}
+              </h2>
+              <div style={{ display: 'flex', gap: '1.25rem', alignItems: 'center', color: 'var(--text-tertiary)', fontSize: '0.85rem', flexWrap: 'wrap' }}>
+                {entidad.tipo === 'proveedor' && entidad.categoria && (
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                    <TrendingDown size={14} style={{ color: '#f87171' }} /> {labelCategoria(entidad.categoria)}
+                  </span>
+                )}
+                {entidad.cargo && (
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                    <User size={14} style={{ color: '#4ade80' }} /> {entidad.cargo}
+                  </span>
+                )}
+                {entidad.telefono && (
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                    <Calendar size={14} style={{ color: '#fbbf24' }} /> {entidad.telefono}
+                  </span>
+                )}
+                <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--secondary)' }}>
+                  <Clock size={14} /> {entidad.tipo === 'proveedor' ? 'Proveedor' : 'Personal'}
                 </span>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '0.85rem', alignItems: 'center' }}>
+              {stats.montoPendiente > 0 && (
+                <button 
+                  onClick={() => {
+                    setPagoCxpId('TODO');
+                    pagoMultiple.inicializar();
+                    setPagoFecha(getHoyISO());
+                    setPagoCuentaId('');
+                    setPagoNroDoc('');
+                    setPagoError(null);
+                  }}
+                  className="btn-premium"
+                  style={{ 
+                    padding: '0.75rem 1.25rem', display: 'flex', alignItems: 'center', gap: '0.6rem', 
+                    fontWeight: 700, background: '#10b981', borderRadius: '10px'
+                  }}
+                >
+                  <DollarSign size={18} /> PAGAR
+                </button>
               )}
-              {entidad.telefono && (
-                <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                  <Calendar size={14} style={{ color: '#fbbf24' }} /> {entidad.telefono}
-                </span>
-              )}
-              <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--secondary)' }}>
-                <Clock size={14} /> {entidad.tipo === 'proveedor' ? 'Proveedor' : 'Personal'}
-              </span>
+              <button 
+                onClick={() => { setMostrarNuevaNota(true); setModoAnticipo(false); }}
+                className="btn-premium"
+                style={{ 
+                  padding: '0.75rem 1.25rem', display: 'flex', alignItems: 'center', gap: '0.6rem', 
+                  fontWeight: 700, background: '#3b82f6', borderRadius: '10px'
+                }}
+              >
+                <Plus size={18} /> NUEVA NOTA
+              </button>
+              <button 
+                onClick={() => setMostrarFichaAnticipos(true)}
+                className="btn-premium"
+                style={{ 
+                  padding: '0.75rem 1.25rem', display: 'flex', alignItems: 'center', gap: '0.6rem', 
+                  fontWeight: 700, background: '#8b5cf6', borderRadius: '10px'
+                }}
+              >
+                <Wallet size={18} /> ANTICIPOS
+              </button>
+              <button onClick={onCerrar} className="btn-close-circle" style={{ borderRadius: '10px' }}><X size={20}/></button>
             </div>
           </div>
+        )}
 
-          <div style={{ display: 'flex', gap: '0.85rem', alignItems: 'center' }}>
+        {/* ── Botones de acción móvil ── */}
+        {isMobile && (
+          <div style={{ display: 'flex', gap: '0.5rem', padding: '0.75rem 1rem', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
             {stats.montoPendiente > 0 && (
               <button 
                 onClick={() => {
@@ -320,87 +393,78 @@ const DetalleProveedorCxP: React.FC<Props> = ({ entidad, visible, onCerrar, onAc
                   setPagoNroDoc('');
                   setPagoError(null);
                 }}
-                className="btn-premium"
-                style={{ 
-                  padding: '0.75rem 1.25rem', display: 'flex', alignItems: 'center', gap: '0.6rem', 
-                  fontWeight: 700, background: '#10b981', borderRadius: '10px'
+                style={{
+                  flex: 1, background: '#10b981', color: '#ffffff', border: 'none',
+                  borderRadius: '10px', padding: '0.6rem', fontWeight: 800, fontSize: '0.85rem',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem', cursor: 'pointer'
                 }}
               >
-                <DollarSign size={18} /> PAGAR
+                <DollarSign size={15} /> $ PAGAR
               </button>
             )}
             <button 
               onClick={() => { setMostrarNuevaNota(true); setModoAnticipo(false); }}
-              className="btn-premium"
-              style={{ 
-                padding: '0.75rem 1.25rem', display: 'flex', alignItems: 'center', gap: '0.6rem', 
-                fontWeight: 700, background: '#3b82f6', borderRadius: '10px'
+              style={{
+                flex: 1, background: '#3b82f6', color: '#ffffff', border: 'none',
+                borderRadius: '10px', padding: '0.6rem', fontWeight: 800, fontSize: '0.85rem',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem', cursor: 'pointer'
               }}
             >
-              <Plus size={18} /> NUEVA NOTA
+              <Plus size={15} /> + NUEVA NOTA
             </button>
-            <button 
-              onClick={() => setMostrarFichaAnticipos(true)}
-              className="btn-premium"
-              style={{ 
-                padding: '0.75rem 1.25rem', display: 'flex', alignItems: 'center', gap: '0.6rem', 
-                fontWeight: 700, background: '#8b5cf6', borderRadius: '10px'
-              }}
-            >
-              <Wallet size={18} /> ANTICIPOS
-            </button>
-            <button onClick={onCerrar} className="btn-close-circle" style={{ borderRadius: '10px' }}><X size={20}/></button>
           </div>
-        </div>
+        )}
 
-        {/* ── Ficha Premium de 4 Columnas ── */}
-        <div className="detalle-resumen-premium" style={{ gap: '1.25rem', padding: '1.5rem 2rem', background: 'transparent', borderBottom: '1px solid var(--border)' }}>
-          {(() => {
-            const esSaldoAFavor = stats.montoPendiente < 0;
-            return (
-              <div className="resumen-card" style={{ border: esSaldoAFavor ? '1px solid rgba(74,222,128,0.2)' : '1px solid rgba(248,113,113,0.2)' }}>
-                <span className="resumen-label">{esSaldoAFavor ? 'SALDO A FAVOR' : 'DEUDA PENDIENTE'}</span>
-                <span className={`resumen-valor ${esSaldoAFavor ? 'color-ingreso' : 'color-deuda'}`}>
-                  Bs {fmtMonto(Math.abs(stats.montoPendiente))}
-                </span>
-                <div className="resumen-footer">
-                  {esSaldoAFavor ? <Check size={12} /> : <AlertCircle size={12} />} 
-                  {esSaldoAFavor ? 'Crédito disponible' : `${stats.pendientes} notas por pagar`}
+        {/* ── Ficha Premium de 4 Columnas (solo desktop) ── */}
+        {!isMobile && (
+          <div className="detalle-resumen-premium" style={{ gap: '1.25rem', padding: '1.5rem 2rem', background: 'transparent', borderBottom: '1px solid var(--border)' }}>
+            {(() => {
+              const esSaldoAFavor = stats.montoPendiente < 0;
+              return (
+                <div className="resumen-card" style={{ border: esSaldoAFavor ? '1px solid rgba(74,222,128,0.2)' : '1px solid rgba(248,113,113,0.2)' }}>
+                  <span className="resumen-label">{esSaldoAFavor ? 'SALDO A FAVOR' : 'DEUDA PENDIENTE'}</span>
+                  <span className={`resumen-valor ${esSaldoAFavor ? 'color-ingreso' : 'color-deuda'}`}>
+                    Bs {fmtMonto(Math.abs(stats.montoPendiente))}
+                  </span>
+                  <div className="resumen-footer">
+                    {esSaldoAFavor ? <Check size={12} /> : <AlertCircle size={12} />} 
+                    {esSaldoAFavor ? 'Crédito disponible' : `${stats.pendientes} notas por pagar`}
+                  </div>
+                  <div className="resumen-icon-bg" style={{ opacity: 0.15 }}>
+                    {esSaldoAFavor ? <CheckCircle2 size={28} className="color-ingreso" /> : <AlertCircle size={28} className="color-deuda" />}
+                  </div>
                 </div>
-                <div className="resumen-icon-bg" style={{ opacity: 0.15 }}>
-                  {esSaldoAFavor ? <CheckCircle2 size={28} className="color-ingreso" /> : <AlertCircle size={28} className="color-deuda" />}
-                </div>
+              );
+            })()}
+
+            <div className="resumen-card" style={{ border: '1px solid rgba(74,222,128,0.2)' }}>
+              <span className="resumen-label">TOTAL PAGADO</span>
+              <span className="resumen-valor color-ingreso">Bs {fmtMonto(stats.montoPagado)}</span>
+              <div className="resumen-footer">
+                <CheckCircle2 size={12} /> Histórico desembolsado
               </div>
-            );
-          })()}
-
-          <div className="resumen-card" style={{ border: '1px solid rgba(74,222,128,0.2)' }}>
-            <span className="resumen-label">TOTAL PAGADO</span>
-            <span className="resumen-valor color-ingreso">Bs {fmtMonto(stats.montoPagado)}</span>
-            <div className="resumen-footer">
-              <CheckCircle2 size={12} /> Histórico desembolsado
+              <div className="resumen-icon-bg" style={{ opacity: 0.15 }}><Wallet size={28} className="color-ingreso" /></div>
             </div>
-            <div className="resumen-icon-bg" style={{ opacity: 0.15 }}><Wallet size={28} className="color-ingreso" /></div>
-          </div>
 
-          <div className="resumen-card" style={{ border: '1px solid rgba(56,189,248,0.2)' }}>
-            <span className="resumen-label">TOTAL NOTAS</span>
-            <span className="resumen-valor color-meses">{stats.total} <small style={{ fontSize: '0.9rem' }}>Docs</small></span>
-            <div className="resumen-footer">
-              <FileText size={12} /> Movimientos registrados
+            <div className="resumen-card" style={{ border: '1px solid rgba(56,189,248,0.2)' }}>
+              <span className="resumen-label">TOTAL NOTAS</span>
+              <span className="resumen-valor color-meses">{stats.total} <small style={{ fontSize: '0.9rem' }}>Docs</small></span>
+              <div className="resumen-footer">
+                <FileText size={12} /> Movimientos registrados
+              </div>
+              <div className="resumen-icon-bg" style={{ opacity: 0.15 }}><FileText size={28} className="color-meses" /></div>
             </div>
-            <div className="resumen-icon-bg" style={{ opacity: 0.15 }}><FileText size={28} className="color-meses" /></div>
-          </div>
 
-          <div className="resumen-card" style={{ border: '1px solid rgba(168,85,247,0.2)' }}>
-            <span className="resumen-label">ESTADO GENERAL</span>
-            <span className="resumen-valor" style={{ color: '#a855f7' }}>{stats.pendientes > 0 ? 'Con Deuda' : 'Al día'}</span>
-            <div className="resumen-footer">
-              <Clock size={12} /> Situación financiera
+            <div className="resumen-card" style={{ border: '1px solid rgba(168,85,247,0.2)' }}>
+              <span className="resumen-label">ESTADO GENERAL</span>
+              <span className="resumen-valor" style={{ color: '#a855f7' }}>{stats.pendientes > 0 ? 'Con Deuda' : 'Al día'}</span>
+              <div className="resumen-footer">
+                <Clock size={12} /> Situación financiera
+              </div>
+              <div className="resumen-icon-bg" style={{ opacity: 0.15 }}><Check size={28} style={{ color: '#a855f7' }} /></div>
             </div>
-            <div className="resumen-icon-bg" style={{ opacity: 0.15 }}><Check size={28} style={{ color: '#a855f7' }} /></div>
           </div>
-        </div>
+        )}
 
         {/* Mobile Multi-Payment Form Panel */}
         {isMobile && pagoCxpId === 'TODO' && (
@@ -483,7 +547,7 @@ const DetalleProveedorCxP: React.FC<Props> = ({ entidad, visible, onCerrar, onAc
         )}
 
         {/* ── Lista de notas estilo Excel ── */}
-        <div className="detalle-cxc-lista" style={{ padding: '0 1rem 1rem 1rem', overflowY: 'auto', maxHeight: '55vh' }}>
+        <div className="detalle-cxc-lista" style={{ padding: '0 1rem 1rem 1rem', overflowY: 'auto', flex: isMobile ? 1 : undefined, maxHeight: isMobile ? undefined : '55vh' }}>
           {isMobile ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
               {notasFiltradas.map(nota => {
