@@ -51,6 +51,7 @@ const CuentasCobrar: React.FC = () => {
 
   // Filtros rápidos y de servidor
   const [soloConDeuda, setSoloConDeuda] = useState(false);
+  const [soloActivos, setSoloActivos] = useState(false);
   const [filtroSucursal, setFiltroSucursal] = useState('');
   const [filtroEntrenador, setFiltroEntrenador] = useState('');
   const [filtroCancha, setFiltroCancha] = useState('');
@@ -66,6 +67,7 @@ const CuentasCobrar: React.FC = () => {
     canchaId: filtroCancha,
     horarioId: filtroHorario,
     soloConDeuda: isMobile ? (busqueda.trim() === '') : soloConDeuda,
+    soloActivos,
     busqueda: debouncedBusqueda,
     pagina,
     itemsPorPagina
@@ -357,6 +359,22 @@ const CuentasCobrar: React.FC = () => {
 
             {!isMobile && (
               <div className="cxc-stats-horizontal">
+                <div 
+                  className="cxc-stat-pill" 
+                  onClick={() => setSoloActivos(!soloActivos)} 
+                  style={{ 
+                    borderColor: soloActivos ? '#10b981' : undefined,
+                    background: soloActivos ? 'rgba(16, 185, 129, 0.08)' : undefined,
+                    cursor: 'pointer'
+                  }}
+                  title="Excluir alumnos archivados de la vista y del cálculo"
+                >
+                  <span className="cxc-pill-label" style={{ color: soloActivos ? '#10b981' : undefined }}>Solo Activos</span>
+                  <span className="cxc-pill-value" style={{ color: soloActivos ? '#10b981' : undefined }}>
+                    {soloActivos ? 'SÍ' : 'NO'}
+                  </span>
+                </div>
+
                 <div className="cxc-stat-pill" onClick={() => setSoloConDeuda(!soloConDeuda)} style={{ cursor: 'pointer' }}>
                   <span className="cxc-pill-label">Deudores</span>
                   <span className={`cxc-pill-value ${soloConDeuda ? 'text-warn' : ''}`}>

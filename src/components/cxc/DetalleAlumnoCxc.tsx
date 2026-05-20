@@ -591,7 +591,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
             </div>
           )}
 
-          <div className="detalle-cxc-lista" style={{ padding: '0 1rem 1rem 1rem', overflowY: 'auto', maxHeight: '60vh', width: '100%', boxSizing: 'border-box' }}>
+          <div className="detalle-cxc-lista" style={{ padding: isMobile ? '0 0 1rem 0' : '0 1rem 1rem 1rem', overflowY: 'auto', maxHeight: '60vh', width: '100%', boxSizing: 'border-box' }}>
             {isMobile ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', width: '100%', boxSizing: 'border-box' }}>
                 {/* Formulario de Pago Múltiple Inline en Móvil */}
@@ -682,9 +682,9 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
                     <thead>
                       <tr style={{ background: 'var(--bg-table-header)', borderBottom: '1px solid var(--border)' }}>
-                        <th style={{ padding: '0.6rem 0.5rem', textAlign: 'left', width: '25%', fontSize: '0.7rem', fontWeight: 800, color: 'var(--text-table-header)', whiteSpace: 'nowrap' }}>FECHA</th>
-                        <th style={{ padding: '0.6rem 0.5rem', textAlign: 'left', width: '47%', fontSize: '0.7rem', fontWeight: 800, color: 'var(--text-table-header)' }}>CONCEPTO / DETALLE</th>
-                        <th style={{ padding: '0.6rem 0.5rem', textAlign: 'right', width: '28%', fontSize: '0.7rem', fontWeight: 800, color: 'var(--text-table-header)', whiteSpace: 'nowrap' }}>SALDO</th>
+                        <th style={{ padding: '0.6rem 0.5rem', textAlign: 'left', width: '20%', fontSize: '0.7rem', fontWeight: 800, color: 'var(--text-table-header)', whiteSpace: 'nowrap' }}>FECHA</th>
+                        <th style={{ padding: '0.6rem 0.5rem', textAlign: 'left', width: '60%', fontSize: '0.7rem', fontWeight: 800, color: 'var(--text-table-header)' }}>CONCEPTO / DETALLE</th>
+                        <th style={{ padding: '0.6rem 0.5rem', textAlign: 'right', width: '20%', fontSize: '0.7rem', fontWeight: 800, color: 'var(--text-table-header)', whiteSpace: 'nowrap' }}>SALDO</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -692,6 +692,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                         const saldoVal = Number(cxc.saldo_pendiente);
                         const isDeudor = saldoVal > 0;
                         const isAnticipo = (cxc as any).es_anticipo;
+                        const itemsDeLaNota = detallesItems[cxc.id] || [];
                         
                         return (
                           <tr key={cxc.id} style={{ borderBottom: '1px solid var(--border)' }}>
@@ -699,9 +700,38 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                               {formatFechaCorta(cxc.fecha_emision || cxc.created_at)}
                             </td>
                             <td style={{ padding: '0.6rem 0.5rem', fontWeight: 600, color: 'var(--text-primary)' }}>
-                              {cxc.descripcion || 'Sin descripción'}
-                              {cxc.anulada && <span style={{ color: '#f87171', marginLeft: '0.4rem', fontSize: '0.65rem', background: 'rgba(248,113,113,0.1)', padding: '2px 4px', borderRadius: '4px' }}>ANULADA</span>}
-                              {isAnticipo && <span style={{ color: '#a855f7', marginLeft: '0.4rem', fontSize: '0.65rem', background: 'rgba(168,85,247,0.1)', padding: '2px 4px', borderRadius: '4px' }}>ANTICIPO</span>}
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                                <span style={{ fontWeight: 700 }}>{cxc.descripcion || 'Sin descripción'}</span>
+                                {cxc.anulada && <span style={{ color: '#f87171', fontSize: '0.6rem', background: 'rgba(248,113,113,0.1)', padding: '2px 4px', borderRadius: '4px' }}>ANULADA</span>}
+                                {isAnticipo && <span style={{ color: '#a855f7', fontSize: '0.6rem', background: 'rgba(168,85,247,0.1)', padding: '2px 4px', borderRadius: '4px' }}>ANTICIPO</span>}
+                                {!isAnticipo && itemsDeLaNota.length > 0 && (
+                                  <div style={{ display: 'flex', gap: '0.25rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                                    {itemsDeLaNota.map((item: any, i: number) => (
+                                      <React.Fragment key={i}>
+                                        {!(cxc.descripcion?.toLowerCase().includes(item.item_nombre?.toLowerCase()) || item.item_nombre?.toLowerCase().includes(cxc.descripcion?.toLowerCase())) && (
+                                          <span style={{ fontSize: '0.6rem', padding: '1px 4px', borderRadius: '4px', background: 'rgba(59,130,246,0.15)', color: '#60a5fa', fontWeight: 600 }}>
+                                            {item.item_nombre}
+                                          </span>
+                                        )}
+                                        {item.periodo_meses && ordenarMesesCalendario(item.periodo_meses).map((mes: string, mi: number) => (
+                                          <span key={`${i}-${mi}`} style={{ fontSize: '0.6rem', padding: '1px 4px', borderRadius: '4px', background: 'rgba(74,222,128,0.15)', color: '#4ade80', fontWeight: 600 }}>
+                                            {mes}
+                                          </span>
+                                        ))}
+                                      </React.Fragment>
+                                    ))}
+                                  </div>
+                                )}
+                                {cxc.observaciones && (
+                                  <span style={{ 
+                                    fontSize: '0.65rem', 
+                                    color: 'var(--text-tertiary)', 
+                                    fontStyle: 'italic'
+                                  }}>
+                                    ({cxc.observaciones})
+                                  </span>
+                                )}
+                              </div>
                             </td>
                             <td style={{ padding: '0.6rem 0.5rem', textAlign: 'right', fontWeight: 700, color: isDeudor ? '#ef4444' : '#10b981', whiteSpace: 'nowrap' }}>
                               Bs {fmtMonto(saldoVal)}

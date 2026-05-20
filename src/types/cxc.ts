@@ -121,6 +121,7 @@ export interface AlumnoDeuda {
   cantidad_meses_actividad?: number;
   nombres_search?: string;
   apellidos_search?: string;
+  archivado?: boolean;
 }
 
 /** Colores y etiquetas por estado */
