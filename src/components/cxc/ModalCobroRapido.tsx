@@ -9,6 +9,7 @@ import type { AlumnoDeuda, CuentaCobrar } from '../../types/cxc';
 import type { CajaBanco } from '../../types/finanzas';
 import { X, CreditCard, AlertCircle, Check, MessageCircle, Users, FileText, RefreshCw, DollarSign, Building2, Info, Calendar, Hash, Clock } from 'lucide-react';
 import { getHoyISO, getHoraLocal } from '../../lib/dateUtils';
+import { useCobroMultiple } from './useCobroMultiple';
 
 /** Formatea un número como moneda (Bs) */
 const fmtMonto = (n: number): string =>
@@ -26,6 +27,7 @@ const ModalCobroRapido: React.FC<Props> = ({ alumnoInicial, visible, onCerrar, o
   const [alumnoSel, setAlumnoSel] = useState<AlumnoDeuda | null>(alumnoInicial);
   const [cxcsPendientes, setCxcsPendientes] = useState<CuentaCobrar[]>([]);
   const [cxcSelId, setCxcSelId] = useState('');
+  const cobroMultiple = useCobroMultiple(cxcsPendientes);
   const [cuentasCobro, setCuentasCobro] = useState<CajaBanco[]>([]);
 
   const [monto, setMonto] = useState('');
@@ -95,9 +97,13 @@ const ModalCobroRapido: React.FC<Props> = ({ alumnoInicial, visible, onCerrar, o
         .order('fecha_emision', { ascending: true });
       const lista = (data as unknown as CuentaCobrar[]) ?? [];
       setCxcsPendientes(lista);
-      if (lista.length > 0) {
-        setCxcSelId(lista[0].id);
-        setMonto(String(Number(lista[0].saldo_pendiente)));
+      const notasDeuda = lista.filter((c) => !(c as any).es_anticipo);
+      if (notasDeuda.length > 1) {
+        setCxcSelId('multiple');
+        setMonto('');
+      } else if (notasDeuda.length === 1) {
+        setCxcSelId(notasDeuda[0].id);
+        setMonto(String(Number(notasDeuda[0].saldo_pendiente)));
       } else {
         setCxcSelId('anticipo');
         setMonto('');
@@ -106,8 +112,19 @@ const ModalCobroRapido: React.FC<Props> = ({ alumnoInicial, visible, onCerrar, o
     cargarCxc();
   }, [alumnoSel]);
 
+  useEffect(() => {
+    if (cxcSelId === 'multiple') {
+      cobroMultiple.inicializar();
+    }
+  }, [cxcSelId, cxcsPendientes]);
+
   const handleChangeCxc = (id: string) => {
     setCxcSelId(id);
+    if (id === 'multiple') {
+      setMonto('');
+      cobroMultiple.inicializar();
+      return;
+    }
     if (id === 'anticipo') {
         setMonto('');
         return;
@@ -119,8 +136,12 @@ const ModalCobroRapido: React.FC<Props> = ({ alumnoInicial, visible, onCerrar, o
   const registrar = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!alumnoSel || !cxcSelId) { setError('Selecciona un alumno y una nota pendiente o anticipo.'); return; }
-    const montoNum = parseFloat(monto);
-    if (!montoNum || montoNum <= 0) { setError('Monto inválido.'); return; }
+    const esMultiple = cxcSelId === 'multiple';
+    const montoNum = esMultiple ? cobroMultiple.obtenerTotalCobrado() : parseFloat(monto);
+    if (!montoNum || montoNum <= 0) {
+      setError(esMultiple ? 'Selecciona al menos una nota y define un monto mayor a 0.' : 'Monto inválido.');
+      return;
+    }
     if (!cuentaId) { setError('Selecciona la caja/banco destino.'); return; }
 
     setGuardando(true); setError(null); setInfoAnticipo(null);
@@ -138,8 +159,30 @@ const ModalCobroRapido: React.FC<Props> = ({ alumnoInicial, visible, onCerrar, o
       if (nroDoc.trim()) partesRef.push(nroDoc.trim());
       const concatDoc = partesRef.join(' | ');
 
-      let montoCobrado = montoNum;
+      let objetivoCxcId = cxcSelId;
       let exceso = 0;
+
+      if (esMultiple) {
+        const cobrosPayload = cobroMultiple.generarPayloadCobros();
+        if (cobrosPayload.length === 0) {
+          throw new Error('Selecciona al menos una nota y define un monto mayor a 0.');
+        }
+        objetivoCxcId = cobrosPayload[0].cuenta_cobrar_id;
+
+        const { error: rpcMultipleErr } = await supabase.rpc('rpc_cobrar_multiple_cxc', {
+          p_payload: {
+            escuela_id: ctx.escuela_id,
+            sucursal_id: ctx.sucursal_id,
+            usuario_id: ctx.id,
+            cuenta_cobro_id: cuentaId,
+            nro_comprobante: concatDoc || null,
+            fecha: `${fecha}T${getHoraLocal()}:00`,
+            cobros: cobrosPayload
+          }
+        });
+        if (rpcMultipleErr) throw rpcMultipleErr;
+      } else {
+      let montoCobrado = montoNum;
 
       // Si es una nota pendiente y el monto excede el saldo, separar exceso como anticipo
       if (cxcSelId !== 'anticipo') {
@@ -149,8 +192,6 @@ const ModalCobroRapido: React.FC<Props> = ({ alumnoInicial, visible, onCerrar, o
           montoCobrado = Number(cxcSel.saldo_pendiente);
         }
       }
-
-      let objetivoCxcId = cxcSelId;
 
       // Si es anticipo directo, creamos la nota de anticipo
       if (cxcSelId === 'anticipo') {
@@ -176,21 +217,6 @@ const ModalCobroRapido: React.FC<Props> = ({ alumnoInicial, visible, onCerrar, o
           });
       }
 
-      // Cobrar el monto exacto (o el saldo si hubo exceso)
-      const { error: rpcErr } = await supabase.rpc('rpc_registrar_cobro', {
-        p_payload: {
-          cuenta_cobrar_id: objetivoCxcId,
-          escuela_id: ctx.escuela_id,
-          sucursal_id: ctx.sucursal_id,
-          usuario_id: ctx.id,
-          monto: montoCobrado,
-          cuenta_cobro_id: cuentaId,
-          nro_comprobante: concatDoc || null,
-          fecha: `${fecha}T${getHoraLocal()}:00`
-        }
-      });
-      if (rpcErr) throw rpcErr;
-
       // Si hubo exceso, registrar como anticipo
       if (exceso > 0) {
         const { data: notaAnticipo, error: errAnt } = await supabase.from('cuentas_cobrar').insert({
@@ -214,21 +240,40 @@ const ModalCobroRapido: React.FC<Props> = ({ alumnoInicial, visible, onCerrar, o
           precio_unitario: exceso
         });
 
-        const { error: rpcAntErr } = await supabase.rpc('rpc_registrar_cobro', {
+        const { error: rpcMultipleErr } = await supabase.rpc('rpc_cobrar_multiple_cxc', {
           p_payload: {
-            cuenta_cobrar_id: notaAnticipo.id,
             escuela_id: ctx.escuela_id,
             sucursal_id: ctx.sucursal_id,
             usuario_id: ctx.id,
-            monto: exceso,
+            cuenta_cobro_id: cuentaId,
+            nro_comprobante: concatDoc || null,
+            fecha: `${fecha}T${getHoraLocal()}:00`,
+            cobros: [
+              { cuenta_cobrar_id: objetivoCxcId, monto: montoCobrado },
+              { cuenta_cobrar_id: notaAnticipo.id, monto: exceso }
+            ]
+          }
+        });
+        if (rpcMultipleErr) throw rpcMultipleErr;
+
+        setInfoAnticipo({ monto: exceso });
+      } else {
+        // Cobrar el monto exacto cuando no hay exceso
+        const { error: rpcErr } = await supabase.rpc('rpc_registrar_cobro', {
+          p_payload: {
+            cuenta_cobrar_id: objetivoCxcId,
+            escuela_id: ctx.escuela_id,
+            sucursal_id: ctx.sucursal_id,
+            usuario_id: ctx.id,
+            monto: montoCobrado,
             cuenta_cobro_id: cuentaId,
             nro_comprobante: concatDoc || null,
             fecha: `${fecha}T${getHoraLocal()}:00`
           }
         });
-        if (rpcAntErr) throw rpcAntErr;
+        if (rpcErr) throw rpcErr;
+      }
 
-        setInfoAnticipo({ monto: exceso });
       }
 
       // Auditoría
@@ -256,11 +301,12 @@ const ModalCobroRapido: React.FC<Props> = ({ alumnoInicial, visible, onCerrar, o
         ? (alumnoSel.telefono_padre || alumnoSel.telefono_madre)
         : (alumnoSel.telefono_madre || alumnoSel.telefono_padre);
       const cxcActual = cxcsPendientes.find(c => c.id === cxcSelId);
+      const conceptoWA = esMultiple ? 'varias notas de servicio' : (cxcActual?.descripcion || 'servicios');
 
       if (telefono) {
         const telF = telefono.replace(/\D/g, '');
         const telFinal = telF.startsWith('591') ? telF : `591${telF}`;
-        let texto = `Gracias por el pago de Bs ${fmtMonto(montoNum)} correspondiente a: ${cxcActual?.descripcion || 'servicios'}.`;
+        let texto = `Gracias por el pago de Bs ${fmtMonto(montoNum)} correspondiente a: ${conceptoWA}.`;
         if (exceso > 0) texto += ` El exceso de Bs ${fmtMonto(exceso)} fue guardado como anticipo a su favor.`;
         setMensajeWA({ texto, telefono: telFinal });
       }
@@ -288,10 +334,13 @@ const ModalCobroRapido: React.FC<Props> = ({ alumnoInicial, visible, onCerrar, o
 
   if (!visible) return null;
 
+  const notasDeuda = cxcsPendientes.filter((c) => !(c as any).es_anticipo);
+  const esCobroMultiple = cxcSelId === 'multiple';
+  const totalCobroMultiple = cobroMultiple.obtenerTotalCobrado();
   const cxcSel = cxcsPendientes.find(c => c.id === cxcSelId);
   const saldoCxc = cxcSel ? Number(cxcSel.saldo_pendiente) : 0;
   const montoIngresado = parseFloat(monto) || 0;
-  const excesoCalculado = cxcSelId !== 'anticipo' && montoIngresado > saldoCxc && saldoCxc > 0
+  const excesoCalculado = !esCobroMultiple && cxcSelId !== 'anticipo' && montoIngresado > saldoCxc && saldoCxc > 0
     ? parseFloat((montoIngresado - saldoCxc).toFixed(2))
     : 0;
 
@@ -374,8 +423,11 @@ const ModalCobroRapido: React.FC<Props> = ({ alumnoInicial, visible, onCerrar, o
                     onChange={e => handleChangeCxc(e.target.value)}
                     style={{ background: 'var(--bg-glass)', fontWeight: 600 }}
                   >
-                    {cxcsPendientes.length > 0 && <optgroup label="Notas Pendientes">
-                      {cxcsPendientes.map(c => (
+                    {notasDeuda.length > 1 && (
+                      <option value="multiple">Pago múltiple de deuda — Bs {fmtMonto(notasDeuda.reduce((s, c) => s + Number(c.saldo_pendiente), 0))}</option>
+                    )}
+                    {notasDeuda.length > 0 && <optgroup label="Notas Pendientes">
+                      {notasDeuda.map(c => (
                         <option key={c.id} value={c.id}>
                           {c.descripcion || 'Servicio'} — Saldo: Bs {fmtMonto(Number(c.saldo_pendiente))}
                         </option>
@@ -388,16 +440,45 @@ const ModalCobroRapido: React.FC<Props> = ({ alumnoInicial, visible, onCerrar, o
                 </div>
               )}
 
-              {(cxcSel || cxcSelId === 'anticipo') && (
+              {(cxcSel || cxcSelId === 'anticipo' || esCobroMultiple) && (
                 <form onSubmit={registrar} style={{ display: 'contents' }}>
                   <div className="modal-form-grid">
-                    <div className="form-campo">
+                    {esCobroMultiple && (
+                      <div className="form-campo full-width">
+                        <label><DollarSign size={14} /> Notas a cobrar *</label>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', marginBottom: '0.75rem' }}>
+                          <span style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>Selecciona las notas y ajusta los montos a asignar.</span>
+                          <span style={{ color: '#10b981', fontWeight: 800, background: 'rgba(16,185,129,0.10)', border: '1px solid rgba(16,185,129,0.22)', borderRadius: '6px', padding: '0.35rem 0.6rem', whiteSpace: 'nowrap' }}>
+                            Total: Bs {fmtMonto(totalCobroMultiple)}
+                          </span>
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '0.65rem', maxHeight: '210px', overflowY: 'auto', padding: '0.75rem', background: 'var(--bg-main)', border: '1px solid var(--border)', borderRadius: '8px' }}>
+                          {notasDeuda.map((cxc) => {
+                            const seleccionado = !!cobroMultiple.seleccionados[cxc.id];
+                            const montoCxc = cobroMultiple.montos[cxc.id] || '';
+                            return (
+                              <div key={cxc.id} style={{ display: 'grid', gridTemplateColumns: 'auto minmax(0, 1fr) auto', alignItems: 'center', gap: '0.65rem', padding: '0.65rem', background: 'var(--bg-card)', border: seleccionado ? '1px solid rgba(16,185,129,0.32)' : '1px solid var(--border)', borderRadius: '6px', opacity: seleccionado ? 1 : 0.65 }}>
+                                <input type="checkbox" checked={seleccionado} onChange={() => cobroMultiple.toggleSeleccion(cxc.id, Number(cxc.saldo_pendiente))} disabled={guardando} style={{ width: '18px', height: '18px', cursor: 'pointer', accentColor: '#10b981' }} />
+                                <div style={{ minWidth: 0 }}>
+                                  <div style={{ fontWeight: 800, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{cxc.descripcion || 'Nota'}</div>
+                                  <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                                    Saldo: <strong style={{ color: '#38bdf8' }}>Bs {fmtMonto(Number(cxc.saldo_pendiente))}</strong>
+                                  </div>
+                                </div>
+                                <input type="number" step="0.01" min="0" max={Number(cxc.saldo_pendiente)} value={montoCxc} onChange={(e) => cobroMultiple.cambiarMonto(cxc.id, e.target.value, Number(cxc.saldo_pendiente))} disabled={guardando || !seleccionado} placeholder="0.00" style={{ width: '92px', padding: '0.4rem 0.45rem', borderRadius: '5px', border: '1px solid var(--border)', background: 'var(--bg-glass)', color: 'var(--text-primary)', fontWeight: 800, textAlign: 'right' }} />
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                    <div className="form-campo" style={{ display: esCobroMultiple ? 'none' : undefined }}>
                       <label><DollarSign size={14} /> Monto a cobrar *</label>
                       <input
                         type="number" step="0.01" min="0.01"
                         value={monto}
                         onChange={e => setMonto(e.target.value)}
-                        required disabled={guardando}
+                        required={!esCobroMultiple} disabled={guardando || esCobroMultiple}
                         placeholder="0.00"
                         style={{ fontSize: '1.1rem', fontWeight: 700, color: excesoCalculado > 0 ? '#f59e0b' : 'var(--success)' }}
                       />

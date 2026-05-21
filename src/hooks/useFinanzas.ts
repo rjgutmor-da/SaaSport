@@ -293,7 +293,7 @@ const fetchMovimientos = async (escuelaId: string, cajaIds: string[]) => {
       if (!movsAgrupados.has(mov.asiento_id)) {
         movsAgrupados.set(mov.asiento_id, {
           ...mov,
-          descripcion: mov.tipo_origen === 'cobro' ? 'Cobro Consolidado de Deuda' : 'Pago Consolidado',
+          descripcion: mov.tipo_origen === 'cobro' ? '' : 'Pago Consolidado',
           debe: 0,
           haber: 0,
           cuenta_nombre_list: [],

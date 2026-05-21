@@ -222,21 +222,6 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
             montoCobrar = saldoActual;
           }
 
-          // Cobrar el saldo exacto de la nota
-          const { error: rpcErr } = await supabase.rpc('rpc_registrar_cobro', {
-            p_payload: {
-              cuenta_cobrar_id: cobroCxcId,
-              escuela_id: ctx.escuela_id,
-              sucursal_id: ctx.sucursal_id,
-              usuario_id: ctx.id,
-              monto: montoCobrar,
-              cuenta_cobro_id: cobroCuentaId,
-              nro_comprobante: concatDoc,
-              fecha: `${cobroFecha}T${getHoraLocal()}:00`
-            }
-          });
-          if (rpcErr) throw rpcErr;
-
           // Si hay exceso, crear anticipo automáticamente
           if (exceso > 0) {
             const { data: notaAnticipo, error: errAnt } = await supabase.from('cuentas_cobrar').insert({
@@ -260,21 +245,38 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
               precio_unitario: exceso
             });
 
-            const { error: rpcAntErr } = await supabase.rpc('rpc_registrar_cobro', {
+            const { error: rpcMultipleErr } = await supabase.rpc('rpc_cobrar_multiple_cxc', {
               p_payload: {
-                cuenta_cobrar_id: notaAnticipo.id,
                 escuela_id: ctx.escuela_id,
                 sucursal_id: ctx.sucursal_id,
                 usuario_id: ctx.id,
-                monto: exceso,
+                cuenta_cobro_id: cobroCuentaId,
+                nro_comprobante: concatDoc,
+                fecha: `${cobroFecha}T${getHoraLocal()}:00`,
+                cobros: [
+                  { cuenta_cobrar_id: cobroCxcId, monto: montoCobrar },
+                  { cuenta_cobrar_id: notaAnticipo.id, monto: exceso }
+                ]
+              }
+            });
+            if (rpcMultipleErr) throw rpcMultipleErr;
+
+            setCobroInfoAnticipo({ monto: exceso });
+          } else {
+            // Cobrar el saldo exacto de la nota cuando no hay exceso
+            const { error: rpcErr } = await supabase.rpc('rpc_registrar_cobro', {
+              p_payload: {
+                cuenta_cobrar_id: cobroCxcId,
+                escuela_id: ctx.escuela_id,
+                sucursal_id: ctx.sucursal_id,
+                usuario_id: ctx.id,
+                monto: montoCobrar,
                 cuenta_cobro_id: cobroCuentaId,
                 nro_comprobante: concatDoc,
                 fecha: `${cobroFecha}T${getHoraLocal()}:00`
               }
             });
-            if (rpcAntErr) throw rpcAntErr;
-
-            setCobroInfoAnticipo({ monto: exceso });
+            if (rpcErr) throw rpcErr;
           }
         }
       }
