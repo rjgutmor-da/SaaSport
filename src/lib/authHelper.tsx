@@ -1,5 +1,5 @@
 /**
- * authHelper.ts — Contexto de autenticación para SaaSport.
+ * authHelper.tsx — Contexto de autenticación para SaaSport.
  *
  * Obtiene el perfil completo del usuario desde la tabla `usuarios`
  * de Supabase y expone rol, escuela_id y sucursal_id.
@@ -26,9 +26,19 @@ export interface PerfilUsuario {
   activo: boolean;
 }
 
+export interface EscuelaInfo {
+  id: string;
+  nombre: string;
+  zona_horaria: string | null;
+  activa: boolean;
+  logo_url: string | null;
+  slogan: string | null;
+}
+
 interface AuthContextValue {
   session: Session | null;
   perfil: PerfilUsuario | null;
+  escuela: EscuelaInfo | null;
   cargando: boolean;
   /** true si el usuario puede acceder a SaaSport */
   tieneAcceso: boolean;
@@ -40,6 +50,7 @@ interface AuthContextValue {
   sucursalId: string | null;
   escuelaId: string | null;
   cerrarSesion: () => Promise<void>;
+  recargarDatosAuth: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -56,13 +67,14 @@ const ROLES_PERMITIDOS = ['SuperAdministrador', 'Administrador'];
 export const AuthProviderSaaSport = ({ children }: { children: ReactNode }) => {
   const [session, setSession] = useState<Session | null>(null);
   const [perfil, setPerfil] = useState<PerfilUsuario | null>(null);
+  const [escuela, setEscuela] = useState<EscuelaInfo | null>(null);
   const [cargando, setCargando] = useState(true);
 
   // Refs para evitar loops de carga innecesarios en onAuthStateChange
   const inicializado = useRef(false);
   const procesandoId = useRef<string | null>(null);
 
-  /** Obtener perfil desde la tabla usuarios con timeout de seguridad */
+  /** Obtener perfil y escuela activa con timeout de seguridad */
   const cargarPerfil = async (userId: string): Promise<void> => {
     try {
       const queryPromise = supabase
@@ -81,13 +93,40 @@ export const AuthProviderSaaSport = ({ children }: { children: ReactNode }) => {
       if (error) {
         console.error('Error al cargar perfil:', error);
         setPerfil(null);
+        setEscuela(null);
         return;
       }
 
-      setPerfil(data as PerfilUsuario);
+      const perfilData = data as PerfilUsuario;
+      setPerfil(perfilData);
+
+      // Cargar información de la escuela si tiene escuela_id
+      if (perfilData?.escuela_id) {
+        const { data: escuelaData, error: escuelaError } = await supabase
+          .from('escuelas')
+          .select('*')
+          .eq('id', perfilData.escuela_id)
+          .single();
+
+        if (escuelaError) {
+          console.error('Error al cargar datos de la escuela:', escuelaError);
+          setEscuela(null);
+        } else {
+          setEscuela(escuelaData as EscuelaInfo);
+        }
+      } else {
+        setEscuela(null);
+      }
     } catch (err) {
       console.error('Error inesperado al cargar perfil:', err);
       setPerfil(null);
+      setEscuela(null);
+    }
+  };
+
+  const recargarDatosAuth = async (): Promise<void> => {
+    if (session?.user?.id) {
+      await cargarPerfil(session.user.id);
     }
   };
 
@@ -111,6 +150,7 @@ export const AuthProviderSaaSport = ({ children }: { children: ReactNode }) => {
         await cargarPerfil(s.user.id);
       } else {
         setPerfil(null);
+        setEscuela(null);
         procesandoId.current = null;
       }
 
@@ -129,6 +169,7 @@ export const AuthProviderSaaSport = ({ children }: { children: ReactNode }) => {
   const cerrarSesion = async (): Promise<void> => {
     await supabase.auth.signOut();
     setPerfil(null);
+    setEscuela(null);
     setSession(null);
   };
 
@@ -145,6 +186,7 @@ export const AuthProviderSaaSport = ({ children }: { children: ReactNode }) => {
   const value = React.useMemo(() => ({
     session,
     perfil,
+    escuela,
     cargando,
     tieneAcceso,
     esSuperAdmin,
@@ -152,7 +194,8 @@ export const AuthProviderSaaSport = ({ children }: { children: ReactNode }) => {
     sucursalId: perfil?.sucursal_id ?? null,
     escuelaId: perfil?.escuela_id ?? null,
     cerrarSesion,
-  }), [session, perfil, cargando, tieneAcceso, esSuperAdmin, puedeEliminar, cerrarSesion]);
+    recargarDatosAuth,
+  }), [session, perfil, escuela, cargando, tieneAcceso, esSuperAdmin, puedeEliminar, cerrarSesion]);
 
   return (
     <AuthContext.Provider value={value}>

@@ -60,7 +60,7 @@ interface SidebarProps {
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ onLogout, theme, onCycleTheme, extra }) => {
-  const { esSuperAdmin } = useAuthSaaSport();
+  const { esSuperAdmin, escuela } = useAuthSaaSport();
 
   const getThemeIcon = () => {
     if (theme === 'light') return <Sun size={18} />;
@@ -150,11 +150,24 @@ const Sidebar: React.FC<SidebarProps> = ({ onLogout, theme, onCycleTheme, extra 
           borderTop: '1px solid rgba(255,255,255,0.05)'
         }}>
           <img 
-            src={LogoPlaneta} 
-            alt="Logo Planeta" 
-            style={{ width: '160px', height: 'auto', transition: 'transform 0.3s ease' }} 
+            src={escuela?.logo_url || LogoPlaneta} 
+            alt={escuela?.nombre || "Logo Escuela"} 
+            style={{ width: '160px', height: 'auto', maxHeight: '120px', objectFit: 'contain', transition: 'transform 0.3s ease' }} 
             className="hover-scale"
           />
+          {escuela?.slogan && (
+            <p style={{ 
+              color: 'var(--text-secondary)', 
+              fontSize: '0.75rem', 
+              fontStyle: 'italic', 
+              marginTop: '0.2rem',
+              maxWidth: '200px',
+              wordBreak: 'break-word',
+              padding: '0 0.5rem'
+            }}>
+              "{escuela.slogan}"
+            </p>
+          )}
         </div>
       </nav>
 

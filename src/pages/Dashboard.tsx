@@ -1,10 +1,11 @@
 import { useNavigate } from 'react-router-dom';
-import { ClipboardList, HandCoins, PieChart, Shirt, TrendingUp, Landmark, BookOpen, BarChart2 } from 'lucide-react';
-import { navegarAAsisport } from '../lib/navegacion';
+import { HandCoins, PieChart, Landmark, BookOpen, BarChart2 } from 'lucide-react';
 import LogoPlaneta from '../assets/LogoPlaneta.png';
+import { useAuthSaaSport } from '../lib/authHelper';
 
 const Dashboard = () => {
   const navigate = useNavigate();
+  const { escuela } = useAuthSaaSport();
 
   return (
     <main className="main-content">
@@ -52,12 +53,40 @@ const Dashboard = () => {
       </div>
 
       {/* Brand Section: Logo + Phrase */}
-      <div className="flex flex-col items-center text-center mt-12 pb-8">
+      <div style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        textAlign: 'center',
+        marginTop: '3.5rem',
+        paddingBottom: '2rem',
+        gap: '0.75rem'
+      }}>
         <img 
-          src={LogoPlaneta} 
-          alt="Logo Planeta FC" 
-          className="w-44 h-auto md:w-[340px] transition-transform hover:scale-105 duration-300"
+          src={escuela?.logo_url || LogoPlaneta} 
+          alt={escuela?.nombre || "Logo Escuela"} 
+          style={{
+            width: '260px',
+            height: 'auto',
+            maxHeight: '180px',
+            objectFit: 'contain',
+            transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
+          }}
+          onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
+          onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
         />
+        {escuela?.slogan && (
+          <p style={{
+            color: 'var(--text-secondary)',
+            fontStyle: 'italic',
+            fontSize: '0.95rem',
+            marginTop: '0.25rem',
+            maxWidth: '500px',
+            lineHeight: '1.4'
+          }}>
+            "{escuela.slogan}"
+          </p>
+        )}
       </div>
     </main>
   );
