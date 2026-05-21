@@ -124,7 +124,7 @@ const RegistroActividad: React.FC = () => {
         zIndex: 100,
         backdropFilter: 'blur(10px)'
       }}>
-        <button className="btn-volver" onClick={() => navigate('/contabilidad')} style={{ background: 'transparent', border: 'none', color: 'var(--text-primary)' }}>
+        <button className="btn-volver" onClick={() => navigate('/configuraciones')} style={{ background: 'transparent', border: 'none', color: 'var(--text-primary)' }}>
           <ChevronLeft size={20} />
         </button>
         

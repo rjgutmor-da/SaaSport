@@ -340,7 +340,7 @@ const PlanCuentas: React.FC = () => {
       {/* ─── Header ─── */}
       <div className="cxc-header-bar">
         <div className="cxc-header-izq">
-          <button className="btn-volver" onClick={() => navigate('/contabilidad')} title="Volver">
+          <button className="btn-volver" onClick={() => navigate('/cuentas')} title="Volver">
             <ChevronLeft size={20} />
           </button>
           <h1 className="cxc-titulo-principal">Plan de Cuentas</h1>

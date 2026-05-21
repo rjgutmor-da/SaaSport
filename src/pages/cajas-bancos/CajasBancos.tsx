@@ -5,8 +5,7 @@ import {
   CheckCircle2, ArrowRightLeft, CheckSquare, Square, Pencil, Trash2,
   Star, GripVertical
 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
-import type { CajaBanco, MovimientoContable, AsientoContable } from '../../types/finanzas';
+import type { CajaBanco } from '../../types/finanzas';
 import ModalTransferencia from '../../components/cajas-bancos/ModalTransferencia';
 import ModalMovimientoDirecto from '../../components/cajas-bancos/ModalMovimientoDirecto';
 import ModalEditarMovimiento from '../../components/cajas-bancos/ModalEditarMovimiento';
@@ -16,10 +15,7 @@ import ModalCobroRapido from '../../components/cxc/ModalCobroRapido';
 import ModalPagoRapidoCxP from '../../components/cxp/ModalPagoRapidoCxP';
 import DropdownAcciones from '../../components/cajas-bancos/DropdownAcciones';
 import { formatFecha } from '../../lib/dateUtils';
-import type { EntidadCxP } from '../../types/cxp';
 
-import { SidebarContext } from '../../App';
-import { useContext } from 'react';
 import { useAuthSaaSport } from '../../lib/authHelper';
 import { useCajasBancos, useMovimientos, useCxpEntidades, type MovimientoFinanciero } from '../../hooks/useFinanzas';
 import { useQueryClient } from '@tanstack/react-query';
@@ -28,13 +24,7 @@ import { useIsMobile } from '../../hooks/useIsMobile';
 const fmtMonto = (n: number) =>
   n.toLocaleString('es-BO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-const fmtFechaLocal = (iso: string): string => formatFecha(iso);
-
-
-
 const CajasBancos: React.FC = () => {
-  const navigate = useNavigate();
-  const { setExtra } = useContext(SidebarContext);
   const { esSuperAdmin, escuelaId, puedeEliminar } = useAuthSaaSport();
   const queryClient = useQueryClient();
   const isMobile = useIsMobile();
@@ -52,7 +42,6 @@ const CajasBancos: React.FC = () => {
   const [filtroCuenta, setFiltroCuenta] = useState<string>('todas');
   const [busqueda, setBusqueda] = useState('');
   const [busquedaCuenta, setBusquedaCuenta] = useState('');
-  const [cajaSeleccionadaMovs, setCajaSeleccionadaMovs] = useState<CajaBanco | null>(null);
 
   // ── Drag-and-drop de tarjetas (solo super admin) ──
   const [cajasOrdenadas, setCajasOrdenadas] = useState<typeof cajas>([]);
@@ -95,7 +84,7 @@ const CajasBancos: React.FC = () => {
 
   const manejarActualizacion = () => {
     queryClient.invalidateQueries({ queryKey: ['cajas-bancos', escuelaId] });
-    queryClient.invalidateQueries({ queryKey: ['movimientos-contables', escuelaId] });
+    queryClient.invalidateQueries({ queryKey: ['movimientos-financieros', escuelaId] });
   };
 
   // ── Guardar nuevo orden en BD ──

@@ -1,6 +1,6 @@
 # SaaSport — Módulo de Finanzas y CxC
 
-Bienvenido al sistema de gestión financiera de **SaaSport**. Este proyecto es una extensión de la plataforma **AsiSport**, enfocada en la administración de cuentas por cobrar, cuentas por pagar, inventarios y contabilidad general.
+Bienvenido al sistema de gestión financiera de **SaaSport**. Este proyecto es una extensión de la plataforma **AsiSport**, enfocada en la administración de cuentas por cobrar, cuentas por pagar, cajas, bancos y reportes financieros.
 
 ## 🚀 Tecnologías
 - **Frontend:** React + TypeScript + Vite
@@ -11,7 +11,7 @@ Bienvenido al sistema de gestión financiera de **SaaSport**. Este proyecto es u
 
 ## 📂 Estructura del Proyecto
 - `/src/pages/cxc`: Módulo de Cuentas por Cobrar.
-- `/src/pages/finanzas`: Libro Diario, Plan de Cuentas y Registro de Actividad.
+- `/src/pages/finanzas`: Estadísticas y Registro de Actividad.
 - `/src/pages/config`: Configuraciones generales.
 - `/src/components/cxc`: Componentes especializados para gestión de deudas y pagos.
 
@@ -30,7 +30,7 @@ Para ejecutar el proyecto localmente:
 ### Tareas de Verificación Sugeridas:
 1. **Crear Nota:** Usa el modal de "Nueva Nota" en CxC.
 2. **Registrar Cobro:** Haz un pago parcial/total desde el detalle del alumno.
-3. **Validar Contabilidad:** Revisa que el **Libro Diario** refleje los movimientos.
+3. **Validar Movimientos:** Revisa Cajas/Bancos y el Registro de Actividad para confirmar los movimientos.
 4. **Resguardo de Auditoría:** Verifica que cada acción financiera genere un log en el módulo de auditoría.
 
 ## 🛡️ Seguridad

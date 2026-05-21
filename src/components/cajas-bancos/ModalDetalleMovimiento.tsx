@@ -1,14 +1,12 @@
-import React, { useEffect, useState } from 'react';
-import { supabase } from '../../lib/supabaseClient';
-import { X, FileText, Calendar, Hash, Info, Link2, User, CreditCard, ArrowDownRight, ArrowUpRight } from 'lucide-react';
-import { formatFecha, formatFechaHora } from '../../lib/dateUtils';
+import React from 'react';
+import { X, Calendar, Hash, User, CreditCard, ArrowDownRight, ArrowUpRight } from 'lucide-react';
+import { formatFecha } from '../../lib/dateUtils';
 import type { MovimientoFinanciero } from '../../hooks/useFinanzas';
 
 interface ModalDetalleMovimientoProps {
   visible: boolean;
   onCerrar: () => void;
   movimiento?: MovimientoFinanciero | null;
-  asientoId?: string | null;
 }
 
 const fmtMonto = (n: number) =>
@@ -20,33 +18,14 @@ const ORIGEN_INFO: Record<string, { label: string; modulo: string; color: string
   cobro:         { label: 'Cobro Aplicado',       modulo: 'Cobro CxC',    color: '#10b981', bg: 'rgba(16,185,129,0.10)' },
   pago:          { label: 'Pago Aplicado',        modulo: 'Pago CxP',     color: '#ef4444', bg: 'rgba(239,68,68,0.10)' },
   banco_directo: { label: 'Movimiento Directo',   modulo: 'Cajas/Bancos', color: '#8b5cf6', bg: 'rgba(139,92,246,0.10)' },
-  manual:        { label: 'Asiento Manual',       modulo: 'Manual',       color: '#64748b', bg: 'rgba(100,116,139,0.10)' },
+  manual:        { label: 'Movimiento Manual',    modulo: 'Manual',       color: '#64748b', bg: 'rgba(100,116,139,0.10)' },
 };
 
-const ModalDetalleMovimiento: React.FC<ModalDetalleMovimientoProps> = ({ visible, onCerrar, movimiento, asientoId }) => {
-  const [asiento, setAsiento] = useState<any>(null);
-  const [movimientosContables, setMovimientosContables] = useState<any[]>([]);
-  const [cargando, setCargando] = useState(false);
-
-  useEffect(() => {
-    const targetId = asientoId || movimiento?.asiento_id;
-    if (visible && targetId) {
-      cargarDetalleContable(targetId);
-    } else {
-      setAsiento(null);
-      setMovimientosContables([]);
-    }
-  }, [visible, movimiento, asientoId]);
-
-  const cargarDetalleContable = async (id: string) => {
-    // Ya no usamos tablas contables
-    setCargando(false);
-  };
-
+const ModalDetalleMovimiento: React.FC<ModalDetalleMovimientoProps> = ({ visible, onCerrar, movimiento }) => {
   if (!visible) return null;
 
   const infoOrigen = (movimiento?.tipo_origen && ORIGEN_INFO[movimiento.tipo_origen]) || ORIGEN_INFO.manual;
-  const montoValor = movimiento ? (movimiento.debe > 0 ? movimiento.debe : movimiento.haber) : (asiento?.total || 0);
+  const montoValor = movimiento ? (movimiento.debe > 0 ? movimiento.debe : movimiento.haber) : 0;
   const esIngreso = movimiento ? movimiento.debe > 0 : true;
 
   return (
@@ -63,7 +42,7 @@ const ModalDetalleMovimiento: React.FC<ModalDetalleMovimientoProps> = ({ visible
             <div>
               <h2 style={{ margin: 0 }}>{esIngreso ? 'Detalle de Ingreso' : 'Detalle de Egreso'}</h2>
               <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-tertiary)' }}>
-                {infoOrigen.label} • {movimiento ? formatFecha(movimiento.fecha) : (asiento ? formatFecha(asiento.fecha) : '—')}
+                {infoOrigen.label} • {movimiento ? formatFecha(movimiento.fecha) : '—'}
               </p>
             </div>
           </div>
@@ -75,7 +54,7 @@ const ModalDetalleMovimiento: React.FC<ModalDetalleMovimientoProps> = ({ visible
           <div className="modal-form-grid" style={{ marginBottom: '2rem' }}>
             <div className="form-campo">
               <label><Calendar size={14} /> Fecha</label>
-              <div style={{ fontSize: '1.1rem', fontWeight: 600 }}>{movimiento ? formatFecha(movimiento.fecha) : (asiento ? formatFecha(asiento.fecha) : '—')}</div>
+              <div style={{ fontSize: '1.1rem', fontWeight: 600 }}>{movimiento ? formatFecha(movimiento.fecha) : '—'}</div>
             </div>
             <div className="form-campo">
               <label><Hash size={14} /> Nro. Transacción</label>
@@ -92,7 +71,7 @@ const ModalDetalleMovimiento: React.FC<ModalDetalleMovimientoProps> = ({ visible
             <div className="form-campo full-width">
               <label>Descripción / Glosa</label>
               <div style={{ background: 'var(--bg-glass)', padding: '1rem', borderRadius: '12px', border: '1px solid var(--border)', fontSize: '1.1rem', fontWeight: 500 }}>
-                {movimiento?.descripcion || asiento?.glosa || 'Sin descripción'}
+                {movimiento?.descripcion || 'Sin descripción'}
               </div>
             </div>
           </div>
@@ -114,7 +93,6 @@ const ModalDetalleMovimiento: React.FC<ModalDetalleMovimientoProps> = ({ visible
             </div>
           </div>
 
-          {/* Sección Contable removida por simplificación de sistema */}
         </div>
         
         <div style={{ padding: '1.5rem 2rem', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end' }}>

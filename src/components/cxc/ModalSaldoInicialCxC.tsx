@@ -1,7 +1,7 @@
 /**
  * ModalSaldoInicialCxC.tsx
  * Modal para registrar saldos iniciales de deuda de clientes (alumnos).
- * Versión simplificada sin asientos contables.
+ * Versión simplificada sin contabilidad de doble partida.
  */
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabaseClient';

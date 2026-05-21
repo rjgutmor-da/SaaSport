@@ -55,40 +55,6 @@ export interface NodoCuenta extends CuentaContable {
 }
 
 // ==========================================
-// Asientos y Movimientos Contables
-// ==========================================
-
-/** Métodos de pago admitidos */
-export type MetodoPago = 'efectivo' | 'transferencia' | 'qr';
-
-/** Fila de la tabla `asientos_contables` */
-export interface AsientoContable {
-  id: string;
-  escuela_id: string;
-  sucursal_id: string | null;
-  usuario_id: string | null;
-  fecha: string;
-  descripcion: string;
-  metodo_pago: MetodoPago;
-  created_at: string;
-}
-
-/** Fila de la tabla `movimientos_contables` */
-export interface MovimientoContable {
-  id: string;
-  escuela_id: string;
-  asiento_id: string;
-  cuenta_contable_id: string;
-  debe: number;
-  haber: number;
-  es_conciliado?: boolean; // Note: using conciliado since we added the column
-  conciliado: boolean;
-  created_at: string;
-  // Relación expandida (join)
-  cuenta?: CuentaContable;
-}
-
-// ==========================================
 // Colores por tipo de cuenta (UI)
 // ==========================================
 export const COLORES_TIPO: Record<TipoCuenta, { bg: string; texto: string; borde: string }> = {

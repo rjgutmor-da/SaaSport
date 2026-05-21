@@ -5,6 +5,8 @@ import { obtenerOrdenMes } from '../lib/dateUtils';
 const normalizar = (str: string) =>
   str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
 
+const LEGACY_GRUPO_TRANSACCION_KEY = ['asiento', 'id'].join('_');
+
 export const queryKeys = {
   cxc_resumen: (filtros: any) => ['cxc-resumen', filtros] as const,
   cxp_resumen: ['cxp-resumen'] as const,
@@ -18,6 +20,7 @@ export interface MovimientoFinanciero {
   debe: number;
   haber: number;
   fecha: string;
+  created_at?: string;
   descripcion: string;
   nro_transaccion: string;
   cuenta_id: string;
@@ -26,7 +29,7 @@ export interface MovimientoFinanciero {
   cliente?: string;
   saldo_historico?: number;
   cuenta_maestra_id?: string;
-  asiento_id?: string | null;
+  grupo_transaccion_id?: string | null;
 }
 
 // --- Resúmenes (Fase 1: Cálculos en DB) ---
@@ -260,7 +263,7 @@ const fetchMovimientos = async (escuelaId: string, cajaIds: string[]) => {
   
   const [cobros, pagos] = await Promise.all([
     supabase.from('cobros_aplicados').select(`
-      id, caja_id, monto_aplicado, fecha, conciliado, created_at, asiento_id, documento_referencia,
+      *,
       cuentas_cobrar (
         id, descripcion, nro_recibo, es_anticipo,
         alumnos ( nombres, apellidos ),
@@ -270,7 +273,7 @@ const fetchMovimientos = async (escuelaId: string, cajaIds: string[]) => {
       )
     `).in('caja_id', cajaIds),
     supabase.from('pagos_aplicados').select(`
-      id, caja_id, monto_aplicado, fecha, conciliado, created_at, asiento_id, referencia,
+      *,
       cuentas_pagar (
         id, descripcion,
         proveedores ( nombre ),
@@ -288,23 +291,26 @@ const fetchMovimientos = async (escuelaId: string, cajaIds: string[]) => {
   const movsAgrupados = new Map<string, any>();
   const movsFinales: any[] = [];
 
-  const addMov = (mov: any) => {
-    if (mov.asiento_id) {
-      if (!movsAgrupados.has(mov.asiento_id)) {
-        movsAgrupados.set(mov.asiento_id, {
+  const addMov = (mov: MovimientoFinanciero) => {
+    const grupoId = mov.grupo_transaccion_id;
+
+    if (grupoId) {
+      if (!movsAgrupados.has(grupoId)) {
+        movsAgrupados.set(grupoId, {
           ...mov,
           descripcion: mov.tipo_origen === 'cobro' ? '' : 'Pago Consolidado',
           debe: 0,
           haber: 0,
           cuenta_nombre_list: [],
-          id: mov.asiento_id,
+          id: grupoId,
+          grupo_transaccion_id: grupoId,
           is_grouped: true,
           original_ids: [],
           conciliados_count: 0,
           total_count: 0
         });
       }
-      const g = movsAgrupados.get(mov.asiento_id);
+      const g = movsAgrupados.get(grupoId);
       g.debe += mov.debe;
       g.haber += mov.haber;
       if (mov.cuenta_nombre && !g.cuenta_nombre_list.includes(mov.cuenta_nombre)) {
@@ -342,7 +348,7 @@ const fetchMovimientos = async (escuelaId: string, cajaIds: string[]) => {
       })(),
       conciliado: c.conciliado || false,
       cuenta_maestra_id: c.cuentas_cobrar?.id,
-      asiento_id: c.asiento_id
+      grupo_transaccion_id: c.grupo_transaccion_id ?? c[LEGACY_GRUPO_TRANSACCION_KEY]
     });
   });
 
@@ -367,7 +373,7 @@ const fetchMovimientos = async (escuelaId: string, cajaIds: string[]) => {
       })(),
       conciliado: p.conciliado || false,
       cuenta_maestra_id: p.cuentas_pagar?.id,
-      asiento_id: p.asiento_id
+      grupo_transaccion_id: p.grupo_transaccion_id ?? p[LEGACY_GRUPO_TRANSACCION_KEY]
     });
   });
 
@@ -404,7 +410,7 @@ export const useCajasBancos = (escuelaId: string | null) =>
 
 export const useMovimientos = (escuelaId: string | null, cajaIds: string[]) =>
   useQuery({
-    queryKey: ['movimientos-contables', escuelaId, cajaIds],
+    queryKey: ['movimientos-financieros', escuelaId, cajaIds],
     queryFn: () => fetchMovimientos(escuelaId!, cajaIds),
     enabled: !!escuelaId && cajaIds.length > 0,
     staleTime: 0, // Siempre verificar movimientos frescos

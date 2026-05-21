@@ -1,7 +1,7 @@
 /**
  * ModalCobroRapido.tsx
  * Modal de cobro rápido accesible desde la lista principal de alumnos.
- * Versión simplificada sin asientos contables.
+ * Versión simplificada sin contabilidad de doble partida.
  */
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabaseClient';

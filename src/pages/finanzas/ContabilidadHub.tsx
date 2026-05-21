@@ -5,7 +5,7 @@
  */
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { TreePine, BookOpen, ChevronLeft, BarChart3, Activity } from 'lucide-react';
+import { TreePine, ChevronLeft, BarChart3, Activity } from 'lucide-react';
 
 const ContabilidadHub: React.FC = () => {
   const navigate = useNavigate();
@@ -22,33 +22,25 @@ const ContabilidadHub: React.FC = () => {
     {
       id: 'plan-cuentas',
       titulo: 'Plan de Cuentas',
-      descripcion: 'Árbol contable jerárquico con todas las cuentas organizadas por tipo.',
+      descripcion: 'Catálogo financiero jerárquico con cuentas organizadas por tipo.',
       icono: <TreePine size={60} strokeWidth={1.5} />,
-      ruta: '/contabilidad/plan-cuentas',
+      ruta: '/cuentas',
       hoverClass: 'hover-color-green',
-    },
-    {
-      id: 'libro-diario',
-      titulo: 'Libro Diario',
-      descripcion: 'Registro inmutable de asientos contables con partida doble.',
-      icono: <BookOpen size={60} strokeWidth={1.5} />,
-      ruta: '/contabilidad/libro-diario',
-      hoverClass: 'hover-color-blue',
     },
     {
       id: 'estadisticas',
       titulo: 'Estadísticas',
       descripcion: 'Reportes financieros, gráficos de ingresos y gastos dinámicos.',
       icono: <BarChart3 size={60} strokeWidth={1.5} />,
-      ruta: '/contabilidad/estadisticas',
+      ruta: '/estadisticas',
       hoverClass: 'hover-color-orange',
     },
     {
       id: 'registro-actividad',
       titulo: 'Registro de Actividad',
-      descripcion: 'Auditoría de cambios y registros realizados en el sistema contable.',
+      descripcion: 'Auditoría de cambios y registros realizados en el sistema financiero.',
       icono: <Activity size={60} strokeWidth={1.5} />,
-      ruta: '/contabilidad/registro-actividad',
+      ruta: '/finanzas/registro-actividad',
       hoverClass: 'hover-color-blue',
     },
   ];
