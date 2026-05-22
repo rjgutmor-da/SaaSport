@@ -7,7 +7,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import type { CatalogoItem } from '../../types/cuentas';
 import type { LineaNota } from '../../types/cxc';
-import { MESES_ANIO, LISTA_TORNEOS } from '../../types/cxc';
+import { MESES_ANIO } from '../../types/cxc';
 import {
   X, Plus, Check, Trash2, Calendar, AlertCircle,
   CreditCard, FileText, Users, RefreshCw, Hash
@@ -39,15 +39,20 @@ const lineaVacia = (): LineaNota => ({
   cuenta_ingreso_id: null,
 });
 
+interface LineaNotaUI extends LineaNota {
+  torneo_select_value?: string;
+}
+
 const NotaServicios: React.FC<NotaServiciosProps> = ({
   visible, onCerrar, onCreada, alumnoPreseleccionado, cxcEditar, esAnticipo = false, modoInicial
 }) => {
   const [alumnos, setAlumnos] = useState<{ id: string; nombres: string; apellidos: string }[]>([]);
   const [catalogo, setCatalogo] = useState<CatalogoItem[]>([]);
   const [cajasBancos, setCajasBancos] = useState<{ id: string; nombre: string; saldo_actual: number }[]>([]);
+  const [torneos, setTorneos] = useState<string[]>(LISTA_TORNEOS);
 
   const [alumnoId, setAlumnoId] = useState('');
-  const [lineas, setLineas] = useState<LineaNota[]>([lineaVacia()]);
+  const [lineas, setLineas] = useState<LineaNotaUI[]>([lineaVacia()]);
   const [observaciones, setObservaciones] = useState('');
   const [vencimiento, setVencimiento] = useState(getHoyISO());
   const [fechaEmision, setFechaEmision] = useState(getHoyISO());
@@ -87,6 +92,26 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
         const pred = (listaCajas as any[]).find((c: any) => c.es_predeterminada);
         if (pred) setCuentaCobroId(pred.id);
         else if (listaCajas.length > 0) setCuentaCobroId(listaCajas[0].id);
+      }
+
+      // Cargar torneos con fallback y autoseed
+      try {
+        const { data: dbTorneos, error: tErr } = await supabase
+          .from('torneos')
+          .select('nombre')
+          .eq('escuela_id', usr.escuela_id)
+          .eq('activo', true)
+          .order('nombre');
+
+        if (tErr) {
+          console.warn("No se pudo cargar torneos de la BD:", tErr.message);
+          setTorneos([]);
+        } else {
+          setTorneos(dbTorneos.map((t: any) => t.nombre));
+        }
+      } catch (e) {
+        console.error("Error al obtener torneos:", e);
+        setTorneos([]);
       }
     };
     cargar();
@@ -454,42 +479,61 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
                         </div>
                       )}
 
-                      {esTorneo && (
-                        <div style={{ marginTop: '0.75rem', padding: '0.75rem', background: 'rgba(255,255,255,0.02)', borderRadius: '8px' }}>
-                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                            <div>
-                              <label style={{ fontSize: '0.7rem', fontWeight: 700, color: '#94a3b8', display: 'block', marginBottom: '0.2rem' }}>SELECCIONAR TORNEO</label>
-                              <select 
-                                value={linea.detalle_personalizado || ''}
-                                onChange={e => {
-                                  const val = e.target.value;
-                                  const nuevas = [...lineas];
-                                  nuevas[idx].detalle_personalizado = val;
-                                  setLineas(nuevas);
-                                }}
-                                style={{ width: '100%', padding: '0.4rem', fontSize: '0.8rem', background: 'rgba(0,0,0,0.2)' }}
-                              >
-                                <option value="">— Seleccionar —</option>
-                                {LISTA_TORNEOS.map(t => <option key={t} value={t}>{t}</option>)}
-                              </select>
-                            </div>
-                            <div>
-                              <label style={{ fontSize: '0.7rem', fontWeight: 700, color: '#94a3b8', display: 'block', marginBottom: '0.2rem' }}>NOMBRE DEL TORNEO</label>
-                              <input 
-                                type="text" 
-                                value={linea.detalle_personalizado} 
-                                onChange={e => {
-                                  const nuevas = [...lineas];
-                                  nuevas[idx].detalle_personalizado = e.target.value;
-                                  setLineas(nuevas);
-                                }}
-                                placeholder="Escriba el torneo si no está en la lista..."
-                                style={{ width: '100%', padding: '0.4rem', fontSize: '0.8rem', background: 'rgba(0,0,0,0.2)' }}
-                              />
+                      {esTorneo && (() => {
+                        const selectVal = linea.torneo_select_value !== undefined
+                          ? linea.torneo_select_value
+                          : (linea.detalle_personalizado
+                              ? (torneos.includes(linea.detalle_personalizado) ? linea.detalle_personalizado : 'Otro')
+                              : '');
+
+                        return (
+                          <div style={{ marginTop: '0.75rem', padding: '0.75rem', background: 'rgba(255,255,255,0.02)', borderRadius: '8px' }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: selectVal === 'Otro' ? '1fr 1fr' : '1fr', gap: '1rem' }}>
+                              <div>
+                                <label style={{ fontSize: '0.7rem', fontWeight: 700, color: '#94a3b8', display: 'block', marginBottom: '0.2rem' }}>SELECCIONAR TORNEO</label>
+                                <select 
+                                  value={selectVal}
+                                  onChange={e => {
+                                    const val = e.target.value;
+                                    const nuevas = [...lineas];
+                                    nuevas[idx] = {
+                                      ...nuevas[idx],
+                                      torneo_select_value: val,
+                                      detalle_personalizado: val === 'Otro'
+                                        ? (nuevas[idx].detalle_personalizado && !torneos.includes(nuevas[idx].detalle_personalizado)
+                                            ? nuevas[idx].detalle_personalizado
+                                            : '')
+                                        : val
+                                    };
+                                    setLineas(nuevas);
+                                  }}
+                                  style={{ width: '100%', padding: '0.4rem', fontSize: '0.8rem', background: 'rgba(0,0,0,0.2)' }}
+                                >
+                                  <option value="">— Seleccionar —</option>
+                                  {torneos.map(t => <option key={t} value={t}>{t}</option>)}
+                                  <option value="Otro">Otro</option>
+                                </select>
+                              </div>
+                              {selectVal === 'Otro' && (
+                                <div>
+                                  <label style={{ fontSize: '0.7rem', fontWeight: 700, color: '#94a3b8', display: 'block', marginBottom: '0.2rem' }}>NOMBRE DEL TORNEO</label>
+                                  <input 
+                                    type="text" 
+                                    value={linea.detalle_personalizado || ''} 
+                                    onChange={e => {
+                                      const nuevas = [...lineas];
+                                      nuevas[idx] = { ...nuevas[idx], detalle_personalizado: e.target.value };
+                                      setLineas(nuevas);
+                                    }}
+                                    placeholder="Escriba el torneo..."
+                                    style={{ width: '100%', padding: '0.4rem', fontSize: '0.8rem', background: 'rgba(0,0,0,0.2)' }}
+                                  />
+                                </div>
+                              )}
                             </div>
                           </div>
-                        </div>
-                      )}
+                        );
+                      })()}
                     </div>
                   );
                 })}

@@ -138,18 +138,4 @@ export const MESES_ANIO = [
   'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'
 ];
 
-/** Lista predefinida de torneos */
-export const LISTA_TORNEOS = [
-  'Torito Garcia',
-  'Taquito',
-  'Super Campeones',
-  'Leones',
-  'Atletico Junior',
-  'Cañito',
-  'Sucha Suarez',
-  'Planeta',
-  'Semillero',
-  'JMP',
-  'Milton Melgar',
-  'Blooming Cup'
-];
+

@@ -33,20 +33,7 @@ import { useCuentasPorCobrar } from './hooks/useCuentasPorCobrar';
 import type { IntervaloPredefinido } from './utils/estadisticasUtils';
 import { calcularRango, NOMBRES_MESES } from './utils/estadisticasUtils';
 
-/** Lista de torneos predefinidos — misma que en NotaServicios */
-const TORNEOS_PREDEFINIDOS = [
-  'Torito Garcia',
-  'Taquito',
-  'Super Campeones',
-  'Leones',
-  'Atletico Junior',
-  'Cañito',
-  'Planeta',
-  'Semillero',
-  'JMP',
-  'Milton Melgar',
-  'Blooming Cup',
-];
+
 
 // Interfaz de ítem del catálogo
 interface CatalogoItem {
@@ -98,6 +85,9 @@ const Estadisticas: React.FC = () => {
   const [torneoSeleccionado, setTorneoSeleccionado] = useState('');
   // Si el usuario elige "Otro", puede escribir uno personalizado
   const [torneoPersonalizado, setTorneoPersonalizado] = useState('');
+
+  const [torneos, setTorneos] = useState<string[]>([]);
+  const [cargandoTorneos, setCargandoTorneos] = useState(false);
 
   // ─── Determinar si el ítem seleccionado tiene subfiltro ───
   const esMensualidad = itemSeleccionado?.nombre?.toLowerCase().includes('mensualidad') ?? false;
@@ -211,6 +201,29 @@ const Estadisticas: React.FC = () => {
         .eq('escuela_id', escuelaId)
         .order('nombre');
       setCanchas(cchs ?? []);
+
+      // Cargar Torneos dinámicamente
+      setCargandoTorneos(true);
+      try {
+        const { data: dbTorneos, error: tErr } = await supabase
+          .from('torneos')
+          .select('nombre')
+          .eq('escuela_id', escuelaId)
+          .eq('activo', true)
+          .order('nombre');
+        
+        if (tErr) {
+          console.warn("No se pudo cargar torneos de la BD para estadísticas:", tErr.message);
+          setTorneos([]);
+        } else {
+          setTorneos(dbTorneos ? dbTorneos.map((t: any) => t.nombre) : []);
+        }
+      } catch (e) {
+        console.error("Error al obtener torneos en estadísticas:", e);
+        setTorneos([]);
+      } finally {
+        setCargandoTorneos(false);
+      }
     };
     cargar();
   }, [escuelaId]);
@@ -465,7 +478,7 @@ const Estadisticas: React.FC = () => {
                       Todos
                     </button>
 
-                    {TORNEOS_PREDEFINIDOS.map(t => (
+                    {torneos.map(t => (
                       <button
                         key={t}
                         className={`est-chip ${torneoSeleccionado === t ? 'est-chip--activo' : ''}`}

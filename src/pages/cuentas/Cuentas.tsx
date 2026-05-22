@@ -3,11 +3,11 @@
  * Módulo de Cuentas (ex-Inventarios): gestión de catálogo de ítems (productos, servicios, gastos, otros).
  * Permite definir si un ítem es de Ingreso, Egreso o Ambos.
  */
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import {
   RefreshCw, Plus, X, Trash2,
-  Edit2, Save, BookOpen, ShoppingBag, Wrench, Receipt, Layers
+  Edit2, Save, BookOpen, ShoppingBag, Wrench, Receipt, Layers, Search
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthSaaSport } from '../../lib/authHelper';
@@ -74,9 +74,15 @@ const Cuentas: React.FC = () => {
   // Filtro
   const [filtroCategoria, setFiltroCategoria] = useState('');
   const [filtroMovimiento, setFiltroMovimiento] = useState('');
+  const [busqueda, setBusqueda] = useState('');
 
-  // Edición de catálogo
-  const [editando, setEditando] = useState(false);
+  // Estados de Edición y Datos de Torneos
+  const [modoEdicion, setModoEdicion] = useState<'ninguno' | 'conceptos' | 'torneos'>('ninguno');
+  
+  const [torneos, setTorneos] = useState<{ id: string; nombre: string; activo: boolean; contacto?: string; telefono?: string }[]>([]);
+  const [cargandoTorneos, setCargandoTorneos] = useState(false);
+  const [guardandoTorneos, setGuardandoTorneos] = useState(false);
+
   const [itemsEditables, setItemsEditables] = useState<{
     id?: string;
     nombre: string;
@@ -88,12 +94,46 @@ const Cuentas: React.FC = () => {
     cuenta_gasto_id: string;
     esNuevo: boolean;
   }[]>([]);
+  const [torneosEditables, setTorneosEditables] = useState<{
+    id?: string;
+    nombre: string;
+    activo: boolean;
+    contacto?: string;
+    telefono?: string;
+    esNuevo: boolean;
+  }[]>([]);
   const [guardandoItems, setGuardandoItems] = useState(false);
 
   const manejarActualizacion = () => {
     queryClient.invalidateQueries({ queryKey: ['catalogo', escuelaId] });
   };
 
+  const cargarTorneos = async () => {
+    if (!escuelaId) return;
+    setCargandoTorneos(true);
+    try {
+      const { data, error } = await supabase
+        .from('torneos')
+        .select('*')
+        .eq('escuela_id', escuelaId)
+        .order('nombre');
+      if (error) {
+        console.error("Error al cargar torneos en Cuentas:", error);
+      } else {
+        setTorneos(data || []);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setCargandoTorneos(false);
+    }
+  };
+
+  useEffect(() => {
+    if (escuelaId) {
+      cargarTorneos();
+    }
+  }, [escuelaId]);
 
   // Lista Filtrada
   const itemsFiltrados = useMemo(() => {
@@ -104,10 +144,14 @@ const Cuentas: React.FC = () => {
     if (filtroMovimiento) {
       list = list.filter(i => i.tipo_movimiento === filtroMovimiento || i.tipo_movimiento === 'ambos');
     }
+    if (busqueda.trim()) {
+      const q = busqueda.toLowerCase().trim();
+      list = list.filter(i => i.nombre.toLowerCase().includes(q));
+    }
     return list;
-  }, [items, filtroCategoria, filtroMovimiento]);
+  }, [items, filtroCategoria, filtroMovimiento, busqueda]);
 
-  // Edición
+  // Edición de Conceptos
   const iniciarEdicion = () => {
     setItemsEditables(
       items.map(i => ({
@@ -122,7 +166,7 @@ const Cuentas: React.FC = () => {
         esNuevo: false,
       }))
     );
-    setEditando(true);
+    setModoEdicion('conceptos');
   };
 
   const agregarItem = () => {
@@ -227,7 +271,7 @@ const Cuentas: React.FC = () => {
       if (errorOcurrido) {
         alert('Hubo problemas al guardar algunos ítems. Por favor revisa la consola o intenta de nuevo.');
       } else {
-        setEditando(false);
+        setModoEdicion('ninguno');
         manejarActualizacion();
       }
     } catch (err) {
@@ -235,6 +279,111 @@ const Cuentas: React.FC = () => {
       alert('Error inesperado al conectar con el servidor.');
     } finally {
       setGuardandoItems(false);
+    }
+  };
+
+  // Edición de Torneos
+  const iniciarEdicionTorneos = () => {
+    setTorneosEditables(
+      torneos.map(t => ({
+        id: t.id,
+        nombre: t.nombre,
+        activo: t.activo,
+        contacto: t.contacto || '',
+        telefono: t.telefono || '',
+        esNuevo: false,
+      }))
+    );
+    setModoEdicion('torneos');
+  };
+
+  const agregarTorneoEditable = () => {
+    setTorneosEditables(prev => [...prev, {
+      nombre: '',
+      activo: true,
+      contacto: '',
+      telefono: '',
+      esNuevo: true,
+    }]);
+  };
+
+  const eliminarTorneoEditable = (idx: number) => {
+    setTorneosEditables(prev => prev.filter((_, i) => i !== idx));
+  };
+
+  const actualizarTorneoEditable = (idx: number, campo: string, valor: any) => {
+    setTorneosEditables(prev => {
+      const nuevos = [...prev];
+      (nuevos[idx] as any)[campo] = valor;
+      return nuevos;
+    });
+  };
+
+  const guardarTorneos = async () => {
+    const validos = torneosEditables.filter(t => t.nombre.trim());
+    if (validos.length === 0) { alert('Agrega al menos un torneo.'); return; }
+
+    setGuardandoTorneos(true);
+    let errorOcurrido = false;
+
+    try {
+      const ctx = await obtenerCtx();
+      if (!ctx) {
+        alert('Sesión expirada o usuario no encontrado.');
+        setGuardandoTorneos(false);
+        return;
+      }
+
+      // 1. Actualizar torneos existentes
+      for (const torneo of validos.filter(t => !t.esNuevo && t.id)) {
+        const { error } = await supabase
+          .from('torneos')
+          .update({
+            nombre: torneo.nombre,
+            activo: torneo.activo,
+            contacto: torneo.contacto,
+            telefono: torneo.telefono,
+          })
+          .eq('id', torneo.id);
+
+        if (error) {
+          console.error("Error actualizando torneo:", error);
+          errorOcurrido = true;
+        }
+      }
+
+      // 2. Insertar torneos nuevos
+      const nuevos = validos.filter(t => t.esNuevo);
+      if (nuevos.length > 0) {
+        const inserts = nuevos.map(t => ({
+          escuela_id: ctx.escuela_id,
+          nombre: t.nombre,
+          activo: t.activo,
+          contacto: t.contacto,
+          telefono: t.telefono,
+        }));
+
+        const { error: errIns } = await supabase
+          .from('torneos')
+          .insert(inserts);
+
+        if (errIns) {
+          console.error("Error insertando torneos:", errIns);
+          errorOcurrido = true;
+        }
+      }
+
+      if (errorOcurrido) {
+        alert('Hubo problemas al guardar algunos torneos. Por favor revisa la consola.');
+      } else {
+        setModoEdicion('ninguno');
+        await cargarTorneos();
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Error inesperado al conectar con el servidor.');
+    } finally {
+      setGuardandoTorneos(false);
     }
   };
 
@@ -274,53 +423,175 @@ const Cuentas: React.FC = () => {
     }}>
       {/* ─── Barra de Control ─── */}
       <div className="cxc-barra-control" style={{ margin: 0, padding: '0.5rem 1.25rem' }}>
-        <div className="cxc-filtros-inline" style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <select
-              className="cxc-filtro-select"
-              value={filtroCategoria}
-              onChange={e => setFiltroCategoria(e.target.value)}
-              style={{ margin: 0 }}
-            >
-              <option value="">Todas las Categorías</option>
-              <option value="producto">Productos</option>
-              <option value="servicio">Servicios</option>
-              <option value="gasto">Gastos</option>
-              <option value="otro">Otros</option>
-            </select>
-            <select
-              className="cxc-filtro-select"
-              value={filtroMovimiento}
-              onChange={e => setFiltroMovimiento(e.target.value)}
-              style={{ margin: 0 }}
-            >
-              <option value="">Cualquier Movimiento</option>
-              <option value="ingreso">Ingresos</option>
-              <option value="egreso">Egresos</option>
-              <option value="ambos">Ambos</option>
-            </select>
-          </div>
+        {modoEdicion === 'ninguno' ? (
+          <div className="cxc-filtros-inline" style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+              <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                <input
+                  type="text"
+                  placeholder="Buscar concepto..."
+                  value={busqueda}
+                  onChange={e => setBusqueda(e.target.value)}
+                  style={{ 
+                    margin: 0, 
+                    paddingLeft: '2.25rem', 
+                    paddingRight: '0.75rem', 
+                    minWidth: '220px', 
+                    height: '36px',
+                    background: 'var(--bg-input, rgba(255, 255, 255, 0.05))',
+                    border: '1px solid var(--border, rgba(255, 255, 255, 0.1))',
+                    borderRadius: 'var(--radius-md, 8px)',
+                    color: 'var(--text-primary, #fff)',
+                    fontSize: '0.85rem',
+                    outline: 'none'
+                  }}
+                />
+                <Search size={14} style={{ position: 'absolute', left: '0.75rem', color: 'var(--text-secondary, #94a3b8)', pointerEvents: 'none' }} />
+              </div>
 
-          <div style={{ display: 'flex', gap: '0.5rem' }}>
-            {!editando ? (
-              <button className="btn-nueva-cuenta" onClick={iniciarEdicion} style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem' }}>
-                <Edit2 size={14} /> Editar Catálogo
+              <select
+                className="cxc-filtro-select"
+                value={filtroCategoria}
+                onChange={e => setFiltroCategoria(e.target.value)}
+                style={{ 
+                  margin: 0, 
+                  height: '36px', 
+                  borderRadius: '8px', 
+                  border: '1px solid rgba(255,255,255,0.1)', 
+                  background: 'rgba(255,255,255,0.05)',
+                  color: 'var(--text-primary)',
+                  padding: '0 0.5rem',
+                  fontSize: '0.85rem',
+                  cursor: 'pointer'
+                }}
+              >
+                <option value="">Todas las Categorías</option>
+                <option value="producto">Productos</option>
+                <option value="servicio">Servicios</option>
+                <option value="gasto">Gastos</option>
+                <option value="otro">Otros</option>
+              </select>
+
+              <select
+                className="cxc-filtro-select"
+                value={filtroMovimiento}
+                onChange={e => setFiltroMovimiento(e.target.value)}
+                style={{ 
+                  margin: 0, 
+                  height: '36px', 
+                  borderRadius: '8px', 
+                  border: '1px solid rgba(255,255,255,0.1)', 
+                  background: 'rgba(255,255,255,0.05)',
+                  color: 'var(--text-primary)',
+                  padding: '0 0.5rem',
+                  fontSize: '0.85rem',
+                  cursor: 'pointer'
+                }}
+              >
+                <option value="">Cualquier Movimiento</option>
+                <option value="ingreso">Ingresos</option>
+                <option value="egreso">Egresos</option>
+                <option value="ambos">Ambos</option>
+              </select>
+            </div>
+
+            <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+              <button 
+                className="btn-nueva-cuenta" 
+                onClick={iniciarEdicion} 
+                style={{ 
+                  padding: '0.45rem 1rem', 
+                  fontSize: '0.85rem', 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: '0.4rem',
+                  borderRadius: '8px',
+                  background: 'rgba(255,255,255,0.05)',
+                  border: '1px solid rgba(255,255,255,0.1)',
+                  color: 'var(--text-primary)',
+                  cursor: 'pointer',
+                  fontWeight: 600
+                }}
+              >
+                <Edit2 size={14} /> Conceptos
               </button>
-            ) : (
-              <>
-                <button className="btn-guardar-cuenta" onClick={guardarCatalogo} disabled={guardandoItems} style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem' }}>
-                  <Save size={14} /> {guardandoItems ? '...' : 'Guardar'}
-                </button>
-                <button className="btn-refrescar" onClick={() => setEditando(false)} title="Cancelar">
-                  <X size={14} />
-                </button>
-              </>
-            )}
-            <button className="btn-refrescar" onClick={manejarActualizacion} disabled={cargando}>
-              <RefreshCw size={16} className={cargando ? 'spin' : ''} />
-            </button>
+              <button 
+                className="btn-nueva-cuenta" 
+                onClick={iniciarEdicionTorneos} 
+                style={{ 
+                  padding: '0.45rem 1rem', 
+                  fontSize: '0.85rem', 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: '0.4rem',
+                  borderRadius: '8px',
+                  background: 'rgba(255,255,255,0.05)',
+                  border: '1px solid rgba(255,255,255,0.1)',
+                  color: 'var(--text-primary)',
+                  cursor: 'pointer',
+                  fontWeight: 600
+                }}
+              >
+                <Edit2 size={14} /> Torneos
+              </button>
+              <button className="btn-refrescar" onClick={manejarActualizacion} disabled={cargando}>
+                <RefreshCw size={16} className={cargando ? 'spin' : ''} />
+              </button>
+            </div>
           </div>
-        </div>
+        ) : (
+          <div style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <span style={{ 
+                fontSize: '0.95rem', 
+                fontWeight: 700, 
+                color: 'var(--primary)',
+                textTransform: 'uppercase',
+                letterSpacing: '0.5px'
+              }}>
+                {modoEdicion === 'conceptos' ? '📝 Editando Catálogo de Conceptos' : '🏆 TORNEOS'}
+              </span>
+            </div>
+
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <button 
+                className="btn-guardar-cuenta" 
+                onClick={modoEdicion === 'conceptos' ? guardarCatalogo : guardarTorneos} 
+                disabled={guardandoItems || guardandoTorneos} 
+                style={{ 
+                  padding: '0.45rem 1.2rem', 
+                  fontSize: '0.85rem',
+                  borderRadius: '8px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.4rem',
+                  fontWeight: 600
+                }}
+              >
+                <Save size={14} /> {guardandoItems || guardandoTorneos ? '...' : 'Guardar'}
+              </button>
+              <button 
+                className="btn-refrescar" 
+                onClick={() => setModoEdicion('ninguno')} 
+                title="Cancelar"
+                style={{ 
+                  borderRadius: '8px',
+                  height: '36px',
+                  width: '36px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  border: '1px solid rgba(255,255,255,0.1)',
+                  background: 'rgba(255,255,255,0.05)',
+                  color: 'var(--text-primary)',
+                  cursor: 'pointer'
+                }}
+              >
+                <X size={14} />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {errorCatalogo && (
@@ -329,8 +600,8 @@ const Cuentas: React.FC = () => {
         </div>
       )}
 
-      {/* Edición de Catálogo in-line */}
-      {editando ? (
+      {/* Edición de Catálogo in-line / Torneos in-line */}
+      {modoEdicion === 'conceptos' ? (
         <div className="cxc-tabla-wrapper">
           <table className="cxc-tabla">
             <thead>
@@ -492,6 +763,133 @@ const Cuentas: React.FC = () => {
                     }}
                   >
                     <Plus size={16} /> Agregar ítem nuevo
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      ) : modoEdicion === 'torneos' ? (
+        <div className="cxc-tabla-wrapper">
+          <table className="cxc-tabla">
+            <thead>
+              <tr>
+                <th className="cxc-th" style={{ width: '40%' }}>NOMBRE DEL TORNEO</th>
+                <th className="cxc-th" style={{ width: '25%' }}>CONTACTO</th>
+                <th className="cxc-th" style={{ width: '20%' }}>TELÉFONO</th>
+                <th className="cxc-th cxc-th-center" style={{ width: '10%' }}>ESTADO</th>
+                <th className="cxc-th" style={{ width: '5%' }}></th>
+              </tr>
+            </thead>
+            <tbody>
+              {torneosEditables.map((torneo, idx) => (
+                <tr key={idx} className="cxc-tr">
+                  <td className="cxc-td" style={{ padding: 0 }}>
+                    <input
+                      type="text"
+                      value={torneo.nombre}
+                      onChange={e => actualizarTorneoEditable(idx, 'nombre', e.target.value)}
+                      placeholder="Ej. Copa Oro"
+                      style={{ 
+                        width: '100%', 
+                        height: '100%', 
+                        background: 'transparent', 
+                        border: 'none', 
+                        padding: '0.75rem', 
+                        color: 'var(--text-primary)',
+                        fontSize: 'inherit'
+                      }}
+                      disabled={guardandoTorneos}
+                    />
+                  </td>
+                  <td className="cxc-td" style={{ padding: 0 }}>
+                    <input
+                      type="text"
+                      value={torneo.contacto || ''}
+                      onChange={e => actualizarTorneoEditable(idx, 'contacto', e.target.value)}
+                      placeholder="Contacto"
+                      style={{ 
+                        width: '100%', 
+                        height: '100%', 
+                        background: 'transparent', 
+                        border: 'none', 
+                        padding: '0.75rem', 
+                        color: 'var(--text-primary)',
+                        fontSize: 'inherit'
+                      }}
+                      disabled={guardandoTorneos}
+                    />
+                  </td>
+                  <td className="cxc-td" style={{ padding: 0 }}>
+                    <input
+                      type="text"
+                      value={torneo.telefono || ''}
+                      onChange={e => actualizarTorneoEditable(idx, 'telefono', e.target.value)}
+                      placeholder="Teléfono"
+                      style={{ 
+                        width: '100%', 
+                        height: '100%', 
+                        background: 'transparent', 
+                        border: 'none', 
+                        padding: '0.75rem', 
+                        color: 'var(--text-primary)',
+                        fontSize: 'inherit'
+                      }}
+                      disabled={guardandoTorneos}
+                    />
+                  </td>
+                  <td className="cxc-td cxc-td-center" style={{ padding: 0 }}>
+                    <label style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%', cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={torneo.activo}
+                        onChange={e => actualizarTorneoEditable(idx, 'activo', e.target.checked)}
+                        disabled={guardandoTorneos}
+                        style={{ cursor: 'pointer', transform: 'scale(1.2)' }}
+                      />
+                    </label>
+                  </td>
+                  <td className="cxc-td cxc-td-center" style={{ padding: 0 }}>
+                    <button
+                      onClick={() => eliminarTorneoEditable(idx)}
+                      disabled={guardandoTorneos}
+                      style={{ 
+                        background: 'none', 
+                        border: 'none', 
+                        color: 'var(--danger)', 
+                        cursor: 'pointer',
+                        padding: '0.5rem',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        width: '100%'
+                      }}
+                      title="Eliminar torneo"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+              <tr>
+                <td colSpan={5} className="cxc-td" style={{ padding: '0.5rem' }}>
+                  <button
+                    onClick={agregarTorneoEditable}
+                    disabled={guardandoTorneos}
+                    style={{ 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      gap: '0.4rem', 
+                      color: 'var(--primary)', 
+                      fontWeight: 600, 
+                      padding: '0.5rem', 
+                      cursor: 'pointer', 
+                      background: 'none',
+                      border: 'none',
+                      fontSize: '0.85rem'
+                    }}
+                  >
+                    <Plus size={16} /> Agregar torneo nuevo
                   </button>
                 </td>
               </tr>
