@@ -49,7 +49,7 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
   const [alumnos, setAlumnos] = useState<{ id: string; nombres: string; apellidos: string }[]>([]);
   const [catalogo, setCatalogo] = useState<CatalogoItem[]>([]);
   const [cajasBancos, setCajasBancos] = useState<{ id: string; nombre: string; saldo_actual: number }[]>([]);
-  const [torneos, setTorneos] = useState<string[]>(LISTA_TORNEOS);
+  const [torneos, setTorneos] = useState<string[]>([]);
 
   const [alumnoId, setAlumnoId] = useState('');
   const [lineas, setLineas] = useState<LineaNotaUI[]>([lineaVacia()]);
