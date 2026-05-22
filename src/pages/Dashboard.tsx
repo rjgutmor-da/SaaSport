@@ -75,18 +75,7 @@ const Dashboard = () => {
           onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
           onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
         />
-        {escuela?.slogan && (
-          <p style={{
-            color: 'var(--text-secondary)',
-            fontStyle: 'italic',
-            fontSize: '0.95rem',
-            marginTop: '0.25rem',
-            maxWidth: '500px',
-            lineHeight: '1.4'
-          }}>
-            "{escuela.slogan}"
-          </p>
-        )}
+
       </div>
     </main>
   );

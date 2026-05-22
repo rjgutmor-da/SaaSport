@@ -29,10 +29,17 @@ interface EscuelaInfo {
   slogan?: string | null;
 }
 
+interface SucursalStats {
+  id: string;
+  nombre: string;
+  count: number;
+}
+
 interface Estadisticas {
   alumnosActivos: number;
   usuariosActivos: number;
   entrenadoresActivos: number;
+  alumnosPorSucursal: SucursalStats[];
 }
 
 const PanelEscuela: React.FC = () => {
@@ -45,13 +52,14 @@ const PanelEscuela: React.FC = () => {
     alumnosActivos: 0,
     usuariosActivos: 0,
     entrenadoresActivos: 0,
+    alumnosPorSucursal: [],
   });
   const [error, setError] = useState<string | null>(null);
 
   // Estados para el Modal de Edición
   const [isEditing, setIsEditing] = useState(false);
   const [editNombre, setEditNombre] = useState('');
-  const [editSlogan, setEditSlogan] = useState('');
+
   const [editLogoUrl, setEditLogoUrl] = useState<string | null>(null);
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
@@ -81,26 +89,42 @@ const PanelEscuela: React.FC = () => {
 
       const [
         { data: escuelaData, error: escuelaError },
-        { count: alumnosCount },
+        { data: alumnosData },
         { count: usuariosCount },
         { count: entrenadoresCount },
+        { data: sucursalesData },
       ] = await Promise.all([
         supabase.from('escuelas').select('*').eq('id', escuela_id).single(),
-        supabase.from('alumnos').select('id', { count: 'exact', head: true })
+        supabase.from('alumnos').select('id, sucursal_id')
           .eq('escuela_id', escuela_id).eq('archivado', false),
         supabase.from('usuarios').select('id', { count: 'exact', head: true })
           .eq('escuela_id', escuela_id).eq('activo', true),
         supabase.from('usuarios').select('id', { count: 'exact', head: true })
           .eq('escuela_id', escuela_id).eq('rol', 'Entrenador').eq('activo', true),
+        supabase.from('sucursales').select('id, nombre').eq('escuela_id', escuela_id),
       ]);
 
       if (escuelaError) throw new Error('Error al cargar datos de la escuela.');
 
+      const alumnosActivos = alumnosData ? alumnosData.length : 0;
+      const sucursalesMap = sucursalesData || [];
+      const alumnosPorSucursal: SucursalStats[] = sucursalesMap.map(suc => ({
+        id: suc.id,
+        nombre: suc.nombre,
+        count: (alumnosData || []).filter(a => a.sucursal_id === suc.id).length
+      })).filter(s => s.count > 0);
+
+      const sinSucursalCount = (alumnosData || []).filter(a => !a.sucursal_id).length;
+      if (sinSucursalCount > 0) {
+        alumnosPorSucursal.push({ id: 'sin-sucursal', nombre: 'Sin sucursal', count: sinSucursalCount });
+      }
+
       setEscuela(escuelaData);
       setStats({
-        alumnosActivos: alumnosCount ?? 0,
+        alumnosActivos,
         usuariosActivos: usuariosCount ?? 0,
         entrenadoresActivos: entrenadoresCount ?? 0,
+        alumnosPorSucursal
       });
     } catch (err: any) {
       setError(err.message);
@@ -170,7 +194,6 @@ const PanelEscuela: React.FC = () => {
         .from('escuelas')
         .update({
           nombre: editNombre.trim(),
-          slogan: editSlogan.trim(),
           logo_url: finalLogoUrl,
           updated_at: new Date().toISOString()
         })
@@ -223,7 +246,6 @@ const PanelEscuela: React.FC = () => {
               <button 
                 onClick={() => {
                   setEditNombre(escuela.nombre);
-                  setEditSlogan(escuela.slogan || '');
                   setEditLogoUrl(escuela.logo_url || null);
                   setLogoFile(null);
                   setLogoPreview(null);
@@ -253,9 +275,7 @@ const PanelEscuela: React.FC = () => {
                   alt={`Logo ${escuela.nombre}`}
                   className="pe-logo-img"
                 />
-                {escuela.slogan && (
-                  <p className="pe-hero-slogan">"{escuela.slogan}"</p>
-                )}
+
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem' }}>
@@ -289,6 +309,27 @@ const PanelEscuela: React.FC = () => {
           <div>
             <p className="pe-stat-label">Alumnos Activos</p>
             <p className="pe-stat-valor">{stats.alumnosActivos}</p>
+          </div>
+        </div>
+
+        <div className="pe-stat-card pe-stat-purple">
+          <div className="pe-stat-icon" style={{ alignSelf: 'flex-start' }}>
+            <MapPin size={32} />
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <p className="pe-stat-label">Por Sucursal</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', marginTop: '0.5rem' }}>
+              {stats.alumnosPorSucursal && stats.alumnosPorSucursal.length > 0 ? (
+                stats.alumnosPorSucursal.map(suc => (
+                  <div key={suc.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.85rem' }}>
+                    <span style={{ color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginRight: '0.5rem' }}>{suc.nombre}</span>
+                    <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{suc.count}</span>
+                  </div>
+                ))
+              ) : (
+                <span style={{ color: 'var(--text-tertiary)', fontSize: '0.85rem' }}>Sin datos</span>
+              )}
+            </div>
           </div>
         </div>
 
@@ -378,16 +419,7 @@ const PanelEscuela: React.FC = () => {
                 />
               </div>
 
-              <div className="form-campo">
-                <label>Eslogan o Lema</label>
-                <input 
-                  type="text" 
-                  value={editSlogan} 
-                  onChange={(e) => setEditSlogan(e.target.value)} 
-                  maxLength={150}
-                  placeholder="Ej. Por un planeta mejor, un planeta de fútbol"
-                />
-              </div>
+
 
               <div className="form-campo">
                 <label>Logotipo de la Escuela</label>

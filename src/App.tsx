@@ -155,19 +155,7 @@ const Sidebar: React.FC<SidebarProps> = ({ onLogout, theme, onCycleTheme, extra 
             style={{ width: '160px', height: 'auto', maxHeight: '120px', objectFit: 'contain', transition: 'transform 0.3s ease' }} 
             className="hover-scale"
           />
-          {escuela?.slogan && (
-            <p style={{ 
-              color: 'var(--text-secondary)', 
-              fontSize: '0.75rem', 
-              fontStyle: 'italic', 
-              marginTop: '0.2rem',
-              maxWidth: '200px',
-              wordBreak: 'break-word',
-              padding: '0 0.5rem'
-            }}>
-              "{escuela.slogan}"
-            </p>
-          )}
+
         </div>
       </nav>
 

@@ -2980,7 +2980,7 @@ input[type=number] {
 /* Grid de estadísticas */
 .pe-stats-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 1.25rem;
   margin-bottom: 0;
 }
@@ -2995,7 +2995,7 @@ input[type=number] {
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: var(--radius-xl);
-  padding: 1.75rem;
+  padding: 1.25rem;
   display: flex;
   align-items: center;
   gap: 1.25rem;
@@ -3011,6 +3011,7 @@ input[type=number] {
 .pe-stat-orange:hover { border-color: rgba(255, 107, 53, 0.4); }
 .pe-stat-green:hover  { border-color: rgba(0, 210, 106, 0.4); }
 .pe-stat-blue:hover   { border-color: rgba(10, 132, 255, 0.4); }
+.pe-stat-purple:hover { border-color: rgba(168, 85, 247, 0.4); }
 
 .pe-stat-icon {
   padding: 1rem;
@@ -3044,6 +3045,14 @@ input[type=number] {
 }
 .pe-stat-blue:hover .pe-stat-icon {
   background: rgba(10, 132, 255, 0.2);
+}
+
+.pe-stat-purple .pe-stat-icon {
+  background: rgba(168, 85, 247, 0.1);
+  color: #a855f7;
+}
+.pe-stat-purple:hover .pe-stat-icon {
+  background: rgba(168, 85, 247, 0.2);
 }
 
 .pe-stat-label {
