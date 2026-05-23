@@ -32,7 +32,6 @@ const ModalCobroRapido: React.FC<Props> = ({ alumnoInicial, visible, onCerrar, o
 
   const [monto, setMonto] = useState('');
   const [cuentaId, setCuentaId] = useState('');
-  const [bancoOrigen, setBancoOrigen] = useState('');
   const [fecha, setFecha] = useState(getHoyISO());
   const [hora, setHora] = useState(getHoraLocal());
   const [nroDoc, setNroDoc] = useState('');
@@ -154,10 +153,7 @@ const ModalCobroRapido: React.FC<Props> = ({ alumnoInicial, visible, onCerrar, o
         .eq('id', user.id).single();
       if (!ctx) throw new Error('Error de contexto.');
 
-      const partesRef: string[] = [];
-      if (bancoOrigen.trim()) partesRef.push(bancoOrigen.trim());
-      if (nroDoc.trim()) partesRef.push(nroDoc.trim());
-      const concatDoc = partesRef.join(' | ');
+      const concatDoc = nroDoc.trim();
 
       let objetivoCxcId = cxcSelId;
       let exceso = 0;
@@ -548,11 +544,6 @@ const ModalCobroRapido: React.FC<Props> = ({ alumnoInicial, visible, onCerrar, o
                           <option key={c.id} value={c.id}>{c.nombre}</option>
                         ))}
                       </select>
-                    </div>
-
-                    <div className="form-campo full-width">
-                      <label><Hash size={14} /> Referencia Extra (Opcional)</label>
-                      <input type="text" placeholder="Ej: Banco, Hora, Ref..." value={bancoOrigen} onChange={e => setBancoOrigen(e.target.value)} disabled={guardando} />
                     </div>
                   </div>
 

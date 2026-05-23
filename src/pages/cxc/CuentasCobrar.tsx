@@ -8,7 +8,7 @@
  * 3. Barra de búsqueda
  * 4. Tabla tipo hoja de cálculo con acciones por alumno
  */
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import type { AlumnoDeuda } from '../../types/cxc';
 import {
@@ -60,6 +60,10 @@ const CuentasCobrar: React.FC = () => {
   // Paginación
   const [pagina, setPagina] = useState(1);
   const itemsPorPagina = 30;
+
+  useEffect(() => {
+    setPagina(1);
+  }, [debouncedBusqueda, soloConDeuda, soloActivos, filtroSucursal, filtroEntrenador, filtroCancha, filtroHorario]);
 
   const filtros = {
     sucursalId: filtroSucursal,
