@@ -720,6 +720,11 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                                             {mes}
                                           </span>
                                         ))}
+                                        {(item.item_nombre === 'Inscripción a Torneos' || item.item_nombre === 'Inscripcion a Torneos') && item.detalle_extra && (
+                                          <span style={{ fontSize: '0.6rem', padding: '1px 4px', borderRadius: '4px', background: 'rgba(74,222,128,0.15)', color: '#4ade80', fontWeight: 600 }}>
+                                            {item.detalle_extra}
+                                          </span>
+                                        )}
                                       </React.Fragment>
                                     ))}
                                   </div>
@@ -877,6 +882,11 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                                             {mes}
                                           </span>
                                         ))}
+                                        {(item.item_nombre === 'Inscripción a Torneos' || item.item_nombre === 'Inscripcion a Torneos') && item.detalle_extra && (
+                                          <span style={{ fontSize: '0.65rem', padding: '1px 6px', borderRadius: '4px', background: 'rgba(74,222,128,0.15)', color: '#4ade80', fontWeight: 600 }}>
+                                            {item.detalle_extra}
+                                          </span>
+                                        )}
                                       </React.Fragment>
                                     ))}
                                   </div>
