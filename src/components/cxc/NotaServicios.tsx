@@ -67,6 +67,7 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
   const [fechaPago, setFechaPago] = useState(getHoyISO());
   const [horaPago, setHoraPago] = useState(getHoraLocal());
   const [montoAnticipo, setMontoAnticipo] = useState('');
+  const [cuentaAnticipoId, setCuentaAnticipoId] = useState('');
 
   const STORAGE_KEY = 'saasport_nota_draft';
 
@@ -142,6 +143,7 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
           setFechaPago(data.fechaPago || getHoyISO());
           setPagarAlCrear(data.pagarAlCrear || esAnticipo);
           setCuentaCobroId(data.cuentaCobroId || '');
+          setCuentaAnticipoId(data.cuentaAnticipoId || '');
           setMontoPago(data.montoPago || '');
           setCobroNroDoc(data.cobroNroDoc || '');
         } catch (e) {
@@ -164,11 +166,11 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
     if (visible && !cxcEditar && !exito) {
       const draft = {
         alumnoId, lineas, observaciones, vencimiento, fechaEmision,
-        pagarAlCrear, cuentaCobroId, montoPago, cobroNroDoc, fechaPago
+        pagarAlCrear, cuentaCobroId, cuentaAnticipoId, montoPago, cobroNroDoc, fechaPago
       };
       localStorage.setItem(STORAGE_KEY, JSON.stringify(draft));
     }
-  }, [alumnoId, lineas, observaciones, vencimiento, fechaEmision, pagarAlCrear, cuentaCobroId, montoPago, cobroNroDoc, fechaPago, visible, cxcEditar, exito]);
+  }, [alumnoId, lineas, observaciones, vencimiento, fechaEmision, pagarAlCrear, cuentaCobroId, cuentaAnticipoId, montoPago, cobroNroDoc, fechaPago, visible, cxcEditar, exito]);
 
   const total = useMemo(() => {
     if (esAnticipo) return parseFloat(montoAnticipo) || 0;
@@ -190,6 +192,7 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
     if (esAnticipo) {
       if (!montoAnticipo || parseFloat(montoAnticipo) <= 0) { setError('Ingresa un monto válido.'); return; }
       if (!cuentaCobroId) { setError('Selecciona la caja de ingreso.'); return; }
+      if (!cuentaAnticipoId) { setError('Selecciona la cuenta/concepto a la que se aplicará el anticipo.'); return; }
     } else {
       const lineasValidas = lineas.filter(l => l.catalogo_item_id && l.precio_unitario > 0);
       if (lineasValidas.length === 0) { setError('Agrega ítems válidos.'); return; }
@@ -249,11 +252,10 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
 
       // 2. Detalle
       if (esAnticipo) {
-        const itemGenerico = catalogo[0]?.id;
         await supabase.from('cxc_detalle').insert({
           escuela_id: ctx.escuela_id,
           cuenta_cobrar_id: notaId,
-          catalogo_item_id: itemGenerico,
+          catalogo_item_id: cuentaAnticipoId,
           cantidad: 1,
           precio_unitario: total,
           detalle_extra: 'Anticipo'
@@ -540,6 +542,24 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
                 <button type="button" onClick={() => setLineas([...lineas, lineaVacia()])} style={{ fontSize: '0.8rem', color: '#3b82f6', display: 'flex', alignItems: 'center', gap: '0.3rem' }}><Plus size={14} /> Agregar otro ítem</button>
               </div>
             ) : null}
+
+            {esAnticipo && (
+              <div className="form-campo full-width" style={{ marginBottom: '1.5rem' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  📂 Cuenta / Concepto <span style={{ color: '#a855f7', fontSize: '0.75rem' }}>(a qué cuenta se aplica el anticipo)</span>
+                </label>
+                <select
+                  value={cuentaAnticipoId}
+                  onChange={e => setCuentaAnticipoId(e.target.value)}
+                  disabled={guardando}
+                  style={{ borderColor: cuentaAnticipoId ? '#a855f7' : undefined }}
+                  required
+                >
+                  <option value="">— Seleccionar cuenta —</option>
+                  {catalogo.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                </select>
+              </div>
+            )}
 
             {/* Observaciones generales */}
             <div className="form-campo full-width" style={{ marginBottom: '1rem' }}>
