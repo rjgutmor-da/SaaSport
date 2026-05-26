@@ -68,14 +68,14 @@ const Estadisticas: React.FC = () => {
   const [itemSeleccionado, setItemSeleccionado] = useState<CatalogoItem | null>(null);
   const [dropdownItemAbierto, setDropdownItemAbierto] = useState(false);
   
-  // Nuevos filtros solicitados (Entrenador y Categoría/Sucursal)
+  // Nuevos filtros solicitados (Entrenador y Categoría/Sub)
   const [entrenadorId, setEntrenadorId] = useState('');
-  const [sucursalId, setSucursalId] = useState('');
+  const [subFiltro, setSubFiltro] = useState('');
   const [horarioId, setHorarioId] = useState('');
   const [canchaId, setCanchaId] = useState('');
   const [pagadoFiltro, setPagadoFiltro] = useState('');
   const [entrenadores, setEntrenadores] = useState<any[]>([]);
-  const [sucursales, setSucursales] = useState<any[]>([]);
+  const [subCategorias, setSubCategorias] = useState<string[]>([]);
   const [horarios, setHorarios] = useState<any[]>([]);
   const [canchas, setCanchas] = useState<any[]>([]);
 
@@ -125,7 +125,7 @@ const Estadisticas: React.FC = () => {
     hastaPersonalizado,
     subfiltrosActivos.length > 0 ? subfiltrosActivos : undefined,
     entrenadorId,
-    sucursalId,
+    subFiltro,
     horarioId,
     canchaId,
     itemSeleccionado?.nombre,
@@ -138,7 +138,7 @@ const Estadisticas: React.FC = () => {
     desdePersonalizado,
     hastaPersonalizado,
     entrenadorId,
-    sucursalId,
+    subFiltro,
     horarioId,
     canchaId
   );
@@ -178,13 +178,31 @@ const Estadisticas: React.FC = () => {
         .order('nombres');
       setEntrenadores(users ?? []);
 
-      // Cargar Sucursales (Como Categorías)
-      const { data: sucs } = await supabase
-        .from('sucursales')
-        .select('id, nombre')
+      // Cargar Categorías (Sub) a partir de los alumnos activos
+      const { data: birthdates } = await supabase
+        .from('alumnos')
+        .select('fecha_nacimiento')
         .eq('escuela_id', escuelaId)
-        .order('nombre');
-      setSucursales(sucs ?? []);
+        .eq('archivado', false);
+
+      const anioActual = new Date().getFullYear();
+      const subsSet = new Set<string>();
+      if (birthdates) {
+        birthdates.forEach((a: any) => {
+          if (a.fecha_nacimiento) {
+            const anioNac = parseInt(a.fecha_nacimiento.split('-')[0], 10);
+            if (!isNaN(anioNac)) {
+              subsSet.add(`Sub-${anioActual - anioNac}`);
+            }
+          }
+        });
+      }
+      const listaSubs = Array.from(subsSet).sort((a, b) => {
+        const numA = parseInt(a.replace('Sub-', ''), 10);
+        const numB = parseInt(b.replace('Sub-', ''), 10);
+        return numA - numB;
+      });
+      setSubCategorias(listaSubs);
 
       // Cargar Horarios
       const { data: horas } = await supabase
@@ -376,15 +394,15 @@ const Estadisticas: React.FC = () => {
                   </div>
 
                   <div className="est-filtro-item-label" style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', flex: 1 }}>
-                    <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 500, paddingLeft: '2px' }}>Categoría (Sub)</span>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 500, paddingLeft: '2px' }}>SUB</span>
                     <select 
                       className="est-select-premium"
-                      value={sucursalId}
-                      onChange={e => setSucursalId(e.target.value)}
+                      value={subFiltro}
+                      onChange={e => setSubFiltro(e.target.value)}
                     >
                       <option value="">Todas</option>
-                      {sucursales.map(s => (
-                        <option key={s.id} value={s.id}>{s.nombre}</option>
+                      {subCategorias.map(sub => (
+                        <option key={sub} value={sub}>{sub}</option>
                       ))}
                     </select>
                   </div>
@@ -559,15 +577,15 @@ const Estadisticas: React.FC = () => {
                 </div>
 
                 <div className="est-filtro-item-label" style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', flex: 1 }}>
-                  <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 500, paddingLeft: '2px' }}>Categoría (Sub)</span>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 500, paddingLeft: '2px' }}>SUB</span>
                   <select 
                     className="est-select-premium"
-                    value={sucursalId}
-                    onChange={e => setSucursalId(e.target.value)}
+                    value={subFiltro}
+                    onChange={e => setSubFiltro(e.target.value)}
                   >
                     <option value="">Todas</option>
-                    {sucursales.map(s => (
-                      <option key={s.id} value={s.id}>{s.nombre}</option>
+                    {subCategorias.map(sub => (
+                      <option key={sub} value={sub}>{sub}</option>
                     ))}
                   </select>
                 </div>

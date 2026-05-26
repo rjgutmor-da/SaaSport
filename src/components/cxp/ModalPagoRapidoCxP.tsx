@@ -5,6 +5,7 @@ import type { EntidadCxP } from '../../types/cxp';
 import { X, CreditCard, AlertCircle, Check, FileText, Users, RefreshCw, DollarSign, Building2, Hash, Calendar, Clock } from 'lucide-react';
 import { getHoyISO, getHoraLocal } from '../../lib/dateUtils';
 import { logActivity } from '../../lib/auditLogger';
+import type { CatalogoItem } from '../../types/cuentas';
 
 const fmtMonto = (n: number): string =>
   n.toLocaleString('es-BO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -29,6 +30,9 @@ const ModalPagoRapidoCxP: React.FC<Props> = ({ entidadInicial, entidades, visibl
   const [nroDoc, setNroDoc] = useState('');
   const [fechaPago, setFechaPago] = useState(getHoyISO());
   const [horaPago, setHoraPago] = useState(getHoraLocal());
+
+  const [catalogo, setCatalogo] = useState<CatalogoItem[]>([]);
+  const [cuentaAnticipoId, setCuentaAnticipoId] = useState('');
 
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -64,6 +68,13 @@ const ModalPagoRapidoCxP: React.FC<Props> = ({ entidadInicial, entidades, visibl
         const pred = cuentas.find((c: any) => c.es_predeterminada);
         setCuentaId(pred ? pred.id : cuentas[0].id);
       }
+
+      // Cargar catálogo para anticipos
+      const { data: resCat } = await supabase.from('catalogo_items')
+        .select('*').eq('activo', true)
+        .or('tipo_movimiento.eq.egreso,tipo_movimiento.eq.ambos')
+        .order('nombre');
+      setCatalogo(resCat ?? []);
     };
     cargar();
   }, [visible]);
@@ -144,9 +155,11 @@ const ModalPagoRapidoCxP: React.FC<Props> = ({ entidadInicial, entidades, visibl
           objetivoCxpId = nuevaNota.id;
 
           // Crear detalle para consistencia
+          const itemAnticipo = cuentaAnticipoId || (catalogo.length > 0 ? catalogo[0].id : null);
           await supabase.from('cxp_detalle').insert({
               escuela_id: ctx.escuela_id,
               cuenta_pagar_id: nuevaNota.id,
+              catalogo_item_id: itemAnticipo,
               descripcion: 'Anticipo',
               cantidad: 1,
               precio_unitario: montoNum
@@ -319,6 +332,23 @@ const ModalPagoRapidoCxP: React.FC<Props> = ({ entidadInicial, entidades, visibl
                     ))}
                   </select>
                 </div>
+
+                {cxpSelId === 'anticipo' && (
+                  <div className="form-campo full-width">
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                      📂 Cuenta / Concepto <span style={{ color: '#a855f7', fontSize: '0.75rem' }}>(a qué cuenta se aplica este anticipo)</span>
+                    </label>
+                    <select
+                      value={cuentaAnticipoId}
+                      onChange={e => setCuentaAnticipoId(e.target.value)}
+                      disabled={guardando}
+                      style={{ borderColor: cuentaAnticipoId ? '#a855f7' : undefined }}
+                    >
+                      <option value="">— Seleccionar cuenta —</option>
+                      {catalogo.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                    </select>
+                  </div>
+                )}
 
                 <div className="form-campo full-width">
                    <label><Hash size={14} /> Nro. Comprobante / Referencia Interna (Opcional)</label>

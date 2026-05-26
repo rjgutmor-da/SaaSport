@@ -10,6 +10,7 @@ import type { CajaBanco } from '../../types/finanzas';
 import { X, CreditCard, AlertCircle, Check, MessageCircle, Users, FileText, RefreshCw, DollarSign, Building2, Info, Calendar, Hash, Clock } from 'lucide-react';
 import { getHoyISO, getHoraLocal } from '../../lib/dateUtils';
 import { useCobroMultiple } from './useCobroMultiple';
+import type { CatalogoItem } from '../../types/cuentas';
 
 /** Formatea un número como moneda (Bs) */
 const fmtMonto = (n: number): string =>
@@ -35,6 +36,9 @@ const ModalCobroRapido: React.FC<Props> = ({ alumnoInicial, visible, onCerrar, o
   const [fecha, setFecha] = useState(getHoyISO());
   const [hora, setHora] = useState(getHoraLocal());
   const [nroDoc, setNroDoc] = useState('');
+
+  const [catalogo, setCatalogo] = useState<CatalogoItem[]>([]);
+  const [cuentaAnticipoId, setCuentaAnticipoId] = useState('');
 
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -79,6 +83,13 @@ const ModalCobroRapido: React.FC<Props> = ({ alumnoInicial, visible, onCerrar, o
         const pred = cuentas.find((c: any) => c.es_predeterminada);
         setCuentaId(pred ? pred.id : cuentas[0].id);
       }
+
+      // Cargar catálogo para anticipos
+      const { data: resCat } = await supabase.from('catalogo_items')
+        .select('*').eq('activo', true)
+        .or('tipo_movimiento.eq.ingreso,tipo_movimiento.eq.ambos')
+        .order('nombre');
+      setCatalogo(resCat ?? []);
     };
     cargar();
   }, [visible]);
@@ -204,9 +215,11 @@ const ModalCobroRapido: React.FC<Props> = ({ alumnoInicial, visible, onCerrar, o
           if (errCxc || !nuevaNota) throw new Error('Error al crear nota de anticipo.');
           objetivoCxcId = nuevaNota.id;
 
+          const itemAnticipo = cuentaAnticipoId || (catalogo.length > 0 ? catalogo[0].id : null);
           await supabase.from('cxc_detalle').insert({
               escuela_id: ctx.escuela_id,
               cuenta_cobrar_id: nuevaNota.id,
+              catalogo_item_id: itemAnticipo,
               descripcion: 'Anticipo del cliente',
               cantidad: 1,
               precio_unitario: montoNum
@@ -228,9 +241,11 @@ const ModalCobroRapido: React.FC<Props> = ({ alumnoInicial, visible, onCerrar, o
 
         if (errAnt || !notaAnticipo) throw new Error('Error al registrar el anticipo del exceso.');
 
+        const itemAnticipo = cuentaAnticipoId || (catalogo.length > 0 ? catalogo[0].id : null);
         await supabase.from('cxc_detalle').insert({
           escuela_id: ctx.escuela_id,
           cuenta_cobrar_id: notaAnticipo.id,
+          catalogo_item_id: itemAnticipo,
           descripcion: 'Anticipo — Exceso de pago',
           cantidad: 1,
           precio_unitario: exceso
@@ -545,6 +560,23 @@ const ModalCobroRapido: React.FC<Props> = ({ alumnoInicial, visible, onCerrar, o
                         ))}
                       </select>
                     </div>
+
+                    {(cxcSelId === 'anticipo' || excesoCalculado > 0) && (
+                      <div className="form-campo full-width">
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                          📂 Cuenta / Concepto <span style={{ color: '#a855f7', fontSize: '0.75rem' }}>(a qué cuenta se aplica el anticipo)</span>
+                        </label>
+                        <select
+                          value={cuentaAnticipoId}
+                          onChange={e => setCuentaAnticipoId(e.target.value)}
+                          disabled={guardando}
+                          style={{ borderColor: cuentaAnticipoId ? '#a855f7' : undefined }}
+                        >
+                          <option value="">— Seleccionar cuenta —</option>
+                          {catalogo.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                        </select>
+                      </div>
+                    )}
                   </div>
 
                   {error && (

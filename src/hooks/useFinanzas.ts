@@ -275,7 +275,7 @@ const fetchMovimientos = async (escuelaId: string, cajaIds: string[]) => {
     supabase.from('pagos_aplicados').select(`
       *,
       cuentas_pagar (
-        id, descripcion,
+        id, descripcion, es_anticipo,
         proveedores ( nombre ),
         personal ( nombres, apellidos ),
         cxp_detalle (
@@ -339,9 +339,13 @@ const fetchMovimientos = async (escuelaId: string, cajaIds: string[]) => {
       cliente: c.cuentas_cobrar?.alumnos ? `${c.cuentas_cobrar.alumnos.nombres} ${c.cuentas_cobrar.alumnos.apellidos}` : '—',
       cuenta_id: c.caja_id,
       cuenta_nombre: (() => {
+        if (c.cuentas_cobrar?.es_anticipo) {
+          const items = c.cuentas_cobrar?.cxc_detalle?.map((d: any) => d.catalogo_items?.nombre).filter(Boolean);
+          if (items && items.length > 0) return Array.from(new Set(items)).join(', ');
+          return c.cuentas_cobrar?.descripcion || 'Anticipo';
+        }
         const items = c.cuentas_cobrar?.cxc_detalle?.map((d: any) => d.catalogo_items?.nombre).filter(Boolean);
         if (!items || items.length === 0) {
-          if (c.cuentas_cobrar?.es_anticipo) return c.cuentas_cobrar?.descripcion || 'Anticipo';
           return c.cuentas_cobrar?.descripcion || 'Concepto no especificado';
         }
         return Array.from(new Set(items)).join(', ');
@@ -365,6 +369,11 @@ const fetchMovimientos = async (escuelaId: string, cajaIds: string[]) => {
       cliente: p.cuentas_pagar?.proveedores?.nombre || (p.cuentas_pagar?.personal ? `${p.cuentas_pagar.personal.nombres} ${p.cuentas_pagar.personal.apellidos}` : '—'),
       cuenta_id: p.caja_id,
       cuenta_nombre: (() => {
+        if (p.cuentas_pagar?.es_anticipo) {
+          const items = p.cuentas_pagar?.cxp_detalle?.map((d: any) => d.catalogo_items?.nombre).filter(Boolean);
+          if (items && items.length > 0) return Array.from(new Set(items)).join(', ');
+          return p.cuentas_pagar?.descripcion || 'Anticipo';
+        }
         const items = p.cuentas_pagar?.cxp_detalle?.map((d: any) => d.catalogo_items?.nombre).filter(Boolean);
         if (!items || items.length === 0) return 'Concepto no especificado';
         let res = Array.from(new Set(items)).join(', ');

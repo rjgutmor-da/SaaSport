@@ -42,7 +42,7 @@ export function useAlumnosPorItem(
   hastaPersonalizado?: string,
   filtroSubItems?: string[], // meses o texto de torneo
   entrenadorId?: string,
-  sucursalId?: string,
+  subFiltro?: string, // Filtro por categoría SUB (ej. Sub-6)
   horarioId?: string,
   canchaId?: string,
   conceptoNombre?: string, // Para setear el concepto en el resultado
@@ -65,7 +65,7 @@ export function useAlumnosPorItem(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [escuelaId, catalogoItemId, intervalo, desdePersonalizado, hastaPersonalizado, tick,
     // serializar filtros para evitar re-renders infinitos
-    JSON.stringify(filtroSubItems), entrenadorId, sucursalId, horarioId, canchaId, conceptoNombre, pagadoFiltro]);
+    JSON.stringify(filtroSubItems), entrenadorId, subFiltro, horarioId, canchaId, conceptoNombre, pagadoFiltro]);
 
   async function cargarAlumnos(
     eid: string,
@@ -125,11 +125,28 @@ export function useAlumnosPorItem(
         const cxc = (cobro as any).cuentas_cobrar;
         if (!cxc || cxc.anulada) continue;
 
+        const alu = cxc.alumnos ?? {};
+
+        // Calcular SUB (Categoría por edad)
+        let subCalculado = '—';
+        if (alu.fecha_nacimiento) {
+          try {
+            // Extraer el año de forma segura (YYYY-MM-DD)
+            const anioNac = parseInt(alu.fecha_nacimiento.split('-')[0], 10);
+            const anioActual = new Date().getFullYear();
+            if (!isNaN(anioNac)) {
+              subCalculado = `Sub-${anioActual - anioNac}`;
+            }
+          } catch (e) {
+            subCalculado = '—';
+          }
+        }
+
         // Filtros adicionales de Alumno
-        if (entrenadorId && cxc.alumnos?.profesor_asignado_id !== entrenadorId) continue;
-        if (sucursalId && cxc.alumnos?.sucursal_id !== sucursalId) continue;
-        if (horarioId && cxc.alumnos?.horario_id !== horarioId) continue;
-        if (canchaId && cxc.alumnos?.cancha_id !== canchaId) continue;
+        if (entrenadorId && alu.profesor_asignado_id !== entrenadorId) continue;
+        if (subFiltro && subCalculado !== subFiltro) continue;
+        if (horarioId && alu.horario_id !== horarioId) continue;
+        if (canchaId && alu.cancha_id !== canchaId) continue;
 
         const montoTotalNota = Number(cxc.monto_total || 0);
         const montoCobrado = Number(cobro.monto_aplicado || 0);
@@ -163,24 +180,8 @@ export function useAlumnosPorItem(
           if (!cumpleSub) continue;
         }
 
-        const alu = cxc.alumnos ?? {};
         const nombres = alu.nombres ?? '';
         const apellidos = alu.apellidos ?? '';
-
-        // Calcular SUB (Categoría por edad)
-        let subCalculado = '—';
-        if (alu.fecha_nacimiento) {
-          try {
-            // Extraer el año de forma segura (YYYY-MM-DD)
-            const anioNac = parseInt(alu.fecha_nacimiento.split('-')[0], 10);
-            const anioActual = new Date().getFullYear();
-            if (!isNaN(anioNac)) {
-              subCalculado = `Sub-${anioActual - anioNac}`;
-            }
-          } catch (e) {
-            subCalculado = '—';
-          }
-        }
 
         // Construir descripción del detalle
         let detalleStr = '';
