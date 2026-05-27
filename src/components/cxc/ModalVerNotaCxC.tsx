@@ -231,49 +231,20 @@ const ModalVerNotaCxC: React.FC<Props> = ({ visible, cxcId, onCerrar, onEditar, 
                     )}
                   </div>
                 </div>
-                <span style={{
-                  background: badge.bg,
-                  color: badge.color,
-                  borderRadius: '20px',
-                  padding: '4px 14px',
-                  fontSize: '0.78rem',
-                  fontWeight: 600,
-                  whiteSpace: 'nowrap'
-                }}>
-                  {badge.label}
-                </span>
-              </div>
-
-              {/* Resumen de Montos */}
-              <div style={{ 
-                display: 'flex', 
-                justifyContent: 'space-between', 
-                alignItems: 'center', 
-                marginTop: '1rem',
-                paddingTop: '0.75rem',
-                borderTop: '1px solid var(--border)'
-              }}>
-                <div style={{ display: 'flex', gap: '1.5rem' }}>
-                  <div style={{ display: 'flex', flexDirection: 'column' }}>
-                    <span style={{ fontSize: '0.7rem', color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total</span>
-                    <span style={{ fontSize: '1rem', fontWeight: 700 }}>Bs {fmtMonto(montoTotal)}</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                  {/* Tarjeta Saldo Pendiente */}
+                  <div style={{ 
+                    textAlign: 'right',
+                    padding: '0.4rem 0.8rem',
+                    background: saldoPendiente > 0 ? 'rgba(248,113,113,0.1)' : 'rgba(74,222,128,0.1)',
+                    borderRadius: '8px',
+                    border: `1px solid ${saldoPendiente > 0 ? 'rgba(248,113,113,0.2)' : 'rgba(74,222,128,0.2)'}`
+                  }}>
+                    <span style={{ fontSize: '0.65rem', color: saldoPendiente > 0 ? '#f87171' : '#4ade80', display: 'block', fontWeight: 600 }}>SALDO PENDIENTE</span>
+                    <span style={{ fontSize: '1rem', fontWeight: 700, color: saldoPendiente > 0 ? '#f87171' : '#4ade80' }}>
+                      Bs {fmtMonto(saldoPendiente)}
+                    </span>
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column' }}>
-                    <span style={{ fontSize: '0.7rem', color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Cobrado</span>
-                    <span style={{ fontSize: '1rem', fontWeight: 700, color: '#4ade80' }}>Bs {fmtMonto(totalCobrado)}</span>
-                  </div>
-                </div>
-                <div style={{ 
-                  textAlign: 'right',
-                  padding: '0.5rem 1rem',
-                  background: saldoPendiente > 0 ? 'rgba(248,113,113,0.1)' : 'rgba(74,222,128,0.1)',
-                  borderRadius: '10px',
-                  border: `1px solid ${saldoPendiente > 0 ? 'rgba(248,113,113,0.2)' : 'rgba(74,222,128,0.2)'}`
-                }}>
-                  <span style={{ fontSize: '0.75rem', color: saldoPendiente > 0 ? '#f87171' : '#4ade80', display: 'block', fontWeight: 600 }}>SALDO PENDIENTE</span>
-                  <span style={{ fontSize: '1.4rem', fontWeight: 900, color: saldoPendiente > 0 ? '#f87171' : '#4ade80' }}>
-                    Bs {fmtMonto(saldoPendiente)}
-                  </span>
                 </div>
               </div>
             </div>
@@ -306,38 +277,39 @@ const ModalVerNotaCxC: React.FC<Props> = ({ visible, cxcId, onCerrar, onEditar, 
                       }}
                     >
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
                           <span style={{ fontWeight: 700, fontSize: '1.05rem', color: 'var(--text-primary)' }}>{item.nombre}</span>
-                          <span style={{ color: 'var(--text-tertiary)', fontSize: '0.85rem', marginLeft: '0.6rem' }}>
+                          <span style={{ color: 'var(--text-tertiary)', fontSize: '0.85rem' }}>
                             × {item.cantidad} @ Bs {fmtMonto(item.precio_unitario)}
                           </span>
+                          {/* Detalle específico: meses */}
+                          {item.periodo_meses && item.periodo_meses.length > 0 && (
+                            <div style={{ display: 'flex', gap: '0.3rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                              {ordenarMesesCalendario(item.periodo_meses).map((mes: string) => (
+                                <span key={mes} style={{
+                                  background: 'rgba(59,130,246,0.15)',
+                                  color: '#60a5fa',
+                                  padding: '2px 8px',
+                                  borderRadius: '12px',
+                                  fontSize: '0.7rem',
+                                  fontWeight: 600
+                                }}>
+                                  {mes}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                          {/* Detalle específico: detalle_extra */}
+                          {item.detalle_extra && (
+                            <span style={{ fontSize: '0.78rem', color: '#a78bfa', fontStyle: 'italic', display: 'inline-flex', alignItems: 'center' }}>
+                              🏷️ {item.detalle_extra}
+                            </span>
+                          )}
                         </div>
-                        <span style={{ fontWeight: 800, color: 'var(--text-primary)', fontSize: '1.1rem' }}>
+                        <span style={{ fontWeight: 800, color: 'var(--text-primary)', fontSize: '1.1rem', whiteSpace: 'nowrap' }}>
                           Bs {fmtMonto(item.subtotal)}
                         </span>
                       </div>
-                      {/* Detalle específico: meses o torneo */}
-                      {item.periodo_meses && item.periodo_meses.length > 0 && (
-                        <div style={{ marginTop: '0.4rem', display: 'flex', gap: '0.3rem', flexWrap: 'wrap' }}>
-                          {ordenarMesesCalendario(item.periodo_meses).map((mes: string) => (
-                            <span key={mes} style={{
-                              background: 'rgba(59,130,246,0.15)',
-                              color: '#60a5fa',
-                              padding: '2px 8px',
-                              borderRadius: '12px',
-                              fontSize: '0.7rem',
-                              fontWeight: 600
-                            }}>
-                              {mes}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                      {item.detalle_extra && (
-                        <p style={{ marginTop: '0.35rem', fontSize: '0.78rem', color: '#a78bfa', fontStyle: 'italic' }}>
-                          🏷️ {item.detalle_extra}
-                        </p>
-                      )}
                     </div>
                   ))}
                   {/* Total */}
@@ -378,21 +350,31 @@ const ModalVerNotaCxC: React.FC<Props> = ({ visible, cxcId, onCerrar, onEditar, 
               </div>
             )}
 
-            {/* ── Historial de Cobros ── */}
+            {/* ── Historial de Pagos ── */}
             <div style={{ marginBottom: '1.25rem' }}>
               <button
                 type="button"
                 onClick={() => setMostrarCobros(!mostrarCobros)}
                 style={{
-                  display: 'flex', alignItems: 'center', gap: '0.5rem',
-                  background: 'none', border: 'none', color: 'var(--text-tertiary)',
-                  cursor: 'pointer', fontSize: '0.75rem', fontWeight: 700,
-                  textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem',
-                  padding: 0
+                  fontSize: '0.85rem',
+                  fontWeight: 800,
+                  color: 'var(--text-primary)',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.05em',
+                  marginBottom: '0.8rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  padding: 0,
+                  fontFamily: 'inherit'
                 }}
               >
-                💰 Historial de Cobros ({cobros.length})
-                {mostrarCobros ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                <CreditCard size={16} style={{ color: '#3b82f6' }} />
+                Historial de Pagos ({cobros.length})
+                {mostrarCobros ? <ChevronUp size={16} style={{ color: 'var(--text-tertiary)' }} /> : <ChevronDown size={16} style={{ color: 'var(--text-tertiary)' }} />}
               </button>
 
               {mostrarCobros && (

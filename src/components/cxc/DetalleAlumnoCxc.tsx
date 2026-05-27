@@ -697,7 +697,11 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                         const itemsDeLaNota = detallesItems[cxc.id] || [];
                         
                         return (
-                          <tr key={cxc.id} style={{ borderBottom: '1px solid var(--border)' }}>
+                          <tr 
+                            key={cxc.id} 
+                            onClick={() => setVerNotaId(cxc.id)}
+                            style={{ borderBottom: '1px solid var(--border)', cursor: 'pointer' }}
+                          >
                             <td style={{ padding: '0.6rem 0.5rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
                               {formatFechaCorta(cxc.fecha_emision || cxc.created_at)}
                             </td>
