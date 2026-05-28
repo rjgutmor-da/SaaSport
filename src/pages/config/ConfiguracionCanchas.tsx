@@ -85,11 +85,11 @@ const ConfiguracionCanchas: React.FC = () => {
 
   const handleCreateCancha = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!escuelaId || !newCanchaName.trim() || !newCanchaSucursal) return;
+    if (!escuelaId || !newCanchaName.trim()) return;
 
     setAlerta(null);
     try {
-      await createCancha(escuelaId, newCanchaName.trim(), newCanchaSucursal);
+      await createCancha(escuelaId, newCanchaName.trim(), newCanchaSucursal || null);
       setAlerta({ tipo: 'success', mensaje: 'Grupo creado correctamente.' });
       setNewCanchaName('');
       setNewCanchaSucursal('');
@@ -114,11 +114,11 @@ const ConfiguracionCanchas: React.FC = () => {
   };
 
   const handleUpdateCancha = async (id: string) => {
-    if (!escuelaId || !editCanchaName.trim() || !editCanchaSucursal) return;
+    if (!escuelaId || !editCanchaName.trim()) return;
 
     setAlerta(null);
     try {
-      await updateCancha(escuelaId, id, editCanchaName.trim(), editCanchaSucursal);
+      await updateCancha(escuelaId, id, editCanchaName.trim(), editCanchaSucursal || null);
       setAlerta({ tipo: 'success', mensaje: 'Grupo actualizado correctamente.' });
       setEditingCancha(null);
       setEditCanchaName('');
@@ -314,9 +314,8 @@ const ConfiguracionCanchas: React.FC = () => {
                   value={newCanchaSucursal}
                   onChange={(e) => setNewCanchaSucursal(e.target.value)}
                   style={{ width: '100%', padding: '0.6rem 0.8rem', background: 'var(--bg-input)', border: '1px solid var(--border)', color: 'var(--text-primary)', height: '42px' }}
-                  required
                 >
-                  <option value="">-- Selecciona sucursal --</option>
+                  <option value="">-- Selecciona sucursal (Opcional) --</option>
                   {sucursales.map((s) => (
                     <option key={s.id} value={s.id}>{s.nombre}</option>
                   ))}
@@ -379,7 +378,7 @@ const ConfiguracionCanchas: React.FC = () => {
                             onChange={(e) => setEditCanchaSucursal(e.target.value)}
                             style={{ padding: '0.4rem 0.6rem', background: 'var(--bg-input)', border: '1px solid var(--border)', color: 'var(--text-primary)', borderRadius: '4px', height: '34px' }}
                           >
-                            <option value="">-- Selecciona sucursal --</option>
+                            <option value="">-- Selecciona sucursal (Opcional) --</option>
                             {sucursales.map((s) => (
                               <option key={s.id} value={s.id}>{s.nombre}</option>
                             ))}

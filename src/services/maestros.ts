@@ -39,27 +39,30 @@ export const getAllCanchas = async (escuelaId: string): Promise<Cancha[]> => {
 export const createCancha = async (
   escuelaId: string,
   nombre: string,
-  sucursalId: string
+  sucursalId: string | null
 ): Promise<Cancha> => {
   if (!escuelaId) throw new Error('El ID de la escuela es requerido.');
   if (!nombre || nombre.trim() === '') {
     throw new Error('El nombre de la cancha es obligatorio.');
   }
-  if (!sucursalId) {
-    throw new Error('Debes seleccionar una sucursal para la cancha.');
-  }
 
   // Validar duplicados dentro de la misma sucursal
-  const { data: existing } = await supabase
+  let query = supabase
     .from('canchas')
     .select('id')
     .eq('escuela_id', escuelaId)
-    .eq('nombre', nombre.trim())
-    .eq('sucursal_id', sucursalId)
-    .maybeSingle();
+    .eq('nombre', nombre.trim());
+
+  if (sucursalId) {
+    query = query.eq('sucursal_id', sucursalId);
+  } else {
+    query = query.is('sucursal_id', null);
+  }
+
+  const { data: existing } = await query.maybeSingle();
 
   if (existing) {
-    throw new Error('Ya existe una cancha con este nombre en esa sucursal.');
+    throw new Error('Ya existe una cancha con este nombre en esa configuración.');
   }
 
   const { data, error } = await supabase
@@ -68,7 +71,7 @@ export const createCancha = async (
       {
         nombre: nombre.trim(),
         escuela_id: escuelaId,
-        sucursal_id: sucursalId,
+        sucursal_id: sucursalId || null,
         activo: true,
       },
     ])
@@ -83,34 +86,37 @@ export const updateCancha = async (
   escuelaId: string,
   id: string,
   nombre: string,
-  sucursalId: string
+  sucursalId: string | null
 ): Promise<Cancha> => {
   if (!escuelaId) throw new Error('El ID de la escuela es requerido.');
   if (!id) throw new Error('El ID de la cancha es requerido.');
   if (!nombre || nombre.trim() === '') {
     throw new Error('El nombre de la cancha es obligatorio.');
   }
-  if (!sucursalId) {
-    throw new Error('Debes seleccionar una sucursal para la cancha.');
-  }
 
   // Validar duplicados (excepto la misma cancha, dentro de la misma sucursal)
-  const { data: existing } = await supabase
+  let query = supabase
     .from('canchas')
     .select('id')
     .eq('escuela_id', escuelaId)
     .eq('nombre', nombre.trim())
-    .eq('sucursal_id', sucursalId)
-    .neq('id', id)
-    .maybeSingle();
+    .neq('id', id);
+
+  if (sucursalId) {
+    query = query.eq('sucursal_id', sucursalId);
+  } else {
+    query = query.is('sucursal_id', null);
+  }
+
+  const { data: existing } = await query.maybeSingle();
 
   if (existing) {
-    throw new Error('Ya existe una cancha con este nombre en esa sucursal.');
+    throw new Error('Ya existe una cancha con este nombre en esa configuración.');
   }
 
   const { data, error } = await supabase
     .from('canchas')
-    .update({ nombre: nombre.trim(), sucursal_id: sucursalId })
+    .update({ nombre: nombre.trim(), sucursal_id: sucursalId || null })
     .eq('id', id)
     .eq('escuela_id', escuelaId)
     .select()
