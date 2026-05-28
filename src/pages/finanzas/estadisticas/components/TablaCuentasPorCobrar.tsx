@@ -42,7 +42,7 @@ const TablaCuentasPorCobrar: React.FC<Props> = ({ datos, cargando, error }) => {
       d.alumno,
       d.concepto,
       d.sub,
-      d.monto_adeudado.toFixed(2),
+      d.monto_adeudado.toFixed(2).replace('.', ','),
       d.telefono
     ].join('\t'));
     const texto = [cabecera, ...filas].join('\n');

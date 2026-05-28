@@ -51,8 +51,8 @@ const TablaAlumnos: React.FC<Props> = ({
       a.entrenador,
       a.detalle ? `${a.concepto} (${a.detalle})` : a.concepto,
       a.sub,
-      a.monto.toFixed(2),
-      a.saldo_pendiente.toFixed(2),
+      a.monto.toFixed(2).replace('.', ','),
+      a.saldo_pendiente.toFixed(2).replace('.', ','),
       a.pagado,
       a.fecha
     ].join('\t'));

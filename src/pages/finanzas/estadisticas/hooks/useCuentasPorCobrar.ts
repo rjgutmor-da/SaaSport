@@ -88,7 +88,25 @@ export function useCuentasPorCobrar(
       if (err) throw new Error(err.message);
 
       // Agrupamos las deudas por alumno (cliente) para consolidar su deuda total
-      const agrupados: { [key: string]: CuentaPorCobrarRow } = {};
+      interface CuentaPorCobrarAcumulador {
+        detalle_id: string;
+        cxc_id: string;
+        alumno: string;
+        entrenador: string;
+        sub: string;
+        monto_adeudado: number;
+        telefono: string;
+        fecha: string;
+        sucursal_id: string;
+        entrenador_id: string;
+        horario_id: string;
+        cancha_id: string;
+        mesesMensualidad: string[];
+        otrosDetallesMensualidad: string[];
+        otrosConceptos: string[];
+      }
+
+      const agrupados: { [key: string]: CuentaPorCobrarAcumulador } = {};
 
       (data || []).forEach((cxc: any) => {
         const detalles = cxc.cxc_detalle || [];
@@ -98,13 +116,30 @@ export function useCuentasPorCobrar(
           const proporcion = Number(d.subtotal || 0) / Number(cxc.monto_total || 1);
           const montoAdeudadoItem = Number(cxc.saldo_pendiente || 0) * proporcion;
 
-          // Concepto formateado
-          let conceptoStr = d.catalogo_items?.nombre || 'Desconocido';
-          if (Array.isArray(d.periodo_meses) && d.periodo_meses.length > 0) {
-            const meses = ordenarMesesCalendario(d.periodo_meses);
-            conceptoStr += ` (${meses.join(', ')})`;
-          } else if (d.detalle_extra) {
-            conceptoStr += ` (${d.detalle_extra})`;
+          // Determinar si es una deuda de Mensualidad
+          const esMensualidad = d.catalogo_items?.nombre?.toLowerCase().includes('mensualidad') ?? false;
+
+          let itemMeses: string[] = [];
+          let itemOtrosDetalles: string[] = [];
+          let itemOtrosConceptos: string[] = [];
+
+          if (esMensualidad) {
+            if (Array.isArray(d.periodo_meses) && d.periodo_meses.length > 0) {
+              itemMeses = [...d.periodo_meses];
+            } else if (d.detalle_extra) {
+              itemOtrosDetalles = [d.detalle_extra];
+            } else {
+              itemOtrosDetalles = ['Mensualidad'];
+            }
+          } else {
+            let conceptoStr = d.catalogo_items?.nombre || 'Desconocido';
+            if (Array.isArray(d.periodo_meses) && d.periodo_meses.length > 0) {
+              const meses = ordenarMesesCalendario(d.periodo_meses);
+              conceptoStr += ` (${meses.join(', ')})`;
+            } else if (d.detalle_extra) {
+              conceptoStr += ` (${d.detalle_extra})`;
+            }
+            itemOtrosConceptos = [conceptoStr];
           }
 
           // Sub (Categoría)
@@ -131,7 +166,6 @@ export function useCuentasPorCobrar(
               cxc_id: cxc.id,
               alumno: alumnoNombre,
               entrenador: cxc.entrenador_nombre || 'Sin Entrenador',
-              concepto: conceptoStr,
               sub: subCalculado,
               monto_adeudado: montoAdeudadoItem,
               telefono: tel || '—',
@@ -139,7 +173,10 @@ export function useCuentasPorCobrar(
               sucursal_id: cxc.alumno_sucursal_id,
               entrenador_id: cxc.alumno_entrenador_id,
               horario_id: cxc.alumno_horario_id,
-              cancha_id: cxc.alumno_cancha_id
+              cancha_id: cxc.alumno_cancha_id,
+              mesesMensualidad: itemMeses,
+              otrosDetallesMensualidad: itemOtrosDetalles,
+              otrosConceptos: itemOtrosConceptos
             };
           } else {
             const itemExistente = agrupados[claveCliente];
@@ -147,10 +184,26 @@ export function useCuentasPorCobrar(
             // Concatenamos las IDs de los detalles para que la clave/key sea única en la tabla de React
             itemExistente.detalle_id += `_${d.id}`;
 
-            // Concatenamos el concepto separado por coma
-            if (conceptoStr) {
-              itemExistente.concepto += `, ${conceptoStr}`;
-            }
+            // Agregamos nuevos meses evitando duplicados
+            itemMeses.forEach(m => {
+              if (!itemExistente.mesesMensualidad.includes(m)) {
+                itemExistente.mesesMensualidad.push(m);
+              }
+            });
+
+            // Agregamos otros detalles de Mensualidad
+            itemOtrosDetalles.forEach(od => {
+              if (!itemExistente.otrosDetallesMensualidad.includes(od)) {
+                itemExistente.otrosDetallesMensualidad.push(od);
+              }
+            });
+
+            // Agregamos otros conceptos
+            itemOtrosConceptos.forEach(oc => {
+              if (!itemExistente.otrosConceptos.includes(oc)) {
+                itemExistente.otrosConceptos.push(oc);
+              }
+            });
 
             // Consolidar entrenadores si difieren
             if (cxc.entrenador_nombre && itemExistente.entrenador !== cxc.entrenador_nombre) {
@@ -179,7 +232,42 @@ export function useCuentasPorCobrar(
         });
       });
 
-      const rows = Object.values(agrupados);
+      // Mapeamos los datos acumulados a las filas finales, ordenando y formateando el concepto
+      const rows: CuentaPorCobrarRow[] = Object.values(agrupados).map(acc => {
+        const partesConcepto: string[] = [];
+
+        // 1. Si hay meses de Mensualidad, los ordenamos cronológicamente y los agregamos
+        if (acc.mesesMensualidad.length > 0) {
+          const mesesOrdenados = ordenarMesesCalendario(acc.mesesMensualidad);
+          partesConcepto.push(mesesOrdenados.join(', '));
+        }
+
+        // 2. Si hay otros detalles de Mensualidad, los agregamos
+        if (acc.otrosDetallesMensualidad.length > 0) {
+          partesConcepto.push(acc.otrosDetallesMensualidad.join(', '));
+        }
+
+        // 3. Si hay otros conceptos, los agregamos
+        if (acc.otrosConceptos.length > 0) {
+          partesConcepto.push(acc.otrosConceptos.join(', '));
+        }
+
+        return {
+          detalle_id: acc.detalle_id,
+          cxc_id: acc.cxc_id,
+          alumno: acc.alumno,
+          entrenador: acc.entrenador,
+          concepto: partesConcepto.join(', '),
+          sub: acc.sub,
+          monto_adeudado: acc.monto_adeudado,
+          telefono: acc.telefono,
+          fecha: acc.fecha,
+          sucursal_id: acc.sucursal_id,
+          entrenador_id: acc.entrenador_id,
+          horario_id: acc.horario_id,
+          cancha_id: acc.cancha_id
+        };
+      });
 
       // Ordenar por alumno
       rows.sort((a, b) => a.alumno.localeCompare(b.alumno));
