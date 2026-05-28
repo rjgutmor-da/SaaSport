@@ -90,7 +90,7 @@ const ConfiguracionCanchas: React.FC = () => {
     setAlerta(null);
     try {
       await createCancha(escuelaId, newCanchaName.trim(), newCanchaSucursal);
-      setAlerta({ tipo: 'success', mensaje: 'Cancha creada correctamente.' });
+      setAlerta({ tipo: 'success', mensaje: 'Grupo creado correctamente.' });
       setNewCanchaName('');
       setNewCanchaSucursal('');
       loadData();
@@ -119,7 +119,7 @@ const ConfiguracionCanchas: React.FC = () => {
     setAlerta(null);
     try {
       await updateCancha(escuelaId, id, editCanchaName.trim(), editCanchaSucursal);
-      setAlerta({ tipo: 'success', mensaje: 'Cancha actualizada correctamente.' });
+      setAlerta({ tipo: 'success', mensaje: 'Grupo actualizado correctamente.' });
       setEditingCancha(null);
       setEditCanchaName('');
       setEditCanchaSucursal('');
@@ -136,7 +136,7 @@ const ConfiguracionCanchas: React.FC = () => {
       await toggleCanchaStatus(escuelaId, id, currentStatus);
       setAlerta({
         tipo: 'success',
-        mensaje: `Cancha ${currentStatus ? 'desactivada' : 'activada'} correctamente.`
+        mensaje: `Grupo ${currentStatus ? 'desactivado' : 'activado'} correctamente.`
       });
       loadData();
     } catch (error: any) {
@@ -216,7 +216,7 @@ const ConfiguracionCanchas: React.FC = () => {
           <div>
             <h1 className="pc-titulo">
               <Settings size={28} style={{ marginRight: '0.5rem', color: 'var(--primary)' }} />
-              Canchas y Horarios
+              Grupos y Horarios
             </h1>
             <p className="pc-subtitulo">Configura los espacios y los horarios disponibles para tus entrenamientos</p>
           </div>
@@ -265,7 +265,7 @@ const ConfiguracionCanchas: React.FC = () => {
             marginBottom: '-1px'
           }}
         >
-          Canchas
+          Grupos
         </button>
         <button
           onClick={() => {
@@ -294,14 +294,14 @@ const ConfiguracionCanchas: React.FC = () => {
           {/* Formulario de Canchas */}
           <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '1.5rem' }}>
             <h2 style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '1.25rem' }}>
-              Agregar Nueva Cancha
+              Agregar Nuevo Grupo
             </h2>
             <form onSubmit={handleCreateCancha} style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', alignItems: 'flex-end' }}>
               <div style={{ flex: '1 1 200px' }}>
-                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-tertiary)', textTransform: 'uppercase', marginBottom: '0.5rem' }}>Nombre de la cancha</label>
+                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-tertiary)', textTransform: 'uppercase', marginBottom: '0.5rem' }}>Nombre del grupo</label>
                 <input
                   type="text"
-                  placeholder="Ej: Cancha Sintética 1"
+                  placeholder="Ej: Grupo Formativo 1"
                   value={newCanchaName}
                   onChange={(e) => setNewCanchaName(e.target.value)}
                   style={{ width: '100%', padding: '0.6rem 0.8rem', background: 'var(--bg-input)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}
@@ -328,7 +328,7 @@ const ConfiguracionCanchas: React.FC = () => {
                 style={{ height: '42px', padding: '0 1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
               >
                 <Plus size={18} />
-                Agregar Cancha
+                Agregar Grupo
               </button>
             </form>
             {sucursales.length === 0 && (
@@ -353,7 +353,7 @@ const ConfiguracionCanchas: React.FC = () => {
                 {canchas.length === 0 ? (
                   <tr>
                     <td colSpan={4} style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
-                      No hay canchas registradas en el sistema.
+                      No hay grupos registrados en el sistema.
                     </td>
                   </tr>
                 ) : (
@@ -453,7 +453,7 @@ const ConfiguracionCanchas: React.FC = () => {
                                   display: 'inline-flex',
                                   alignItems: 'center'
                                 }}
-                                title="Editar cancha"
+                                title="Editar grupo"
                                 className="hover-color-orange"
                               >
                                 <Edit2 size={16} />

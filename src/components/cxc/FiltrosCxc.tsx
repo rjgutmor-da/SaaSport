@@ -95,7 +95,7 @@ const FiltrosCxc: React.FC<FiltrosProps> = ({
         </div>
 
         <div className="sidebar-filter-item">
-          <label className="sidebar-filter-label">Cancha</label>
+          <label className="sidebar-filter-label">Grupo</label>
           <select value={canchaId} onChange={e => onChangeCancha(e.target.value)} className="sidebar-select">
             <option value="">Todas</option>
             {filtrarOpciones.canchasFilt.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
@@ -149,7 +149,7 @@ const FiltrosCxc: React.FC<FiltrosProps> = ({
         onChange={e => onChangeCancha(e.target.value)}
         className="cxc-filtro-select"
       >
-        <option value="">Cancha</option>
+        <option value="">Grupo</option>
         {filtrarOpciones.canchasFilt.map(c => (
           <option key={c.id} value={c.id}>{c.nombre}</option>
         ))}

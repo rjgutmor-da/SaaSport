@@ -376,12 +376,12 @@ const PanelEscuela: React.FC = () => {
             <p className="pe-acceso-desc">Roles y permisos</p>
           </button>
 
-          {/* Canchas y Horarios → ruta interna */}
+          {/* Grupos y Horarios → ruta interna */}
           <button className="pe-acceso-card pe-acceso-green" onClick={() => navigate('/panel-escuela/canchas-horarios')}>
             <div className="pe-acceso-icon">
               <Building2 size={32} />
             </div>
-            <h3 className="pe-acceso-titulo">Canchas y Horarios</h3>
+            <h3 className="pe-acceso-titulo">Grupos y Horarios</h3>
             <p className="pe-acceso-desc">Configuración general</p>
           </button>
 
