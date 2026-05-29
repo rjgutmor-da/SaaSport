@@ -218,12 +218,24 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
 
       if (cxcEditar?.id) {
         notaId = cxcEditar.id;
+
+        // Recalcular el estado correcto en base a los cobros existentes y el nuevo monto_total
+        const { data: cobrosExistentes } = await supabase
+          .from('cobros_aplicados')
+          .select('monto_aplicado')
+          .eq('cuenta_cobrar_id', notaId);
+        const totalCobrado = (cobrosExistentes || []).reduce((s: number, c: any) => s + Number(c.monto_aplicado), 0);
+        let nuevoEstado = 'pendiente';
+        if (totalCobrado >= total) nuevoEstado = 'pagada';
+        else if (totalCobrado > 0) nuevoEstado = 'parcial';
+
         const { error: errU } = await supabase.from('cuentas_cobrar').update({
           monto_total: total,
           descripcion: descripcionFinal,
           observaciones,
           fecha_emision: fechaEmision,
           fecha_vencimiento: vencimiento || null,
+          estado: nuevoEstado,
           editado: true,
           editado_por: ctx.id,
           updated_at: new Date().toISOString()
