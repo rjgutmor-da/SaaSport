@@ -10,7 +10,7 @@ import type { CajaBanco } from '../../types/finanzas';
 import { 
   AlertCircle, Check, CreditCard, Pencil, Ban, MessageCircle, X, 
   Calendar, Eye, Hash, Wallet, DollarSign, Plus, ChevronDown,
-  MapPin, User, Trophy, Clock
+  MapPin, User, Trophy, Clock, Phone
 } from 'lucide-react';
 import { useIsMobile } from '../../hooks/useIsMobile';
 import NotaServicios from './NotaServicios';
@@ -74,6 +74,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
   const [detallesItems, setDetallesItems] = useState<Record<string, any[]>>({});
 
   const [refreshKey, setRefreshKey] = useState(0);
+  const [montoMensualidad, setMontoMensualidad] = useState<number | null>(null);
   const triggerRefresh = () => setRefreshKey(prev => prev + 1);
 
   useEffect(() => {
@@ -99,15 +100,17 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
         qCuentas = qCuentas.or(`sucursal_id.eq.${userSucursal},sucursal_id.is.null`);
       }
 
-      const [resCxc, resCuentas] = await Promise.all([
+      const [resCxc, resCuentas, resAlumno] = await Promise.all([
         supabase.from('v_cuentas_cobrar').select('*')
           .eq('alumno_id', alumno.alumno_id)
           .order('fecha_emision', { ascending: false }),
         qCuentas.order('nombre'),
+        supabase.from('alumnos').select('mensualidad').eq('id', alumno.alumno_id).single(),
       ]);
 
       setCxcs((resCxc.data as unknown as CuentaCobrar[]) ?? []);
       setCuentasCobro(resCuentas.data ?? []);
+      setMontoMensualidad(resAlumno.data?.mensualidad || null);
       
       const cxcIds = (resCxc.data as any[])?.map(c => c.id) || [];
       if (cxcIds.length > 0) {
@@ -389,7 +392,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
               {/* Botones de acción lado a lado */}
               <div style={{ display: 'flex', gap: '0.75rem', width: '100%' }}>
                 {(() => {
-                  const totalDeudaNum = cxcs.reduce((s, c) => s + (!(c as any).es_anticipo && c.estado !== 'pagada' && !c.anulada ? Number(c.saldo_pendiente) : 0), 0);
+                  const totalDeudaNum = cxcs.reduce((s, c) => s + (!(c as any).es_anticipo && Number(c.saldo_pendiente) > 0 && !c.anulada ? Number(c.saldo_pendiente) : 0), 0);
                   return (
                     <button
                       onClick={() => {
@@ -505,11 +508,30 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                   <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#38bdf8' }}>
                     <Clock size={14} /> {alumno.horario_hora || '--:--'}
                   </span>
+                  {(() => {
+                    const telefonoPrincipal = alumno.whatsapp_preferido === 'padre' 
+                      ? (alumno.telefono_padre || alumno.telefono_madre) 
+                      : (alumno.whatsapp_preferido === 'madre' 
+                          ? (alumno.telefono_madre || alumno.telefono_padre) 
+                          : (alumno.telefono_padre || alumno.telefono_madre));
+                    return (
+                      <>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#a855f7' }}>
+                          <Calendar size={14} /> Mensualidad: {montoMensualidad ? `Bs ${fmtMonto(montoMensualidad)}` : 'N/A'}
+                        </span>
+                        {telefonoPrincipal && (
+                          <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#10b981' }}>
+                            <Phone size={14} /> {telefonoPrincipal}
+                          </span>
+                        )}
+                      </>
+                    );
+                  })()}
                 </div>
               </div>
               <div style={{ display: 'flex', gap: '0.85rem', alignItems: 'center' }}>
                 {(() => {
-                  const totalDeudaNum = cxcs.reduce((s, c) => s + (!(c as any).es_anticipo && c.estado !== 'pagada' && !c.anulada ? Number(c.saldo_pendiente) : 0), 0);
+                  const totalDeudaNum = cxcs.reduce((s, c) => s + (!(c as any).es_anticipo && Number(c.saldo_pendiente) > 0 && !c.anulada ? Number(c.saldo_pendiente) : 0), 0);
                   if (totalDeudaNum > 0) {
                     return (
                       <button 
@@ -610,7 +632,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
 
                         {/* Listado de notas seleccionables */}
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', maxHeight: '180px', overflowY: 'auto', border: '1px solid var(--border)', borderRadius: '6px', padding: '0.5rem', background: 'var(--bg-main)' }}>
-                          {cxcs.filter(c => !c.anulada && c.estado !== 'pagada' && !(c as any).es_anticipo).map(cxc => {
+                          {[...cxcs].filter(c => !c.anulada && Number(c.saldo_pendiente) > 0 && !(c as any).es_anticipo).sort((a, b) => new Date(a.fecha_emision || a.created_at).getTime() - new Date(b.fecha_emision || b.created_at).getTime()).map(cxc => {
                             const seleccionado = !!cobroMultiple.seleccionados[cxc.id];
                             const montoCxc = cobroMultiple.montos[cxc.id] || '';
                             return (
@@ -797,7 +819,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
 
                             {/* Grid/List of selectable notes with customized amounts */}
                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '0.75rem', background: 'var(--bg-main)', padding: '0.75rem', borderRadius: '8px', border: '1px solid var(--border)', maxHeight: '180px', overflowY: 'auto' }}>
-                              {cxcs.filter(c => !c.anulada && c.estado !== 'pagada' && !(c as any).es_anticipo).map(cxc => {
+                              {[...cxcs].filter(c => !c.anulada && Number(c.saldo_pendiente) > 0 && !(c as any).es_anticipo).sort((a, b) => new Date(a.fecha_emision || a.created_at).getTime() - new Date(b.fecha_emision || b.created_at).getTime()).map(cxc => {
                                 const seleccionado = !!cobroMultiple.seleccionados[cxc.id];
                                 const montoCxc = cobroMultiple.montos[cxc.id] || '';
                                 return (
@@ -956,7 +978,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                                     setModalNotaVisible(true); 
                                   }} className="btn-compact-action action-blue" title="Editar"><Pencil size={14} /></button>
                                 )}
-                                {!cxc.anulada && cxc.estado !== 'pagada' && !isAnticipo && (
+                                {!cxc.anulada && Number(cxc.saldo_pendiente) > 0 && !isAnticipo && (
                                   <button onClick={() => { setCobroCxcId(cxc.id); setCobroMonto(String(cxc.saldo_pendiente)); }} className="btn-compact-action action-green" title="Cobrar"><DollarSign size={14} /></button>
                                 )}
                                 {puedeAnular() && !cxc.anulada && (

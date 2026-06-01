@@ -14,7 +14,7 @@ export const useCobroMultiple = (cxcs: CuentaCobrar[]) => {
   // Inicializa o re-inicializa el estado cuando cambian las notas de deudas (por ejemplo, al abrir el modal)
   const inicializar = () => {
     const notasPendientes = cxcs.filter(
-      (c) => !c.anulada && c.estado !== 'pagada' && !(c as any).es_anticipo
+      (c) => !c.anulada && Number(c.saldo_pendiente) > 0 && !(c as any).es_anticipo
     );
 
     const inicialSeleccionados: Record<string, boolean> = {};

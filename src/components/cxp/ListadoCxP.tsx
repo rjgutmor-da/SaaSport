@@ -156,7 +156,7 @@ const ListadoCxP: React.FC<Props> = ({ titulo, tipoGasto, iconoTitulo, colorAcce
   /** Estadísticas */
   const stats = useMemo(() => ({
     total: notas.length,
-    pendiente: notas.filter(n => n.estado !== 'pagada').length,
+    pendiente: notas.filter(n => Number(n.deuda_restante) > 0).length,
     montoPendiente: notas.reduce((s, n) => s + n.deuda_restante, 0),
     montoPagado: notas.reduce((s, n) => s + n.monto_pagado, 0),
   }), [notas]);

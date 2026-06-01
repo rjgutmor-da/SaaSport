@@ -14,7 +14,7 @@ export const usePagoMultiple = (notas: NotaResumenCxP[]) => {
   // Inicializa o re-inicializa el estado cuando cambian las notas de deudas (por ejemplo, al hacer clic en Pagar)
   const inicializar = () => {
     const notasPendientes = notas.filter(
-      (n) => !(n as any).anulada && n.estado !== 'pagada' && !n.es_anticipo
+      (n) => !(n as any).anulada && Number(n.deuda_restante) > 0 && !n.es_anticipo
     );
 
     const inicialSeleccionados: Record<string, boolean> = {};

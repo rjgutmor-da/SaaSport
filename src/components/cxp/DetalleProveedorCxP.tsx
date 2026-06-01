@@ -256,7 +256,7 @@ const DetalleProveedorCxP: React.FC<Props> = ({ entidad, visible, onCerrar, onAc
   /** Estadísticas rápidas */
   const stats = useMemo(() => ({
     total:          notas.length,
-    pendientes:     notas.filter(n => n.estado !== 'pagada').length,
+    pendientes:     notas.filter(n => Number(n.deuda_restante) > 0).length,
     montoPendiente: notas.reduce((s, n) => s + ((n as any).es_anticipo ? -n.deuda_restante : n.deuda_restante), 0),
     montoPagado:    notas.reduce((s, n) => s + n.monto_pagado, 0),
   }), [notas]);
@@ -485,7 +485,7 @@ const DetalleProveedorCxP: React.FC<Props> = ({ entidad, visible, onCerrar, onAc
                 <input type="date" value={pagoFecha} onChange={e => setPagoFecha(e.target.value)} className="detalle-cobro-input" style={{ width: '100%' }} />
                 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', background: 'var(--bg-main)', padding: '0.5rem', borderRadius: '6px', border: '1px solid var(--border)', maxHeight: '150px', overflowY: 'auto' }}>
-                  {notas.filter(n => !(n as any).anulada && n.estado !== 'pagada' && !n.es_anticipo).map(nota => {
+                  {[...notas].filter(n => !(n as any).anulada && Number(n.deuda_restante) > 0 && !n.es_anticipo).sort((a, b) => new Date(a.fecha_emision || a.created_at).getTime() - new Date(b.fecha_emision || b.created_at).getTime()).map(nota => {
                     const seleccionado = !!pagoMultiple.seleccionados[nota.id];
                     const montoCxp = pagoMultiple.montos[nota.id] || '';
                     return (
@@ -624,7 +624,7 @@ const DetalleProveedorCxP: React.FC<Props> = ({ entidad, visible, onCerrar, onAc
                           </div>
 
                           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '0.75rem', background: 'var(--bg-main)', padding: '0.75rem', borderRadius: '8px', border: '1px solid var(--border)', maxHeight: '180px', overflowY: 'auto' }}>
-                            {notas.filter(n => !(n as any).anulada && n.estado !== 'pagada' && !n.es_anticipo).map(nota => {
+                            {[...notas].filter(n => !(n as any).anulada && Number(n.deuda_restante) > 0 && !n.es_anticipo).sort((a, b) => new Date(a.fecha_emision || a.created_at).getTime() - new Date(b.fecha_emision || b.created_at).getTime()).map(nota => {
                               const seleccionado = !!pagoMultiple.seleccionados[nota.id];
                               const montoCxp = pagoMultiple.montos[nota.id] || '';
                               return (
