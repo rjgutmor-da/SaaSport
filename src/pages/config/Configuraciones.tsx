@@ -25,7 +25,7 @@ const Configuraciones: React.FC = () => {
     },
   ];
 
-  /** Panel de Escuela — solo SuperAdministrador y Dueño */
+  /** Panel de Escuela — solo SuperAdministrador */
   const opcionPanelEscuela = {
     titulo: 'Panel de Escuela',
     descripcion: 'Estadísticas generales, sucursales, usuarios y configuraciones',

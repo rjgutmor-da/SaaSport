@@ -5,7 +5,7 @@ export interface Usuario {
   email: string;
   nombres: string;
   apellidos: string;
-  rol: 'SuperAdministrador' | 'Administrador' | 'Entrenador' | 'Entrenarqueros' | 'Dueño';
+  rol: 'SuperAdministrador' | 'Administrador' | 'Entrenador' | 'Entrenarqueros';
   escuela_id: string;
   sucursal_id: string | null;
   activo: boolean;
@@ -28,7 +28,7 @@ export const getUsuarios = async (
     .eq('escuela_id', escuelaId);
 
   // Filtrar por sucursal si es Administrador o Entrenador
-  if (userProfile && userProfile.rol !== 'Dueño' && userProfile.rol !== 'SuperAdministrador') {
+  if (userProfile && userProfile.rol !== 'SuperAdministrador') {
     if (userProfile.sucursal_id) {
       query = query.eq('sucursal_id', userProfile.sucursal_id);
     }
@@ -44,9 +44,36 @@ export const getUsuarios = async (
  * Actualiza el rol de un usuario.
  */
 export const updateUserRole = async (userId: string, newRole: string): Promise<Usuario> => {
-  const validRoles = ['Dueño', 'SuperAdministrador', 'Administrador', 'Entrenador', 'Entrenarqueros'];
+  const validRoles = ['SuperAdministrador', 'Administrador', 'Entrenador', 'Entrenarqueros'];
   if (!validRoles.includes(newRole)) {
     throw new Error('Rol no válido');
+  }
+
+  // Regla de negocio: El rol 'SuperAdministrador' debe ser único por escuela
+  if (newRole === 'SuperAdministrador') {
+    const { data: userProfile, error: profileError } = await supabase
+      .from('usuarios')
+      .select('escuela_id')
+      .eq('id', userId)
+      .single();
+
+    if (profileError) throw new Error('No se pudo encontrar el perfil del usuario.');
+
+    const escuelaId = userProfile.escuela_id;
+
+    const { data: existingSuperAdmin, error: checkError } = await supabase
+      .from('usuarios')
+      .select('id, nombres, apellidos')
+      .eq('escuela_id', escuelaId)
+      .eq('rol', 'SuperAdministrador')
+      .eq('activo', true)
+      .neq('id', userId)
+      .maybeSingle();
+
+    if (checkError) console.error('Error al verificar SuperAdministrador existente:', checkError);
+    if (existingSuperAdmin) {
+      throw new Error(`Ya existe un SuperAdministrador: ${existingSuperAdmin.nombres} ${existingSuperAdmin.apellidos}. Solo puede haber un SuperAdministrador por escuela.`);
+    }
   }
 
   const { data, error } = await supabase
@@ -64,6 +91,33 @@ export const updateUserRole = async (userId: string, newRole: string): Promise<U
  * Activa o desactiva a un usuario.
  */
 export const toggleUserStatus = async (userId: string, currentStatus: boolean): Promise<Usuario> => {
+  // Regla de negocio: si se está activando (pasa de inactivo a activo)
+  if (!currentStatus) {
+    const { data: userProfile, error: profileError } = await supabase
+      .from('usuarios')
+      .select('rol, escuela_id')
+      .eq('id', userId)
+      .single();
+
+    if (profileError) throw new Error('No se pudo encontrar el perfil del usuario.');
+
+    if (userProfile.rol === 'SuperAdministrador') {
+      const { data: existingSuperAdmin, error: checkError } = await supabase
+        .from('usuarios')
+        .select('id, nombres, apellidos')
+        .eq('escuela_id', userProfile.escuela_id)
+        .eq('rol', 'SuperAdministrador')
+        .eq('activo', true)
+        .neq('id', userId)
+        .maybeSingle();
+
+      if (checkError) console.error('Error al verificar SuperAdministrador existente:', checkError);
+      if (existingSuperAdmin) {
+        throw new Error(`Ya existe un SuperAdministrador activo: ${existingSuperAdmin.nombres} ${existingSuperAdmin.apellidos}. Solo puede haber un SuperAdministrador activo por escuela.`);
+      }
+    }
+  }
+
   const { data, error } = await supabase
     .from('usuarios')
     .update({ activo: !currentStatus })
@@ -101,6 +155,22 @@ export const createUserDirectly = async (escuelaId: string, userData: any): Prom
   if (!userData.password || userData.password.length < 6) throw new Error('La contraseña debe tener al menos 6 caracteres.');
   if (!userData.nombres?.trim()) throw new Error('El nombre es obligatorio.');
   if (!userData.apellidos?.trim()) throw new Error('Los apellidos son obligatorios.');
+
+  // Regla de negocio: El rol 'SuperAdministrador' debe ser único por escuela
+  if (userData.rol === 'SuperAdministrador') {
+    const { data: existingSuperAdmin, error: checkError } = await supabase
+      .from('usuarios')
+      .select('id, nombres, apellidos')
+      .eq('escuela_id', escuelaId)
+      .eq('rol', 'SuperAdministrador')
+      .eq('activo', true)
+      .maybeSingle();
+
+    if (checkError) console.error('Error al verificar SuperAdministrador existente:', checkError);
+    if (existingSuperAdmin) {
+      throw new Error(`Ya existe un SuperAdministrador: ${existingSuperAdmin.nombres} ${existingSuperAdmin.apellidos}. Solo puede haber un SuperAdministrador por escuela.`);
+    }
+  }
 
   // Importar createClient dinámicamente para instanciar cliente secundario
   const { createClient } = await import('@supabase/supabase-js');

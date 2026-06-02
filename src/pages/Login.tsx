@@ -17,7 +17,7 @@ interface LoginProps {
 }
 
 /** Roles que tienen acceso a SaaSport */
-const ROLES_PERMITIDOS = ['SuperAdministrador', 'Dueño', 'Administrador'];
+const ROLES_PERMITIDOS = ['SuperAdministrador', 'Administrador'];
 
 
 const Login: React.FC<LoginProps> = ({ onLoginExitoso }) => {
@@ -93,7 +93,7 @@ const Login: React.FC<LoginProps> = ({ onLoginExitoso }) => {
           </div>
 
           <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', lineHeight: '1.6' }}>
-            SaaSport es el módulo financiero exclusivo para Administradores y Dueños.
+            SaaSport es el módulo financiero exclusivo para Administradores.
             <br />
             Como <strong>{rolUsuario}</strong>, tu aplicación es <strong style={{ color: 'var(--primary)' }}>AsiSport</strong>.
           </p>

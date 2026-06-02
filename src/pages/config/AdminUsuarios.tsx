@@ -31,7 +31,6 @@ const AdminUsuarios: React.FC = () => {
   const [alerta, setAlerta] = useState<{ tipo: 'success' | 'error'; mensaje: string } | null>(null);
 
   const rolesOptions = [
-    { value: 'Dueño', label: 'Dueño' },
     { value: 'SuperAdministrador', label: 'SuperAdministrador' },
     { value: 'Administrador', label: 'Administrador' },
     { value: 'Entrenador', label: 'Entrenador' },
@@ -77,13 +76,13 @@ const AdminUsuarios: React.FC = () => {
     setAlerta(null);
 
     try {
-      // Validar: solo puede haber un Dueño por escuela
-      if (newRole === 'Dueño') {
-        const duenoExistente = usuarios.find(u => u.rol === 'Dueño' && u.id !== userId);
-        if (duenoExistente) {
+      // Validar: solo puede haber un SuperAdministrador por escuela
+      if (newRole === 'SuperAdministrador') {
+        const adminExistente = usuarios.find(u => u.rol === 'SuperAdministrador' && u.id !== userId);
+        if (adminExistente) {
           setAlerta({
             tipo: 'error',
-            mensaje: `Ya existe un Dueño: ${duenoExistente.nombres} ${duenoExistente.apellidos}. Solo puede haber un Dueño por escuela.`
+            mensaje: `Ya existe un SuperAdministrador: ${adminExistente.nombres} ${adminExistente.apellidos}. Solo puede haber un SuperAdministrador por escuela.`
           });
           return;
         }
@@ -140,11 +139,22 @@ const AdminUsuarios: React.FC = () => {
       return;
     }
 
+    if (formData.rol === 'SuperAdministrador') {
+      const adminExistente = usuarios.find(u => u.rol === 'SuperAdministrador' && u.activo);
+      if (adminExistente) {
+        setAlerta({
+          tipo: 'error',
+          mensaje: `Ya existe un SuperAdministrador activo: ${adminExistente.nombres} ${adminExistente.apellidos}. Solo puede haber un SuperAdministrador por escuela.`
+        });
+        return;
+      }
+    }
+
     setIsSubmitting(true);
     try {
       await createUserDirectly(escuelaId, {
         ...formData,
-        sucursal_id: formData.rol === 'Dueño' ? '' : formData.sucursal_id
+        sucursal_id: formData.rol === 'SuperAdministrador' ? '' : formData.sucursal_id
       });
 
       setAlerta({
@@ -299,7 +309,7 @@ const AdminUsuarios: React.FC = () => {
                   <select
                     value={formData.sucursal_id}
                     onChange={e => setFormData({ ...formData, sucursal_id: e.target.value })}
-                    disabled={formData.rol === 'Dueño'}
+                    disabled={formData.rol === 'SuperAdministrador'}
                     style={{ width: '100%', padding: '0.6rem 0.8rem', background: 'var(--bg-input)', border: '1px solid var(--border)', color: 'var(--text-primary)', height: '42px' }}
                   >
                     <option value="">Todas las sucursales (Sin restricción)</option>
@@ -378,7 +388,7 @@ const AdminUsuarios: React.FC = () => {
                             <select
                               value={u.sucursal_id || ''}
                               onChange={(e) => handleSucursalChange(u.id, e.target.value)}
-                              disabled={esMismoUsuario || u.rol === 'Dueño'}
+                              disabled={esMismoUsuario || u.rol === 'SuperAdministrador'}
                               style={{ width: '100%', padding: '0.35rem 0.5rem', fontSize: '0.85rem', background: 'var(--bg-input)', border: '1px solid var(--border)', color: 'var(--text-primary)', borderRadius: '4px' }}
                             >
                               <option value="">Todas las sucursales</option>

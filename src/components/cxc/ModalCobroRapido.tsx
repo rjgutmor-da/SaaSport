@@ -63,7 +63,7 @@ const ModalCobroRapido: React.FC<Props> = ({ alumnoInicial, visible, onCerrar, o
         .eq('id', user.id).single();
       if (!usr) return;
 
-      const esAdmin = usr.rol === 'SuperAdministrador' || usr.rol === 'Dueño';
+      const esAdmin = usr.rol === 'SuperAdministrador';
 
       // Cargar lista de todos los alumnos
       const { data: listaAlumnos } = await supabase

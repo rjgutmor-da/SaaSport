@@ -90,7 +90,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
         const { data: usr } = await supabase.from('usuarios')
           .select('rol, sucursal_id, escuela_id').eq('id', user.id).single();
         setUserRol(usr?.rol || '');
-        esAdmin = usr?.rol === 'SuperAdministrador' || usr?.rol === 'Dueño';
+        esAdmin = usr?.rol === 'SuperAdministrador';
         userSucursal = usr?.sucursal_id || '';
         escuelaId = usr?.escuela_id || '';
       }
@@ -1160,7 +1160,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
     </>
   );
 
-  function puedeAnular() { return userRol === 'SuperAdministrador' || userRol === 'Dueño' || userRol === 'Administrador'; }
+  function puedeAnular() { return userRol === 'SuperAdministrador' || userRol === 'Administrador'; }
 };
 
 export default DetalleAlumnoCxc;

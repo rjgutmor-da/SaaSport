@@ -9,7 +9,7 @@ const LEGACY_GRUPO_TRANSACCION_KEY = ['asiento', 'id'].join('_');
 
 export const queryKeys = {
   cxc_resumen: (filtros: any) => ['cxc-resumen', filtros] as const,
-  cxp_resumen: ['cxp-resumen'] as const,
+  cxp_resumen: (filtros: any) => ['cxp-resumen', filtros] as const,
   cxc_alumnos: (filtros: any) => ['cxc-alumnos', filtros] as const,
   cxp_entidades: (filtros: any) => ['cxp-entidades', filtros] as const,
 };
@@ -79,14 +79,60 @@ const fetchCxcResumen = async (escuelaId: string, filtros: any) => {
   };
 };
 
-const fetchCxpResumen = async (escuelaId: string) => {
-  const { data, error } = await supabase
-    .from('v_cxp_resumen')
+const fetchCxpResumen = async (escuelaId: string, filtros?: any) => {
+  const tieneFiltros = filtros && (filtros.categoria || filtros.antiguedad || filtros.busqueda?.trim());
+
+  if (!tieneFiltros) {
+    const { data, error } = await supabase
+      .from('v_cxp_resumen')
+      .select('*')
+      .eq('escuela_id', escuelaId)
+      .single();
+    if (error) throw error;
+    return data;
+  }
+
+  // Si hay filtros, calculamos el resumen dinámicamente desde v_cxp_consolidado (reutilizando la misma lógica de filtros)
+  let query = supabase
+    .from('v_cxp_consolidado')
     .select('*')
     .eq('escuela_id', escuelaId)
-    .single();
+    .eq('activo', true);
+
+  if (filtros.categoria) query = query.eq('categoria', filtros.categoria);
+  
+  if (filtros.busqueda?.trim()) {
+    const q = `%${filtros.busqueda.trim()}%`;
+    query = query.ilike('nombre', q);
+  }
+
+  const { data, error } = await query;
   if (error) throw error;
-  return data;
+
+  let lista = data || [];
+
+  // Filtrado de antigüedad en memoria
+  if (filtros.antiguedad) {
+    const hoy = new Date();
+    const limite = filtros.antiguedad === 'mas' ? 45 : parseInt(filtros.antiguedad);
+    lista = lista.filter(e => {
+      if (!e.fecha_mas_antigua) return false;
+      const fecha = new Date(e.fecha_mas_antigua);
+      const dias = Math.floor((hoy.getTime() - fecha.getTime()) / (1000 * 60 * 60 * 24));
+      if (filtros.antiguedad === 'mas') return dias > 45;
+      return dias <= limite && dias > 0;
+    });
+  }
+
+  const totalEntidades = lista.length;
+  const conDeuda = lista.filter(e => Number(e.saldo_pendiente) > 0).length;
+  const totalPendiente = lista.reduce((acc, e) => acc + Number(e.saldo_pendiente), 0);
+
+  return {
+    total_entidades: totalEntidades,
+    con_deuda: conDeuda,
+    total_pendiente: totalPendiente
+  };
 };
 
 // --- Listados ---
@@ -222,10 +268,10 @@ export const useCxcResumen = (escuelaId: string | null, filtros: any) =>
     staleTime: 1000 * 60 * 5, // 5 minutos
   });
 
-export const useCxpResumen = (escuelaId: string | null) =>
+export const useCxpResumen = (escuelaId: string | null, filtros: any) =>
   useQuery({
-    queryKey: queryKeys.cxp_resumen,
-    queryFn: () => fetchCxpResumen(escuelaId!),
+    queryKey: queryKeys.cxp_resumen(filtros),
+    queryFn: () => fetchCxpResumen(escuelaId!, filtros),
     enabled: !!escuelaId,
     staleTime: 1000 * 60 * 5, // 5 minutos
   });

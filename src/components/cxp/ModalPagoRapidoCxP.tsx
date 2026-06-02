@@ -56,7 +56,7 @@ const ModalPagoRapidoCxP: React.FC<Props> = ({ entidadInicial, entidades, visibl
         .eq('id', user.id).single();
       if (!usr) return;
 
-      const esAdmin = usr.rol === 'SuperAdministrador' || usr.rol === 'Dueño';
+      const esAdmin = usr.rol === 'SuperAdministrador';
 
       let q = supabase.from('cajas_bancos').select('*').eq('activo', true);
       if (!esAdmin && usr.sucursal_id) {

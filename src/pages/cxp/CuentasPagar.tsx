@@ -57,7 +57,7 @@ const CuentasPagar: React.FC = () => {
   };
 
   const { data: entidadesRaw, isLoading: cargandoEntidades, error: errorEntidades } = useCxpEntidades(escuelaId, filtros);
-  const { data: resumenData, isLoading: cargandoResumen } = useCxpResumen(escuelaId);
+  const { data: resumenData, isLoading: cargandoResumen } = useCxpResumen(escuelaId, filtros);
 
   const cargando = cargandoEntidades || cargandoResumen;
   const entidadesFiltradas = (entidadesRaw as unknown as EntidadCxP[]) || [];
