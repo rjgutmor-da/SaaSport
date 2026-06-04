@@ -58,7 +58,14 @@ const GestorSucursales: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!escuelaId || !formData.nombre.trim()) return;
+    if (!escuelaId) return;
+
+    if (!formData.nombre.trim()) {
+      setAlerta({ tipo: 'error', mensaje: 'El nombre de la sucursal es obligatorio.' });
+      // Hacer scroll hacia arriba para que el usuario vea la alerta
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
 
     setIsSubmitting(true);
     setAlerta(null);
@@ -238,7 +245,7 @@ const GestorSucursales: React.FC = () => {
               )}
               <button
                 type="submit"
-                disabled={isSubmitting || !formData.nombre.trim()}
+                disabled={isSubmitting}
                 className="btn-nueva-cuenta"
                 style={{ height: '38px', padding: '0 1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
               >
