@@ -25,3 +25,8 @@ dist-ssr
 
 .vercel
 .env*.local
+
+# Logotipos compartidos (sincronizados)
+public/logo_canito.png
+public/logo-interstars.png
+public/logo-planetafc.png
