@@ -4,8 +4,8 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "predev": "node ../scripts/sync-assets.js",
-    "prebuild": "node ../scripts/sync-assets.js",
+    "predev": "node -e \"const fs=require('fs'); if(fs.existsSync('../scripts/sync-assets.js')){ require('child_process').execSync('node ../scripts/sync-assets.js',{stdio:'inherit'}); }\"",
+    "prebuild": "node -e \"const fs=require('fs'); if(fs.existsSync('../scripts/sync-assets.js')){ require('child_process').execSync('node ../scripts/sync-assets.js',{stdio:'inherit'}); }\"",
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
