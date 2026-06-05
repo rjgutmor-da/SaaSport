@@ -69,8 +69,6 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
   const [montoAnticipo, setMontoAnticipo] = useState('');
   const [cuentaAnticipoId, setCuentaAnticipoId] = useState('');
 
-  const STORAGE_KEY = 'saasport_nota_draft';
-
   useEffect(() => {
     if (!visible) return;
     const cargar = async () => {
@@ -85,7 +83,26 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
         supabase.from('cajas_bancos').select('id, nombre, saldo_actual').eq('activo', true).eq('escuela_id', usr.escuela_id).order('nombre'),
       ]);
       setAlumnos(resAlum.data ?? []);
-      setCatalogo(resCat.data ?? []);
+      
+      const catalogoData = resCat.data ?? [];
+      const orderPriorities: Record<string, number> = {
+        'Mensualidad': 1,
+        'Inscripción a Torneos': 2,
+        'Uniformes': 3
+      };
+      
+      catalogoData.sort((a, b) => {
+        const priorityA = orderPriorities[a.nombre] || 99;
+        const priorityB = orderPriorities[b.nombre] || 99;
+        
+        if (priorityA !== priorityB) {
+          return priorityA - priorityB;
+        }
+        return a.nombre.localeCompare(b.nombre);
+      });
+      
+      setCatalogo(catalogoData);
+      
       const listaCajas = resCajas.data ?? [];
       setCajasBancos(listaCajas);
       // Preseleccionar caja predeterminada si no hay una ya seleccionada
@@ -128,49 +145,18 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
         setPagarAlCrear(false);
       }
     } else {
-      // Intentar cargar borrador si no estamos editando
-      const borrador = localStorage.getItem(STORAGE_KEY);
-      if (borrador) {
-        try {
-          const data = JSON.parse(borrador);
-          // PRIORIDAD: Si se pasa un alumno explícitamente desde la tarjeta de cliente, tiene prioridad sobre el borrador.
-          setAlumnoId(alumnoPreseleccionado?.id || data.alumnoId || '');
-          setLineas(data.lineas || [lineaVacia()]);
-          setObservaciones(data.observaciones || '');
-          // Cargar fechas desde el borrador si existen, de lo contrario usar la fecha de hoy
-          setVencimiento(data.vencimiento || getHoyISO());
-          setFechaEmision(data.fechaEmision || getHoyISO());
-          setFechaPago(data.fechaPago || getHoyISO());
-          setPagarAlCrear(data.pagarAlCrear || esAnticipo);
-          setCuentaCobroId(data.cuentaCobroId || '');
-          setCuentaAnticipoId(data.cuentaAnticipoId || '');
-          setMontoPago(data.montoPago || '');
-          setCobroNroDoc(data.cobroNroDoc || '');
-        } catch (e) {
-          console.error("Error cargando borrador", e);
-        }
-      } else {
-        setAlumnoId(alumnoPreseleccionado?.id || '');
-        setLineas([lineaVacia()]);
-        setObservaciones(esAnticipo ? 'Cobro Anticipado - Saldo a Favor' : '');
-        setFechaEmision(getHoyISO());
-        setVencimiento(getHoyISO());
-        setFechaPago(getHoyISO());
-      }
+      setAlumnoId(alumnoPreseleccionado?.id || '');
+      setLineas([lineaVacia()]);
+      setObservaciones(esAnticipo ? 'Cobro Anticipado - Saldo a Favor' : '');
+      setFechaEmision(getHoyISO());
+      setVencimiento(getHoyISO());
+      setFechaPago(getHoyISO());
+      setPagarAlCrear(esAnticipo);
+      setMontoPago('');
+      setCobroNroDoc('');
     }
     setError(null); setExito(null);
   }, [visible, cxcEditar, alumnoPreseleccionado, esAnticipo]);
-
-  // Guardar borrador automáticamente
-  useEffect(() => {
-    if (visible && !cxcEditar && !exito) {
-      const draft = {
-        alumnoId, lineas, observaciones, vencimiento, fechaEmision,
-        pagarAlCrear, cuentaCobroId, cuentaAnticipoId, montoPago, cobroNroDoc, fechaPago
-      };
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(draft));
-    }
-  }, [alumnoId, lineas, observaciones, vencimiento, fechaEmision, pagarAlCrear, cuentaCobroId, cuentaAnticipoId, montoPago, cobroNroDoc, fechaPago, visible, cxcEditar, exito]);
 
   const total = useMemo(() => {
     if (esAnticipo) return parseFloat(montoAnticipo) || 0;
@@ -306,7 +292,6 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
         }
       }
 
-      localStorage.removeItem(STORAGE_KEY);
       setExito(`✅ ${cxcEditar ? 'Cambios guardados' : 'Registrado'} correctamente.`);
       
       // LOG DE ACTIVIDAD
