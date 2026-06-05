@@ -46,7 +46,7 @@ interface LineaNotaUI extends LineaNota {
 const NotaServicios: React.FC<NotaServiciosProps> = ({
   visible, onCerrar, onCreada, alumnoPreseleccionado, cxcEditar, esAnticipo = false, modoInicial
 }) => {
-  const [alumnos, setAlumnos] = useState<{ id: string; nombres: string; apellidos: string }[]>([]);
+  const [alumnos, setAlumnos] = useState<{ id: string; nombres: string; apellidos: string; mensualidad?: number | null }[]>([]);
   const [catalogo, setCatalogo] = useState<CatalogoItem[]>([]);
   const [cajasBancos, setCajasBancos] = useState<{ id: string; nombre: string; saldo_actual: number }[]>([]);
   const [torneos, setTorneos] = useState<string[]>([]);
@@ -80,7 +80,7 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
       if (!usr) return;
 
       const [resAlum, resCat, resCajas] = await Promise.all([
-        supabase.from('alumnos').select('id, nombres, apellidos').eq('archivado', false).order('nombres'),
+        supabase.from('alumnos').select('id, nombres, apellidos, mensualidad').eq('archivado', false).order('nombres'),
         supabase.from('catalogo_items').select('*').eq('activo', true).or('tipo_movimiento.eq.ingreso,tipo_movimiento.eq.ambos').order('nombre'),
         supabase.from('cajas_bancos').select('id, nombre, saldo_actual').eq('activo', true).eq('escuela_id', usr.escuela_id).order('nombre'),
       ]);
@@ -351,7 +351,35 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
             <div className="modal-form-grid" style={{ marginBottom: '1.5rem' }}>
               <div className="form-campo full-width">
                 <label>Alumno / Deportista *</label>
-                <select value={alumnoId} onChange={e => setAlumnoId(e.target.value)} disabled={guardando || !!cxcEditar} required>
+                <select 
+                  value={alumnoId} 
+                  onChange={e => {
+                    const newAlumnoId = e.target.value;
+                    setAlumnoId(newAlumnoId);
+                    
+                    // Sincronizar el precio de la mensualidad si cambia el alumno
+                    const alum = alumnos.find(a => a.id === newAlumnoId);
+                    if (alum) {
+                      const nuevasLineas = lineas.map(l => {
+                        if (l.nombre === 'Mensualidad') {
+                          // Si el alumno tiene una mensualidad configurada, la usamos
+                          const precio = alum.mensualidad !== null && alum.mensualidad !== undefined
+                            ? Number(alum.mensualidad)
+                            : l.precio_unitario;
+                          return {
+                            ...l,
+                            precio_unitario: precio,
+                            subtotal: precio * l.cantidad
+                          };
+                        }
+                        return l;
+                      });
+                      setLineas(nuevasLineas);
+                    }
+                  }} 
+                  disabled={guardando || !!cxcEditar} 
+                  required
+                >
                   <option value="">— Seleccionar —</option>
                   {alumnos.map(a => <option key={a.id} value={a.id}>{a.nombres} {a.apellidos}</option>)}
                 </select>
@@ -412,13 +440,22 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
                             const mesesIniciales = esMensualidad ? [MESES_ANIO[monthIdx]] : [];
                             const cantidadInicial = esMensualidad ? 1 : nuevas[idx].cantidad;
 
+                            // Precargar mensualidad del alumno si el concepto es 'Mensualidad'
+                            let precioUnitario = Number(it.precio_venta) || 0;
+                            if (esMensualidad && alumnoId) {
+                              const alum = alumnos.find(a => a.id === alumnoId);
+                              if (alum && alum.mensualidad !== null && alum.mensualidad !== undefined) {
+                                precioUnitario = Number(alum.mensualidad);
+                              }
+                            }
+
                             nuevas[idx] = { 
                               ...nuevas[idx], 
                               catalogo_item_id: it.id, 
                               nombre: it.nombre, 
-                              precio_unitario: Number(it.precio_venta) || 0, 
+                              precio_unitario: precioUnitario, 
                               cantidad: cantidadInicial,
-                              subtotal: (Number(it.precio_venta) || 0) * cantidadInicial,
+                              subtotal: precioUnitario * cantidadInicial,
                               periodo_meses: mesesIniciales,
                               detalle_personalizado: ''
                             };

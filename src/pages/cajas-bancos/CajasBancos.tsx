@@ -56,6 +56,7 @@ const CajasBancos: React.FC = () => {
   // Estados para formularios activos
   const [activeForm, setActiveForm] = useState<'ingreso' | 'salida' | 'transferencia' | 'nueva_caja' | null>(null);
   const [formDirty, setFormDirty] = useState(false);
+  const [cajaAEditar, setCajaAEditar] = useState<CajaBanco | null>(null);
 
   // Estado para edición de movimientos
   const [movEditar, setMovEditar] = useState<MovimientoFinanciero | null>(null);
@@ -154,6 +155,9 @@ const CajasBancos: React.FC = () => {
         return;
       }
     }
+    if (type !== 'nueva_caja') {
+      setCajaAEditar(null);
+    }
     setActiveForm(type);
     setFormDirty(false);
   };
@@ -165,6 +169,7 @@ const CajasBancos: React.FC = () => {
       }
     }
     setActiveForm(null);
+    setCajaAEditar(null);
     setFormDirty(false);
   };
 
@@ -249,6 +254,12 @@ const CajasBancos: React.FC = () => {
                 <div
                   key={c.id}
                   onClick={() => setFiltroCuenta(filtroCuenta === c.id ? 'todas' : c.id)}
+                  onDoubleClick={() => {
+                    if (esSuperAdmin) {
+                      setCajaAEditar(c);
+                      setActiveForm('nueva_caja');
+                    }
+                  }}
                   style={{
                     flexShrink: 0,
                     minWidth: '160px',
@@ -599,6 +610,12 @@ const CajasBancos: React.FC = () => {
                       onDrop={esSuperAdmin ? e => handleDrop(e, c.id) : undefined}
                       onDragEnd={esSuperAdmin ? handleDragEnd : undefined}
                       onClick={() => setFiltroCuenta(filtroCuenta === c.id ? 'todas' : c.id)}
+                      onDoubleClick={() => {
+                        if (esSuperAdmin) {
+                          setCajaAEditar(c);
+                          setActiveForm('nueva_caja');
+                        }
+                      }}
                       style={{
                         background: esActiva ? 'var(--primary-glow)' : esPred ? 'rgba(255,200,0,0.07)' : 'rgba(255,255,255,0.05)',
                         border: `2px solid ${esActiva ? 'var(--primary)' : esPred ? '#f59e0b' : esDragOver ? 'var(--primary)' : '#E5E7EB'}`,
@@ -931,11 +948,13 @@ const CajasBancos: React.FC = () => {
 
       <ModalNuevaCaja
         visible={activeForm === 'nueva_caja'}
-        onCerrar={() => setActiveForm(null)}
+        onCerrar={() => { setActiveForm(null); setCajaAEditar(null); }}
         onCreado={() => {
           setActiveForm(null);
+          setCajaAEditar(null);
           manejarActualizacion();
         }}
+        cajaAEditar={cajaAEditar}
       />
 
       {/* Modal: Editar movimiento existente */}
