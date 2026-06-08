@@ -17,7 +17,7 @@ export const getSucursales = async (escuelaId: string): Promise<Sucursal[]> => {
 
   const { data, error } = await supabase
     .from('sucursales')
-    .select('*')
+    .select('id, nombre, direccion, telefono, escuela_id')
     .eq('escuela_id', escuelaId)
     .order('nombre', { ascending: true });
 

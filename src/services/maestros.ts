@@ -182,7 +182,7 @@ export const getAllHorarios = async (escuelaId: string): Promise<Horario[]> => {
 
   const { data, error } = await supabase
     .from('horarios')
-    .select('*')
+    .select('id, hora, activo')
     .eq('escuela_id', escuelaId)
     .order('hora', { ascending: true });
 

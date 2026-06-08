@@ -94,7 +94,7 @@ const PanelEscuela: React.FC = () => {
         { count: entrenadoresCount },
         { data: sucursalesData },
       ] = await Promise.all([
-        supabase.from('escuelas').select('*').eq('id', escuela_id).single(),
+        supabase.from('escuelas').select('id, nombre, zona_horaria, activa, logo_url, slogan').eq('id', escuela_id).single(),
         supabase.from('alumnos').select('id, sucursal_id')
           .eq('escuela_id', escuela_id).eq('archivado', false),
         supabase.from('usuarios').select('id', { count: 'exact', head: true })
@@ -175,7 +175,7 @@ const PanelEscuela: React.FC = () => {
         const { error: uploadError } = await supabase.storage
           .from('avatars')
           .upload(filePath, logoFile, {
-            cacheControl: '3600',
+            cacheControl: '86400',
             upsert: true
           });
 

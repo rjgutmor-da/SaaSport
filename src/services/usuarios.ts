@@ -24,7 +24,7 @@ export const getUsuarios = async (
 
   let query = supabase
     .from('usuarios')
-    .select('*')
+    .select('id, email, nombres, apellidos, rol, sucursal_id, activo, escuela_id')
     .eq('escuela_id', escuelaId);
 
   // Filtrar por sucursal si es Administrador o Entrenador
