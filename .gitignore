@@ -25,6 +25,12 @@ dist-ssr
 
 .vercel
 .env*.local
+.env
+
+# Scripts utilitarios con datos sensibles
+scratch/
+create_user.js
+seed.js
 
 # Logotipos compartidos (sincronizados)
 public/logo_canito.png
