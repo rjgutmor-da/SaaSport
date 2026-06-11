@@ -226,19 +226,6 @@ const FichaAnticiposCxC: React.FC<Props> = ({
             </div>
           </div>
           <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-            {onRegistrar && (
-              <button 
-                onClick={onRegistrar}
-                style={{
-                  background: 'var(--secondary)', color: '#fff', border: 'none',
-                  borderRadius: '8px', padding: '0.5rem 0.75rem',
-                  display: 'flex', alignItems: 'center', gap: '0.4rem',
-                  fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer'
-                }}
-              >
-                <Plus size={16} /> REGISTRAR
-              </button>
-            )}
             <button onClick={onCerrar}>
               <X size={20} />
             </button>
@@ -283,18 +270,6 @@ const FichaAnticiposCxC: React.FC<Props> = ({
             <div style={{ textAlign: 'center', padding: '3rem 1rem', color: 'var(--text-tertiary)' }}>
               <Wallet size={40} style={{ opacity: 0.3, marginBottom: '0.75rem' }} />
               <p style={{ margin: 0 }}>No hay saldos a favor disponibles.</p>
-              {onRegistrar && (
-                <button 
-                  onClick={onRegistrar}
-                  className="btn-guardar-cuenta"
-                  style={{ 
-                    marginTop: '1rem', background: 'var(--secondary)', borderColor: 'var(--secondary)',
-                    padding: '0.6rem 1.2rem'
-                  }}
-                >
-                  Registrar mi primer Saldo a Favor
-                </button>
-              )}
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
@@ -496,23 +471,40 @@ const FichaAnticiposCxC: React.FC<Props> = ({
           )}
 
           {/* Footer */}
-          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1.25rem', gap: '0.5rem' }}>
-            <button
-              className="btn-refrescar"
-              onClick={cargarAnticipos}
-              disabled={cargando}
-              style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.83rem' }}
-            >
-              <RefreshCw size={14} className={cargando ? 'spin' : ''} />
-              Actualizar
-            </button>
-            <button
-              onClick={onCerrar}
-              className="btn-refrescar"
-              style={{ fontSize: '0.83rem' }}
-            >
-              Cerrar
-            </button>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '1.25rem', gap: '0.5rem' }}>
+            <div>
+              {onRegistrar && (
+                <button 
+                  onClick={onRegistrar}
+                  className="btn-guardar-cuenta"
+                  style={{ 
+                    background: 'var(--secondary)', borderColor: 'var(--secondary)',
+                    display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.83rem',
+                    padding: '0.5rem 1rem'
+                  }}
+                >
+                  <Plus size={14} /> Registrar Anticipo
+                </button>
+              )}
+            </div>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <button
+                className="btn-refrescar"
+                onClick={cargarAnticipos}
+                disabled={cargando}
+                style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.83rem' }}
+              >
+                <RefreshCw size={14} className={cargando ? 'spin' : ''} />
+                Actualizar
+              </button>
+              <button
+                onClick={onCerrar}
+                className="btn-refrescar"
+                style={{ fontSize: '0.83rem' }}
+              >
+                Cerrar
+              </button>
+            </div>
           </div>
         </div>
       </div>

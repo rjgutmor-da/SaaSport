@@ -75,7 +75,8 @@ const CuentasPagar: React.FC = () => {
   const statsGlobales = {
     totalEntidades: resumenData?.total_entidades || 0,
     conDeuda: resumenData?.con_deuda || 0,
-    totalPendiente: Number(resumenData?.total_pendiente || 0)
+    totalPendiente: Number(resumenData?.total_pendiente || 0),
+    totalAnticipos: Math.abs(Number(resumenData?.total_anticipos || 0))
   };
 
   // ── Modales ──
@@ -149,9 +150,9 @@ const CuentasPagar: React.FC = () => {
     }}>
       {isMobile ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', width: '100%', boxSizing: 'border-box' }}>
-          {/* Buscador y Chip de Resumen */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', width: '100%', marginTop: '1rem' }}>
-            <div style={{ flex: 1, position: 'relative' }}>
+          {/* Buscador y Chips de Resumen */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', width: '100%', marginTop: '1rem' }}>
+            <div style={{ position: 'relative' }}>
               <Search size={16} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-tertiary)' }} />
               <input
                 type="text"
@@ -170,32 +171,42 @@ const CuentasPagar: React.FC = () => {
                 }}
               />
             </div>
-            {(() => {
-              const totalDeudaVal = statsGlobales.totalPendiente;
-              const hasDeuda = totalDeudaVal > 0;
-              const badgeColor = hasDeuda ? '#ef4444' : '#10b981';
-              const badgeBg = hasDeuda ? 'rgba(239, 68, 68, 0.08)' : 'rgba(16, 185, 129, 0.08)';
-              const badgeBorder = hasDeuda ? 'rgba(239, 68, 68, 0.2)' : 'rgba(16, 185, 129, 0.2)';
-              const badgeText = 'PENDIENTE';
-              
-              return (
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
+              {/* Casilla de Deudas */}
+              <div style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'flex-end',
+                background: statsGlobales.totalPendiente > 0 ? 'rgba(239, 68, 68, 0.08)' : 'rgba(16, 185, 129, 0.08)',
+                border: `1px solid ${statsGlobales.totalPendiente > 0 ? 'rgba(239, 68, 68, 0.2)' : 'rgba(16, 185, 129, 0.2)'}`,
+                borderRadius: '10px',
+                padding: '0.4rem 0.75rem',
+                gap: '2px'
+              }}>
+                <span style={{ fontSize: '0.6rem', fontWeight: 800, color: statsGlobales.totalPendiente > 0 ? '#ef4444' : '#10b981', letterSpacing: '0.05em' }}>DEUDAS</span>
+                <span style={{ fontSize: '0.9rem', fontWeight: 800, color: statsGlobales.totalPendiente > 0 ? '#ef4444' : '#10b981' }}>
+                  Bs {fmtMonto(statsGlobales.totalPendiente)}
+                </span>
+              </div>
+              {/* Casilla de Anticipos */}
+              {statsGlobales.totalAnticipos > 0 && (
                 <div style={{
                   display: 'flex',
                   flexDirection: 'column',
                   alignItems: 'flex-end',
-                  background: badgeBg,
-                  border: `1px solid ${badgeBorder}`,
+                  background: 'rgba(16, 185, 129, 0.08)',
+                  border: '1px solid rgba(16, 185, 129, 0.2)',
                   borderRadius: '10px',
                   padding: '0.4rem 0.75rem',
                   gap: '2px'
                 }}>
-                  <span style={{ fontSize: '0.65rem', fontWeight: 800, color: badgeColor, letterSpacing: '0.05em' }}>{badgeText}</span>
-                  <span style={{ fontSize: '0.95rem', fontWeight: 800, color: badgeColor }}>
-                    Bs {fmtMonto(Math.abs(totalDeudaVal))}
+                  <span style={{ fontSize: '0.6rem', fontWeight: 800, color: '#10b981', letterSpacing: '0.05em' }}>ANTICIPOS</span>
+                  <span style={{ fontSize: '0.9rem', fontWeight: 800, color: '#10b981' }}>
+                    Bs {fmtMonto(statsGlobales.totalAnticipos)}
                   </span>
                 </div>
-              );
-            })()}
+              )}
+            </div>
           </div>
 
           {/* Tabla Simple: 2 Columnas (PROVEEDOR y DEUDA TOTAL) */}
@@ -221,7 +232,7 @@ const CuentasPagar: React.FC = () => {
                       <td style={{ padding: '0.75rem 1rem', fontWeight: 600, color: 'var(--text-primary)' }}>
                         {entidad.nombre}
                       </td>
-                      <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontWeight: 700, color: isDeudor ? '#ef4444' : (isAnticipo ? '#a855f7' : '#10b981') }}>
+                      <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontWeight: 700, color: isDeudor ? '#ef4444' : (isAnticipo ? '#10b981' : '#10b981') }}>
                         Bs {fmtMonto(saldoVal)}
                       </td>
                     </tr>
@@ -309,6 +320,12 @@ const CuentasPagar: React.FC = () => {
                 <span className="cxc-pill-label">Pendiente</span>
                 <span className="cxc-pill-value">Bs {fmtMonto(statsGlobales.totalPendiente)}</span>
               </div>
+              {statsGlobales.totalAnticipos > 0 && (
+                <div className="cxc-stat-pill" style={{ background: 'rgba(16, 185, 129, 0.08)', border: '1px solid rgba(16, 185, 129, 0.18)' }}>
+                  <span className="cxc-pill-label" style={{ color: '#10b981' }}>Anticipos</span>
+                  <span className="cxc-pill-value" style={{ color: '#10b981' }}>Bs {fmtMonto(statsGlobales.totalAnticipos)}</span>
+                </div>
+              )}
               <span className="cxc-divider-mini" />
               <span className="cxc-result-count">
                 {entidadesFiltradas.length} entidades
@@ -414,7 +431,7 @@ const CuentasPagar: React.FC = () => {
                         {/* Total deuda */}
                         <td className="cxc-td cxc-td-right">
                           {Math.abs(entidad.saldo_pendiente) > 0.01
-                            ? <span className={entidad.saldo_pendiente > 0 ? "cxc-monto-deuda" : "cxc-monto-anticipo"}>
+                            ? <span style={{ fontWeight: 800, color: entidad.saldo_pendiente > 0 ? '#ef4444' : '#10b981' }}>
                                 {entidad.saldo_pendiente < 0 ? '- ' : ''}Bs {fmtMonto(Math.abs(entidad.saldo_pendiente))}
                               </span>
                             : <span className="cxc-al-dia">✓ Al día</span>

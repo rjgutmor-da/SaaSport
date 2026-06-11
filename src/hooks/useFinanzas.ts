@@ -126,12 +126,20 @@ const fetchCxpResumen = async (escuelaId: string, filtros?: any) => {
 
   const totalEntidades = lista.length;
   const conDeuda = lista.filter(e => Number(e.saldo_pendiente) > 0).length;
-  const totalPendiente = lista.reduce((acc, e) => acc + Number(e.saldo_pendiente), 0);
+  const totalPendiente = lista.reduce((acc, e) => {
+    const val = Number(e.saldo_pendiente);
+    return acc + (val > 0 ? val : 0);
+  }, 0);
+  const totalAnticipos = lista.reduce((acc, e) => {
+    const val = Number(e.saldo_pendiente);
+    return acc + (val < 0 ? val : 0);
+  }, 0);
 
   return {
     total_entidades: totalEntidades,
     con_deuda: conDeuda,
-    total_pendiente: totalPendiente
+    total_pendiente: totalPendiente,
+    total_anticipos: totalAnticipos
   };
 };
 

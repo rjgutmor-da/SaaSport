@@ -242,14 +242,16 @@ const ModalCobroRapido: React.FC<Props> = ({ alumnoInicial, visible, onCerrar, o
         if (errAnt || !notaAnticipo) throw new Error('Error al registrar el anticipo del exceso.');
 
         const itemAnticipo = cuentaAnticipoId || (catalogo.length > 0 ? catalogo[0].id : null);
-        await supabase.from('cxc_detalle').insert({
+        const { error: errDet } = await supabase.from('cxc_detalle').insert({
           escuela_id: ctx.escuela_id,
           cuenta_cobrar_id: notaAnticipo.id,
           catalogo_item_id: itemAnticipo,
-          descripcion: 'Anticipo — Exceso de pago',
+          detalle_extra: 'Anticipo — Exceso de pago',
           cantidad: 1,
           precio_unitario: exceso
         });
+        if (errDet) throw errDet;
+
 
         const { error: rpcMultipleErr } = await supabase.rpc('rpc_cobrar_multiple_cxc', {
           p_payload: {

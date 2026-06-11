@@ -193,19 +193,34 @@ const CajasBancos: React.FC = () => {
   // Eliminar el useEffect que actualizaba el SidebarContext (líneas 195-230 aprox)
   // El saldo consolidado y el selector ahora se integran en la rejilla de tarjetas.
 
-  // Filtros cruzados
+  // Normalizar texto: quitar acentos y pasar a minúsculas
+  const normalizar = useCallback((str: string) =>
+    str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim()
+  , []);
+
+  // Filtros cruzados — búsqueda inteligente por Cuentas, Alumno/Proveedor y Documentos
   const movimientosFiltrados = useMemo(() => {
     let list = movimientos;
     if (filtroCuenta !== 'todas') list = list.filter(m => m.cuenta_id === filtroCuenta);
     if (busqueda.trim()) {
-      const q = busqueda.toLowerCase();
-      list = list.filter(m => 
-        m.descripcion.toLowerCase().includes(q) || 
-        m.nro_transaccion?.toLowerCase().includes(q)
-      );
+      // Separar la búsqueda en tokens individuales (AND lógico)
+      const tokens = normalizar(busqueda).split(/\s+/).filter(t => t.length > 0);
+      
+      list = list.filter(m => {
+        // Campos de búsqueda en orden de prioridad: Cuentas, Alumno/Proveedor, Documentos
+        const campoCuentas = normalizar(m.cuenta_nombre || '');
+        const campoCliente = normalizar(m.cliente || '');
+        const campoDocumento = normalizar(m.nro_transaccion || '');
+        
+        // Concatenar todos los campos para buscar tokens que pueden cruzar columnas
+        const textoCompleto = `${campoCuentas} ${campoCliente} ${campoDocumento}`;
+        
+        // Cada token debe encontrarse en al menos uno de los campos
+        return tokens.every(token => textoCompleto.includes(token));
+      });
     }
     return list;
-  }, [movimientos, filtroCuenta, busqueda]);
+  }, [movimientos, filtroCuenta, busqueda, normalizar]);
 
 
   const toggleConciliar = async (mov: MovimientoFinanciero) => {
@@ -549,7 +564,7 @@ const CajasBancos: React.FC = () => {
                 <Search size={16} className="pc-busqueda-icono" />
                 <input
                   type="text"
-                  placeholder="Buscar movimientos..."
+                  placeholder="Buscar por cuenta, alumno, proveedor o documento..."
                   value={busqueda}
                   onChange={e => setBusqueda(e.target.value)}
                   className="pc-busqueda-input"
