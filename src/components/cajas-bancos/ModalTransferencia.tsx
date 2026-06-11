@@ -64,19 +64,9 @@ const ModalTransferencia: React.FC<Props> = ({ visible, cajas, onCerrar, onCread
       const escuelaId = perfil?.escuela_id;
       if (!escuelaId) throw new Error('No se pudo determinar la escuela.');
 
-      // 2. Buscar o asegurar concepto de transferencia
-      const { data: itemData } = await supabase
-        .from('catalogo_items')
-        .select('id')
-        .eq('nombre', 'Transferencia de Fondos')
-        .single();
-      
-      const transferenciaItemId = itemData?.id;
-      if (!transferenciaItemId) throw new Error('No se encontró el concepto "Transferencia de Fondos" en el catálogo.');
-
       const timestamp = buildTimestampLocal(fecha, getHoraLocal());
 
-      // 3. Registrar EGRESO (Cuenta Origen)
+      // 2. Registrar EGRESO (Cuenta Origen)
       const { data: cxp, error: errCxP } = await supabase.from('cuentas_pagar').insert({
         escuela_id: escuelaId,
         monto_total: valorMonto,
@@ -91,7 +81,7 @@ const ModalTransferencia: React.FC<Props> = ({ visible, cajas, onCerrar, onCread
       await supabase.from('cxp_detalle').insert({
         escuela_id: escuelaId,
         cuenta_pagar_id: cxp.id,
-        catalogo_item_id: transferenciaItemId,
+        catalogo_item_id: null,
         cantidad: 1,
         precio_unitario: valorMonto
       });
@@ -105,7 +95,7 @@ const ModalTransferencia: React.FC<Props> = ({ visible, cajas, onCerrar, onCread
         referencia: nroTransaccion
       });
 
-      // 4. Registrar INGRESO (Cuenta Destino)
+      // 3. Registrar INGRESO (Cuenta Destino)
       const { data: cxc, error: errCxC } = await supabase.from('cuentas_cobrar').insert({
         escuela_id: escuelaId,
         monto_total: valorMonto,
@@ -120,7 +110,7 @@ const ModalTransferencia: React.FC<Props> = ({ visible, cajas, onCerrar, onCread
       await supabase.from('cxc_detalle').insert({
         escuela_id: escuelaId,
         cuenta_cobrar_id: cxc.id,
-        catalogo_item_id: transferenciaItemId,
+        catalogo_item_id: null,
         cantidad: 1,
         precio_unitario: valorMonto
       });

@@ -406,6 +406,7 @@ const CajasBancos: React.FC = () => {
                       const fechaStr = formatFecha(mov.fecha);
                       const cliente = mov.cliente && mov.cliente !== '—' ? mov.cliente : '';
                       const desc = mov.descripcion?.trim() || '';
+                      const descLimpia = desc.replace(/^\[(INGRESO|EGRESO) TRF\]\s*/i, '');
 
                       return (
                         <div
@@ -427,14 +428,14 @@ const CajasBancos: React.FC = () => {
                               fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)',
                               whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'
                             }}>
-                              {cliente || desc || 'Movimiento'}
+                              {cliente || descLimpia || 'Movimiento'}
                             </span>
-                            {cliente && desc && (
+                            {cliente && descLimpia && (
                               <span style={{
                                 fontSize: '0.75rem', color: 'var(--text-tertiary)',
                                 whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'
                               }}>
-                                {desc}
+                                {descLimpia}
                               </span>
                             )}
                           </div>
@@ -787,6 +788,10 @@ const CajasBancos: React.FC = () => {
                                   {(() => {
                                     const cliente = mov.cliente && mov.cliente !== '—' ? mov.cliente : '';
                                     let desc = mov.descripcion?.trim() || '';
+                                    
+                                    // Limpiar prefijo de transferencia si existe
+                                    desc = desc.replace(/^\[(INGRESO|EGRESO) TRF\]\s*/i, '');
+
                                     const cuentaTrim = mov.cuenta_nombre?.trim() || '';
                                     
                                     if (desc === cuentaTrim) desc = '';
