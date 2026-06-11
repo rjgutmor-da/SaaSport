@@ -3,7 +3,7 @@
  * Modal flotante para crear/editar una "Nota de Servicios" (cuenta por cobrar).
  * Versión simplificada sin campos contables.
  */
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import type { CatalogoItem } from '../../types/cuentas';
 import type { LineaNota } from '../../types/cxc';
@@ -69,8 +69,17 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
   const [montoAnticipo, setMontoAnticipo] = useState('');
   const [cuentaAnticipoId, setCuentaAnticipoId] = useState('');
 
+  // Ref para detectar si el modal ya fue inicializado en esta apertura.
+  // Evita que al navegar hacia otra pantalla y volver se reseteen los campos.
+  const yaInicializado = useRef(false);
+
   useEffect(() => {
-    if (!visible) return;
+    if (!visible) {
+      // Al cerrar el modal, marcamos que la próxima apertura debe reinicializar.
+      yaInicializado.current = false;
+      return;
+    }
+
     const cargar = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
@@ -105,7 +114,7 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
       
       const listaCajas = resCajas.data ?? [];
       setCajasBancos(listaCajas);
-      // Preseleccionar caja predeterminada si no hay una ya seleccionada
+      // Preseleccionar caja predeterminada solo si no hay una ya seleccionada
       if (!cuentaCobroId) {
         const pred = (listaCajas as any[]).find((c: any) => c.es_predeterminada);
         if (pred) setCuentaCobroId(pred.id);
@@ -134,28 +143,34 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
     };
     cargar();
 
-    if (cxcEditar) {
-      setAlumnoId(cxcEditar.alumno_id);
-      setLineas(cxcEditar.lineas || [lineaVacia()]);
-      setObservaciones(cxcEditar.observaciones || '');
-      setVencimiento(cxcEditar.fecha_vencimiento || cxcEditar.vencimiento || getHoyISO());
-      setFechaEmision(cxcEditar.fecha_emision || getHoyISO());
-      // Si estamos editando y ya tiene cobros, no mostramos el panel de pago rápido
-      if (cxcEditar.total_cobrado > 0) {
-        setPagarAlCrear(false);
+    // Solo reinicializar los campos del formulario en la primera apertura del modal.
+    // Si el usuario navega a otra pantalla y vuelve (visible sigue true),
+    // no se borran los datos ya ingresados (preservación de estado de formulario).
+    if (!yaInicializado.current) {
+      yaInicializado.current = true;
+      if (cxcEditar) {
+        setAlumnoId(cxcEditar.alumno_id);
+        setLineas(cxcEditar.lineas || [lineaVacia()]);
+        setObservaciones(cxcEditar.observaciones || '');
+        setVencimiento(cxcEditar.fecha_vencimiento || cxcEditar.vencimiento || getHoyISO());
+        setFechaEmision(cxcEditar.fecha_emision || getHoyISO());
+        // Si estamos editando y ya tiene cobros, no mostramos el panel de pago rápido
+        if (cxcEditar.total_cobrado > 0) {
+          setPagarAlCrear(false);
+        }
+      } else {
+        setAlumnoId(alumnoPreseleccionado?.id || '');
+        setLineas([lineaVacia()]);
+        setObservaciones(esAnticipo ? 'Cobro Anticipado - Saldo a Favor' : '');
+        setFechaEmision(getHoyISO());
+        setVencimiento(getHoyISO());
+        setFechaPago(getHoyISO());
+        setPagarAlCrear(esAnticipo);
+        setMontoPago('');
+        setCobroNroDoc('');
       }
-    } else {
-      setAlumnoId(alumnoPreseleccionado?.id || '');
-      setLineas([lineaVacia()]);
-      setObservaciones(esAnticipo ? 'Cobro Anticipado - Saldo a Favor' : '');
-      setFechaEmision(getHoyISO());
-      setVencimiento(getHoyISO());
-      setFechaPago(getHoyISO());
-      setPagarAlCrear(esAnticipo);
-      setMontoPago('');
-      setCobroNroDoc('');
+      setError(null); setExito(null);
     }
-    setError(null); setExito(null);
   }, [visible, cxcEditar, alumnoPreseleccionado, esAnticipo]);
 
   const total = useMemo(() => {

@@ -276,15 +276,19 @@ const ModalVerNotaCxC: React.FC<Props> = ({ visible, cxcId, onCerrar, onEditar, 
                         borderBottom: idx < items.length - 1 ? '1px solid var(--border)' : 'none'
                       }}
                     >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
-                          <span style={{ fontWeight: 700, fontSize: '1.05rem', color: 'var(--text-primary)' }}>{item.nombre}</span>
-                          <span style={{ color: 'var(--text-tertiary)', fontSize: '0.85rem' }}>
-                            × {item.cantidad} @ Bs {fmtMonto(item.precio_unitario)}
-                          </span>
-                          {/* Detalle específico: meses */}
+                      {/* Layout principal del ítem: en móvil se apila, en desktop queda en fila */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem', flexWrap: 'wrap' }}>
+                        {/* Columna izquierda: nombre + cantidad + badges */}
+                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', flexWrap: 'wrap', flex: '1 1 auto', minWidth: 0 }}>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.4rem', width: '100%' }}>
+                            <span style={{ fontWeight: 700, fontSize: '1.05rem', color: 'var(--text-primary)' }}>{item.nombre}</span>
+                            <span style={{ color: 'var(--text-tertiary)', fontSize: '0.85rem', whiteSpace: 'nowrap' }}>
+                              × {item.cantidad} @ Bs {fmtMonto(item.precio_unitario)}
+                            </span>
+                          </div>
+                          {/* Badges de meses — siempre visibles */}
                           {item.periodo_meses && item.periodo_meses.length > 0 && (
-                            <div style={{ display: 'flex', gap: '0.3rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                            <div style={{ display: 'flex', gap: '0.3rem', flexWrap: 'wrap', alignItems: 'center', width: '100%', marginTop: '0.25rem' }}>
                               {ordenarMesesCalendario(item.periodo_meses).map((mes: string) => (
                                 <span key={mes} style={{
                                   background: 'rgba(59,130,246,0.15)',
@@ -299,14 +303,19 @@ const ModalVerNotaCxC: React.FC<Props> = ({ visible, cxcId, onCerrar, onEditar, 
                               ))}
                             </div>
                           )}
-                          {/* Detalle específico: detalle_extra */}
+                          {/* Detalle extra (ej: "8 Jun a 8 Jul") — siempre visible */}
                           {item.detalle_extra && (
-                            <span style={{ fontSize: '0.78rem', color: '#a78bfa', fontStyle: 'italic', display: 'inline-flex', alignItems: 'center' }}>
+                            <span style={{
+                              fontSize: '0.78rem', color: '#a78bfa', fontStyle: 'italic',
+                              display: 'inline-flex', alignItems: 'center', gap: '0.2rem',
+                              width: '100%', marginTop: item.periodo_meses && item.periodo_meses.length > 0 ? '0.15rem' : '0.25rem'
+                            }}>
                               🏷️ {item.detalle_extra}
                             </span>
                           )}
                         </div>
-                        <span style={{ fontWeight: 800, color: 'var(--text-primary)', fontSize: '1.1rem', whiteSpace: 'nowrap' }}>
+                        {/* Subtotal: alineado a la derecha, no se encoge */}
+                        <span style={{ fontWeight: 800, color: 'var(--text-primary)', fontSize: '1.1rem', whiteSpace: 'nowrap', flexShrink: 0 }}>
                           Bs {fmtMonto(item.subtotal)}
                         </span>
                       </div>
