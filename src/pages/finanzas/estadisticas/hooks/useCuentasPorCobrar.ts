@@ -74,6 +74,7 @@ export function useCuentasPorCobrar(
           )
         `)
         .eq('escuela_id', eid)
+        .eq('es_anticipo', false)
         .gt('saldo_pendiente', 0)
         .gte('fecha_emision', desde)
         .lte('fecha_emision', hasta);
