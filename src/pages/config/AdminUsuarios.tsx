@@ -15,6 +15,9 @@ const AdminUsuarios: React.FC = () => {
   const [sucursales, setSucursales] = useState<Sucursal[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Determinar si ya existe un SuperAdministrador activo en la escuela
+  const tieneSuperAdminActivo = usuarios.some(u => u.rol === 'SuperAdministrador' && u.activo);
+
   // Estado para Crear Usuario
   const [isCreating, setIsCreating] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -299,9 +302,14 @@ const AdminUsuarios: React.FC = () => {
                     onChange={e => setFormData({ ...formData, rol: e.target.value as any })}
                     style={{ width: '100%', padding: '0.6rem 0.8rem', background: 'var(--bg-input)', border: '1px solid var(--border)', color: 'var(--text-primary)', height: '42px' }}
                   >
-                    {rolesOptions.map(opt => (
-                      <option key={opt.value} value={opt.value}>{opt.label}</option>
-                    ))}
+                    {rolesOptions.map(opt => {
+                      const isDisabled = opt.value === 'SuperAdministrador' && tieneSuperAdminActivo;
+                      return (
+                        <option key={opt.value} value={opt.value} disabled={isDisabled}>
+                          {opt.label}{isDisabled ? ' (Límite: 1 por escuela)' : ''}
+                        </option>
+                      );
+                    })}
                   </select>
                 </div>
                 <div className="form-campo">
@@ -379,9 +387,14 @@ const AdminUsuarios: React.FC = () => {
                               disabled={esMismoUsuario}
                               style={{ width: '100%', padding: '0.35rem 0.5rem', fontSize: '0.85rem', background: 'var(--bg-input)', border: '1px solid var(--border)', color: 'var(--text-primary)', borderRadius: '4px' }}
                             >
-                              {rolesOptions.map(opt => (
-                                <option key={opt.value} value={opt.value}>{opt.label}</option>
-                              ))}
+                              {rolesOptions.map(opt => {
+                                const isDisabled = opt.value === 'SuperAdministrador' && tieneSuperAdminActivo && u.rol !== 'SuperAdministrador';
+                                return (
+                                  <option key={opt.value} value={opt.value} disabled={isDisabled}>
+                                    {opt.label}{isDisabled ? ' (Límite: 1 por escuela)' : ''}
+                                  </option>
+                                );
+                              })}
                             </select>
 
                             {/* Selector de Sucursal */}
