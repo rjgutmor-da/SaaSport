@@ -6,6 +6,7 @@
  */
 import React, { useEffect, useState, useMemo } from 'react';
 import { supabase } from '../../lib/supabaseClient';
+import { esNotaVencida } from '../../lib/vencimientoUtils';
 import {
   X, DollarSign, Calendar, RefreshCw,
   AlertCircle, Check, CreditCard, CheckCircle2,
@@ -50,6 +51,7 @@ const DetalleProveedorCxP: React.FC<Props> = ({ entidad, visible, onCerrar, onAc
   const [notas, setNotas] = useState<NotaResumen[]>([]);
   const [cargando, setCargando] = useState(true);
   const [filtroEstado, setFiltroEstado] = useState('');
+  const [filtroVencimiento, setFiltroVencimiento] = useState('');
   const [modoAnticipo, setModoAnticipo] = useState(false);
 
   // Modales internos
@@ -244,14 +246,19 @@ const DetalleProveedorCxP: React.FC<Props> = ({ entidad, visible, onCerrar, onAc
     }
   }, [visible, entidad]);
 
-  /** Notas filtradas por estado */
+  /** Notas filtradas por estado y vencimiento */
   const notasFiltradas = useMemo(() => {
     if (filtroEstado === 'anticipo') {
       return notas.filter(n => (n as any).es_anticipo);
     }
-    if (!filtroEstado) return notas;
-    return notas.filter(n => n.estado === filtroEstado && !(n as any).es_anticipo);
-  }, [notas, filtroEstado]);
+    let lista = !filtroEstado ? notas : notas.filter(n => n.estado === filtroEstado && !(n as any).es_anticipo);
+    if (filtroVencimiento === 'vencidas') {
+      lista = lista.filter(n => esNotaVencida(n.fecha_vencimiento, n.estado));
+    } else if (filtroVencimiento === 'no_vencidas') {
+      lista = lista.filter(n => !esNotaVencida(n.fecha_vencimiento, n.estado));
+    }
+    return lista;
+  }, [notas, filtroEstado, filtroVencimiento]);
 
   /** Estadísticas rápidas */
   const stats = useMemo(() => ({
@@ -548,6 +555,32 @@ const DetalleProveedorCxP: React.FC<Props> = ({ entidad, visible, onCerrar, onAc
 
         {/* ── Lista de notas estilo Excel ── */}
         <div className="detalle-cxc-lista" style={{ padding: '0 1rem 1rem 1rem', overflowY: 'auto', flex: isMobile ? 1 : undefined, maxHeight: isMobile ? undefined : '55vh' }}>
+          {/* Filtros de estado y vencimiento */}
+          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.75rem', paddingTop: '0.75rem' }}>
+            <select
+              value={filtroEstado}
+              onChange={e => setFiltroEstado(e.target.value)}
+              className="filtro-select"
+              style={{ fontSize: '0.8rem', minWidth: '140px' }}
+            >
+              <option value="">Todos los estados</option>
+              <option value="pendiente">Pendiente</option>
+              <option value="parcial">Parcial</option>
+              <option value="pagada">Pagada</option>
+              <option value="vencida">Vencida</option>
+              <option value="anticipo">Anticipos</option>
+            </select>
+            <select
+              value={filtroVencimiento}
+              onChange={e => setFiltroVencimiento(e.target.value)}
+              className="filtro-select"
+              style={{ fontSize: '0.8rem', minWidth: '140px' }}
+            >
+              <option value="">Vencimiento: Todas</option>
+              <option value="vencidas">⚠ Vencidas</option>
+              <option value="no_vencidas">✓ No vencidas</option>
+            </select>
+          </div>
           {isMobile ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
               {notasFiltradas.map(nota => {
@@ -562,6 +595,13 @@ const DetalleProveedorCxP: React.FC<Props> = ({ entidad, visible, onCerrar, onAc
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <span style={{ fontWeight: 800, color: 'var(--text-primary)', fontSize: '0.85rem' }}>
                         {nota.descripcion || 'Sin descripción'}
+                        {esNotaVencida(nota.fecha_vencimiento, nota.estado) && (
+                          <span style={{
+                            background: 'rgba(248,113,113,0.15)', color: '#f87171',
+                            borderRadius: '4px', padding: '1px 5px',
+                            fontSize: '0.65rem', fontWeight: 700, marginLeft: '0.35rem'
+                          }}>⚠ Vencida</span>
+                        )}
                       </span>
                       <span style={{ background: badge.bg, color: badge.color, borderRadius: '4px', padding: '1px 6px', fontSize: '0.65rem', fontWeight: 700, textTransform: 'uppercase' }}>
                         {badge.label}
@@ -696,6 +736,14 @@ const DetalleProveedorCxP: React.FC<Props> = ({ entidad, visible, onCerrar, onAc
                       <td style={{ padding: '0.5rem 0.75rem', border: '1px solid var(--border)' }}>
                         <div style={{ display: 'flex', flexDirection: 'column' }}>
                           <span style={{ fontWeight: 700 }}>{nota.descripcion || 'Sin descripción'}</span>
+                          {esNotaVencida(nota.fecha_vencimiento, nota.estado) && (
+                            <span style={{
+                              display: 'inline-block', marginTop: '2px',
+                              background: 'rgba(248,113,113,0.15)', color: '#f87171',
+                              borderRadius: '4px', padding: '1px 5px',
+                              fontSize: '0.65rem', fontWeight: 700, width: 'fit-content'
+                            }}>⚠ Vencida</span>
+                          )}
                           <span style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>{nota.tipo_gasto}</span>
                         </div>
                       </td>

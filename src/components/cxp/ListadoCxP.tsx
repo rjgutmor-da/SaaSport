@@ -5,6 +5,7 @@
  * Permite ver el estado de cada nota y registrar pagos.
  */
 import React, { useEffect, useState, useMemo } from 'react';
+import { esNotaVencida } from '../../lib/vencimientoUtils';
 import { supabase } from '../../lib/supabaseClient';
 import {
   ChevronLeft, RefreshCw, Plus, Search, DollarSign,
@@ -63,6 +64,7 @@ const ListadoCxP: React.FC<Props> = ({ titulo, tipoGasto, iconoTitulo, colorAcce
   const [error, setError] = useState<string | null>(null);
   const [busqueda, setBusqueda] = useState('');
   const [filtroEstado, setFiltroEstado] = useState('');
+  const [filtroVencimiento, setFiltroVencimiento] = useState('');
 
   // Modales
   const [mostrarNota, setMostrarNota] = useState(false);
@@ -142,6 +144,11 @@ const ListadoCxP: React.FC<Props> = ({ titulo, tipoGasto, iconoTitulo, colorAcce
   const notasFiltradas = useMemo(() => {
     let lista = notas;
     if (filtroEstado) lista = lista.filter(n => n.estado === filtroEstado);
+    if (filtroVencimiento === 'vencidas') {
+      lista = lista.filter(n => esNotaVencida(n.fecha_vencimiento, n.estado));
+    } else if (filtroVencimiento === 'no_vencidas') {
+      lista = lista.filter(n => !esNotaVencida(n.fecha_vencimiento, n.estado));
+    }
     if (busqueda.trim()) {
       const q = busqueda.toLowerCase();
       lista = lista.filter(n =>
@@ -151,12 +158,13 @@ const ListadoCxP: React.FC<Props> = ({ titulo, tipoGasto, iconoTitulo, colorAcce
       );
     }
     return lista;
-  }, [notas, filtroEstado, busqueda]);
+  }, [notas, filtroEstado, filtroVencimiento, busqueda]);
 
   /** Estadísticas */
   const stats = useMemo(() => ({
     total: notas.length,
     pendiente: notas.filter(n => Number(n.deuda_restante) > 0).length,
+    vencidas: notas.filter(n => esNotaVencida(n.fecha_vencimiento, n.estado)).length,
     montoPendiente: notas.reduce((s, n) => s + n.deuda_restante, 0),
     montoPagado: notas.reduce((s, n) => s + n.monto_pagado, 0),
   }), [notas]);
@@ -230,9 +238,9 @@ const ListadoCxP: React.FC<Props> = ({ titulo, tipoGasto, iconoTitulo, colorAcce
         </div>
       </div>
 
-      {/* Barra de búsqueda y filtro de estado */}
-      <div className="pc-barra" style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', marginBottom: '1rem' }}>
-        <div className="pc-busqueda" style={{ flex: 1 }}>
+      {/* Barra de búsqueda y filtros */}
+      <div className="pc-barra" style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap' }}>
+        <div className="pc-busqueda" style={{ flex: 1, minWidth: '180px' }}>
           <Search size={18} className="pc-busqueda-icono" />
           <input
             type="text"
@@ -253,6 +261,16 @@ const ListadoCxP: React.FC<Props> = ({ titulo, tipoGasto, iconoTitulo, colorAcce
           <option value="parcial">Parcial</option>
           <option value="pagada">Pagada</option>
           <option value="vencida">Vencida</option>
+        </select>
+        <select
+          value={filtroVencimiento}
+          onChange={e => setFiltroVencimiento(e.target.value)}
+          className="filtro-select"
+          style={{ minWidth: '140px' }}
+        >
+          <option value="">Vencimiento: Todas</option>
+          <option value="vencidas">⚠ Vencidas</option>
+          <option value="no_vencidas">✓ No vencidas</option>
         </select>
       </div>
 
@@ -309,6 +327,13 @@ const ListadoCxP: React.FC<Props> = ({ titulo, tipoGasto, iconoTitulo, colorAcce
                 <span className="cxc-alumno-nombre">
                   <DollarSign size={14} />
                   {nombreEntidad(nota)}
+                  {esNotaVencida(nota.fecha_vencimiento, nota.estado) && (
+                    <span style={{
+                      background: 'rgba(248,113,113,0.15)', color: '#f87171',
+                      borderRadius: '4px', padding: '1px 5px',
+                      fontSize: '0.68rem', fontWeight: 700, marginLeft: '0.35rem'
+                    }}>⚠ Vencida</span>
+                  )}
                 </span>
                 <span className="cxc-alumno-meta">{fmtFecha(nota.fecha_emision)}</span>
                 <span className="cxc-col-center">
