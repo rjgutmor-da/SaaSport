@@ -124,7 +124,7 @@ const Sidebar: React.FC<SidebarProps> = ({ onLogout, theme, onCycleTheme, extra 
         <div className="sidebar-asisport-container">
           <a 
             href="https://asisport.saasport.pro" 
-            target="_blank" 
+            target="AsiSportApp" 
             rel="noopener noreferrer"
             className="sidebar-asisport-btn"
           >
