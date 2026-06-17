@@ -122,14 +122,13 @@ const Sidebar: React.FC<SidebarProps> = ({ onLogout, theme, onCycleTheme, extra 
 
         {/* Botón AsiSport Estético */}
         <div className="sidebar-asisport-container">
-          <a 
-            href="https://asisport.saasport.pro" 
-            target="AsiSportApp" 
+          <button 
+            onClick={() => window.open(getAsisportUrl(), 'EcosistemaSaaSport')}
             className="sidebar-asisport-btn"
           >
             <Users size={24} className="asisport-icon" />
             <span className="asisport-text">AsiSport</span>
-          </a>
+          </button>
         </div>
 
         {/* Sección de filtros/stats imbuidos */}
@@ -221,13 +220,13 @@ const AccesoDenegado: React.FC<{ rol: string; onLogout: () => void }> = ({ rol, 
         SaaSport es el módulo financiero exclusivo para Administradores y SuperAdministradores.
         <br />Como <strong>{rol}</strong>, tu aplicación es <strong style={{ color: 'var(--primary)' }}>AsiSport</strong>.
       </p>
-      <a
-        href={getAsisportUrl()}
+      <button
+        onClick={() => window.open(getAsisportUrl(), 'EcosistemaSaaSport')}
         className="login-btn"
-        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', textDecoration: 'none' }}
+        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
       >
         Ir a AsiSport →
-      </a>
+      </button>
       <button onClick={onLogout} style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', cursor: 'pointer' }}>
         Cerrar sesión
       </button>
