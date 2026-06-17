@@ -125,7 +125,6 @@ const Sidebar: React.FC<SidebarProps> = ({ onLogout, theme, onCycleTheme, extra 
           <a 
             href="https://asisport.saasport.pro" 
             target="AsiSportApp" 
-            rel="noopener noreferrer"
             className="sidebar-asisport-btn"
           >
             <Users size={24} className="asisport-icon" />
