@@ -14,7 +14,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   School, Users, UserCheck, GraduationCap,
-  Building2, UserCog, MapPin, Activity, RefreshCw
+  Building2, UserCog, MapPin, Activity, RefreshCw, Camera, Lock
 } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import LogoPlaneta from '../../assets/LogoPlaneta.png';
@@ -45,6 +45,9 @@ interface Estadisticas {
 const PanelEscuela: React.FC = () => {
   const navigate = useNavigate();
   const { recargarDatosAuth } = useAuthSaaSport();
+
+  // Escuelas con acceso habilitado a Fotos de Asistencia Grupal
+  const ESCUELAS_CON_FOTOS_ASISTENCIA = ['Fundación Inter Stars'];
 
   const [loading, setLoading] = useState(true);
   const [escuela, setEscuela] = useState<EscuelaInfo | null>(null);
@@ -393,6 +396,42 @@ const PanelEscuela: React.FC = () => {
             <h3 className="pe-acceso-titulo">Reg. Actividad</h3>
             <p className="pe-acceso-desc">Auditoría de acciones</p>
           </button>
+
+          {/* Fotos de Asistencia → solo escuelas habilitadas */}
+          {(() => {
+            const tieneAcceso = escuela && ESCUELAS_CON_FOTOS_ASISTENCIA.includes(escuela.nombre);
+            return (
+              <button
+                className={`pe-acceso-card pe-acceso-purple${!tieneAcceso ? ' pe-acceso-bloqueado' : ''}`}
+                onClick={() => tieneAcceso ? navigate('/panel-escuela/fotos-asistencia') : undefined}
+                disabled={!tieneAcceso}
+                title={tieneAcceso ? 'Ver fotos grupales de asistencia' : 'Funcionalidad no disponible en tu plan actual'}
+                style={!tieneAcceso ? { opacity: 0.45, cursor: 'not-allowed', filter: 'grayscale(0.3)' } : {}}
+              >
+                <div className="pe-acceso-icon" style={{ position: 'relative' }}>
+                  <Camera size={32} />
+                  {!tieneAcceso && (
+                    <div style={{
+                      position: 'absolute',
+                      bottom: '-4px',
+                      right: '-4px',
+                      background: 'var(--surface)',
+                      borderRadius: '50%',
+                      padding: '2px',
+                      lineHeight: 0,
+                      border: '1px solid var(--border)',
+                    }}>
+                      <Lock size={11} style={{ color: 'var(--text-tertiary)' }} />
+                    </div>
+                  )}
+                </div>
+                <h3 className="pe-acceso-titulo">Fotos Asistencia</h3>
+                <p className="pe-acceso-desc">
+                  {tieneAcceso ? 'Respaldo fotográfico' : 'No disponible en tu plan'}
+                </p>
+              </button>
+            );
+          })()}
 
         </div>
       </div>

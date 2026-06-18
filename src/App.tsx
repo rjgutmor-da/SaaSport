@@ -38,6 +38,7 @@ const RegistroActividad = React.lazy(() => import('./pages/finanzas/RegistroActi
 const GestorSucursales  = React.lazy(() => import('./pages/config/GestorSucursales'));
 const AdminUsuarios     = React.lazy(() => import('./pages/config/AdminUsuarios'));
 const ConfiguracionCanchas = React.lazy(() => import('./pages/config/ConfiguracionCanchas'));
+const FotosAsistencia      = React.lazy(() => import('./pages/config/FotosAsistencia'));
 
 
 import LogoPlaneta from './assets/LogoPlaneta.png';
@@ -311,6 +312,7 @@ const AppRouter: React.FC<AppRouterProps> = ({ onLogout, theme, onCycleTheme }) 
                 <Route path="/panel-escuela/sucursales" element={<GestorSucursales />} />
                 <Route path="/panel-escuela/usuarios" element={<AdminUsuarios />} />
                 <Route path="/panel-escuela/canchas-horarios" element={<ConfiguracionCanchas />} />
+                <Route path="/panel-escuela/fotos-asistencia" element={<FotosAsistencia />} />
               </>
             )}
 
