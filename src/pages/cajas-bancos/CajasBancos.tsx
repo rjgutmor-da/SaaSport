@@ -25,8 +25,11 @@ const fmtMonto = (n: number) =>
   n.toLocaleString('es-BO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 const CajasBancos: React.FC = () => {
-  const { esSuperAdmin, escuelaId, puedeEliminar } = useAuthSaaSport();
+  const { esSuperAdmin, escuelaId, puedeEliminar, sucursalId, perfil } = useAuthSaaSport();
   const queryClient = useQueryClient();
+
+  // Puede conciliar: SuperAdmin O Administrador sin sucursal específica asignada
+  const puedeConciliar = esSuperAdmin || (perfil?.rol === 'Administrador' && sucursalId === null);
   const isMobile = useIsMobile();
 
   // ── Hooks de datos con TanStack Query ──
@@ -910,16 +913,16 @@ const CajasBancos: React.FC = () => {
                                     <button 
                                       onClick={(e) => { 
                                         e.stopPropagation(); 
-                                        if (esSuperAdmin) toggleConciliar(mov); 
+                                        if (puedeConciliar) toggleConciliar(mov); 
                                       }}
                                       style={{ 
                                         background: 'none', border: 'none', 
-                                        cursor: esSuperAdmin ? 'pointer' : 'default', 
+                                        cursor: puedeConciliar ? 'pointer' : 'default', 
                                         color: mov.conciliado ? 'var(--success)' : 'var(--text-tertiary)',
-                                        opacity: esSuperAdmin ? 1 : 0.6
+                                        opacity: puedeConciliar ? 1 : 0.6
                                       }}
-                                      title={mov.conciliado ? "Conciliado" : (esSuperAdmin ? "Marcar como conciliado" : "Solo el super admin puede conciliar")}
-                                      disabled={!esSuperAdmin}
+                                      title={mov.conciliado ? "Conciliado" : (puedeConciliar ? "Marcar como conciliado" : "Sin permiso para conciliar")}
+                                      disabled={!puedeConciliar}
                                     >
                                       {mov.conciliado ? <CheckSquare size={18} /> : <Square size={18} />}
                                     </button>
