@@ -320,7 +320,7 @@ const CajasBancos: React.FC = () => {
           {/* Botones de acción: Ingresos, Egresos, Transferencia */}
           <div style={{ display: 'flex', gap: '0.5rem', width: '100%' }}>
             <button
-              onClick={() => setShowCobro(true)}
+              onClick={() => toggleForm('ingreso')}
               style={{
                 flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem',
                 padding: '0.6rem 0.5rem', borderRadius: '10px', fontWeight: 700, fontSize: '0.75rem',
@@ -331,7 +331,7 @@ const CajasBancos: React.FC = () => {
               <ArrowDownRight size={14} /> Ingresos
             </button>
             <button
-              onClick={() => setShowPago(true)}
+              onClick={() => toggleForm('salida')}
               style={{
                 flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem',
                 padding: '0.6rem 0.5rem', borderRadius: '10px', fontWeight: 700, fontSize: '0.75rem',
