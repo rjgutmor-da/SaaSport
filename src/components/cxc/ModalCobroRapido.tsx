@@ -215,11 +215,30 @@ const ModalCobroRapido: React.FC<Props> = ({ alumnoInicial, visible, onCerrar, o
           if (errCxc || !nuevaNota) throw new Error('Error al crear nota de anticipo.');
           objetivoCxcId = nuevaNota.id;
 
-          const itemAnticipo = cuentaAnticipoId || (catalogo.length > 0 ? catalogo[0].id : null);
+          let itemAnticipoId = '';
+          const itemAnticipo = catalogo.find(c => c.nombre === 'Anticipo');
+          if (!itemAnticipo) {
+              const { data: nuevoItem, error: errC } = await supabase.from('catalogo_items').insert({
+                  escuela_id: ctx.escuela_id,
+                  nombre: 'Anticipo',
+                  tipo: 'servicio',
+                  categoria: 'servicio',
+                  tipo_movimiento: 'ingreso',
+                  precio_venta: 0,
+                  activo: true,
+                  es_ingreso: true,
+                  es_gasto: false
+              }).select('id').single();
+              if (errC || !nuevoItem) throw new Error('Error al inicializar el concepto "Anticipo" en el catálogo.');
+              itemAnticipoId = nuevoItem.id;
+          } else {
+              itemAnticipoId = itemAnticipo.id;
+          }
+
           await supabase.from('cxc_detalle').insert({
               escuela_id: ctx.escuela_id,
               cuenta_cobrar_id: nuevaNota.id,
-              catalogo_item_id: itemAnticipo,
+              catalogo_item_id: itemAnticipoId,
               descripcion: 'Anticipo del cliente',
               cantidad: 1,
               precio_unitario: montoNum
@@ -241,11 +260,30 @@ const ModalCobroRapido: React.FC<Props> = ({ alumnoInicial, visible, onCerrar, o
 
         if (errAnt || !notaAnticipo) throw new Error('Error al registrar el anticipo del exceso.');
 
-        const itemAnticipo = cuentaAnticipoId || (catalogo.length > 0 ? catalogo[0].id : null);
+        let itemAnticipoId = '';
+        const itemAnticipo = catalogo.find(c => c.nombre === 'Anticipo');
+        if (!itemAnticipo) {
+            const { data: nuevoItem, error: errC } = await supabase.from('catalogo_items').insert({
+                escuela_id: ctx.escuela_id,
+                nombre: 'Anticipo',
+                tipo: 'servicio',
+                categoria: 'servicio',
+                tipo_movimiento: 'ingreso',
+                precio_venta: 0,
+                activo: true,
+                es_ingreso: true,
+                es_gasto: false
+            }).select('id').single();
+            if (errC || !nuevoItem) throw new Error('Error al inicializar el concepto "Anticipo" en el catálogo.');
+            itemAnticipoId = nuevoItem.id;
+        } else {
+            itemAnticipoId = itemAnticipo.id;
+        }
+
         const { error: errDet } = await supabase.from('cxc_detalle').insert({
           escuela_id: ctx.escuela_id,
           cuenta_cobrar_id: notaAnticipo.id,
-          catalogo_item_id: itemAnticipo,
+          catalogo_item_id: itemAnticipoId,
           detalle_extra: 'Anticipo — Exceso de pago',
           cantidad: 1,
           precio_unitario: exceso
@@ -563,22 +601,7 @@ const ModalCobroRapido: React.FC<Props> = ({ alumnoInicial, visible, onCerrar, o
                       </select>
                     </div>
 
-                    {(cxcSelId === 'anticipo' || excesoCalculado > 0) && (
-                      <div className="form-campo full-width">
-                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                          📂 Cuenta / Concepto <span style={{ color: '#a855f7', fontSize: '0.75rem' }}>(a qué cuenta se aplica el anticipo)</span>
-                        </label>
-                        <select
-                          value={cuentaAnticipoId}
-                          onChange={e => setCuentaAnticipoId(e.target.value)}
-                          disabled={guardando}
-                          style={{ borderColor: cuentaAnticipoId ? '#a855f7' : undefined }}
-                        >
-                          <option value="">— Seleccionar cuenta —</option>
-                          {catalogo.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-                        </select>
-                      </div>
-                    )}
+                    {/* El selector de cuenta/concepto de anticipo fue removido por políticas contables simplificadas */}
                   </div>
 
                   {error && (

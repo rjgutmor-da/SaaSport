@@ -227,7 +227,6 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
     if (esAnticipo) {
       if (!montoAnticipo || parseFloat(montoAnticipo) <= 0) { setError('Ingresa un monto válido.'); return; }
       if (!cuentaCobroId) { setError('Selecciona la caja de ingreso.'); return; }
-      if (!cuentaAnticipoId) { setError('Selecciona la cuenta/concepto a la que se aplicará el anticipo.'); return; }
     } else {
       const lineasValidas = lineas.filter(l => l.catalogo_item_id && l.precio_unitario > 0);
       if (lineasValidas.length === 0) { setError('Agrega ítems válidos.'); return; }
@@ -319,10 +318,30 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
 
       // 2. Detalle
       if (esAnticipo) {
+        let itemAnticipoId = '';
+        const itemAnticipo = catalogo.find(c => c.nombre === 'Anticipo');
+        if (!itemAnticipo) {
+          const { data: nuevoItem, error: errC } = await supabase.from('catalogo_items').insert({
+            escuela_id: ctx.escuela_id,
+            nombre: 'Anticipo',
+            tipo: 'servicio',
+            categoria: 'servicio',
+            tipo_movimiento: 'ingreso',
+            precio_venta: 0,
+            activo: true,
+            es_ingreso: true,
+            es_gasto: false
+          }).select('id').single();
+          if (errC || !nuevoItem) throw new Error('Error al inicializar el concepto "Anticipo" en el catálogo.');
+          itemAnticipoId = nuevoItem.id;
+        } else {
+          itemAnticipoId = itemAnticipo.id;
+        }
+
         await supabase.from('cxc_detalle').insert({
           escuela_id: ctx.escuela_id,
           cuenta_cobrar_id: notaId,
-          catalogo_item_id: cuentaAnticipoId,
+          catalogo_item_id: itemAnticipoId,
           cantidad: 1,
           precio_unitario: total,
           detalle_extra: 'Anticipo'
@@ -665,23 +684,7 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
               </div>
             ) : null}
 
-            {esAnticipo && (
-              <div className="form-campo full-width" style={{ marginBottom: '1.5rem' }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                  📂 Cuenta / Concepto <span style={{ color: '#a855f7', fontSize: '0.75rem' }}>(a qué cuenta se aplica el anticipo)</span>
-                </label>
-                <select
-                  value={cuentaAnticipoId}
-                  onChange={e => setCuentaAnticipoId(e.target.value)}
-                  disabled={guardando}
-                  style={{ borderColor: cuentaAnticipoId ? '#a855f7' : undefined }}
-                  required
-                >
-                  <option value="">— Seleccionar cuenta —</option>
-                  {catalogo.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-                </select>
-              </div>
-            )}
+            {/* El selector de cuenta/concepto de anticipo fue removido por políticas contables simplificadas */}
 
             {/* Observaciones generales */}
             <div className="form-campo full-width" style={{ marginBottom: '1rem' }}>

@@ -235,11 +235,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
             montoCobrar = saldoActual;
           }
 
-          if (exceso > 0 && !cobroCuentaAnticipoId) {
-            setCobroError('Debes seleccionar la cuenta/concepto para el anticipo.');
-            setGuardandoCobro(false);
-            return;
-          }
+          // Validación de exceso eliminada para asignación automática de Anticipo
 
           // Si hay exceso, crear anticipo automáticamente
           if (exceso > 0) {
@@ -256,10 +252,30 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
 
             if (errAnt || !notaAnticipo) throw new Error('Error al registrar el anticipo del exceso.');
 
+            let itemAnticipoId = '';
+            const itemAnticipo = catalogo.find(c => c.nombre === 'Anticipo');
+            if (!itemAnticipo) {
+              const { data: nuevoItem, error: errC } = await supabase.from('catalogo_items').insert({
+                escuela_id: ctx.escuela_id,
+                nombre: 'Anticipo',
+                tipo: 'servicio',
+                categoria: 'servicio',
+                tipo_movimiento: 'ingreso',
+                precio_venta: 0,
+                activo: true,
+                es_ingreso: true,
+                es_gasto: false
+              }).select('id').single();
+              if (errC || !nuevoItem) throw new Error('Error al inicializar el concepto "Anticipo" en el catálogo.');
+              itemAnticipoId = nuevoItem.id;
+            } else {
+              itemAnticipoId = itemAnticipo.id;
+            }
+
             const { error: errDet } = await supabase.from('cxc_detalle').insert({
               escuela_id: ctx.escuela_id,
               cuenta_cobrar_id: notaAnticipo.id,
-              catalogo_item_id: cobroCuentaAnticipoId,
+              catalogo_item_id: itemAnticipoId,
               detalle_extra: 'Anticipo — Exceso de pago',
               cantidad: 1,
               precio_unitario: exceso
@@ -1048,36 +1064,18 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                                   const exc = !usarAnticipo && montoIn > saldoNota && saldoNota > 0
                                     ? parseFloat((montoIn - saldoNota).toFixed(2)) : 0;
                                   return exc > 0 ? (
-                                    <>
-                                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', width: '100%', marginTop: '0.5rem', marginBottom: '0.5rem' }}>
-                                        <label style={{ fontSize: '0.8rem', color: '#a855f7', fontWeight: 700, whiteSpace: 'nowrap' }}>
-                                          📂 Cuenta Anticipo:
-                                        </label>
-                                        <select
-                                          value={cobroCuentaAnticipoId}
-                                          onChange={e => setCobroCuentaAnticipoId(e.target.value)}
-                                          disabled={guardandoCobro}
-                                          className="detalle-cobro-select"
-                                          style={{ flex: 1, borderColor: '#a855f7' }}
-                                          required
-                                        >
-                                          <option value="">— Seleccionar concepto para el anticipo —</option>
-                                          {catalogo.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-                                        </select>
-                                      </div>
-                                      <p style={{
-                                        marginTop: '0.4rem',
-                                        fontSize: '0.72rem',
-                                        color: '#f59e0b',
-                                        background: 'rgba(245,158,11,0.08)',
-                                        border: '1px solid rgba(245,158,11,0.3)',
-                                        borderRadius: '6px',
-                                        padding: '0.4rem 0.7rem',
-                                        display: 'flex', alignItems: 'center', gap: '0.4rem'
-                                      }}>
-                                        ⚠ Exceso de <strong>Bs {fmtMonto(exc)}</strong> — se guardará automáticamente como anticipo a favor del cliente.
-                                      </p>
-                                    </>
+                                    <p style={{
+                                      marginTop: '0.4rem',
+                                      fontSize: '0.72rem',
+                                      color: '#f59e0b',
+                                      background: 'rgba(245,158,11,0.08)',
+                                      border: '1px solid rgba(245,158,11,0.3)',
+                                      borderRadius: '6px',
+                                      padding: '0.4rem 0.7rem',
+                                      display: 'flex', alignItems: 'center', gap: '0.4rem'
+                                    }}>
+                                      ⚠ Exceso de <strong>Bs {fmtMonto(exc)}</strong> — se guardará automáticamente como anticipo a favor del cliente.
+                                    </p>
                                   ) : null;
                                 })()}
                                 {cobroInfoAnticipo && (
