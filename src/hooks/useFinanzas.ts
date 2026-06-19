@@ -387,11 +387,12 @@ const fetchMovimientos = async (escuelaId: string, cajaIds: string[]) => {
   };
 
   cobros.data.forEach((c: any) => {
+    const monto = Number(c.monto_aplicado) || 0;
     addMov({
       id: c.id,
       tipo_origen: 'cobro',
-      debe: Number(c.monto_aplicado) || 0,
-      haber: 0,
+      debe: monto > 0 ? monto : 0,
+      haber: monto < 0 ? -monto : 0,
       fecha: c.fecha || c.created_at,
       created_at: c.created_at,
       descripcion: c.cuentas_cobrar?.descripcion || 'Cobro / Ingreso',
