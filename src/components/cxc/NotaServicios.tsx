@@ -10,7 +10,7 @@ import type { LineaNota } from '../../types/cxc';
 import { MESES_ANIO } from '../../types/cxc';
 import {
   X, Plus, Check, Trash2, Calendar, AlertCircle,
-  CreditCard, FileText, Users, RefreshCw, Hash
+  CreditCard, FileText, Users, RefreshCw, Hash, Lock, DollarSign
 } from 'lucide-react';
 import { getHoyISO, getHoraLocal } from '../../lib/dateUtils';
 
@@ -68,6 +68,19 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
   const [horaPago, setHoraPago] = useState(getHoraLocal());
   const [montoAnticipo, setMontoAnticipo] = useState('');
   const [cuentaAnticipoId, setCuentaAnticipoId] = useState('');
+
+  // Cobros existentes al editar una nota
+  interface CobroExistente {
+    id: string;
+    monto_aplicado: number;
+    monto_editado: number;
+    fecha: string;
+    documento_referencia?: string;
+    caja_id?: string;
+    conciliado: boolean;
+    modificado: boolean;
+  }
+  const [cobrosExistentes, setCobrosExistentes] = useState<CobroExistente[]>([]);
 
   // Ref para detectar si el modal ya fue inicializado en esta apertura.
   // Evita que al navegar hacia otra pantalla y volver se reseteen los campos.
@@ -154,9 +167,30 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
         setObservaciones(cxcEditar.observaciones || '');
         setVencimiento(cxcEditar.fecha_vencimiento || cxcEditar.vencimiento || getHoyISO());
         setFechaEmision(cxcEditar.fecha_emision || getHoyISO());
-        // Si estamos editando y ya tiene cobros, no mostramos el panel de pago rápido
+        // Cargar los cobros asociados a esta nota para permitir edición
         if (cxcEditar.total_cobrado > 0) {
           setPagarAlCrear(false);
+          // Cargar cobros existentes de forma asíncrona
+          (async () => {
+            const { data: cobros } = await supabase
+              .from('cobros_aplicados')
+              .select('id, monto_aplicado, fecha, documento_referencia, caja_id, conciliado')
+              .eq('cuenta_cobrar_id', cxcEditar.id)
+              .order('fecha', { ascending: true });
+
+            if (cobros && cobros.length > 0) {
+              setCobrosExistentes(cobros.map((c: any) => ({
+                id: c.id,
+                monto_aplicado: Number(c.monto_aplicado),
+                monto_editado: Number(c.monto_aplicado),
+                fecha: c.fecha,
+                documento_referencia: c.documento_referencia || '',
+                caja_id: c.caja_id || '',
+                conciliado: c.conciliado || false,
+                modificado: false,
+              })));
+            }
+          })();
         }
       } else {
         setAlumnoId(alumnoPreseleccionado?.id || '');
@@ -207,6 +241,16 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
       }
     }
 
+    // Validar que los montos editados de cobros existentes no excedan el total de la nota
+    if (cxcEditar && cobrosExistentes.length > 0) {
+      const totalCobrosEditados = cobrosExistentes.reduce((s, c) => s + c.monto_editado, 0);
+      const nuevoPago = pagarAlCrear ? (parseFloat(montoPago) || 0) : 0;
+      if ((totalCobrosEditados + nuevoPago) > total) {
+        setError(`El total de los pagos (Bs ${fmtMonto(totalCobrosEditados + nuevoPago)}) excede el total de la nota (Bs ${fmtMonto(total)}).`);
+        return;
+      }
+    }
+
     setGuardando(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -220,12 +264,22 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
       if (cxcEditar?.id) {
         notaId = cxcEditar.id;
 
-        // Recalcular el estado correcto en base a los cobros existentes y el nuevo monto_total
-        const { data: cobrosExistentes } = await supabase
-          .from('cobros_aplicados')
-          .select('monto_aplicado')
-          .eq('cuenta_cobrar_id', notaId);
-        const totalCobrado = (cobrosExistentes || []).reduce((s: number, c: any) => s + Number(c.monto_aplicado), 0);
+        // Recalcular el estado correcto en base a los cobros y el nuevo monto_total
+        // Si hay cobros con montos editados, usar esos montos; de lo contrario, consultar la BD
+        let totalCobrado = 0;
+        if (cobrosExistentes.length > 0) {
+          totalCobrado = cobrosExistentes.reduce((s, c) => s + c.monto_editado, 0);
+        } else {
+          const { data: cobrosDB } = await supabase
+            .from('cobros_aplicados')
+            .select('monto_aplicado')
+            .eq('cuenta_cobrar_id', notaId);
+          totalCobrado = (cobrosDB || []).reduce((s: number, c: any) => s + Number(c.monto_aplicado), 0);
+        }
+        // Sumar nuevo pago si se registra uno adicional
+        if (pagarAlCrear) {
+          totalCobrado += parseFloat(montoPago) || 0;
+        }
         let nuevoEstado = 'pendiente';
         if (totalCobrado >= total) nuevoEstado = 'pagada';
         else if (totalCobrado > 0) nuevoEstado = 'parcial';
@@ -286,7 +340,26 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
         })));
       }
 
-      // 3. Pago (Solo si es nueva nota o si explícitamente se pidió pagar algo adicional)
+      // 3. Actualizar cobros existentes modificados (solo en edición)
+      if (cxcEditar?.id && cobrosExistentes.length > 0) {
+        for (const cobro of cobrosExistentes.filter(c => c.modificado && !c.conciliado)) {
+          const { data: rpcData, error: rpcEditErr } = await supabase.rpc('rpc_editar_movimiento_simple', {
+            p_payload: {
+              movimiento_id: cobro.id,
+              tipo_origen: 'cobro',
+              cuenta_id: cobro.caja_id || null,
+              monto: cobro.monto_editado,
+              fecha: cobro.fecha,
+              descripcion: cobro.documento_referencia || 'Cobro CxC',
+              nro_transaccion: cobro.documento_referencia || null,
+            }
+          });
+          if (rpcEditErr) throw new Error(`Error al actualizar cobro: ${rpcEditErr.message}`);
+          if (rpcData && rpcData.success === false) throw new Error(rpcData.message || 'Error al actualizar cobro');
+        }
+      }
+
+      // 4. Pago (Solo si es nueva nota o si explícitamente se pidió pagar algo adicional)
       if (pagarAlCrear || esAnticipo) {
         const mp = esAnticipo ? parseFloat(montoAnticipo) : parseFloat(montoPago);
         if (mp > 0 && cuentaCobroId) {
@@ -630,7 +703,73 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
             </div>
 
             <div style={{ background: 'rgba(255,255,255,0.03)', padding: '1rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', marginBottom: '1rem' }}>
+
+              {/* Cobros existentes (solo en modo edición) */}
+              {cxcEditar && cobrosExistentes.length > 0 && (
+                <div style={{ marginBottom: '1rem' }}>
+                  <p style={{ fontSize: '0.8rem', fontWeight: 700, color: '#94a3b8', marginBottom: '0.75rem', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                    <DollarSign size={14} /> Pagos Registrados
+                  </p>
+                  {cobrosExistentes.map((cobro, idx) => (
+                    <div key={cobro.id} style={{
+                      display: 'flex', alignItems: 'center', gap: '0.75rem',
+                      padding: '0.6rem 0.75rem', marginBottom: '0.5rem',
+                      background: cobro.conciliado ? 'rgba(100,100,100,0.1)' : 'rgba(74,222,128,0.05)',
+                      borderRadius: '8px',
+                      border: `1px solid ${cobro.conciliado ? 'rgba(100,100,100,0.2)' : 'rgba(74,222,128,0.15)'}`,
+                    }}>
+                      {cobro.conciliado ? (
+                        /* Pago conciliado: solo lectura */
+                        <>
+                          <Lock size={14} style={{ color: '#94a3b8', flexShrink: 0 }} />
+                          <span style={{ flex: 1, fontSize: '0.85rem', color: '#94a3b8' }}>
+                            Bs {fmtMonto(cobro.monto_aplicado)}
+                          </span>
+                          <span style={{
+                            fontSize: '0.7rem', padding: '0.15rem 0.5rem',
+                            background: 'rgba(148,163,184,0.15)', borderRadius: '4px',
+                            color: '#94a3b8', fontWeight: 600
+                          }}>
+                            🔒 Conciliado
+                          </span>
+                        </>
+                      ) : (
+                        /* Pago no conciliado: monto editable */
+                        <>
+                          <DollarSign size={14} style={{ color: '#4ade80', flexShrink: 0 }} />
+                          <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                            <div>
+                              <label style={{ fontSize: '0.7rem', color: '#94a3b8', display: 'block', marginBottom: '0.2rem', textTransform: 'uppercase' }}>
+                                Monto Pago #{idx + 1}
+                              </label>
+                              <input
+                                type="number" step="0.01" min="0.01"
+                                value={cobro.monto_editado}
+                                onChange={e => {
+                                  const val = parseFloat(e.target.value) || 0;
+                                  const nuevos = [...cobrosExistentes];
+                                  nuevos[idx] = { ...nuevos[idx], monto_editado: val, modificado: val !== nuevos[idx].monto_aplicado };
+                                  setCobrosExistentes(nuevos);
+                                }}
+                                disabled={guardando}
+                                style={{ width: '120px', fontWeight: 700 }}
+                              />
+                            </div>
+                            {cobro.modificado && (
+                              <span style={{ fontSize: '0.7rem', color: '#f59e0b', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                                ✏️ Modificado
+                              </span>
+                            )}
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Checkbox para nuevo pago */}
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', marginBottom: pagarAlCrear ? '1rem' : 0 }}>
                 <input 
                   type="checkbox" 
                   checked={pagarAlCrear} 
@@ -641,7 +780,9 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
                   }} 
                   disabled={esAnticipo} 
                 />
-                <span style={{ fontWeight: 700 }}>{esAnticipo ? 'Registro de Ingreso de Dinero' : '¿Registrar pago ahora?'}</span>
+                <span style={{ fontWeight: 700 }}>
+                  {esAnticipo ? 'Registro de Ingreso de Dinero' : (cobrosExistentes.length > 0 ? '¿Registrar pago adicional?' : '¿Registrar pago ahora?')}
+                </span>
               </label>
 
               {pagarAlCrear && (
