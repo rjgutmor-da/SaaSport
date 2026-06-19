@@ -10,7 +10,7 @@ import type { CajaBanco } from '../../types/finanzas';
 import { 
   AlertCircle, Check, CreditCard, Pencil, Ban, MessageCircle, X, 
   Calendar, Eye, Hash, Wallet, DollarSign, Plus, ChevronDown,
-  MapPin, User, Trophy, Clock, Phone
+  MapPin, User, Trophy, Clock, Phone, RotateCcw
 } from 'lucide-react';
 import { useIsMobile } from '../../hooks/useIsMobile';
 import NotaServicios from './NotaServicios';
@@ -60,6 +60,16 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
   const [catalogo, setCatalogo] = useState<any[]>([]);
   const [cobroCuentaAnticipoId, setCobroCuentaAnticipoId] = useState('');
   
+  // Devolución inline
+  const [devolucionCxcId, setDevolucionCxcId] = useState<string | null>(null);
+  const [devolucionMonto, setDevolucionMonto] = useState('');
+  const [devolucionCuentaId, setDevolucionCuentaId] = useState('');
+  const [devolucionNroDoc, setDevolucionNroDoc] = useState('');
+  const [devolucionFecha, setDevolucionFecha] = useState(getHoyISO());
+  const [guardandoDevolucion, setGuardandoDevolucion] = useState(false);
+  const [devolucionError, setDevolucionError] = useState<string | null>(null);
+  const [devolucionExito, setDevolucionExito] = useState<string | null>(null);
+
   const [mensajePagoWA, setMensajePagoWA] = useState<{ texto: string; telefono: string } | null>(null);
   const [historialCobros, setHistorialCobros] = useState<Record<string, any[]>>({});
   const [anticiposDisponibles, setAnticiposDisponibles] = useState<any[]>([]);
@@ -159,7 +169,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
     cargar();
 
     setUsarAnticipo(false); setAnticipoId('');
-    setCobroCxcId(null); setExpandida(null); setMensajePagoWA(null);
+    setCobroCxcId(null); setDevolucionCxcId(null); setExpandida(null); setMensajePagoWA(null);
   }, [visible, alumno, refreshKey]);
 
   const registrarCobro = async (e: React.FormEvent) => {
@@ -367,6 +377,73 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
       setCobroError(`Error: ${err.message}`);
     } finally {
       setGuardandoCobro(false);
+    }
+  };
+
+  const registrarDevolucion = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!devolucionCxcId || !alumno) return;
+    setDevolucionError(null); setDevolucionExito(null);
+
+    const monto = parseFloat(devolucionMonto);
+    if (!monto || monto <= 0) { 
+      setDevolucionError('Monto inválido.'); 
+      return; 
+    }
+    if (!devolucionCuentaId) { 
+      setDevolucionError('Selecciona la caja/banco de origen.'); 
+      return; 
+    }
+
+    const cxcActual = cxcs.find(c => c.id === devolucionCxcId);
+    if (!cxcActual) throw new Error('No se encontró la deuda.');
+
+    const cobrado = Number(cxcActual.monto_total) - Number(cxcActual.saldo_pendiente);
+    if (monto > cobrado) {
+      setDevolucionError(`El monto a devolver no puede exceder el total cobrado (Bs ${fmtMonto(cobrado)}).`);
+      return;
+    }
+
+    setGuardandoDevolucion(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Error de autenticación.');
+      const { data: ctx } = await supabase.from('usuarios').select('*').eq('id', user.id).single();
+      if (!ctx) throw new Error('Error de contexto.');
+
+      const concatDoc = devolucionNroDoc.trim() || null;
+
+      const { error: rpcErr } = await supabase.rpc('rpc_registrar_devolucion_cxc', {
+        p_payload: {
+          cuenta_cobrar_id: devolucionCxcId,
+          escuela_id: ctx.escuela_id,
+          sucursal_id: ctx.sucursal_id,
+          usuario_id: ctx.id,
+          monto: monto,
+          cuenta_cobro_id: devolucionCuentaId,
+          nro_comprobante: concatDoc,
+          fecha: `${devolucionFecha}T${getHoraLocal()}:00`
+        }
+      });
+      if (rpcErr) throw rpcErr;
+
+      setDevolucionExito(`✅ Devolución de Bs ${fmtMonto(monto)} registrada correctamente.`);
+
+      onActualizar(); 
+      triggerRefresh();
+      setTimeout(() => {
+        setDevolucionCxcId(null); 
+        setDevolucionMonto('');
+        setDevolucionNroDoc('');
+        setDevolucionFecha(getHoyISO());
+        setDevolucionCuentaId('');
+        setDevolucionExito(null);
+      }, 800);
+
+    } catch (err: any) {
+      setDevolucionError(`Error: ${err.message}`);
+    } finally {
+      setGuardandoDevolucion(false);
     }
   };
 
@@ -1035,7 +1112,18 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                                   }} className="btn-compact-action action-blue" title="Editar"><Pencil size={14} /></button>
                                 )}
                                 {!cxc.anulada && Number(cxc.saldo_pendiente) > 0 && !isAnticipo && (
-                                  <button onClick={() => { setCobroCxcId(cxc.id); setCobroMonto(String(cxc.saldo_pendiente)); }} className="btn-compact-action action-green" title="Cobrar"><DollarSign size={14} /></button>
+                                  <button onClick={() => { setCobroCxcId(cxc.id); setCobroMonto(String(cxc.saldo_pendiente)); setDevolucionCxcId(null); }} className="btn-compact-action action-green" title="Cobrar"><DollarSign size={14} /></button>
+                                )}
+                                {!cxc.anulada && cobrado > 0 && !isAnticipo && (
+                                  <button onClick={() => { 
+                                    setDevolucionCxcId(cxc.id); 
+                                    setDevolucionMonto(String(cobrado)); 
+                                    setDevolucionCuentaId('');
+                                    setDevolucionNroDoc('');
+                                    setDevolucionFecha(getHoyISO());
+                                    setDevolucionError(null);
+                                    setCobroCxcId(null);
+                                  }} className="btn-compact-action action-orange" title="Devolución"><RotateCcw size={14} /></button>
                                 )}
                                 {puedeAnular() && !cxc.anulada && (
                                   <button onClick={() => anularNota(cxc.id)} className="btn-compact-action action-red" title="Anular"><Ban size={14} /></button>
@@ -1113,6 +1201,38 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                                   </p>
                                 )}
                                 {cobroError && <p style={{ color: '#f87171', fontSize: '0.75rem', marginTop: '0.5rem' }}>{cobroError}</p>}
+                              </form>
+                            </td>
+                          </tr>
+                        )}
+
+                        {devolucionCxcId === cxc.id && (
+                          <tr>
+                            <td colSpan={isMobile ? 5 : 7} style={{ padding: '1rem', background: 'rgba(245, 158, 11, 0.05)', borderBottom: '1px solid rgba(245, 158, 11, 0.2)' }}>
+                              <form onSubmit={registrarDevolucion}>
+                                <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                                  <span style={{ fontWeight: 800, color: '#f97316', fontSize: '0.85rem' }}>REGISTRAR DEVOLUCIÓN</span>
+                                  <select value={devolucionCuentaId} onChange={e => setDevolucionCuentaId(e.target.value)} required className="detalle-cobro-select" style={{ flex: 1 }}>
+                                    <option value="">Origen Caja/Banco *</option>
+                                    {cuentasCobro.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                                  </select>
+                                  <input type="text" value={devolucionNroDoc} onChange={e => setDevolucionNroDoc(e.target.value)} placeholder="Nro Transacción" style={{ width: '130px' }} className="detalle-cobro-input" />
+                                  <input
+                                    type="number" step="0.01"
+                                    value={devolucionMonto}
+                                    onChange={e => setDevolucionMonto(e.target.value)}
+                                    placeholder="Monto" required
+                                    style={{ width: '100px' }}
+                                    className="detalle-cobro-input"
+                                  />
+                                  <input type="date" value={devolucionFecha} onChange={e => setDevolucionFecha(e.target.value)} className="detalle-cobro-input" style={{ width: '160px' }} />
+                                  <button type="submit" disabled={guardandoDevolucion} className="btn-guardar-cuenta" style={{ width: 'auto', padding: '0.5rem 1rem', background: '#f97316', borderColor: '#f97316' }}>
+                                    {guardandoDevolucion ? '...' : 'Devolver'}
+                                  </button>
+                                  <button type="button" onClick={() => setDevolucionCxcId(null)} className="btn-refrescar" style={{ width: 'auto', padding: '0.5rem' }}>Cancelar</button>
+                                </div>
+                                {devolucionExito && <p style={{ color: '#34d399', fontSize: '0.75rem', marginTop: '0.5rem', margin: 0 }}>{devolucionExito}</p>}
+                                {devolucionError && <p style={{ color: '#f87171', fontSize: '0.75rem', marginTop: '0.5rem', margin: 0 }}>{devolucionError}</p>}
                               </form>
                             </td>
                           </tr>
