@@ -1301,11 +1301,9 @@ const CajasBancos: React.FC = () => {
               width: '48px',
               height: '48px',
               borderRadius: '6px',
-              border: '1px dashed rgba(255, 107, 53, 0.3)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              backgroundColor: 'rgba(255, 107, 53, 0.05)',
               overflow: 'hidden'
             }}>
               {escuelaInfo?.logo_url ? (
@@ -1319,14 +1317,24 @@ const CajasBancos: React.FC = () => {
                   }}
                 />
               ) : (
-                <span style={{ 
-                  color: '#ff6b35', 
-                  fontSize: '18px', 
-                  fontWeight: 'bold', 
-                  fontFamily: '"Inter", sans-serif' 
+                <div style={{
+                  width: '100%',
+                  height: '100%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  backgroundColor: 'rgba(255, 107, 53, 0.1)',
+                  borderRadius: '6px'
                 }}>
-                  {escuelaInfo?.nombre ? escuelaInfo.nombre.charAt(0).toUpperCase() : 'S'}
-                </span>
+                  <span style={{ 
+                    color: '#ff6b35', 
+                    fontSize: '18px', 
+                    fontWeight: 'bold', 
+                    fontFamily: '"Inter", sans-serif' 
+                  }}>
+                    {escuelaInfo?.nombre ? escuelaInfo.nombre.charAt(0).toUpperCase() : 'S'}
+                  </span>
+                </div>
               )}
             </div>
 
@@ -1474,27 +1482,13 @@ const CajasBancos: React.FC = () => {
                 </div>
               </div>
 
-              {/* Frase y Footer */}
-              <div>
-                {/* Frase motivacional */}
-                <div style={{ marginTop: '16px', marginBottom: '12px', textAlign: 'center' }}>
-                  <p style={{
-                    fontFamily: '"Permanent Marker", cursive',
-                    color: '#ff6b35',
-                    fontSize: '16px',
-                    margin: 0,
-                    transform: 'rotate(-1deg)',
-                    letterSpacing: '0.05em'
-                  }}>
-                    ¡SIGUE EN EL JUEGO!
-                  </p>
-                </div>
-
-                {/* Footer del Recibo */}
+              {/* Footer y Datos de Pago */}
+              <div style={{ display: 'flex', flexDirection: 'column', width: '100%' }}>
+                {/* Datos de Pago */}
                 <div style={{
                   borderTop: '1px dashed #2D2D2D',
                   paddingTop: '12px',
-                  paddingBottom: '8px',
+                  paddingBottom: '16px',
                   display: 'flex',
                   justifyContent: 'space-between',
                   alignItems: 'flex-end',
@@ -1509,11 +1503,39 @@ const CajasBancos: React.FC = () => {
                     </span>
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', textAlign: 'right' }}>
-                    <span style={{ opacity: 0.6, fontSize: '9px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Nro TRANSACCIÓN</span>
+                    <span style={{ opacity: 0.6, fontSize: '9px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>NRO TRANSACCIÓN</span>
                     <span style={{ color: '#e5e2e1', fontSize: '12px', fontFamily: 'monospace' }}>
                       #{movimientoParaRecibo.nro_transaccion ? movimientoParaRecibo.nro_transaccion.trim() : movimientoParaRecibo.id.substring(0, 8).toUpperCase()}
                     </span>
                   </div>
+                </div>
+
+                {/* Barra Negra de Footer (GENERADO POR SAASPORT) */}
+                <div style={{
+                  backgroundColor: '#000000',
+                  margin: '0 -24px -24px -24px',
+                  padding: '10px 24px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                  borderTop: '1px solid #222222'
+                }}>
+                  <img 
+                    src="/favicon.ico" 
+                    alt="Favicon" 
+                    style={{ width: '12px', height: '12px', objectFit: 'contain' }}
+                  />
+                  <span style={{
+                    color: '#64748B',
+                    fontFamily: '"Inter", sans-serif',
+                    fontSize: '9px',
+                    fontWeight: 'bold',
+                    letterSpacing: '0.15em',
+                    textTransform: 'uppercase'
+                  }}>
+                    GENERADO POR SAASPORT
+                  </span>
                 </div>
               </div>
             </div>
