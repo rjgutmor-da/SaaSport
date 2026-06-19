@@ -1,10 +1,11 @@
-import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import {
   RefreshCw, Landmark, ArrowDownRight, ArrowUpRight, Search,
   CheckCircle2, ArrowRightLeft, CheckSquare, Square, Pencil, Trash2,
-  Star, GripVertical
+  Star, GripVertical, MessageCircle
 } from 'lucide-react';
+import { toBlob } from 'html-to-image';
 import type { CajaBanco } from '../../types/finanzas';
 import ModalTransferencia from '../../components/cajas-bancos/ModalTransferencia';
 import ModalMovimientoDirecto from '../../components/cajas-bancos/ModalMovimientoDirecto';
@@ -71,6 +72,32 @@ const CajasBancos: React.FC = () => {
   // Estados para Cobros/Pagos rápidos
   const [showCobro, setShowCobro] = useState(false);
   const [showPago, setShowPago] = useState(false);
+
+  // Estados y refs para Recibos de WhatsApp
+  const [escuelaInfo, setEscuelaInfo] = useState<{ nombre: string; logo_url: string | null } | null>(null);
+  const [movimientoParaRecibo, setMovimientoParaRecibo] = useState<MovimientoFinanciero | null>(null);
+  const [generandoReciboId, setGenerandoReciboId] = useState<string | null>(null);
+  const refRecibo = useRef<HTMLDivElement>(null);
+
+  // Cargar datos de la escuela para el recibo
+  useEffect(() => {
+    if (!escuelaId) return;
+    const fetchEscuela = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('escuelas')
+          .select('nombre, logo_url')
+          .eq('id', escuelaId)
+          .single();
+        if (!error && data) {
+          setEscuelaInfo(data);
+        }
+      } catch (err) {
+        console.error('Error al cargar la escuela:', err);
+      }
+    };
+    fetchEscuela();
+  }, [escuelaId]);
 
   // Procesar movimientos con saldo histórico
   const movimientos = useMemo(() => {
@@ -252,6 +279,101 @@ const CajasBancos: React.FC = () => {
     } catch (err: any) {
       alert("Error al actualizar estado: " + err.message);
     }
+  };
+
+  const generarReciboWhatsApp = async (mov: MovimientoFinanciero) => {
+    if (generandoReciboId) return;
+    setGenerandoReciboId(mov.id);
+    setMovimientoParaRecibo(mov);
+
+    // Esperar a que React monte y renderice el recibo oculto en el DOM
+    setTimeout(async () => {
+      try {
+        const element = refRecibo.current;
+        if (!element) {
+          throw new Error('No se pudo encontrar el contenedor del recibo.');
+        }
+
+        // 1. Generar PNG para el portapapeles (los navegadores requieren PNG para copiar de forma nativa)
+        const pngBlob = await toBlob(element, { 
+          type: 'image/png', 
+          cacheBust: true,
+          style: {
+            transform: 'scale(1)',
+            transformOrigin: 'top left'
+          }
+        });
+
+        if (!pngBlob) throw new Error('Error al renderizar el recibo en formato PNG.');
+
+        // Intentar copiar al portapapeles
+        let copiadoExitoso = false;
+        try {
+          await navigator.clipboard.write([
+            new ClipboardItem({
+              'image/png': pngBlob
+            })
+          ]);
+          copiadoExitoso = true;
+        } catch (clipboardErr) {
+          console.warn('La API Clipboard falló o el navegador tiene restricciones en HTTP/contexto seguro. Copia no disponible.', clipboardErr);
+        }
+
+        // 2. Generar JPEG comprimido y liviano para descargar en local
+        const jpegBlob = await toBlob(element, { 
+          type: 'image/jpeg', 
+          quality: 0.85, 
+          cacheBust: true 
+        });
+
+        if (jpegBlob) {
+          const docId = mov.nro_transaccion || mov.id;
+          const fileName = `recibo_${docId.replace(/\s+/g, '_')}.jpg`;
+          
+          // Forzar descarga del JPG ligero
+          const link = document.createElement('a');
+          link.href = URL.createObjectURL(jpegBlob);
+          link.download = fileName;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          URL.revokeObjectURL(link.href);
+        }
+
+        // 3. Determinar teléfono de contacto de WhatsApp
+        let telFinal = '';
+        if (mov.alumno_raw) {
+          const al = mov.alumno_raw;
+          const esPadre = al.whatsapp_preferido === 'padre';
+          const telefono = esPadre ? (al.telefono_padre || al.telefono_madre) : (al.telefono_madre || al.telefono_padre);
+          if (telefono) {
+            telFinal = telefono.replace(/\D/g, '');
+          }
+        }
+
+        // 4. Mostrar feedback al usuario
+        if (copiadoExitoso) {
+          alert('¡Recibo copiado al portapapeles y descargado localmente! Ya puedes ir al chat de WhatsApp y simplemente pegarlo (Ctrl+V) para enviarlo.');
+        } else {
+          alert('¡Recibo descargado localmente! Ve al chat de WhatsApp y arrastra la imagen descargada para enviarla.');
+        }
+
+        // 5. Redirigir/abrir WhatsApp Web o App
+        const textoSaludo = `¡Hola! Aquí tienes el recibo digital de tu pago correspondiente a ${mov.cliente || 'SaaSport'}.`;
+        const urlWa = telFinal 
+          ? `https://wa.me/${telFinal}?text=${encodeURIComponent(textoSaludo)}`
+          : `https://web.whatsapp.com/send?text=${encodeURIComponent(textoSaludo)}`;
+        
+        window.open(urlWa, '_blank');
+
+      } catch (err: any) {
+        console.error('Error al generar el recibo de WhatsApp:', err);
+        alert('Ocurrió un error al generar el recibo: ' + (err.message || 'Error desconocido'));
+      } finally {
+        setGenerandoReciboId(null);
+        setMovimientoParaRecibo(null);
+      }
+    }, 400);
   };
 
   const abrirEdicionNotaCxc = async (notaId: string) => {
@@ -800,12 +922,12 @@ const CajasBancos: React.FC = () => {
                           <tr>
                             <th className="cxc-th" style={{ width: '100px' }}>Fecha</th>
                             {!isMobile && <th className="cxc-th" style={{ width: '120px' }}>Documento</th>}
-                            <th className="cxc-th" style={{ maxWidth: '280px' }}>Alumno / Proveedor</th>
+                            <th className="cxc-th" style={{ maxWidth: '245px' }}>Alumno / Proveedor</th>
                             {!isMobile && <th className="cxc-th" style={{ width: '240px' }}>Cuentas</th>}
                             <th className="cxc-th cxc-th-right" style={{ width: '120px' }}>Ingreso</th>
                             <th className="cxc-th cxc-th-right" style={{ width: '120px' }}>Salida</th>
                             <th className="cxc-th cxc-th-right" style={{ width: '120px' }}>Saldo</th>
-                            {!isMobile && <th className="cxc-th cxc-th-center" style={{ width: '100px' }}>Acciones</th>}
+                            {!isMobile && <th className="cxc-th cxc-th-center" style={{ width: '135px' }}>Acciones</th>}
                             {!isMobile && <th className="cxc-th cxc-th-center" style={{ width: '100px' }}>Conciliado</th>}
                           </tr>
                         </thead>
@@ -844,7 +966,7 @@ const CajasBancos: React.FC = () => {
                                     })()}
                                   </td>
                                 )}
-                                <td className="cxc-td" style={{ maxWidth: '280px' }}>
+                                <td className="cxc-td" style={{ maxWidth: '245px' }}>
                                   {(() => {
                                     const cliente = mov.cliente && mov.cliente !== '—' ? mov.cliente : '';
                                     let desc = mov.descripcion?.trim() || '';
@@ -914,8 +1036,9 @@ const CajasBancos: React.FC = () => {
                                 </td>
                                 {!isMobile && (
                                   <td className="cxc-td cxc-td-center">
-                                    {!mov.conciliado && (
-                                      <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
+                                    <div style={{ display: 'flex', gap: '0.6rem', justifyContent: 'center', alignItems: 'center' }}>
+                                      {/* Editar (Solo si no está conciliado) */}
+                                      {!mov.conciliado && (
                                         <button
                                           onClick={(e) => { 
                                             e.stopPropagation(); 
@@ -931,46 +1054,75 @@ const CajasBancos: React.FC = () => {
                                         >
                                           <Pencil size={15} />
                                         </button>
-                                        {/* Solo SuperAdministrador puede eliminar transacciones */}
-                                        {puedeEliminar && (
-                                          <button
-                                            onClick={async (e) => { 
-                                              e.stopPropagation(); 
-                                              if (window.confirm("¿Eliminar esta transacción definitivamente?")) {
+                                      )}
+
+                                      {/* WhatsApp (Solo para cobros/ingresos, conciliados o no) */}
+                                      {mov.tipo_origen === 'cobro' && (
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            generarReciboWhatsApp(mov);
+                                          }}
+                                          disabled={generandoReciboId !== null}
+                                          style={{ 
+                                            background: 'none', 
+                                            border: 'none', 
+                                            cursor: generandoReciboId !== null ? 'wait' : 'pointer', 
+                                            color: generandoReciboId === mov.id ? 'var(--success)' : '#25D366', 
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            padding: '2px'
+                                          }}
+                                          title="Enviar recibo por WhatsApp"
+                                        >
+                                          {generandoReciboId === mov.id ? (
+                                            <RefreshCw size={15} className="animate-spin" style={{ color: 'var(--success)' }} />
+                                          ) : (
+                                            <MessageCircle size={15} />
+                                          )}
+                                        </button>
+                                      )}
+
+                                      {/* Eliminar (Solo si no está conciliado y tiene permisos) */}
+                                      {!mov.conciliado && puedeEliminar && (
+                                        <button
+                                          onClick={async (e) => { 
+                                            e.stopPropagation(); 
+                                            if (window.confirm("¿Eliminar esta transacción definitivamente?")) {
                                               try {
-                                                  const isGrouped = (mov as any).is_grouped;
-                                                  if (isGrouped) {
-                                                    const tablaApl = mov.tipo_origen === 'cobro' ? 'cobros_aplicados' : 'pagos_aplicados';
-                                                    const ids = (mov as any).original_ids || [];
-                                                    for (const id of ids) {
-                                                      await supabase.from(tablaApl).delete().eq('id', id);
-                                                    }
-                                                  } else {
-                                                    const tablaMaestra = mov.tipo_origen === 'cobro' ? 'cuentas_cobrar' : 'cuentas_pagar';
-                                                    if (mov.cuenta_maestra_id) {
-                                                      const { error: errDel } = await supabase.from(tablaMaestra).delete().eq('id', mov.cuenta_maestra_id);
-                                                      if (errDel) throw errDel;
-                                                    } else {
-                                                      const tablaApl = mov.tipo_origen === 'cobro' ? 'cobros_aplicados' : 'pagos_aplicados';
-                                                      const { error: errDel } = await supabase.from(tablaApl).delete().eq('id', mov.id);
-                                                      if (errDel) throw errDel;
-                                                    }
+                                                const isGrouped = (mov as any).is_grouped;
+                                                if (isGrouped) {
+                                                  const tablaApl = mov.tipo_origen === 'cobro' ? 'cobros_aplicados' : 'pagos_aplicados';
+                                                  const ids = (mov as any).original_ids || [];
+                                                  for (const id of ids) {
+                                                    await supabase.from(tablaApl).delete().eq('id', id);
                                                   }
-                                                  manejarActualizacion();
-                                                } catch (err: any) {
-                                                  console.error("Error al eliminar:", err);
-                                                  alert("No se pudo eliminar la transacción: " + (err.message || "Error desconocido"));
+                                                } else {
+                                                  const tablaMaestra = mov.tipo_origen === 'cobro' ? 'cuentas_cobrar' : 'cuentas_pagar';
+                                                  if (mov.cuenta_maestra_id) {
+                                                    const { error: errDel } = await supabase.from(tablaMaestra).delete().eq('id', mov.cuenta_maestra_id);
+                                                    if (errDel) throw errDel;
+                                                  } else {
+                                                    const tablaApl = mov.tipo_origen === 'cobro' ? 'cobros_aplicados' : 'pagos_aplicados';
+                                                    const { error: errDel } = await supabase.from(tablaApl).delete().eq('id', mov.id);
+                                                    if (errDel) throw errDel;
+                                                  }
                                                 }
+                                                manejarActualizacion();
+                                              } catch (err: any) {
+                                                console.error("Error al eliminar:", err);
+                                                alert("No se pudo eliminar la transacción: " + (err.message || "Error desconocido"));
                                               }
-                                            }}
-                                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--danger)' }}
-                                            title="Eliminar movimiento"
-                                          >
-                                            <Trash2 size={15} />
-                                          </button>
-                                        )}
-                                      </div>
-                                    )}
+                                            }
+                                          }}
+                                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--danger)' }}
+                                          title="Eliminar movimiento"
+                                        >
+                                          <Trash2 size={15} />
+                                        </button>
+                                      )}
+                                    </div>
                                   </td>
                                 )}
                                 {!isMobile && (
@@ -1087,6 +1239,249 @@ const CajasBancos: React.FC = () => {
           }}
           cxcEditar={notaCxcParaEditar}
         />
+      )}
+
+      {/* Recibo Virtual Oculto para exportar a JPEG/PNG */}
+      {movimientoParaRecibo && (
+        <div style={{ position: 'absolute', left: '-9999px', top: '-9999px', zIndex: -1000, pointerEvents: 'none' }}>
+          <div 
+            ref={refRecibo}
+            style={{
+              width: '360px',
+              height: '480px',
+              backgroundColor: '#1A1A1A',
+              color: '#e5e2e1',
+              fontFamily: '"Inter", sans-serif',
+              padding: '24px',
+              borderRadius: '12px',
+              border: '1px solid #2D2D2D',
+              display: 'flex',
+              flexDirection: 'column',
+              boxSizing: 'border-box',
+              position: 'relative',
+              overflow: 'hidden',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)'
+            }}
+          >
+            {/* Logo de la Escuela o Placeholder */}
+            <div style={{
+              position: 'absolute',
+              top: '24px',
+              right: '24px',
+              zIndex: 20,
+              width: '48px',
+              height: '48px',
+              borderRadius: '6px',
+              border: '1px dashed rgba(255, 107, 53, 0.3)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              backgroundColor: 'rgba(255, 107, 53, 0.05)',
+              overflow: 'hidden'
+            }}>
+              {escuelaInfo?.logo_url ? (
+                <img 
+                  src={escuelaInfo.logo_url} 
+                  alt="Logo" 
+                  crossOrigin="anonymous" 
+                  style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                  onError={(e) => {
+                    (e.target as HTMLElement).style.display = 'none';
+                  }}
+                />
+              ) : (
+                <span style={{ 
+                  color: '#ff6b35', 
+                  fontSize: '18px', 
+                  fontWeight: 'bold', 
+                  fontFamily: '"Inter", sans-serif' 
+                }}>
+                  {escuelaInfo?.nombre ? escuelaInfo.nombre.charAt(0).toUpperCase() : 'S'}
+                </span>
+              )}
+            </div>
+
+            {/* Contenido principal */}
+            <div style={{ display: 'flex', flexDirection: 'column', height: '100%', justifyContent: 'space-between' }}>
+              <div>
+                {/* Header */}
+                <div style={{ paddingTop: '24px', paddingBottom: '16px', textAlign: 'center' }}>
+                  <h1 style={{
+                    color: '#ff6b35',
+                    fontFamily: '"Inter", sans-serif',
+                    fontSize: '14px',
+                    fontWeight: 'bold',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.2em',
+                    margin: 0,
+                    textShadow: '0 0 20px rgba(255, 107, 53, 0.5), 0 0 40px rgba(255, 107, 53, 0.3)'
+                  }}>
+                    RECIBO
+                  </h1>
+                </div>
+
+                <div style={{ height: '1px', width: '100%', backgroundColor: '#2D2D2D', marginBottom: '16px' }} />
+
+                {/* Info Alumno */}
+                <div style={{ marginBottom: '16px' }}>
+                  <p style={{
+                    color: '#A0A0A0',
+                    fontFamily: '"Inter", sans-serif',
+                    fontSize: '10px',
+                    fontWeight: '600',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.15em',
+                    margin: '0 0 4px 0'
+                  }}>
+                    ALUMNO
+                  </p>
+                  <p style={{
+                    color: '#e5e2e1',
+                    fontFamily: '"Inter", sans-serif',
+                    fontSize: '18px',
+                    fontWeight: 'bold',
+                    margin: 0
+                  }}>
+                    {movimientoParaRecibo.cliente || '—'}
+                  </p>
+                </div>
+
+                {/* Caja de Monto Total */}
+                <div style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  margin: '8px 0 16px 0',
+                  padding: '16px',
+                  backgroundColor: '#121212',
+                  borderRadius: '12px',
+                  border: '1px solid rgba(255, 255, 255, 0.05)',
+                  position: 'relative',
+                  overflow: 'hidden'
+                }}>
+                  <p style={{
+                    color: '#A0A0A0',
+                    fontFamily: '"Inter", sans-serif',
+                    fontSize: '10px',
+                    fontWeight: '600',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.15em',
+                    margin: '0 0 4px 0',
+                    zIndex: 10
+                  }}>
+                    TOTAL RECIBIDO
+                  </p>
+                  <div style={{ display: 'flex', alignItems: 'baseline', zIndex: 10 }}>
+                    <span style={{ fontSize: '16px', color: '#ff6b35', fontWeight: 'bold', marginRight: '4px', fontFamily: '"Inter", sans-serif' }}>Bs</span>
+                    <h2 style={{
+                      color: '#ff6b35',
+                      fontFamily: '"Inter", sans-serif',
+                      fontSize: '40px',
+                      fontWeight: '900',
+                      margin: 0,
+                      lineHeight: 1,
+                      textShadow: '0 0 20px rgba(255, 107, 53, 0.5)'
+                    }}>
+                      {fmtMonto(movimientoParaRecibo.debe)}
+                    </h2>
+                  </div>
+                </div>
+
+                {/* Conceptos Amortizados */}
+                <div style={{ marginTop: '16px' }}>
+                  <p style={{
+                    color: '#A0A0A0',
+                    fontFamily: '"Inter", sans-serif',
+                    fontSize: '10px',
+                    fontWeight: '600',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.15em',
+                    margin: '0 0 12px 0'
+                  }}>
+                    CONCEPTOS AMORTIZADOS
+                  </p>
+                  <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    {movimientoParaRecibo.detalles_cxc && movimientoParaRecibo.detalles_cxc.length > 0 ? (
+                      movimientoParaRecibo.detalles_cxc.map((det: any, idx: number) => {
+                        const nombreConcepto = det.catalogo_items?.nombre || 'Concepto';
+                        const totalLinea = (det.cantidad || 1) * (det.precio_unitario || 0);
+                        return (
+                          <li key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                              <div style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#ff6b35' }} />
+                              <span style={{ color: '#e5e2e1', fontFamily: '"Inter", sans-serif', fontSize: '13px' }}>
+                                {nombreConcepto}
+                              </span>
+                            </div>
+                            <span style={{ color: '#e5e2e1', fontFamily: '"Inter", sans-serif', fontSize: '13px', fontWeight: '500' }}>
+                              {fmtMonto(totalLinea)}
+                            </span>
+                          </li>
+                        );
+                      })
+                    ) : (
+                      <li style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                          <div style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#ff6b35' }} />
+                          <span style={{ color: '#e5e2e1', fontFamily: '"Inter", sans-serif', fontSize: '13px' }}>
+                            {movimientoParaRecibo.descripcion || 'Cobro registrado'}
+                          </span>
+                        </div>
+                        <span style={{ color: '#e5e2e1', fontFamily: '"Inter", sans-serif', fontSize: '13px', fontWeight: '500' }}>
+                          {fmtMonto(movimientoParaRecibo.debe)}
+                        </span>
+                      </li>
+                    )}
+                  </ul>
+                </div>
+              </div>
+
+              {/* Frase y Footer */}
+              <div>
+                {/* Frase motivacional */}
+                <div style={{ marginTop: '16px', marginBottom: '12px', textAlign: 'center' }}>
+                  <p style={{
+                    fontFamily: '"Permanent Marker", cursive',
+                    color: '#ff6b35',
+                    fontSize: '16px',
+                    margin: 0,
+                    transform: 'rotate(-1deg)',
+                    letterSpacing: '0.05em'
+                  }}>
+                    ¡SIGUE EN EL JUEGO!
+                  </p>
+                </div>
+
+                {/* Footer del Recibo */}
+                <div style={{
+                  borderTop: '1px dashed #2D2D2D',
+                  paddingTop: '12px',
+                  paddingBottom: '8px',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'flex-end',
+                  color: '#A0A0A0',
+                  fontFamily: '"Inter", sans-serif',
+                  fontSize: '10px'
+                }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                    <span style={{ opacity: 0.6, fontSize: '9px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>FECHA DE PAGO</span>
+                    <span style={{ color: '#e5e2e1', fontSize: '12px', fontWeight: '500' }}>
+                      {formatFecha(movimientoParaRecibo.fecha)}
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', textAlign: 'right' }}>
+                    <span style={{ opacity: 0.6, fontSize: '9px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Nro TRANSACCIÓN</span>
+                    <span style={{ color: '#e5e2e1', fontSize: '12px', fontFamily: 'monospace' }}>
+                      #{movimientoParaRecibo.nro_transaccion ? movimientoParaRecibo.nro_transaccion.trim() : movimientoParaRecibo.id.substring(0, 8).toUpperCase()}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
     </main>

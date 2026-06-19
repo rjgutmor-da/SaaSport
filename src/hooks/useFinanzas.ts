@@ -30,6 +30,8 @@ export interface MovimientoFinanciero {
   saldo_historico?: number;
   cuenta_maestra_id?: string;
   grupo_transaccion_id?: string | null;
+  alumno_raw?: any;
+  detalles_cxc?: any[];
 }
 
 // --- Resúmenes (Fase 1: Cálculos en DB) ---
@@ -320,8 +322,10 @@ const fetchMovimientos = async (escuelaId: string, cajaIds: string[]) => {
       *,
       cuentas_cobrar (
         id, descripcion, nro_recibo, es_anticipo,
-        alumnos ( nombres, apellidos ),
+        alumnos ( nombres, apellidos, telefono_padre, telefono_madre, whatsapp_preferido ),
         cxc_detalle (
+          cantidad,
+          precio_unitario,
           catalogo_items ( nombre )
         )
       )
@@ -409,7 +413,9 @@ const fetchMovimientos = async (escuelaId: string, cajaIds: string[]) => {
       })(),
       conciliado: c.conciliado || false,
       cuenta_maestra_id: c.cuentas_cobrar?.id,
-      grupo_transaccion_id: c.grupo_transaccion_id ?? c[LEGACY_GRUPO_TRANSACCION_KEY]
+      grupo_transaccion_id: c.grupo_transaccion_id ?? c[LEGACY_GRUPO_TRANSACCION_KEY],
+      alumno_raw: c.cuentas_cobrar?.alumnos || null,
+      detalles_cxc: c.cuentas_cobrar?.cxc_detalle || []
     });
   });
 
