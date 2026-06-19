@@ -174,6 +174,19 @@ const ModalCobroRapido: React.FC<Props> = ({ alumnoInicial, visible, onCerrar, o
         if (cobrosPayload.length === 0) {
           throw new Error('Selecciona al menos una nota y define un monto mayor a 0.');
         }
+
+        // Validar que la fecha del pago no sea anterior a la de emisión de ninguna de las notas seleccionadas
+        for (const item of cobrosPayload) {
+          const nota = cxcsPendientes.find(c => c.id === item.cuenta_cobrar_id);
+          if (nota) {
+            const fNota = nota.fecha_emision || nota.fecha;
+            const fNotaSoloFecha = fNota ? fNota.split('T')[0] : '';
+            if (fNotaSoloFecha && fecha < fNotaSoloFecha) {
+              throw new Error(`La fecha del pago no puede ser anterior a la de emisión de la Nota de Servicio: ${nota.descripcion || 'Mensualidad/Concepto'} (${fNotaSoloFecha}).`);
+            }
+          }
+        }
+
         objetivoCxcId = cobrosPayload[0].cuenta_cobrar_id;
 
         const { error: rpcMultipleErr } = await supabase.rpc('rpc_cobrar_multiple_cxc', {
@@ -189,76 +202,87 @@ const ModalCobroRapido: React.FC<Props> = ({ alumnoInicial, visible, onCerrar, o
         });
         if (rpcMultipleErr) throw rpcMultipleErr;
       } else {
-      let montoCobrado = montoNum;
+        let montoCobrado = montoNum;
 
-      // Si es una nota pendiente y el monto excede el saldo, separar exceso como anticipo
-      if (cxcSelId !== 'anticipo') {
-        const cxcSel = cxcsPendientes.find(c => c.id === cxcSelId);
-        if (cxcSel && montoNum > Number(cxcSel.saldo_pendiente)) {
-          exceso = parseFloat((montoNum - Number(cxcSel.saldo_pendiente)).toFixed(2));
-          montoCobrado = Number(cxcSel.saldo_pendiente);
+        // Si es una nota pendiente y el monto excede el saldo, separar exceso como anticipo
+        if (cxcSelId !== 'anticipo') {
+          const cxcSel = cxcsPendientes.find(c => c.id === cxcSelId);
+          if (cxcSel) {
+            // Validar que la fecha del pago no sea anterior a la fecha de emisión de la nota de servicio
+            const fNota = cxcSel.fecha_emision || cxcSel.fecha;
+            const fNotaSoloFecha = fNota ? fNota.split('T')[0] : '';
+            if (fNotaSoloFecha && fecha < fNotaSoloFecha) {
+              throw new Error(`La fecha del pago no puede ser anterior a la fecha de emisión de la Nota de Servicio (${fNotaSoloFecha}).`);
+            }
+
+            if (montoNum > Number(cxcSel.saldo_pendiente)) {
+              exceso = parseFloat((montoNum - Number(cxcSel.saldo_pendiente)).toFixed(2));
+              montoCobrado = Number(cxcSel.saldo_pendiente);
+            }
+          }
         }
-      }
 
-      // Si es anticipo directo, creamos la nota de anticipo
-      if (cxcSelId === 'anticipo') {
-          const { data: nuevaNota, error: errCxc } = await supabase.from('cuentas_cobrar').insert({
-              escuela_id: ctx.escuela_id,
-              sucursal_id: ctx.sucursal_id,
-              alumno_id: alumnoSel.alumno_id,
-              monto_total: montoNum,
-              descripcion: 'Cobro Anticipado',
-              estado: 'pendiente',
-              es_anticipo: true,
+        // Si es anticipo directo, creamos la nota de anticipo
+        if (cxcSelId === 'anticipo') {
+            const { data: nuevaNota, error: errCxc } = await supabase.from('cuentas_cobrar').insert({
+                escuela_id: ctx.escuela_id,
+                sucursal_id: ctx.sucursal_id,
+                alumno_id: alumnoSel.alumno_id,
+                monto_total: montoNum,
+                descripcion: 'Cobro Anticipado',
+                estado: 'pendiente',
+                es_anticipo: true,
+                fecha_emision: fecha, // Especificar la fecha elegida para el pago
+            }).select('id').single();
+
+            if (errCxc || !nuevaNota) throw new Error('Error al crear nota de anticipo.');
+            objetivoCxcId = nuevaNota.id;
+
+            let itemAnticipoId = '';
+            const itemAnticipo = catalogo.find(c => c.nombre === 'Anticipo');
+            if (!itemAnticipo) {
+                const { data: nuevoItem, error: errC } = await supabase.from('catalogo_items').insert({
+                    escuela_id: ctx.escuela_id,
+                    nombre: 'Anticipo',
+                    tipo: 'servicio',
+                    categoria: 'servicio',
+                    tipo_movimiento: 'ingreso',
+                    precio_venta: 0,
+                    activo: true,
+                    es_ingreso: true,
+                    es_gasto: false
+                }).select('id').single();
+                if (errC || !nuevoItem) throw new Error('Error al inicializar el concepto "Anticipo" en el catálogo.');
+                itemAnticipoId = nuevoItem.id;
+            } else {
+                itemAnticipoId = itemAnticipo.id;
+            }
+
+            await supabase.from('cxc_detalle').insert({
+                escuela_id: ctx.escuela_id,
+                cuenta_cobrar_id: nuevaNota.id,
+                catalogo_item_id: itemAnticipoId,
+                descripcion: 'Anticipo del cliente',
+                cantidad: 1,
+                precio_unitario: montoNum
+            });
+        }
+
+        // Si hubo exceso, registrar como anticipo
+        if (exceso > 0) {
+          const { data: notaAnticipo, error: errAnt } = await supabase.from('cuentas_cobrar').insert({
+            escuela_id: ctx.escuela_id,
+            sucursal_id: ctx.sucursal_id,
+            alumno_id: alumnoSel.alumno_id,
+            monto_total: exceso,
+            descripcion: 'Anticipo — Exceso de pago',
+            estado: 'pendiente',
+            es_anticipo: true,
+            fecha_emision: fecha, // Especificar la fecha elegida para el pago
+            observaciones: `Generado automáticamente por pago de Bs ${fmtMonto(montoNum)} con exceso de Bs ${fmtMonto(exceso)}.`
           }).select('id').single();
 
-          if (errCxc || !nuevaNota) throw new Error('Error al crear nota de anticipo.');
-          objetivoCxcId = nuevaNota.id;
-
-          let itemAnticipoId = '';
-          const itemAnticipo = catalogo.find(c => c.nombre === 'Anticipo');
-          if (!itemAnticipo) {
-              const { data: nuevoItem, error: errC } = await supabase.from('catalogo_items').insert({
-                  escuela_id: ctx.escuela_id,
-                  nombre: 'Anticipo',
-                  tipo: 'servicio',
-                  categoria: 'servicio',
-                  tipo_movimiento: 'ingreso',
-                  precio_venta: 0,
-                  activo: true,
-                  es_ingreso: true,
-                  es_gasto: false
-              }).select('id').single();
-              if (errC || !nuevoItem) throw new Error('Error al inicializar el concepto "Anticipo" en el catálogo.');
-              itemAnticipoId = nuevoItem.id;
-          } else {
-              itemAnticipoId = itemAnticipo.id;
-          }
-
-          await supabase.from('cxc_detalle').insert({
-              escuela_id: ctx.escuela_id,
-              cuenta_cobrar_id: nuevaNota.id,
-              catalogo_item_id: itemAnticipoId,
-              descripcion: 'Anticipo del cliente',
-              cantidad: 1,
-              precio_unitario: montoNum
-          });
-      }
-
-      // Si hubo exceso, registrar como anticipo
-      if (exceso > 0) {
-        const { data: notaAnticipo, error: errAnt } = await supabase.from('cuentas_cobrar').insert({
-          escuela_id: ctx.escuela_id,
-          sucursal_id: ctx.sucursal_id,
-          alumno_id: alumnoSel.alumno_id,
-          monto_total: exceso,
-          descripcion: 'Anticipo — Exceso de pago',
-          estado: 'pendiente',
-          es_anticipo: true,
-          observaciones: `Generado automáticamente por pago de Bs ${fmtMonto(montoNum)} con exceso de Bs ${fmtMonto(exceso)}.`
-        }).select('id').single();
-
-        if (errAnt || !notaAnticipo) throw new Error('Error al registrar el anticipo del exceso.');
+          if (errAnt || !notaAnticipo) throw new Error('Error al registrar el anticipo del exceso.');
 
         let itemAnticipoId = '';
         const itemAnticipo = catalogo.find(c => c.nombre === 'Anticipo');

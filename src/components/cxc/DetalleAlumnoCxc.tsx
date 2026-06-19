@@ -192,6 +192,18 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
           throw new Error('Debes seleccionar al menos una nota y definir un monto mayor a 0.');
         }
 
+        // Validar que la fecha del pago no sea anterior a la de emisión de ninguna de las notas seleccionadas
+        for (const item of cobrosPayload) {
+          const nota = cxcs.find(c => c.id === item.cuenta_cobrar_id);
+          if (nota) {
+            const fNota = nota.fecha_emision || nota.fecha;
+            const fNotaSoloFecha = fNota ? fNota.split('T')[0] : '';
+            if (fNotaSoloFecha && cobroFecha < fNotaSoloFecha) {
+              throw new Error(`La fecha del pago no puede ser anterior a la de emisión de la Nota de Servicio: ${nota.descripcion || 'Mensualidad/Concepto'} (${fNotaSoloFecha}).`);
+            }
+          }
+        }
+
         const { error: rpcErr } = await supabase.rpc('rpc_cobrar_multiple_cxc', {
           p_payload: {
             escuela_id: ctx.escuela_id,
@@ -207,6 +219,13 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
       } else {
         const cxcActual = cxcs.find(c => c.id === cobroCxcId);
         if (!cxcActual) throw new Error('No se encontró la deuda.');
+
+        // Validar que la fecha del pago no sea anterior a la fecha de emisión de la nota de servicio
+        const fNotaActual = cxcActual.fecha_emision || cxcActual.fecha;
+        const fNotaActualSoloFecha = fNotaActual ? fNotaActual.split('T')[0] : '';
+        if (fNotaActualSoloFecha && cobroFecha < fNotaActualSoloFecha) {
+          throw new Error(`La fecha del pago no puede ser anterior a la fecha de emisión de la Nota de Servicio (${fNotaActualSoloFecha}).`);
+        }
 
         if (usarAnticipo) {
           if (!anticipoId) throw new Error('Seleccione un anticipo.');
@@ -247,6 +266,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
               descripcion: 'Anticipo — Exceso de pago',
               estado: 'pendiente',
               es_anticipo: true,
+              fecha_emision: cobroFecha, // Especificar la fecha elegida para el pago
               observaciones: `Generado automáticamente por pago de Bs ${fmtMonto(monto)} con exceso de Bs ${fmtMonto(exceso)}.`
             }).select('id').single();
 

@@ -13,6 +13,7 @@ import ModalDetalleMovimiento from '../../components/cajas-bancos/ModalDetalleMo
 import ModalNuevaCaja from '../../components/cajas-bancos/ModalNuevaCaja';
 import ModalCobroRapido from '../../components/cxc/ModalCobroRapido';
 import ModalPagoRapidoCxP from '../../components/cxp/ModalPagoRapidoCxP';
+import NotaServicios from '../../components/cxc/NotaServicios';
 import DropdownAcciones from '../../components/cajas-bancos/DropdownAcciones';
 import { formatFecha } from '../../lib/dateUtils';
 
@@ -64,6 +65,8 @@ const CajasBancos: React.FC = () => {
   // Estado para edición de movimientos
   const [movEditar, setMovEditar] = useState<MovimientoFinanciero | null>(null);
   const [movDetalle, setMovDetalle] = useState<MovimientoFinanciero | null>(null);
+  const [notaCxcParaEditar, setNotaCxcParaEditar] = useState<any>(null);
+  const [cargandoNotaCxc, setCargandoNotaCxc] = useState(false);
 
   // Estados para Cobros/Pagos rápidos
   const [showCobro, setShowCobro] = useState(false);
@@ -248,6 +251,60 @@ const CajasBancos: React.FC = () => {
       manejarActualizacion();
     } catch (err: any) {
       alert("Error al actualizar estado: " + err.message);
+    }
+  };
+
+  const abrirEdicionNotaCxc = async (notaId: string) => {
+    if (!notaId) return;
+    setCargandoNotaCxc(true);
+    try {
+      // 1. Obtener la Nota de Servicio desde cuentas_cobrar
+      const { data: nota, error: errNota } = await supabase
+        .from('cuentas_cobrar')
+        .select('*')
+        .eq('id', notaId)
+        .single();
+
+      if (errNota) throw errNota;
+      if (!nota) throw new Error('No se encontró la Nota de Servicio generadora.');
+
+      // 2. Obtener el total cobrado de cobros_aplicados para esta nota
+      const { data: cobrosDB } = await supabase
+        .from('cobros_aplicados')
+        .select('monto_aplicado')
+        .eq('cuenta_cobrar_id', notaId);
+      const totalCobrado = (cobrosDB || []).reduce((s: number, c: any) => s + Number(c.monto_aplicado), 0);
+
+      // 3. Obtener los detalles de cxc_detalle
+      const { data: detalles, error: errDetalles } = await supabase
+        .from('cxc_detalle')
+        .select('catalogo_item_id, cantidad, precio_unitario, periodo_meses, detalle_extra, catalogo_items(nombre)')
+        .eq('cuenta_cobrar_id', notaId);
+
+      if (errDetalles) throw errDetalles;
+
+      // 4. Formatear la Nota para NotaServicios
+      const cxcEditar = {
+        ...nota,
+        total_cobrado: totalCobrado,
+        lineas: (detalles || []).map((l: any) => ({
+          catalogo_item_id: l.catalogo_item_id,
+          nombre: l.catalogo_items?.nombre || 'Concepto no especificado',
+          tipo: 'servicio',
+          cantidad: l.cantidad,
+          precio_unitario: l.precio_unitario,
+          periodo_meses: l.periodo_meses || [],
+          detalle_personalizado: l.detalle_extra || '',
+          subtotal: l.cantidad * l.precio_unitario
+        }))
+      };
+
+      setNotaCxcParaEditar(cxcEditar);
+    } catch (e: any) {
+      console.error(e);
+      alert(`Error al cargar la Nota de Servicio: ${e.message}`);
+    } finally {
+      setCargandoNotaCxc(false);
     }
   };
 
@@ -860,8 +917,16 @@ const CajasBancos: React.FC = () => {
                                     {!mov.conciliado && (
                                       <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
                                         <button
-                                          onClick={(e) => { e.stopPropagation(); setMovEditar(mov); }}
-                                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--secondary)' }}
+                                          onClick={(e) => { 
+                                            e.stopPropagation(); 
+                                            if (mov.tipo_origen === 'cobro' && mov.cuenta_maestra_id) {
+                                              abrirEdicionNotaCxc(mov.cuenta_maestra_id);
+                                            } else {
+                                              setMovEditar(mov);
+                                            }
+                                          }}
+                                          disabled={cargandoNotaCxc}
+                                          style={{ background: 'none', border: 'none', cursor: cargandoNotaCxc ? 'wait' : 'pointer', color: 'var(--secondary)' }}
                                           title="Editar movimiento"
                                         >
                                           <Pencil size={15} />
@@ -1011,6 +1076,18 @@ const CajasBancos: React.FC = () => {
         onCerrar={() => setShowPago(false)}
         onPagado={() => { setShowPago(false); manejarActualizacion(); }}
       />
+
+      {notaCxcParaEditar && (
+        <NotaServicios
+          visible={!!notaCxcParaEditar}
+          onCerrar={() => setNotaCxcParaEditar(null)}
+          onCreada={() => {
+            setNotaCxcParaEditar(null);
+            manejarActualizacion();
+          }}
+          cxcEditar={notaCxcParaEditar}
+        />
+      )}
 
     </main>
   );
