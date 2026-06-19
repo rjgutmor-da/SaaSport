@@ -196,7 +196,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
         for (const item of cobrosPayload) {
           const nota = cxcs.find(c => c.id === item.cuenta_cobrar_id);
           if (nota) {
-            const fNota = nota.fecha_emision || nota.fecha;
+            const fNota = nota.fecha_emision;
             const fNotaSoloFecha = fNota ? fNota.split('T')[0] : '';
             if (fNotaSoloFecha && cobroFecha < fNotaSoloFecha) {
               throw new Error(`La fecha del pago no puede ser anterior a la de emisión de la Nota de Servicio: ${nota.descripcion || 'Mensualidad/Concepto'} (${fNotaSoloFecha}).`);
@@ -221,7 +221,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
         if (!cxcActual) throw new Error('No se encontró la deuda.');
 
         // Validar que la fecha del pago no sea anterior a la fecha de emisión de la nota de servicio
-        const fNotaActual = cxcActual.fecha_emision || cxcActual.fecha;
+        const fNotaActual = cxcActual.fecha_emision;
         const fNotaActualSoloFecha = fNotaActual ? fNotaActual.split('T')[0] : '';
         if (fNotaActualSoloFecha && cobroFecha < fNotaActualSoloFecha) {
           throw new Error(`La fecha del pago no puede ser anterior a la fecha de emisión de la Nota de Servicio (${fNotaActualSoloFecha}).`);

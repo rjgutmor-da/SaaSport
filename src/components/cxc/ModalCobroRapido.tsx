@@ -179,7 +179,7 @@ const ModalCobroRapido: React.FC<Props> = ({ alumnoInicial, visible, onCerrar, o
         for (const item of cobrosPayload) {
           const nota = cxcsPendientes.find(c => c.id === item.cuenta_cobrar_id);
           if (nota) {
-            const fNota = nota.fecha_emision || nota.fecha;
+            const fNota = nota.fecha_emision;
             const fNotaSoloFecha = fNota ? fNota.split('T')[0] : '';
             if (fNotaSoloFecha && fecha < fNotaSoloFecha) {
               throw new Error(`La fecha del pago no puede ser anterior a la de emisión de la Nota de Servicio: ${nota.descripcion || 'Mensualidad/Concepto'} (${fNotaSoloFecha}).`);
@@ -209,7 +209,7 @@ const ModalCobroRapido: React.FC<Props> = ({ alumnoInicial, visible, onCerrar, o
           const cxcSel = cxcsPendientes.find(c => c.id === cxcSelId);
           if (cxcSel) {
             // Validar que la fecha del pago no sea anterior a la fecha de emisión de la nota de servicio
-            const fNota = cxcSel.fecha_emision || cxcSel.fecha;
+            const fNota = cxcSel.fecha_emision;
             const fNotaSoloFecha = fNota ? fNota.split('T')[0] : '';
             if (fNotaSoloFecha && fecha < fNotaSoloFecha) {
               throw new Error(`La fecha del pago no puede ser anterior a la fecha de emisión de la Nota de Servicio (${fNotaSoloFecha}).`);
