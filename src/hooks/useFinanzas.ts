@@ -326,6 +326,8 @@ const fetchMovimientos = async (escuelaId: string, cajaIds: string[]) => {
         cxc_detalle (
           cantidad,
           precio_unitario,
+          periodo_meses,
+          detalle_extra,
           catalogo_items ( nombre )
         )
       )

@@ -603,9 +603,38 @@ const CajasBancos: React.FC = () => {
                           }}
                         >
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', overflow: 'hidden', flex: 1, minWidth: 0 }}>
-                            <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', fontWeight: 500 }}>
-                              {fechaStr}
-                            </span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', fontWeight: 500 }}>
+                                {fechaStr}
+                              </span>
+                              {mov.tipo_origen === 'cobro' && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    generarReciboWhatsApp(mov);
+                                  }}
+                                  disabled={generandoReciboId !== null}
+                                  style={{
+                                    background: 'none',
+                                    border: 'none',
+                                    padding: 0,
+                                    margin: 0,
+                                    cursor: generandoReciboId !== null ? 'wait' : 'pointer',
+                                    color: generandoReciboId === mov.id ? 'var(--success)' : '#25D366',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center'
+                                  }}
+                                  title="Enviar recibo por WhatsApp"
+                                >
+                                  {generandoReciboId === mov.id ? (
+                                    <RefreshCw size={11} className="animate-spin" style={{ color: 'var(--success)' }} />
+                                  ) : (
+                                    <MessageCircle size={13} />
+                                  )}
+                                </button>
+                              )}
+                            </div>
                             <span style={{
                               fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)',
                               whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'
@@ -1404,7 +1433,15 @@ const CajasBancos: React.FC = () => {
                   <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '10px' }}>
                     {movimientoParaRecibo.detalles_cxc && movimientoParaRecibo.detalles_cxc.length > 0 ? (
                       movimientoParaRecibo.detalles_cxc.map((det: any, idx: number) => {
-                        const nombreConcepto = det.catalogo_items?.nombre || 'Concepto';
+                        let nombreConcepto = det.catalogo_items?.nombre || 'Concepto';
+                        const nombreLower = nombreConcepto.toLowerCase();
+                        
+                        if (nombreLower.includes('mensualidad') && Array.isArray(det.periodo_meses) && det.periodo_meses.length > 0) {
+                          nombreConcepto = `${nombreConcepto} - ${det.periodo_meses.join(', ')}`;
+                        } else if (nombreLower.includes('torneo') && det.detalle_extra && det.detalle_extra.trim()) {
+                          nombreConcepto = `${nombreConcepto} - ${det.detalle_extra.trim()}`;
+                        }
+
                         const totalLinea = (det.cantidad || 1) * (det.precio_unitario || 0);
                         return (
                           <li key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
