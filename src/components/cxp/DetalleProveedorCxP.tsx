@@ -758,7 +758,6 @@ const DetalleProveedorCxP: React.FC<Props> = ({ entidad, visible, onCerrar, onAc
                               fontSize: '0.65rem', fontWeight: 700, width: 'fit-content'
                             }}>⚠ Vencida</span>
                           )}
-                          <span style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>{nota.tipo_gasto}</span>
                         </div>
                       </td>
                       <td style={{ padding: '0.5rem 0.75rem', border: '1px solid var(--border)', textAlign: 'center' }}>
