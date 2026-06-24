@@ -198,6 +198,20 @@ const DetalleProveedorCxP: React.FC<Props> = ({ entidad, visible, onCerrar, onAc
       return;
     }
 
+    const pagosPayload = pagoMultiple.generarPayloadPagos();
+    const pFechaStr = pagoFecha || getHoyISO();
+    for (const p of pagosPayload) {
+      const matchingNota = notas.find(n => n.id === p.cuenta_pagar_id);
+      if (matchingNota) {
+        const fNota = matchingNota.fecha_emision || (matchingNota as any).created_at;
+        const fNotaSoloFecha = fNota ? fNota.split('T')[0] : '';
+        if (fNotaSoloFecha && pFechaStr < fNotaSoloFecha) {
+          setPagoError(`La fecha de pago no puede ser anterior a la fecha de emisión de la Nota de Servicio (${fNotaSoloFecha}).`);
+          return;
+        }
+      }
+    }
+
     setGuardandoPago(true);
 
     try {

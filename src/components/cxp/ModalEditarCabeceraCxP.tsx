@@ -24,6 +24,25 @@ const ModalEditarCabeceraCxP: React.FC<Props> = ({ visible, nota, onCerrar, onAc
     setError('');
 
     try {
+      // Validar que la nueva fecha de emisión no sea posterior a la fecha de ningún pago registrado
+      const { data: pagos, error: errPagos } = await supabase
+        .from('pagos_aplicados')
+        .select('fecha, monto_aplicado')
+        .eq('cuenta_pagar_id', nota.id);
+
+      if (errPagos) throw errPagos;
+
+      if (pagos && pagos.length > 0) {
+        for (const p of pagos) {
+          const fPago = p.fecha ? p.fecha.split('T')[0] : '';
+          if (fPago && fechaEmision > fPago) {
+            setError(`La fecha de emisión no puede ser posterior a la fecha del pago registrado (Bs ${p.monto_aplicado.toLocaleString('es-BO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} el ${fPago}).`);
+            setGuardando(false);
+            return;
+          }
+        }
+      }
+
       const { error: errUpdate } = await supabase.from('cuentas_pagar')
         .update({
           fecha_emision: fechaEmision,

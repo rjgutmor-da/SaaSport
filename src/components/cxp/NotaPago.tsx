@@ -174,6 +174,11 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, esAnticipo = false, o
       if (pagarAlCrear && (!montoPago || !cuentaPagoId)) { setError('Completa los datos del pago.'); return; }
     }
 
+    if (pagarAlCrear && fechaPago < fechaEmision) {
+      setError('La fecha de pago no puede ser anterior a la fecha de emisión de la Nota de Servicio.');
+      return;
+    }
+
     setGuardando(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();

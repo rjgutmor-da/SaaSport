@@ -123,6 +123,18 @@ const ModalPagoRapidoCxP: React.FC<Props> = ({ entidadInicial, entidades, visibl
     if (!montoNum || montoNum <= 0) { setError('Monto inválido.'); return; }
     if (!cuentaId) { setError('Selecciona la cuenta de salida (caja/banco).'); return; }
 
+    if (cxpSelId !== 'anticipo') {
+      const cxp = cxpsPendientes.find(c => c.id === cxpSelId);
+      if (cxp) {
+        const fNota = cxp.fecha_emision || (cxp as any).created_at;
+        const fNotaSoloFecha = fNota ? fNota.split('T')[0] : '';
+        if (fNotaSoloFecha && fechaPago < fNotaSoloFecha) {
+          setError(`La fecha de pago no puede ser anterior a la fecha de emisión de la Nota de Servicio (${fNotaSoloFecha}).`);
+          return;
+        }
+      }
+    }
+
     setGuardando(true); setError(null);
 
     try {

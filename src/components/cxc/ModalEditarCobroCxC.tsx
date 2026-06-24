@@ -23,11 +23,12 @@ interface Props {
     es_aplicacion_anticipo?: boolean;
   } | null;
   cajas: CajaBanco[];
+  fechaEmisionNota?: string;
   onCerrar: () => void;
   onActualizar: () => void;
 }
 
-const ModalEditarCobroCxC: React.FC<Props> = ({ visible, cobro, cajas, onCerrar, onActualizar }) => {
+const ModalEditarCobroCxC: React.FC<Props> = ({ visible, cobro, cajas, fechaEmisionNota, onCerrar, onActualizar }) => {
   const [fecha, setFecha] = useState('');
   const [monto, setMonto] = useState('');
   const [cajaId, setCajaId] = useState('');
@@ -69,6 +70,13 @@ const ModalEditarCobroCxC: React.FC<Props> = ({ visible, cobro, cajas, onCerrar,
     if (!fecha) {
       setError('Seleccione una fecha.');
       return;
+    }
+    if (fechaEmisionNota) {
+      const fNotaSoloFecha = fechaEmisionNota.split('T')[0];
+      if (fecha < fNotaSoloFecha) {
+        setError(`La fecha del cobro no puede ser anterior a la fecha de emisión de la Nota de Servicio (${fNotaSoloFecha}).`);
+        return;
+      }
     }
     if (!esAnticipo && !cajaId) {
       setError('Seleccione la caja o banco.');

@@ -484,6 +484,7 @@ const ModalVerNotaCxC: React.FC<Props> = ({ visible, cxcId, onCerrar, onEditar, 
               visible={!!movEditar}
               cobro={movEditar}
               cajas={cajas}
+              fechaEmisionNota={nota?.fecha_emision}
               onCerrar={() => setMovEditar(null)}
               onActualizar={async () => {
                 setMovEditar(null);

@@ -173,6 +173,12 @@ const DetalleCxP: React.FC<Props> = ({ nota, visible, onCerrar, onActualizar }) 
     if (!usarAnticipo && !cuentaPagoId) { setErrorPago('Selecciona la caja/banco de pago.'); return; }
     if (mp > nota.deuda_restante) { setErrorPago(`El monto supera la deuda restante de Bs ${fmtMonto(nota.deuda_restante)}.`); return; }
 
+    const fNotaSoloFecha = nota.fecha_emision ? nota.fecha_emision.split('T')[0] : '';
+    if (fNotaSoloFecha && fechaPago < fNotaSoloFecha) {
+      setErrorPago(`La fecha de pago no puede ser anterior a la fecha de emisión de la Nota de Servicio (${fNotaSoloFecha}).`);
+      return;
+    }
+
     setRegistrandoPago(true);
 
     try {
@@ -600,6 +606,7 @@ const DetalleCxP: React.FC<Props> = ({ nota, visible, onCerrar, onActualizar }) 
             visible={!!movEditar}
             pago={movEditar}
             cajas={cajasBancos}
+            fechaEmisionNota={nota?.fecha_emision}
             onCerrar={() => setMovEditar(null)}
             onActualizar={() => {
               setMovEditar(null);
