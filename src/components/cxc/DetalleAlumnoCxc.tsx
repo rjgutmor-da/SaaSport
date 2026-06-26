@@ -128,7 +128,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
 
       setCxcs((resCxc.data as unknown as CuentaCobrar[]) ?? []);
       setCuentasCobro(resCuentas.data ?? []);
-      setMontoMensualidad(resAlumno.data?.mensualidad || null);
+      setMontoMensualidad(resAlumno.data?.mensualidad !== null && resAlumno.data?.mensualidad !== undefined ? resAlumno.data.mensualidad : null);
       setCatalogo(resCat.data ?? []);
 
       
@@ -650,7 +650,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                     return (
                       <>
                         <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#a855f7' }}>
-                          <Calendar size={14} /> Mensualidad: {montoMensualidad ? `Bs ${fmtMonto(montoMensualidad)}` : 'N/A'}
+                          <Calendar size={14} /> Mensualidad: {(montoMensualidad !== null && montoMensualidad !== undefined) ? `Bs ${fmtMonto(montoMensualidad)}` : 'N/A'}
                         </span>
                         {telefonoPrincipal && (
                           <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#10b981' }}>
