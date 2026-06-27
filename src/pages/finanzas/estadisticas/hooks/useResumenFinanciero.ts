@@ -29,19 +29,6 @@ export interface ResumenFinanciero {
   recargar: () => void;
 }
 
-const convertirLista = (mapa: Record<string, number>): { lista: ItemResumen[]; total: number } => {
-  const total = Object.values(mapa).reduce((s, v) => s + v, 0);
-  const lista = Object.entries(mapa)
-    .map(([nombre, monto]) => ({
-      nombre,
-      monto,
-      porcentaje: total > 0 ? (monto / total) * 100 : 0,
-    }))
-    .sort((a, b) => b.monto - a.monto);
-
-  return { lista, total };
-};
-
 export function useResumenFinanciero(
   escuelaId: string | null,
   intervalo: IntervaloPredefinido,
@@ -70,138 +57,39 @@ export function useResumenFinanciero(
     setError(null);
 
     try {
-      const { data: cajasData, error: cajasErr } = await supabase
-        .from('cajas_bancos')
-        .select('id')
-        .eq('escuela_id', eid)
-        .eq('activo', true);
+      const { data, error: rpcErr } = await supabase
+        .rpc('rpc_resumen_financiero', {
+          p_escuela_id: eid,
+          p_desde: desde,
+          p_hasta: hasta,
+        });
 
-      if (cajasErr) throw new Error(`Cajas/Bancos: ${cajasErr.message}`);
+      if (rpcErr) throw new Error(rpcErr.message);
 
-      const cajaIds = (cajasData || []).map((c: any) => c.id).filter(Boolean);
-      if (cajaIds.length === 0) {
-        setIngresos([]);
-        setEgresos([]);
-        setTotalIngresos(0);
-        setTotalEgresos(0);
-        return;
-      }
+      const ingresosData: ItemResumen[] = (data || [])
+        .filter((r: any) => r.tipo === 'ingreso')
+        .map((r: any) => ({
+          nombre: String(r.nombre),
+          monto: Number(r.monto || 0),
+          porcentaje: Number(r.porcentaje || 0),
+        }));
 
-      // Ingresos: cobros que entraron efectivamente a una caja/banco.
-      const { data: cobrosData, error: cobrosErr } = await supabase
-        .from('cobros_aplicados')
-        .select(`
-          monto_aplicado,
-          fecha,
-          caja_id,
-          cuentas_cobrar!cobros_aplicados_cuenta_cobrar_id_fkey (
-            id,
-            monto_total,
-            descripcion,
-            anulada,
-            cxc_detalle (
-              subtotal,
-              catalogo_items!cxc_detalle_catalogo_item_id_fkey (nombre)
-            )
-          )
-        `)
-        .eq('escuela_id', eid)
-        .in('caja_id', cajaIds)
-        .gte('fecha', `${desde}T00:00:00`)
-        .lte('fecha', `${hasta}T23:59:59`)
-        .limit(5000);
+      const egresosData: ItemResumen[] = (data || [])
+        .filter((r: any) => r.tipo === 'egreso')
+        .map((r: any) => ({
+          nombre: String(r.nombre),
+          monto: Number(r.monto || 0),
+          porcentaje: Number(r.porcentaje || 0),
+        }));
 
-      if (cobrosErr) throw new Error(`Ingresos: ${cobrosErr.message}`);
+      setIngresos(ingresosData);
+      setEgresos(egresosData);
 
-      const mapIng: Record<string, number> = {};
-      for (const cobro of (cobrosData || [])) {
-        const fechaCobro = cobro.fecha?.split('T')[0];
-        if (!fechaCobro || fechaCobro < desde || fechaCobro > hasta) continue;
+      const totalIng = ingresosData.reduce((sum, item) => sum + item.monto, 0);
+      const totalEgr = egresosData.reduce((sum, item) => sum + item.monto, 0);
 
-        const cc = (cobro as any).cuentas_cobrar;
-        if (!cc || cc.anulada) continue;
-
-        const montoCobrado = Number(cobro.monto_aplicado || 0);
-        const detalles = cc.cxc_detalle || [];
-
-        if (montoCobrado <= 0) continue;
-
-        const totalDetalles = detalles.reduce((sum: number, det: any) => sum + Number(det.subtotal || 0), 0);
-
-        if (detalles.length === 0 || totalDetalles <= 0) {
-          const desc = cc.descripcion || 'Otros Ingresos';
-          mapIng[desc] = (mapIng[desc] ?? 0) + montoCobrado;
-          continue;
-        }
-
-        for (const det of detalles) {
-          const nombre = det.catalogo_items?.nombre ?? cc.descripcion ?? 'Otros Ingresos';
-          const proporcion = Number(det.subtotal || 0) / totalDetalles;
-          mapIng[nombre] = (mapIng[nombre] ?? 0) + montoCobrado * proporcion;
-        }
-      }
-
-      const ingresosCalc = convertirLista(mapIng);
-      setIngresos(ingresosCalc.lista);
-      setTotalIngresos(ingresosCalc.total);
-
-      // Egresos: pagos que salieron efectivamente de una caja/banco.
-      const { data: pagosData, error: pagosErr } = await supabase
-        .from('pagos_aplicados')
-        .select(`
-          monto_aplicado,
-          fecha,
-          caja_id,
-          cuentas_pagar!pagos_aplicados_cuenta_pagar_id_fkey (
-            id,
-            monto_total,
-            descripcion,
-            anulada,
-            cxp_detalle (
-              subtotal,
-              catalogo_items!cxp_detalle_catalogo_item_id_fkey (nombre)
-            )
-          )
-        `)
-        .eq('escuela_id', eid)
-        .in('caja_id', cajaIds)
-        .gte('fecha', `${desde}T00:00:00`)
-        .lte('fecha', `${hasta}T23:59:59`)
-        .limit(5000);
-
-      if (pagosErr) throw new Error(`Egresos: ${pagosErr.message}`);
-
-      const mapEg: Record<string, number> = {};
-      for (const pago of (pagosData || [])) {
-        const fechaPago = pago.fecha?.split('T')[0];
-        if (!fechaPago || fechaPago < desde || fechaPago > hasta) continue;
-
-        const cp = (pago as any).cuentas_pagar;
-        if (!cp || cp.anulada) continue;
-
-        const montoPagado = Number(pago.monto_aplicado || 0);
-        const detalles = cp.cxp_detalle || [];
-
-        if (montoPagado <= 0) continue;
-
-        const totalDetalles = detalles.reduce((sum: number, det: any) => sum + Number(det.subtotal || 0), 0);
-
-        if (detalles.length === 0 || totalDetalles <= 0) {
-          const desc = cp.descripcion || 'Otros Egresos';
-          mapEg[desc] = (mapEg[desc] ?? 0) + montoPagado;
-          continue;
-        }
-
-        for (const det of detalles) {
-          const nombre = det.catalogo_items?.nombre ?? cp.descripcion ?? 'Otros Egresos';
-          const proporcion = Number(det.subtotal || 0) / totalDetalles;
-          mapEg[nombre] = (mapEg[nombre] ?? 0) + montoPagado * proporcion;
-        }
-      }
-
-      const egresosCalc = convertirLista(mapEg);
-      setEgresos(egresosCalc.lista);
-      setTotalEgresos(egresosCalc.total);
+      setTotalIngresos(totalIng);
+      setTotalEgresos(totalEgr);
     } catch (e: any) {
       setError(e.message ?? 'Error desconocido');
     } finally {

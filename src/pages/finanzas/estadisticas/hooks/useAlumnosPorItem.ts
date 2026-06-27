@@ -77,14 +77,14 @@ export function useAlumnosPorItem(
     setError(null);
 
     try {
-      // Consultamos cobros_aplicados para que la estadística sea basada en efectivo (percibido)
-      const { data, error: err } = await supabase
+      // Consultamos cobros_aplicados filtrando en base de datos para reducir drásticamente el payload
+      let query = supabase
         .from('cobros_aplicados')
         .select(`
           id,
           monto_aplicado,
           fecha,
-          cuentas_cobrar!cobros_aplicados_cuenta_cobrar_id_fkey (
+          cuentas_cobrar!inner!cobros_aplicados_cuenta_cobrar_id_fkey (
             id,
             monto_total,
             fecha_emision,
@@ -92,14 +92,14 @@ export function useAlumnosPorItem(
             alumno_id,
             descripcion,
             estado,
-            cxc_detalle (
+            cxc_detalle!inner (
               id,
               subtotal,
               periodo_meses,
               detalle_extra,
               catalogo_item_id
             ),
-            alumnos!cuentas_cobrar_alumno_id_fkey (
+            alumnos!inner!cuentas_cobrar_alumno_id_fkey (
               nombres, 
               apellidos,
               fecha_nacimiento,
@@ -115,7 +115,23 @@ export function useAlumnosPorItem(
         .eq('escuela_id', eid)
         .gte('fecha', `${desde}T00:00:00`)
         .lte('fecha', `${hasta}T23:59:59`)
-        .limit(5000);
+        .eq('cuentas_cobrar.anulada', false)
+        .eq('cuentas_cobrar.cxc_detalle.catalogo_item_id', itemId)
+        .not('cuentas_cobrar.descripcion', 'ilike', '%saldo inicial%')
+        .limit(1000);
+
+      // Filtros adicionales condicionales
+      if (entrenadorId) {
+        query = query.eq('cuentas_cobrar.alumnos.profesor_asignado_id', entrenadorId);
+      }
+      if (horarioId) {
+        query = query.eq('cuentas_cobrar.alumnos.horario_id', horarioId);
+      }
+      if (canchaId) {
+        query = query.eq('cuentas_cobrar.alumnos.cancha_id', canchaId);
+      }
+
+      const { data, error: err } = await query;
 
       if (err) throw new Error(err.message);
 
@@ -145,11 +161,8 @@ export function useAlumnosPorItem(
           }
         }
 
-        // Filtros adicionales de Alumno
-        if (entrenadorId && alu.profesor_asignado_id !== entrenadorId) continue;
+        // Filtro adicional en JS para SUB
         if (subFiltro && subCalculado !== subFiltro) continue;
-        if (horarioId && alu.horario_id !== horarioId) continue;
-        if (canchaId && alu.cancha_id !== canchaId) continue;
 
         const montoTotalNota = Number(cxc.monto_total || 0);
         const montoCobrado = Number(cobro.monto_aplicado || 0);
@@ -160,12 +173,6 @@ export function useAlumnosPorItem(
         // Buscamos si esta nota tiene el ítem que nos interesa
         const detInteres = detalles.find((d: any) => d.catalogo_item_id === itemId);
         if (!detInteres) continue;
-
-        // Exclusión de Saldos Iniciales
-        const descNota = cxc.descripcion || '';
-        if (descNota.toLowerCase().includes('saldo inicial')) continue;
-        // El nombre del ítem ya lo tenemos validado por el itemId que entra al hook, 
-        // pero si fuera necesario filtrar por nombre aquí se podría.
 
         // Filtro de sub-ítems (Meses o Torneos)
         if (filtroSubItems && filtroSubItems.length > 0) {
@@ -202,26 +209,23 @@ export function useAlumnosPorItem(
           alumno_id: cxc.alumno_id ?? '',
           nombre_completo: `${nombres} ${apellidos}`.trim() || 'Sin nombre',
           monto: montoItemPercibido,
-          fecha: fechaCobro, // Usamos la fecha del cobro, no de la nota
+          fecha: fechaCobro,
           detalle: detalleStr,
           nota_id: detInteres.id,
           cxc_id: cxc.id,
           concepto: conceptoNombre ?? 'Desconocido',
           sub: subCalculado,
           entrenador: alu.usuarios ? `${alu.usuarios.nombres} ${alu.usuarios.apellidos}`.trim() : 'Sin Entrenador',
-          saldo_pendiente: 0, // En vista de "percibido", mostramos lo que entró
+          saldo_pendiente: 0,
           pagado: 'Si'
         });
       }
 
       let finalResultado = resultado;
       if (pagadoFiltro && pagadoFiltro !== 'Si') {
-        // Si el filtro de pagado es "No" o "Parcial", en modo percibido no habrá resultados 
-        // porque solo listamos cobros realizados.
         finalResultado = [];
       }
 
-      // Ordenar por apellido+nombre
       finalResultado.sort((a, b) => a.nombre_completo.localeCompare(b.nombre_completo));
       setAlumnos(finalResultado);
     } catch (e: any) {
@@ -229,7 +233,6 @@ export function useAlumnosPorItem(
     } finally {
       setCargando(false);
     }
-
   }
 
   return { alumnos, cargando, error, recargar };
