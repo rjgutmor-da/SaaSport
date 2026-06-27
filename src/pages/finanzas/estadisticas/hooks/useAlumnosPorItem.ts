@@ -112,7 +112,10 @@ export function useAlumnosPorItem(
             )
           )
         `)
-        .eq('escuela_id', eid);
+        .eq('escuela_id', eid)
+        .gte('fecha', `${desde}T00:00:00`)
+        .lte('fecha', `${hasta}T23:59:59`)
+        .limit(5000);
 
       if (err) throw new Error(err.message);
 

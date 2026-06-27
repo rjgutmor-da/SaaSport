@@ -106,7 +106,10 @@ export function useResumenFinanciero(
           )
         `)
         .eq('escuela_id', eid)
-        .in('caja_id', cajaIds);
+        .in('caja_id', cajaIds)
+        .gte('fecha', `${desde}T00:00:00`)
+        .lte('fecha', `${hasta}T23:59:59`)
+        .limit(5000);
 
       if (cobrosErr) throw new Error(`Ingresos: ${cobrosErr.message}`);
 
@@ -161,7 +164,10 @@ export function useResumenFinanciero(
           )
         `)
         .eq('escuela_id', eid)
-        .in('caja_id', cajaIds);
+        .in('caja_id', cajaIds)
+        .gte('fecha', `${desde}T00:00:00`)
+        .lte('fecha', `${hasta}T23:59:59`)
+        .limit(5000);
 
       if (pagosErr) throw new Error(`Egresos: ${pagosErr.message}`);
 

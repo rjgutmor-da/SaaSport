@@ -331,7 +331,11 @@ const fetchMovimientos = async (escuelaId: string, cajaIds: string[]) => {
           catalogo_items ( nombre )
         )
       )
-    `).in('caja_id', cajaIds),
+    `)
+    .in('caja_id', cajaIds)
+    .order('fecha', { ascending: false })
+    .order('created_at', { ascending: false })
+    .limit(5000),
     supabase.from('pagos_aplicados').select(`
       *,
       cuentas_pagar (
@@ -342,7 +346,11 @@ const fetchMovimientos = async (escuelaId: string, cajaIds: string[]) => {
           catalogo_items ( nombre )
         )
       )
-    `).in('caja_id', cajaIds)
+    `)
+    .in('caja_id', cajaIds)
+    .order('fecha', { ascending: false })
+    .order('created_at', { ascending: false })
+    .limit(5000)
   ]);
 
   if (cobros.error) throw cobros.error;
