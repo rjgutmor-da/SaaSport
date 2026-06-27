@@ -84,7 +84,7 @@ export function useAlumnosPorItem(
           id,
           monto_aplicado,
           fecha,
-          cuentas_cobrar!inner!cobros_aplicados_cuenta_cobrar_id_fkey (
+          cuentas_cobrar!cobros_aplicados_cuenta_cobrar_id_fkey (
             id,
             monto_total,
             fecha_emision,
@@ -92,15 +92,15 @@ export function useAlumnosPorItem(
             alumno_id,
             descripcion,
             estado,
-            cxc_detalle!inner (
+            cxc_detalle (
               id,
               subtotal,
               periodo_meses,
               detalle_extra,
               catalogo_item_id
             ),
-            alumnos!inner!cuentas_cobrar_alumno_id_fkey (
-              nombres, 
+            alumnos!cuentas_cobrar_alumno_id_fkey (
+              nombres,
               apellidos,
               fecha_nacimiento,
               profesor_asignado_id,
