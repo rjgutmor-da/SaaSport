@@ -144,7 +144,14 @@ export function useAlumnosPorItem(
         const cxc = (cobro as any).cuentas_cobrar;
         if (!cxc || cxc.anulada) continue;
 
-        const alu = cxc.alumnos ?? {};
+        const alu = cxc.alumnos;
+        if (!alu) continue;
+
+        // Validar filtros del alumno en JS para asegurar que no se incluyan registros vacíos o no correspondientes
+        if (entrenadorId && alu.profesor_asignado_id !== entrenadorId) continue;
+        if (horarioId && alu.horario_id !== horarioId) continue;
+        if (canchaId && alu.cancha_id !== canchaId) continue;
+
 
         // Calcular SUB (Categoría por edad)
         let subCalculado = '—';
