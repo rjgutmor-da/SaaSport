@@ -165,7 +165,17 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
       yaInicializado.current = true;
       if (cxcEditar) {
         setAlumnoId(cxcEditar.alumno_id);
-        setLineas(cxcEditar.lineas || [lineaVacia()]);
+        // Normalizar periodo_meses de mensualidades para eliminar sufijos como "-2026"
+        const lineasNormalizadas = (cxcEditar.lineas || []).map((l: any) => {
+          if (l.nombre === 'Mensualidad' && Array.isArray(l.periodo_meses)) {
+            return {
+              ...l,
+              periodo_meses: l.periodo_meses.map((m: string) => m.includes('-') ? m.split('-')[0] : m)
+            };
+          }
+          return l;
+        });
+        setLineas(lineasNormalizadas.length > 0 ? lineasNormalizadas : [lineaVacia()]);
         setObservaciones(cxcEditar.observaciones || '');
         setVencimiento(cxcEditar.fecha_vencimiento || cxcEditar.vencimiento || getHoyISO());
         setFechaEmision(cxcEditar.fecha_emision || getHoyISO());
