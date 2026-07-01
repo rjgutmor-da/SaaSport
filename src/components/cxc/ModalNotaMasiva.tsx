@@ -35,6 +35,9 @@ interface LineaNotaUI extends LineaNota {
   torneo_select_value?: string;
 }
 
+const esLineaMensualidad = (linea: Pick<LineaNota, 'nombre'>): boolean =>
+  linea.nombre.toLowerCase().includes('mensualidad');
+
 const ModalNotaMasiva: React.FC<ModalNotaMasivaProps> = ({
   visible, onCerrar, onCreada, alumnosSeleccionados
 }) => {
@@ -93,6 +96,10 @@ const ModalNotaMasiva: React.FC<ModalNotaMasivaProps> = ({
     return lineas.reduce((s, l) => s + l.subtotal, 0);
   }, [lineas]);
 
+  const usaMensualidadPorFicha = useMemo(() => {
+    return lineas.some(l => l.catalogo_item_id && esLineaMensualidad(l));
+  }, [lineas]);
+
   const guardarNotasMasivas = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null); setExito(null); setProgreso(0);
@@ -101,8 +108,15 @@ const ModalNotaMasiva: React.FC<ModalNotaMasivaProps> = ({
       setError('No hay alumnos seleccionados.'); return;
     }
     
-    const lineasValidas = lineas.filter(l => l.catalogo_item_id && l.precio_unitario > 0);
+    const lineasValidas = lineas.filter(l => l.catalogo_item_id && (esLineaMensualidad(l) || l.precio_unitario > 0));
     if (lineasValidas.length === 0) { setError('Agrega ítems válidos.'); return; }
+
+    for (const l of lineasValidas) {
+      if (esLineaMensualidad(l) && l.periodo_meses.length === 0) {
+        setError('Debe seleccionar al menos un mes para el item Mensualidad.');
+        return;
+      }
+    }
 
     setGuardando(true);
     try {
@@ -111,16 +125,66 @@ const ModalNotaMasiva: React.FC<ModalNotaMasivaProps> = ({
       const { data: ctx } = await supabase.from('usuarios').select('*').eq('id', user.id).single();
 
       const descripcionFinal = lineasValidas.map(l => l.nombre).join(', ');
+      const tieneMensualidad = lineasValidas.some(esLineaMensualidad);
+      const mensualidadesPorAlumno = new Map<string, number | null>();
+
+      if (tieneMensualidad) {
+        const { data: alumnosFicha, error: errFicha } = await supabase
+          .from('alumnos')
+          .select('id, mensualidad')
+          .eq('escuela_id', ctx.escuela_id)
+          .in('id', alumnosSeleccionados.map(a => a.alumno_id));
+
+        if (errFicha) throw errFicha;
+
+        (alumnosFicha ?? []).forEach((alumno: any) => {
+          mensualidadesPorAlumno.set(
+            alumno.id,
+            alumno.mensualidad === null || alumno.mensualidad === undefined
+              ? null
+              : Number(alumno.mensualidad)
+          );
+        });
+
+        const alumnosSinMensualidad = alumnosSeleccionados.filter(alumno => {
+          const mensualidad = mensualidadesPorAlumno.get(alumno.alumno_id);
+          return mensualidad === null || mensualidad === undefined || Number.isNaN(mensualidad) || mensualidad <= 0;
+        });
+
+        if (alumnosSinMensualidad.length > 0) {
+          const nombres = alumnosSinMensualidad
+            .slice(0, 5)
+            .map(a => `${a.nombres} ${a.apellidos}`)
+            .join(', ');
+          const extra = alumnosSinMensualidad.length > 5 ? ` y ${alumnosSinMensualidad.length - 5} mas` : '';
+          throw new Error(`No se puede generar Mensualidad masiva: hay alumnos sin valor de mensualidad en su ficha (${nombres}${extra}).`);
+        }
+      }
 
       // Iterar sobre cada alumno seleccionado y crear su nota individual
       let completados = 0;
       for (const alumno of alumnosSeleccionados) {
+        const lineasAlumno = lineasValidas.map(l => {
+          if (!esLineaMensualidad(l)) return l;
+
+          const cantidad = Math.max(l.periodo_meses.length, 1);
+          const precioUnitario = Number(mensualidadesPorAlumno.get(alumno.alumno_id));
+
+          return {
+            ...l,
+            cantidad,
+            precio_unitario: precioUnitario,
+            subtotal: precioUnitario * cantidad,
+          };
+        });
+        const totalAlumno = lineasAlumno.reduce((s, l) => s + l.subtotal, 0);
+
         // 1. Guardar Nota
         const { data: nueva, error: errN } = await supabase.from('cuentas_cobrar').insert({
           escuela_id: ctx.escuela_id,
           sucursal_id: ctx.sucursal_id,
           alumno_id: alumno.alumno_id,
-          monto_total: total,
+          monto_total: totalAlumno,
           descripcion: descripcionFinal,
           observaciones: observaciones,
           fecha_emision: fechaEmision,
@@ -134,7 +198,7 @@ const ModalNotaMasiva: React.FC<ModalNotaMasivaProps> = ({
         const notaId = nueva.id;
 
         // 2. Detalle
-        await supabase.from('cxc_detalle').insert(lineasValidas.map(l => ({
+        await supabase.from('cxc_detalle').insert(lineasAlumno.map(l => ({
           escuela_id: ctx.escuela_id,
           cuenta_cobrar_id: notaId,
           catalogo_item_id: l.catalogo_item_id,
@@ -235,13 +299,15 @@ const ModalNotaMasiva: React.FC<ModalNotaMasivaProps> = ({
                           const esMensualidad = it.nombre === 'Mensualidad';
                           const monthIdx = parseInt(fechaEmision.split('-')[1]) - 1;
                           const mesesIniciales = esMensualidad ? [MESES_ANIO[monthIdx]] : [];
+                          const cantidadInicial = esMensualidad ? 1 : nuevas[idx].cantidad;
 
                           nuevas[idx] = { 
                             ...nuevas[idx], 
                             catalogo_item_id: it.id, 
                             nombre: it.nombre, 
                             precio_unitario: Number(it.precio_venta) || 0, 
-                            subtotal: (Number(it.precio_venta) || 0) * nuevas[idx].cantidad,
+                            cantidad: cantidadInicial,
+                            subtotal: (Number(it.precio_venta) || 0) * cantidadInicial,
                             periodo_meses: mesesIniciales,
                             detalle_personalizado: ''
                           };
@@ -256,14 +322,14 @@ const ModalNotaMasiva: React.FC<ModalNotaMasivaProps> = ({
                         const nuevas = [...lineas];
                         nuevas[idx] = { ...nuevas[idx], cantidad: cant, subtotal: cant * nuevas[idx].precio_unitario };
                         setLineas(nuevas);
-                      }} min="1" disabled={guardando} title="Cantidad" />
+                      }} min="1" disabled={guardando || esMensualidad} title="Cantidad" />
                       <input type="number" step="0.01" value={linea.precio_unitario} onChange={e => {
                         const prec = parseFloat(e.target.value) || 0;
                         const nuevas = [...lineas];
                         nuevas[idx] = { ...nuevas[idx], precio_unitario: prec, subtotal: prec * nuevas[idx].cantidad };
                         setLineas(nuevas);
-                      }} disabled={guardando} title="Precio Unitario" />
-                      <div style={{ textAlign: 'right', fontWeight: 700, fontSize: '0.9rem' }}>Bs {fmtMonto(linea.subtotal)}</div>
+                      }} disabled={guardando || esMensualidad} title={esMensualidad ? 'Se usara la mensualidad de la ficha de cada alumno' : 'Precio Unitario'} />
+                      <div style={{ textAlign: 'right', fontWeight: 700, fontSize: '0.9rem' }}>{esMensualidad ? 'Ficha' : `Bs ${fmtMonto(linea.subtotal)}`}</div>
                       <button type="button" onClick={() => setLineas(lineas.filter((_, i) => i !== idx))} disabled={lineas.length === 1} style={{ color: '#f87171' }}><Trash2 size={16} /></button>
                     </div>
 
@@ -282,6 +348,8 @@ const ModalNotaMasiva: React.FC<ModalNotaMasivaProps> = ({
                                     : linea.periodo_meses.filter(m => m !== mes);
                                   const nuevas = [...lineas];
                                   nuevas[idx].periodo_meses = meses;
+                                  nuevas[idx].cantidad = Math.max(meses.length, 1);
+                                  nuevas[idx].subtotal = Math.max(meses.length, 1) * nuevas[idx].precio_unitario;
                                   setLineas(nuevas);
                                 }}
                                 style={{ width: '12px', height: '12px' }}
@@ -390,7 +458,9 @@ const ModalNotaMasiva: React.FC<ModalNotaMasivaProps> = ({
             </div>
 
             <div style={{ marginTop: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div style={{ fontSize: '1.2rem', fontWeight: 800 }}>Total por Alumno: Bs {fmtMonto(total)}</div>
+              <div style={{ fontSize: '1.2rem', fontWeight: 800 }}>
+                Total por Alumno: {usaMensualidadPorFicha ? 'segun ficha del alumno' : `Bs ${fmtMonto(total)}`}
+              </div>
               <div style={{ display: 'flex', gap: '0.75rem' }}>
                 <button type="button" onClick={onCerrar} className="btn-refrescar" style={{ width: 'auto' }}>Cancelar</button>
                 <button type="submit" disabled={guardando} className="btn-guardar-cuenta" style={{ width: 'auto', padding: '0 2rem' }}>
