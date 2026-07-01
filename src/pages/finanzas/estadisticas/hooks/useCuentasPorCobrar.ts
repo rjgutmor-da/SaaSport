@@ -50,7 +50,7 @@ export function useCuentasPorCobrar(
 
   useEffect(() => {
     if (!escuelaId) return;
-    const rango = calcularRango(intervalo, desdePersonalizado, hastaPersonalizado);
+    const rango = calcularRango(intervalo);
     cargarDatos(escuelaId, rango.desde, rango.hasta);
   }, [escuelaId, intervalo, desdePersonalizado, hastaPersonalizado, tick, entrenadorId, subFiltro, horarioId, canchaId]);
 

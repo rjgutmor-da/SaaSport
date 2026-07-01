@@ -60,7 +60,7 @@ export function useAlumnosPorItem(
       setAlumnos([]);
       return;
     }
-    const rango = calcularRango(intervalo, desdePersonalizado, hastaPersonalizado);
+    const rango = calcularRango(intervalo);
     cargarAlumnos(escuelaId, catalogoItemId, rango.desde, rango.hasta);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [escuelaId, catalogoItemId, intervalo, desdePersonalizado, hastaPersonalizado, tick,
@@ -77,58 +77,55 @@ export function useAlumnosPorItem(
     setError(null);
 
     try {
-      // Consultamos cobros_aplicados filtrando en base de datos para reducir drásticamente el payload
+      // Consultamos las notas emitidas para que el saldo represente la deuda real,
+      // no solo los cobros ya aplicados.
       let query = supabase
-        .from('cobros_aplicados')
+        .from('cuentas_cobrar')
         .select(`
           id,
-          monto_aplicado,
-          fecha,
-          cuentas_cobrar!cobros_aplicados_cuenta_cobrar_id_fkey (
+          monto_total,
+          fecha_emision,
+          anulada,
+          alumno_id,
+          descripcion,
+          estado,
+          cobros_aplicados (
+            monto_aplicado
+          ),
+          cxc_detalle (
             id,
-            monto_total,
-            fecha_emision,
-            anulada,
-            alumno_id,
-            descripcion,
-            estado,
-            cxc_detalle (
-              id,
-              subtotal,
-              periodo_meses,
-              detalle_extra,
-              catalogo_item_id
-            ),
-            alumnos!cuentas_cobrar_alumno_id_fkey (
-              nombres,
-              apellidos,
-              fecha_nacimiento,
-              profesor_asignado_id,
-              sucursal_id,
-              horario_id,
-              cancha_id,
-              sucursales ( nombre ),
-              usuarios!alumnos_profesor_asignado_id_fkey ( nombres, apellidos )
-            )
+            subtotal,
+            periodo_meses,
+            detalle_extra,
+            catalogo_item_id
+          ),
+          alumnos!cuentas_cobrar_alumno_id_fkey (
+            nombres,
+            apellidos,
+            fecha_nacimiento,
+            profesor_asignado_id,
+            sucursal_id,
+            horario_id,
+            cancha_id,
+            sucursales ( nombre ),
+            usuarios!alumnos_profesor_asignado_id_fkey ( nombres, apellidos )
           )
         `)
         .eq('escuela_id', eid)
-        .gte('fecha', `${desde}T00:00:00`)
-        .lte('fecha', `${hasta}T23:59:59`)
-        .eq('cuentas_cobrar.anulada', false)
-        .eq('cuentas_cobrar.cxc_detalle.catalogo_item_id', itemId)
-        .not('cuentas_cobrar.descripcion', 'ilike', '%saldo inicial%')
-        .limit(1000);
+        .eq('anulada', false)
+        .gte('fecha_emision', desde)
+        .lte('fecha_emision', hasta)
+        .limit(5000);
 
       // Filtros adicionales condicionales
       if (entrenadorId) {
-        query = query.eq('cuentas_cobrar.alumnos.profesor_asignado_id', entrenadorId);
+        query = query.eq('alumnos.profesor_asignado_id', entrenadorId);
       }
       if (horarioId) {
-        query = query.eq('cuentas_cobrar.alumnos.horario_id', horarioId);
+        query = query.eq('alumnos.horario_id', horarioId);
       }
       if (canchaId) {
-        query = query.eq('cuentas_cobrar.alumnos.cancha_id', canchaId);
+        query = query.eq('alumnos.cancha_id', canchaId);
       }
 
       const { data, error: err } = await query;
@@ -137,12 +134,11 @@ export function useAlumnosPorItem(
 
       const resultado: AlumnoPorItem[] = [];
 
-      for (const cobro of (data || [])) {
-        const fechaCobro = cobro.fecha?.split('T')[0];
-        if (!fechaCobro || fechaCobro < desde || fechaCobro > hasta) continue;
-
-        const cxc = (cobro as any).cuentas_cobrar;
-        if (!cxc || cxc.anulada) continue;
+      for (const cxc of (data || []) as any[]) {
+        const fechaEmision = cxc.fecha_emision?.split('T')[0] ?? cxc.fecha_emision;
+        if (!fechaEmision || fechaEmision < desde || fechaEmision > hasta) continue;
+        if (cxc.anulada) continue;
+        if (String(cxc.descripcion || '').toLowerCase().includes('saldo inicial')) continue;
 
         const alu = cxc.alumnos;
         if (!alu) continue;
@@ -172,7 +168,11 @@ export function useAlumnosPorItem(
         if (subFiltro && subCalculado !== subFiltro) continue;
 
         const montoTotalNota = Number(cxc.monto_total || 0);
-        const montoCobrado = Number(cobro.monto_aplicado || 0);
+        const montoCobrado = (cxc.cobros_aplicados || []).reduce(
+          (s: number, cobro: any) => s + Number(cobro.monto_aplicado || 0),
+          0
+        );
+        const saldoNota = Math.max(0, montoTotalNota - montoCobrado);
         const detalles = cxc.cxc_detalle || [];
 
         if (montoTotalNota <= 0) continue;
@@ -210,27 +210,33 @@ export function useAlumnosPorItem(
 
         // Proporción del pago para este ítem
         const proporcion = Number(detInteres.subtotal || 0) / montoTotalNota;
-        const montoItemPercibido = montoCobrado * proporcion;
+        const montoItem = Number(detInteres.subtotal || 0);
+        const saldoItem = Math.max(0, saldoNota * proporcion);
+        const pagadoItem: AlumnoPorItem['pagado'] = saldoItem <= 0.005
+          ? 'Si'
+          : saldoItem >= montoItem - 0.005
+            ? 'No'
+            : 'Parcial';
 
         resultado.push({
           alumno_id: cxc.alumno_id ?? '',
           nombre_completo: `${nombres} ${apellidos}`.trim() || 'Sin nombre',
-          monto: montoItemPercibido,
-          fecha: fechaCobro,
+          monto: montoItem,
+          fecha: fechaEmision,
           detalle: detalleStr,
           nota_id: detInteres.id,
           cxc_id: cxc.id,
           concepto: conceptoNombre ?? 'Desconocido',
           sub: subCalculado,
           entrenador: alu.usuarios ? `${alu.usuarios.nombres} ${alu.usuarios.apellidos}`.trim() : 'Sin Entrenador',
-          saldo_pendiente: 0,
-          pagado: 'Si'
+          saldo_pendiente: saldoItem,
+          pagado: pagadoItem
         });
       }
 
       let finalResultado = resultado;
-      if (pagadoFiltro && pagadoFiltro !== 'Si') {
-        finalResultado = [];
+      if (pagadoFiltro) {
+        finalResultado = finalResultado.filter(a => a.pagado === pagadoFiltro);
       }
 
       finalResultado.sort((a, b) => a.nombre_completo.localeCompare(b.nombre_completo));

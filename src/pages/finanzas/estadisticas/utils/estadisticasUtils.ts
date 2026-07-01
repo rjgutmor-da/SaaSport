@@ -7,11 +7,11 @@
  */
 
 export type IntervaloPredefinido =
+  | 'total'
   | 'este-mes'
   | 'mes-pasado'
   | 'este-año'
-  | 'año-pasado'
-  | 'personalizado';
+  | 'año-pasado';
 
 export interface RangoFechas {
   desde: string; // ISO date string YYYY-MM-DD
@@ -19,11 +19,7 @@ export interface RangoFechas {
 }
 
 /** Convierte un intervalo predefinido en un rango de fechas concreto */
-export function calcularRango(
-  intervalo: IntervaloPredefinido,
-  desdePersonalizado?: string,
-  hastaPersonalizado?: string
-): RangoFechas {
+export function calcularRango(intervalo: IntervaloPredefinido): RangoFechas {
   const hoy = new Date();
   const año = hoy.getFullYear();
   const mes = hoy.getMonth(); // 0-indexed
@@ -36,6 +32,9 @@ export function calcularRango(
   };
 
   switch (intervalo) {
+    case 'total': {
+      return { desde: '1900-01-01', hasta: '9999-12-31' };
+    }
     case 'este-mes': {
       const inicio = new Date(año, mes, 1);
       const fin = new Date(año, mes + 1, 0);
@@ -52,14 +51,8 @@ export function calcularRango(
     case 'año-pasado': {
       return { desde: `${año - 1}-01-01`, hasta: `${año - 1}-12-31` };
     }
-    case 'personalizado': {
-      return {
-        desde: desdePersonalizado || fmt(new Date(año, mes, 1)),
-        hasta: hastaPersonalizado || fmt(hoy),
-      };
-    }
     default:
-      return { desde: fmt(new Date(año, mes, 1)), hasta: fmt(new Date(año, mes + 1, 0)) };
+      return { desde: '1900-01-01', hasta: '9999-12-31' };
   }
 }
 
@@ -103,11 +96,11 @@ export const NOMBRES_MESES = [
 /** Etiqueta legible para un intervalo predefinido */
 export function etiquetaIntervalo(intervalo: IntervaloPredefinido): string {
   const mapa: Record<IntervaloPredefinido, string> = {
+    'total': 'Total',
     'este-mes': 'Este mes',
     'mes-pasado': 'Mes pasado',
     'este-año': 'Este año',
     'año-pasado': 'Año pasado',
-    'personalizado': 'Personalizado',
   };
   return mapa[intervalo];
 }

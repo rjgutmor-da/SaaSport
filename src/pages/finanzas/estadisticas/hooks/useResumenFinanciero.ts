@@ -47,7 +47,7 @@ export function useResumenFinanciero(
 
   useEffect(() => {
     if (!escuelaId) return;
-    const rango = calcularRango(intervalo, desdePersonalizado, hastaPersonalizado);
+    const rango = calcularRango(intervalo);
     cargarDatos(escuelaId, rango.desde, rango.hasta);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [escuelaId, intervalo, desdePersonalizado, hastaPersonalizado, tick]);

@@ -31,7 +31,7 @@ import { useCuentasPorCobrar } from './hooks/useCuentasPorCobrar';
 
 // Utilidades
 import type { IntervaloPredefinido } from './utils/estadisticasUtils';
-import { calcularRango, NOMBRES_MESES } from './utils/estadisticasUtils';
+import { NOMBRES_MESES } from './utils/estadisticasUtils';
 
 
 
@@ -53,9 +53,7 @@ const Estadisticas: React.FC = () => {
   const { escuelaId } = useEscuelaId();
 
   // ─── Estado compartido: filtro de fechas ───
-  const [intervalo, setIntervalo] = useState<IntervaloPredefinido>('este-mes');
-  const [desdePersonalizado, setDesdePersonalizado] = useState('');
-  const [hastaPersonalizado, setHastaPersonalizado] = useState('');
+  const [intervalo, setIntervalo] = useState<IntervaloPredefinido>('total');
 
   // ─── Pestaña activa ───
   const [pestaña, setPestaña] = useState<Pestaña>('resumen');
@@ -95,7 +93,6 @@ const Estadisticas: React.FC = () => {
   const tieneSubfiltro = esMensualidad || esTorneo;
 
   /** Etiqueta de la columna de detalle en la tabla */
-  const etiquetaDetalle = esMensualidad ? 'Mes(es)' : esTorneo ? 'Torneo' : 'Detalle';
 
   /** Torneo efectivo para filtrar */
   const torneoEfectivo = torneoSeleccionado === 'Otro'
@@ -112,17 +109,15 @@ const Estadisticas: React.FC = () => {
   // ─── Hooks de datos ───
   const resumen = useResumenFinanciero(
     escuelaId,
-    intervalo,
-    desdePersonalizado,
-    hastaPersonalizado
+    intervalo
   );
 
   const alumnosResult = useAlumnosPorItem(
     escuelaId,
     itemSeleccionado?.id ?? null,
     intervalo,
-    desdePersonalizado,
-    hastaPersonalizado,
+    undefined,
+    undefined,
     subfiltrosActivos.length > 0 ? subfiltrosActivos : undefined,
     entrenadorId,
     subFiltro,
@@ -135,8 +130,8 @@ const Estadisticas: React.FC = () => {
   const cxcResult = useCuentasPorCobrar(
     escuelaId,
     intervalo,
-    desdePersonalizado,
-    hastaPersonalizado,
+    undefined,
+    undefined,
     entrenadorId,
     subFiltro,
     horarioId,
@@ -253,10 +248,6 @@ const Estadisticas: React.FC = () => {
     );
   };
 
-  // Fecha del rango para mostrar en el encabezado
-  const rango = calcularRango(intervalo, desdePersonalizado, hastaPersonalizado);
-  const labelRango = `${rango.desde} — ${rango.hasta}`;
-
   return (
     <main className="main-content cxc-main">
 
@@ -264,20 +255,10 @@ const Estadisticas: React.FC = () => {
       <SelectorFechas
         intervalo={intervalo}
         onCambiarIntervalo={setIntervalo}
-        desdePersonalizado={desdePersonalizado}
-        hastaPersonalizado={hastaPersonalizado}
-        onDesde={setDesdePersonalizado}
-        onHasta={setHastaPersonalizado}
       />
 
       {/* ─── Pestañas ─── */}
       <div className="est-tabs-bar">
-        <button
-          className={`est-tab ${pestaña === 'resumen' ? 'est-tab--activo est-tab--ingreso' : ''}`}
-          onClick={() => setPestaña('resumen')}
-        >
-          <TrendingUp size={16} /> Ingresos y Egresos
-        </button>
         <button
           className={`est-tab ${pestaña === 'alumnos' ? 'est-tab--activo est-tab--alumnos' : ''}`}
           onClick={() => setPestaña('alumnos')}
@@ -289,6 +270,12 @@ const Estadisticas: React.FC = () => {
           onClick={() => setPestaña('cxc')}
         >
           <TrendingDown size={16} /> Cuentas x Cobrar
+        </button>
+        <button
+          className={`est-tab ${pestaña === 'resumen' ? 'est-tab--activo est-tab--ingreso' : ''}`}
+          onClick={() => setPestaña('resumen')}
+        >
+          <TrendingUp size={16} /> Ingresos y Egresos
         </button>
       </div>
 
@@ -546,7 +533,6 @@ const Estadisticas: React.FC = () => {
                 alumnos={alumnosResult.alumnos}
                 cargando={alumnosResult.cargando}
                 error={alumnosResult.error}
-                etiquetaDetalle={etiquetaDetalle}
               />
             ) : (
               <div className="est-selecciona-item">

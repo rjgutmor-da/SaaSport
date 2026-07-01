@@ -3,7 +3,7 @@
  * Tabla estilo Excel de alumnos por ítem de catálogo.
  * - Paginación y búsqueda interna
  * - Lista seleccionable (toda la tabla o filas individuales para copiar a Excel)
- * - Columnas: Alumno, Entrenador, Concepto, Sub, Monto, Saldo Pendiente, Pagado, Fecha de Emision
+ * - Columnas: Alumno, Entrenador, Concepto, Sub, Monto, Saldo Pendiente, Fecha de Emision
  */
 import React, { useState, useMemo } from 'react';
 import { Search, Copy, Check, RefreshCw } from 'lucide-react';
@@ -15,14 +15,12 @@ interface Props {
   cargando: boolean;
   error: string | null;
   /** Etiqueta de la columna "Detalle" (ej. "Meses" o "Torneo") */
-  etiquetaDetalle?: string;
 }
 
 const TablaAlumnos: React.FC<Props> = ({
   alumnos,
   cargando,
   error,
-  etiquetaDetalle = 'Detalle',
 }) => {
   const [busqueda, setBusqueda] = useState('');
   const [copiado, setCopiado] = useState(false);
@@ -42,10 +40,14 @@ const TablaAlumnos: React.FC<Props> = ({
     () => alumnosFiltrados.reduce((s, a) => s + a.monto, 0),
     [alumnosFiltrados]
   );
+  const totalSaldo = useMemo(
+    () => alumnosFiltrados.reduce((s, a) => s + a.saldo_pendiente, 0),
+    [alumnosFiltrados]
+  );
 
   /** Copia la tabla como texto TSV (Tab-Separated Values) listo para pegar en Excel */
   const copiarTabla = () => {
-    const cabecera = ['Alumno', 'Entrenador', 'Concepto', 'Sub', 'Monto', 'Saldo Pendiente', 'Pagado', 'Fecha de Emision'].join('\t');
+    const cabecera = ['Alumno', 'Entrenador', 'Concepto', 'Sub', 'Monto', 'Saldo Pendiente', 'Fecha de Emision'].join('\t');
     const filas = alumnosFiltrados.map(a => [
       a.nombre_completo,
       a.entrenador,
@@ -53,7 +55,6 @@ const TablaAlumnos: React.FC<Props> = ({
       a.sub,
       a.monto.toFixed(2).replace('.', ','),
       a.saldo_pendiente.toFixed(2).replace('.', ','),
-      a.pagado,
       a.fecha
     ].join('\t'));
     const texto = [cabecera, ...filas].join('\n');
@@ -118,20 +119,19 @@ const TablaAlumnos: React.FC<Props> = ({
               <th className="est-th">Sub</th>
               <th className="est-th est-th-right">Monto</th>
               <th className="est-th est-th-right">Saldo</th>
-              <th className="est-th">Pagado</th>
               <th className="est-th">Fecha</th>
             </tr>
           </thead>
           <tbody>
             {cargando ? (
               <tr>
-                <td colSpan={9} className="est-td-cargando">
+                <td colSpan={8} className="est-td-cargando">
                   <RefreshCw size={20} className="spin" /> Cargando...
                 </td>
               </tr>
             ) : alumnosFiltrados.length === 0 ? (
               <tr>
-                <td colSpan={9} className="est-td-vacio">
+                <td colSpan={8} className="est-td-vacio">
                   {busqueda ? 'Sin resultados para la búsqueda.' : 'Sin datos para los filtros seleccionados.'}
                 </td>
               </tr>
@@ -149,11 +149,6 @@ const TablaAlumnos: React.FC<Props> = ({
                   <td className="est-td est-td-right text-warn">
                     {fmtMonto(a.saldo_pendiente)}
                   </td>
-                  <td className="est-td">
-                    {a.pagado === 'Si' && <span style={{ color: 'var(--success)' }}>Si</span>}
-                    {a.pagado === 'No' && <span style={{ color: 'var(--error)' }}>No</span>}
-                    {a.pagado === 'Parcial' && <span style={{ color: 'var(--warning)' }}>Parcial</span>}
-                  </td>
                   <td className="est-td est-td-fecha">{a.fecha}</td>
                 </tr>
               ))
@@ -167,7 +162,10 @@ const TablaAlumnos: React.FC<Props> = ({
                 <td className="est-td est-td-right est-tfoot-total">
                   {fmtMonto(totalMonto)}
                 </td>
-                <td colSpan={3} className="est-td" />
+                <td className="est-td est-td-right est-tfoot-total text-warn">
+                  {fmtMonto(totalSaldo)}
+                </td>
+                <td className="est-td" />
               </tr>
             </tfoot>
           )}
