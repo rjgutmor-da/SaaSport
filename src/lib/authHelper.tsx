@@ -12,6 +12,8 @@
  */
 import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
 import type { ReactNode } from 'react';
+import { can } from '../config/roles';
+import type { Role } from '../config/roles';
 import { supabase } from './supabaseClient';
 import type { Session } from '@supabase/supabase-js';
 
@@ -20,7 +22,7 @@ export interface PerfilUsuario {
   email: string;
   nombres: string;
   apellidos: string;
-  rol: 'SuperAdministrador' | 'Administrador' | 'Entrenador' | 'Entrenarqueros';
+  rol: Role;
   escuela_id: string;
   sucursal_id: string | null;
   activo: boolean;
@@ -62,8 +64,6 @@ export const useAuthSaaSport = (): AuthContextValue => {
 };
 
 /** Roles con acceso a SaaSport */
-const ROLES_PERMITIDOS = ['SuperAdministrador', 'Administrador'];
-
 export const AuthProviderSaaSport = ({ children }: { children: ReactNode }) => {
   const [session, setSession] = useState<Session | null>(null);
   const [perfil, setPerfil] = useState<PerfilUsuario | null>(null);
@@ -174,14 +174,14 @@ export const AuthProviderSaaSport = ({ children }: { children: ReactNode }) => {
   };
 
   const tieneAcceso = perfil
-    ? ROLES_PERMITIDOS.includes(perfil.rol) && perfil.activo
+    ? can(perfil.rol, 'saasport.access') && perfil.activo
     : false;
 
   const esSuperAdmin = perfil
-    ? (perfil.rol === 'SuperAdministrador') && perfil.activo
+    ? can(perfil.rol, 'school.manage') && perfil.activo
     : false;
 
-  const puedeEliminar = esSuperAdmin;
+  const puedeEliminar = perfil ? can(perfil.rol, 'finance.delete') && perfil.activo : false;
 
   const value = React.useMemo(() => ({
     session,

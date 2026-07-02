@@ -20,6 +20,7 @@ import ModalDetalleMovimiento from '../cajas-bancos/ModalDetalleMovimiento';
 import FichaAnticiposCxC from './FichaAnticiposCxC';
 import { getHoraLocal, getHoyISO, formatFecha, formatFechaCorta, ordenarMesesCalendario } from '../../lib/dateUtils';
 import { useCobroMultiple } from './useCobroMultiple';
+import { can } from '../../config/roles';
 
 interface DetalleAlumnoProps {
   alumno: AlumnoDeuda | null;
@@ -1091,7 +1092,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                             <td style={{ padding: '0.5rem 0.75rem', textAlign: 'center', verticalAlign: 'middle', border: '1px solid var(--border)' }}>
                               <div style={{ display: 'flex', gap: '0.35rem', justifyContent: 'center' }}>
                                 <button onClick={() => setVerNotaId(cxc.id)} className="btn-compact-action" title="Ver"><Eye size={14} /></button>
-                                {!cxc.anulada && puedeAnular() && (
+                                {!cxc.anulada && puedeEditar() && (
                                   <button onClick={() => { 
                                     const lines = detallesItems[cxc.id] || [];
                                     setCxcParaEditar({ 
@@ -1114,7 +1115,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                                 {!cxc.anulada && Number(cxc.saldo_pendiente) > 0 && !isAnticipo && (
                                   <button onClick={() => { setCobroCxcId(cxc.id); setCobroMonto(String(cxc.saldo_pendiente)); setDevolucionCxcId(null); }} className="btn-compact-action action-green" title="Cobrar"><DollarSign size={14} /></button>
                                 )}
-                                {!cxc.anulada && cobrado > 0 && !isAnticipo && (
+                                {!cxc.anulada && cobrado > 0 && !isAnticipo && puedeEditar() && (
                                   <button onClick={() => { 
                                     setDevolucionCxcId(cxc.id); 
                                     setDevolucionMonto(String(cobrado)); 
@@ -1336,7 +1337,8 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
     </>
   );
 
-  function puedeAnular() { return userRol === 'SuperAdministrador' || userRol === 'Administrador'; }
+  function puedeAnular() { return can(userRol, 'finance.cxc.void'); }
+  function puedeEditar() { return can(userRol, 'finance.cxc.edit'); }
 };
 
 export default DetalleAlumnoCxc;

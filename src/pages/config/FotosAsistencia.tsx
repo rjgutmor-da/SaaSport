@@ -80,7 +80,7 @@ const FotosAsistencia: React.FC = () => {
 
       const { data: perfil } = await supabase
         .from('usuarios')
-        .select('escuela_id')
+        .select('escuela_id, sucursal_id, rol')
         .eq('id', user.id)
         .single();
 
@@ -100,18 +100,22 @@ const FotosAsistencia: React.FC = () => {
 
       if (!acceso) return; // No cargar más datos si no tiene acceso
 
+      let canchasQuery = supabase.from('canchas').select('id, nombre').eq('escuela_id', escuelaId).order('nombre');
+      let entrenadoresQuery = supabase.from('usuarios').select('id, nombres, apellidos')
+        .eq('escuela_id', escuelaId).in('rol', ['Entrenador', 'Entrenarqueros']).eq('activo', true).order('apellidos');
+      if (perfil.rol !== 'SuperAdministrador' && perfil.sucursal_id) {
+        canchasQuery = canchasQuery.eq('sucursal_id', perfil.sucursal_id);
+        entrenadoresQuery = entrenadoresQuery.eq('sucursal_id', perfil.sucursal_id);
+      }
+
       const [
         { data: canchasData },
         { data: horariosData },
         { data: entrenadoresData },
       ] = await Promise.all([
-        supabase.from('canchas').select('id, nombre').eq('escuela_id', escuelaId).order('nombre'),
+        canchasQuery,
         supabase.from('horarios').select('id, hora').eq('escuela_id', escuelaId).order('hora'),
-        supabase.from('usuarios').select('id, nombres, apellidos')
-          .eq('escuela_id', escuelaId)
-          .in('rol', ['Entrenador', 'Entrenarqueros'])
-          .eq('activo', true)
-          .order('apellidos'),
+        entrenadoresQuery,
       ]);
 
       setCanchas(canchasData || []);
@@ -132,7 +136,7 @@ const FotosAsistencia: React.FC = () => {
 
       const { data: perfil } = await supabase
         .from('usuarios')
-        .select('escuela_id')
+        .select('escuela_id, sucursal_id, rol')
         .eq('id', user.id)
         .single();
 
@@ -145,7 +149,7 @@ const FotosAsistencia: React.FC = () => {
           fecha,
           foto_url,
           created_at,
-          cancha:canchas(id, nombre),
+          cancha:canchas!inner(id, nombre, sucursal_id),
           horario:horarios(id, hora),
           entrenador:usuarios!fotos_asistencia_grupal_entrenador_id_fkey(nombres, apellidos, email)
         `)
@@ -156,6 +160,7 @@ const FotosAsistencia: React.FC = () => {
         .order('created_at', { ascending: false });
 
       if (filtroCancha) query = query.eq('cancha_id', filtroCancha);
+      if (perfil.rol !== 'SuperAdministrador' && perfil.sucursal_id) query = query.eq('cancha.sucursal_id', perfil.sucursal_id);
       if (filtroHorario) query = query.eq('horario_id', filtroHorario);
       if (filtroEntrenador) query = query.eq('entrenador_id', filtroEntrenador);
 

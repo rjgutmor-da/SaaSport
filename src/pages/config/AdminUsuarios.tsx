@@ -6,6 +6,7 @@ import { getUsuarios, updateUserRole, toggleUserStatus, updateUserSucursal, crea
 import type { Usuario } from '../../services/usuarios';
 import { getSucursales } from '../../services/sucursales';
 import type { Sucursal } from '../../services/sucursales';
+import { getRoleOptions } from '../../config/roles';
 
 const AdminUsuarios: React.FC = () => {
   const navigate = useNavigate();
@@ -33,12 +34,7 @@ const AdminUsuarios: React.FC = () => {
   // Alerta interna de la página
   const [alerta, setAlerta] = useState<{ tipo: 'success' | 'error'; mensaje: string } | null>(null);
 
-  const rolesOptions = [
-    { value: 'SuperAdministrador', label: 'SuperAdministrador' },
-    { value: 'Administrador', label: 'Administrador' },
-    { value: 'Entrenador', label: 'Entrenador' },
-    { value: 'Entrenarqueros', label: 'Entrenador de Arqueros' }
-  ];
+  const rolesOptions = getRoleOptions();
 
   useEffect(() => {
     if (escuelaId && currentUser) {

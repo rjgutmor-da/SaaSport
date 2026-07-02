@@ -1,11 +1,13 @@
 import { supabase } from '../lib/supabaseClient';
+import { ROLES } from '../config/roles';
+import type { Role } from '../config/roles';
 
 export interface Usuario {
   id: string;
   email: string;
   nombres: string;
   apellidos: string;
-  rol: 'SuperAdministrador' | 'Administrador' | 'Entrenador' | 'Entrenarqueros';
+  rol: Role;
   escuela_id: string;
   sucursal_id: string | null;
   activo: boolean;
@@ -44,8 +46,7 @@ export const getUsuarios = async (
  * Actualiza el rol de un usuario.
  */
 export const updateUserRole = async (userId: string, newRole: string): Promise<Usuario> => {
-  const validRoles = ['SuperAdministrador', 'Administrador', 'Entrenador', 'Entrenarqueros'];
-  if (!validRoles.includes(newRole)) {
+  if (!ROLES.includes(newRole as Role)) {
     throw new Error('Rol no válido');
   }
 

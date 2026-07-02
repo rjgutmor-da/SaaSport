@@ -15,6 +15,7 @@ import {
 import ModalEditarCobroCxC from './ModalEditarCobroCxC';
 import type { CajaBanco } from '../../types/finanzas';
 import { formatFecha, formatFechaHora, ordenarMesesCalendario } from '../../lib/dateUtils';
+import { can } from '../../config/roles';
 
 interface Props {
   visible: boolean;
@@ -60,7 +61,8 @@ const ModalVerNotaCxC: React.FC<Props> = ({ visible, cxcId, onCerrar, onEditar, 
   const [cajas, setCajas] = useState<CajaBanco[]>([]);
   const [eliminandoId, setEliminandoId] = useState<string | null>(null);
 
-  const { puedeEliminar } = useAuthSaaSport();
+  const { puedeEliminar, perfil } = useAuthSaaSport();
+  const puedeEditar = can(perfil?.rol, 'finance.cxc.edit');
 
   const cargarCajas = async () => {
     const { data } = await supabase.from('cajas_bancos').select('*').order('nombre');
@@ -180,7 +182,7 @@ const ModalVerNotaCxC: React.FC<Props> = ({ visible, cxcId, onCerrar, onEditar, 
             Nota de Servicio — Detalle Completo
           </h2>
           <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-            {onEditar && !nota?.anulada && (
+            {puedeEditar && onEditar && !nota?.anulada && (
               <button
                 onClick={onEditar}
                 className="btn-premium btn-blue"
@@ -430,9 +432,9 @@ const ModalVerNotaCxC: React.FC<Props> = ({ visible, cxcId, onCerrar, onEditar, 
                             Bs {fmtMonto(Number(cobro.monto_aplicado))}
                           </span>
 
-                          {!nota.anulada && (
+                          {!nota.anulada && (puedeEditar || puedeEliminar) && (
                             <div style={{ display: 'flex', gap: '0.4rem' }}>
-                              <button
+                              {puedeEditar && <button
                                 onClick={() => setMovEditar({
                                   ...cobro,
                                   caja_id: (cobro as any).caja_id,
@@ -449,7 +451,7 @@ const ModalVerNotaCxC: React.FC<Props> = ({ visible, cxcId, onCerrar, onEditar, 
                                 title="Editar Cobro"
                               >
                                 <Pencil size={14} />
-                              </button>
+                              </button>}
                               {/* Solo SuperAdministrador puede eliminar cobros */}
                               {puedeEliminar && (
                                 <button

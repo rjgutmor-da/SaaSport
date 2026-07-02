@@ -1,14 +1,18 @@
 import { NavLink, useLocation } from 'react-router-dom';
 import { HandCoins, PieChart, Landmark } from 'lucide-react';
+import { useAuthSaaSport } from '../lib/authHelper';
+import { can } from '../config/roles';
 
 const tabs = [
-  { to: '/cxc',          icon: HandCoins, label: 'CXC' },
-  { to: '/cxp',          icon: PieChart,  label: 'CxP' },
-  { to: '/cajas-bancos', icon: Landmark,  label: 'Cajas' },
+  { to: '/cxc',          icon: HandCoins, label: 'CXC', permission: 'finance.cxc.view' },
+  { to: '/cxp',          icon: PieChart,  label: 'CxP', permission: 'finance.cxp.view' },
+  { to: '/cajas-bancos', icon: Landmark,  label: 'Cajas', permission: 'finance.boxes.view' },
 ] as const;
 
 export function MobileNav() {
   const location = useLocation();
+  const { perfil } = useAuthSaaSport();
+  const visibleTabs = tabs.filter(tab => can(perfil?.rol, tab.permission));
 
   return (
     <nav
@@ -25,7 +29,7 @@ export function MobileNav() {
         paddingBottom: 'env(safe-area-inset-bottom)', // soporte para notch en iPhone
       }}
     >
-      {tabs.map(({ to, icon: Icon, label }) => {
+      {visibleTabs.map(({ to, icon: Icon, label }) => {
         const isActive = (to as string) === '/'
           ? location.pathname === '/'
           : location.pathname.startsWith(to);

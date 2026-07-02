@@ -12,7 +12,7 @@ import { BrowserRouter, Routes, Route, NavLink, Navigate } from 'react-router-do
 import {
   Settings, Sun, Moon, Monitor, LogOut,
   HandCoins, PieChart, Landmark, BookOpen,
-  School, Activity, BarChart2, Users
+  School, Activity, BarChart2, Users, Camera
 } from 'lucide-react';
 import { supabase } from './lib/supabaseClient';
 import { AuthProviderSaaSport, useAuthSaaSport } from './lib/authHelper';
@@ -20,6 +20,8 @@ import { getAsisportUrl } from './lib/navegacion';
 import { useIsMobile } from './hooks/useIsMobile';
 import { MobileNav } from './components/MobileNav';
 import { MobileHeader } from './components/MobileHeader';
+import { can } from './config/roles';
+import type { Permission } from './config/roles';
 
 // Estáticos — siempre en el bundle (móvil los necesita)
 import Dashboard     from './pages/Dashboard';
@@ -61,7 +63,7 @@ interface SidebarProps {
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ onLogout, theme, onCycleTheme, extra }) => {
-  const { esSuperAdmin, escuela } = useAuthSaaSport();
+  const { esSuperAdmin, escuela, perfil } = useAuthSaaSport();
 
   const getThemeIcon = () => {
     if (theme === 'light') return <Sun size={18} />;
@@ -77,33 +79,33 @@ const Sidebar: React.FC<SidebarProps> = ({ onLogout, theme, onCycleTheme, extra 
       </div>
       
       <nav className="sidebar-nav">
-        <div className="sidebar-item-group">
+        {can(perfil?.rol, 'finance.cxc.view') && <div className="sidebar-item-group">
           <NavLink to="/cxc" className={({ isActive }) => (isActive ? 'sidebar-link active' : 'sidebar-link')}>
             <HandCoins size={20} strokeWidth={1.5} />
             <span>Alumnos (CxC)</span>
           </NavLink>
-        </div>
+        </div>}
         
-        <div className="sidebar-item-group">
+        {can(perfil?.rol, 'finance.cxp.view') && <div className="sidebar-item-group">
           <NavLink to="/cxp" className={({ isActive }) => (isActive ? 'sidebar-link active' : 'sidebar-link')}>
             <PieChart size={20} strokeWidth={1.5} />
             <span>Proveedores (CxP)</span>
           </NavLink>
-        </div>
+        </div>}
         
-        <div className="sidebar-item-group">
+        {can(perfil?.rol, 'finance.boxes.view') && <div className="sidebar-item-group">
           <NavLink to="/cajas-bancos" className={({ isActive }) => (isActive ? 'sidebar-link active' : 'sidebar-link')}>
             <Landmark size={20} strokeWidth={1.5} />
             <span>Cajas y Bancos</span>
           </NavLink>
-        </div>
+        </div>}
 
-        <div className="sidebar-item-group">
+        {can(perfil?.rol, 'finance.manageAccounts') && <div className="sidebar-item-group">
           <NavLink to="/cuentas" className={({ isActive }) => (isActive ? 'sidebar-link active' : 'sidebar-link')}>
             <BookOpen size={20} strokeWidth={1.5} />
             <span>Cuentas</span>
           </NavLink>
-        </div>
+        </div>}
 
         {esSuperAdmin && (
           <div className="sidebar-item-group">
@@ -114,12 +116,21 @@ const Sidebar: React.FC<SidebarProps> = ({ onLogout, theme, onCycleTheme, extra 
           </div>
         )}
 
-        <div className="sidebar-item-group">
+        {can(perfil?.rol, 'finance.statistics.view') && <div className="sidebar-item-group">
           <NavLink to="/estadisticas" className={({ isActive }) => (isActive ? 'sidebar-link active' : 'sidebar-link')}>
             <BarChart2 size={20} strokeWidth={1.5} />
             <span>Estadísticas</span>
           </NavLink>
-        </div>
+        </div>}
+
+        {can(perfil?.rol, 'attendancePhotos.view') && !esSuperAdmin && (
+          <div className="sidebar-item-group">
+            <NavLink to="/panel-escuela/fotos-asistencia" className={({ isActive }) => (isActive ? 'sidebar-link active' : 'sidebar-link')}>
+              <Camera size={20} strokeWidth={1.5} />
+              <span>Fotos de Asistencia</span>
+            </NavLink>
+          </div>
+        )}
 
         {/* Botón AsiSport Estético */}
         <div className="sidebar-asisport-container">
@@ -243,6 +254,11 @@ interface AppRouterProps {
   onCycleTheme: () => void;
 }
 
+const RequirePermission: React.FC<{ permission: Permission; children: React.ReactNode }> = ({ permission, children }) => {
+  const { perfil } = useAuthSaaSport();
+  return can(perfil?.rol, permission) ? <>{children}</> : <Navigate to="/" replace />;
+};
+
 const AppRouter: React.FC<AppRouterProps> = ({ onLogout, theme, onCycleTheme }) => {
   const { tieneAcceso, perfil, cargando } = useAuthSaaSport();
   const isMobile = useIsMobile();
@@ -296,14 +312,14 @@ const AppRouter: React.FC<AppRouterProps> = ({ onLogout, theme, onCycleTheme }) 
             {/* Rutas siempre disponibles (móvil y desktop) */}
             <Route path="/"              element={<CuentasCobrar />} />
             <Route path="/cxc"           element={<CuentasCobrar />} />
-            <Route path="/cxp"           element={<CuentasPagar />} />
-            <Route path="/cajas-bancos"  element={<CajasBancos />} />
+            <Route path="/cxp"           element={<RequirePermission permission="finance.cxp.view"><CuentasPagar /></RequirePermission>} />
+            <Route path="/cajas-bancos"  element={<RequirePermission permission="finance.boxes.view"><CajasBancos /></RequirePermission>} />
 
             {/* Rutas solo para desktop — el celular nunca descarga estos módulos */}
             {!isMobile && (
               <>
-                <Route path="/cuentas"            element={<Cuentas />} />
-                <Route path="/estadisticas"       element={<Estadisticas />} />
+                <Route path="/cuentas"            element={<RequirePermission permission="finance.manageAccounts"><Cuentas /></RequirePermission>} />
+                <Route path="/estadisticas"       element={<RequirePermission permission="finance.statistics.view"><Estadisticas /></RequirePermission>} />
                 <Route path="/finanzas/registro-actividad" element={<RegistroActividad />} />
                 <Route path="/configuraciones"    element={<Configuraciones />} />
                 <Route path="/configuraciones/auditoria" element={<AuditLog />} />
@@ -312,7 +328,7 @@ const AppRouter: React.FC<AppRouterProps> = ({ onLogout, theme, onCycleTheme }) 
                 <Route path="/panel-escuela/sucursales" element={<GestorSucursales />} />
                 <Route path="/panel-escuela/usuarios" element={<AdminUsuarios />} />
                 <Route path="/panel-escuela/canchas-horarios" element={<ConfiguracionCanchas />} />
-                <Route path="/panel-escuela/fotos-asistencia" element={<FotosAsistencia />} />
+                <Route path="/panel-escuela/fotos-asistencia" element={<RequirePermission permission="attendancePhotos.view"><FotosAsistencia /></RequirePermission>} />
               </>
             )}
 

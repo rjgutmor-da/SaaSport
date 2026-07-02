@@ -16,10 +16,6 @@ interface LoginProps {
   onLoginExitoso: () => void;
 }
 
-/** Roles que tienen acceso a SaaSport */
-const ROLES_PERMITIDOS = ['SuperAdministrador', 'Administrador'];
-
-
 const Login: React.FC<LoginProps> = ({ onLoginExitoso }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
