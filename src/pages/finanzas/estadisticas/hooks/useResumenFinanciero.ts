@@ -2,12 +2,10 @@
  * useResumenFinanciero.ts
  * Hook que resume ingresos y egresos reales de Cajas/Bancos.
  *
- * Fuente de datos:
- *   - Ingresos: cobros_aplicados con caja_id real.
- *   - Egresos: pagos_aplicados con caja_id real.
- *
- * Los saldos iniciales, ajustes o aplicaciones de anticipos sin caja_id no se
- * incluyen porque no mueven efectivo en Cajas/Bancos.
+ * Fuente de datos: la RPC resume exclusivamente los movimientos de las
+ * cajas/bancos activas. Incluye saldos iniciales, movimientos directos,
+ * ajustes y devoluciones; excluye transferencias internas emparejadas.
+ * En periodos parciales arrastra el saldo anterior como "Saldo inicial".
  */
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../../../../lib/supabaseClient';
