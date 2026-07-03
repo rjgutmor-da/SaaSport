@@ -17,7 +17,7 @@ import {
   Building2, UserCog, MapPin, Activity, RefreshCw, Camera, Lock
 } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
-import LogoPlaneta from '../../assets/LogoPlaneta.png';
+import LogoPorDefecto from '../../assets/LogoPorDefecto.png';
 import { useAuthSaaSport } from '../../lib/authHelper';
 
 interface EscuelaInfo {
@@ -283,8 +283,8 @@ const PanelEscuela: React.FC = () => {
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem' }}>
                 <img
-                  src={LogoPlaneta}
-                  alt="Logo Planeta FC"
+                  src={LogoPorDefecto}
+                  alt="Logo por defecto"
                   className="pe-logo-img"
                 />
               </div>

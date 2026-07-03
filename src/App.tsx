@@ -43,7 +43,7 @@ const ConfiguracionCanchas = React.lazy(() => import('./pages/config/Configuraci
 const FotosAsistencia      = React.lazy(() => import('./pages/config/FotosAsistencia'));
 
 
-import LogoPlaneta from './assets/LogoPlaneta.png';
+import LogoPorDefecto from './assets/LogoPorDefecto.png';
 
 
 
@@ -160,7 +160,7 @@ const Sidebar: React.FC<SidebarProps> = ({ onLogout, theme, onCycleTheme, extra 
           borderTop: '1px solid rgba(255,255,255,0.05)'
         }}>
           <img 
-            src={escuela?.logo_url || LogoPlaneta} 
+            src={escuela?.logo_url || LogoPorDefecto} 
             alt={escuela?.nombre || "Logo Escuela"} 
             style={{ width: '160px', height: 'auto', maxHeight: '120px', objectFit: 'contain', transition: 'transform 0.3s ease' }} 
             className="hover-scale"

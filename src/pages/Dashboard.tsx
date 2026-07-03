@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { HandCoins, PieChart, Landmark, BookOpen, BarChart2 } from 'lucide-react';
-import LogoPlaneta from '../assets/LogoPlaneta.png';
+import LogoPorDefecto from '../assets/LogoPorDefecto.png';
 import { useAuthSaaSport } from '../lib/authHelper';
 
 const Dashboard = () => {
@@ -63,7 +63,7 @@ const Dashboard = () => {
         gap: '0.75rem'
       }}>
         <img 
-          src={escuela?.logo_url || LogoPlaneta} 
+          src={escuela?.logo_url || LogoPorDefecto} 
           alt={escuela?.nombre || "Logo Escuela"} 
           style={{
             width: '260px',
