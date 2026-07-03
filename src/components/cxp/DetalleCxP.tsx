@@ -81,6 +81,7 @@ const DetalleCxP: React.FC<Props> = ({ nota, visible, onCerrar, onActualizar }) 
   const [cajasBancos, setCajasBancos] = useState<CajaBanco[]>([]);
   const [anticiposDisponibles, setAnticiposDisponibles] = useState<any[]>([]);
   const [cargando, setCargando] = useState(true);
+  const [notaActual, setNotaActual] = useState<CxPItem | null>(null);
 
   // Estados para Edición y Eliminación
   const [movEditar, setMovEditar] = useState<PagoRealizado | null>(null);
@@ -110,7 +111,7 @@ const DetalleCxP: React.FC<Props> = ({ nota, visible, onCerrar, onActualizar }) 
     const { data: usr } = await supabase.from('usuarios')
       .select('escuela_id, sucursal_id').eq('id', user.id).single();
 
-    const [resPagos, resItems, resCajas] = await Promise.all([
+    const [resPagos, resItems, resCajas, resNota] = await Promise.all([
       supabase.from('pagos_aplicados')
         .select('id, monto_aplicado, fecha, referencia, es_aplicacion_anticipo, conciliado, caja_id, cajas_bancos(nombre)')
         .eq('cuenta_pagar_id', nota.id)
@@ -121,6 +122,10 @@ const DetalleCxP: React.FC<Props> = ({ nota, visible, onCerrar, onActualizar }) 
         .eq('cuenta_pagar_id', nota.id),
       supabase.from('cajas_bancos').select('*')
         .eq('escuela_id', usr?.escuela_id).eq('activo', true).order('nombre'),
+      supabase.from('v_estado_cuentas_pagar')
+        .select('*')
+        .eq('id', nota.id)
+        .single()
     ]);
 
     setPagosRealizados((resPagos.data as any[])?.map(p => ({
@@ -140,6 +145,21 @@ const DetalleCxP: React.FC<Props> = ({ nota, visible, onCerrar, onActualizar }) 
     
     setCajasBancos(resCajas.data ?? []);
 
+    if (resNota.data) {
+      const n = resNota.data;
+      const updatedNota: CxPItem = {
+        ...n,
+        monto_total: Number(n.monto_total),
+        monto_pagado: Number(n.monto_pagado),
+        deuda_restante: Number(n.deuda_restante),
+        proveedor_nombre: nota.proveedor_nombre,
+        personal_nombre: nota.personal_nombre,
+        anulada: !!n.anulada,
+      };
+      setNotaActual(updatedNota);
+      setMontoPago(String(updatedNota.deuda_restante));
+    }
+
     let qAnticipos = supabase.from('v_estado_cuentas_pagar')
       .select('*')
       .eq('es_anticipo', true)
@@ -155,6 +175,7 @@ const DetalleCxP: React.FC<Props> = ({ nota, visible, onCerrar, onActualizar }) 
 
   useEffect(() => {
     if (!visible || !nota) return;
+    setNotaActual(nota);
     setMontoPago(String(nota.deuda_restante));
     setCuentaPagoId(''); setNroComprobante('');
     setFechaPago(getHoyISO());
@@ -165,15 +186,15 @@ const DetalleCxP: React.FC<Props> = ({ nota, visible, onCerrar, onActualizar }) 
 
   const registrarPago = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!nota) return;
+    if (!notaActual) return;
     setErrorPago(null); setExitoPago(null);
 
     const mp = parseFloat(montoPago);
     if (!mp || mp <= 0) { setErrorPago('Monto inválido.'); return; }
     if (!usarAnticipo && !cuentaPagoId) { setErrorPago('Selecciona la caja/banco de pago.'); return; }
-    if (mp > nota.deuda_restante) { setErrorPago(`El monto supera la deuda restante de Bs ${fmtMonto(nota.deuda_restante)}.`); return; }
+    if (mp > notaActual.deuda_restante) { setErrorPago(`El monto supera la deuda restante de Bs ${fmtMonto(notaActual.deuda_restante)}.`); return; }
 
-    const fNotaSoloFecha = nota.fecha_emision ? nota.fecha_emision.split('T')[0] : '';
+    const fNotaSoloFecha = notaActual.fecha_emision ? notaActual.fecha_emision.split('T')[0] : '';
     if (fNotaSoloFecha && fechaPago < fNotaSoloFecha) {
       setErrorPago(`La fecha de pago no puede ser anterior a la fecha de emisión de la Nota de Servicio (${fNotaSoloFecha}).`);
       return;
@@ -193,7 +214,7 @@ const DetalleCxP: React.FC<Props> = ({ nota, visible, onCerrar, onActualizar }) 
         
         const { error: rpcErr } = await supabase.rpc('rpc_aplicar_anticipo_cxp', {
           p_payload: {
-            nota_id: nota.id,
+            nota_id: notaActual.id,
             anticipo_id: anticipoId,
             monto: mp,
             usuario_id: ctx.id,
@@ -212,7 +233,7 @@ const DetalleCxP: React.FC<Props> = ({ nota, visible, onCerrar, onActualizar }) 
             escuela_id: ctx.escuela_id,
             sucursal_id: ctx.sucursal_id,
             usuario_id: ctx.id,
-            cuenta_pagar_id: nota.id,
+            cuenta_pagar_id: notaActual.id,
             monto: mp,
             cuenta_pago_id: cuentaPagoId,
             fecha: `${fechaPago}T${getHoraLocal()}:00`,
@@ -252,11 +273,11 @@ const DetalleCxP: React.FC<Props> = ({ nota, visible, onCerrar, onActualizar }) 
     }
   };
 
-  if (!visible || !nota) return null;
+  if (!visible || !notaActual) return null;
 
-  const badge = BADGE_ESTADOS[nota.estado] ?? BADGE_ESTADOS.pendiente;
-  const nombreEntidad = nota.proveedor_nombre || nota.personal_nombre || nota.descripcion || '(Sin asignar)';
-  const yaPagada = nota.estado === 'pagada';
+  const badge = BADGE_ESTADOS[notaActual.estado] ?? BADGE_ESTADOS.pendiente;
+  const nombreEntidad = notaActual.proveedor_nombre || notaActual.personal_nombre || notaActual.descripcion || '(Sin asignar)';
+  const yaPagada = notaActual.estado === 'pagada';
 
   return (
     <div className="cxc-modal-overlay">
@@ -266,7 +287,7 @@ const DetalleCxP: React.FC<Props> = ({ nota, visible, onCerrar, onActualizar }) 
             <h2 style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', margin: 0, color: 'var(--text-primary)' }}>
               <DollarSign size={20} /> Detalle — Nota de Pago
             </h2>
-            {!nota.anulada && !pagosRealizados.some(p => p.conciliado) && (
+            {!notaActual.anulada && !pagosRealizados.some(p => p.conciliado) && (
               <button 
                 onClick={() => setCabeceraEditar(true)}
                 className="btn-compact-action action-blue"
@@ -299,16 +320,16 @@ const DetalleCxP: React.FC<Props> = ({ nota, visible, onCerrar, onActualizar }) 
                   </p>
                   <div style={{ display: 'flex', gap: '1rem', fontSize: '0.8rem', color: 'var(--text-tertiary)', flexWrap: 'wrap' }}>
                     <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                      <Calendar size={13} /> Emitida: {formatFecha(nota.fecha_emision)}
+                      <Calendar size={13} /> Emitida: {formatFecha(notaActual.fecha_emision)}
                     </span>
-                    {nota.fecha_vencimiento && (
+                    {notaActual.fecha_vencimiento && (
                       <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                        <AlertCircle size={13} /> Vence: {formatFecha(nota.fecha_vencimiento)}
+                        <AlertCircle size={13} /> Vence: {formatFecha(notaActual.fecha_vencimiento)}
                       </span>
                     )}
-                    {nota.tipo_gasto && (
+                    {notaActual.tipo_gasto && (
                       <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                        📦 {nota.tipo_gasto === 'proveedor' ? 'Proveedor' : 'Personal'}
+                        📦 {notaActual.tipo_gasto === 'proveedor' ? 'Proveedor' : 'Personal'}
                       </span>
                     )}
                   </div>
@@ -337,23 +358,23 @@ const DetalleCxP: React.FC<Props> = ({ nota, visible, onCerrar, onActualizar }) 
                 <div style={{ display: 'flex', gap: '1.5rem' }}>
                   <div style={{ display: 'flex', flexDirection: 'column' }}>
                     <span style={{ fontSize: '0.7rem', color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total</span>
-                    <span style={{ fontSize: '1rem', fontWeight: 700 }}>Bs {fmtMonto(nota.monto_total)}</span>
+                    <span style={{ fontSize: '1rem', fontWeight: 700 }}>Bs {fmtMonto(notaActual.monto_total)}</span>
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column' }}>
                     <span style={{ fontSize: '0.7rem', color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Pagado</span>
-                    <span style={{ fontSize: '1rem', fontWeight: 700, color: '#4ade80' }}>Bs {fmtMonto(nota.monto_pagado)}</span>
+                    <span style={{ fontSize: '1rem', fontWeight: 700, color: '#4ade80' }}>Bs {fmtMonto(notaActual.monto_pagado)}</span>
                   </div>
                 </div>
                 <div style={{ 
                   textAlign: 'right',
                   padding: '0.5rem 1rem',
-                  background: nota.deuda_restante > 0 ? 'rgba(248,113,113,0.1)' : 'rgba(74,222,128,0.1)',
+                  background: notaActual.deuda_restante > 0 ? 'rgba(248,113,113,0.1)' : 'rgba(74,222,128,0.1)',
                   borderRadius: '10px',
-                  border: `1px solid ${nota.deuda_restante > 0 ? 'rgba(248,113,113,0.2)' : 'rgba(74,222,128,0.2)'}`
+                  border: `1px solid ${notaActual.deuda_restante > 0 ? 'rgba(248,113,113,0.2)' : 'rgba(74,222,128,0.2)'}`
                 }}>
-                  <span style={{ fontSize: '0.75rem', color: nota.deuda_restante > 0 ? '#f87171' : '#4ade80', display: 'block', fontWeight: 600 }}>SALDO PENDIENTE</span>
-                  <span style={{ fontSize: '1.4rem', fontWeight: 900, color: nota.deuda_restante > 0 ? '#f87171' : '#4ade80' }}>
-                    Bs {fmtMonto(nota.deuda_restante)}
+                  <span style={{ fontSize: '0.75rem', color: notaActual.deuda_restante > 0 ? '#f87171' : '#4ade80', display: 'block', fontWeight: 600 }}>SALDO PENDIENTE</span>
+                  <span style={{ fontSize: '1.4rem', fontWeight: 900, color: notaActual.deuda_restante > 0 ? '#f87171' : '#4ade80' }}>
+                    Bs {fmtMonto(notaActual.deuda_restante)}
                   </span>
                 </div>
               </div>
@@ -393,7 +414,7 @@ const DetalleCxP: React.FC<Props> = ({ nota, visible, onCerrar, onActualizar }) 
                           <span style={{ fontWeight: 800, color: 'var(--text-primary)', fontSize: '1.1rem' }}>
                             Bs {fmtMonto(item.subtotal)}
                           </span>
-                          {!nota.anulada && !pagosRealizados.some(p => p.conciliado) && (
+                          {!notaActual.anulada && !pagosRealizados.some(p => p.conciliado) && (
                             <button 
                               onClick={() => setItemEditar(item)} 
                               className="cxc-accion-btn" 
@@ -422,14 +443,14 @@ const DetalleCxP: React.FC<Props> = ({ nota, visible, onCerrar, onActualizar }) 
                     fontSize: '1rem'
                   }}>
                     <span>TOTAL</span>
-                    <span>Bs {fmtMonto(nota.monto_total)}</span>
+                    <span>Bs {fmtMonto(notaActual.monto_total)}</span>
                   </div>
                 </div>
               </div>
             )}
 
             {/* ── Observaciones ── */}
-            {nota.observaciones && (
+            {notaActual.observaciones && (
               <div style={{
                 marginBottom: '1.25rem',
                 padding: '0.9rem 1rem',
@@ -444,7 +465,7 @@ const DetalleCxP: React.FC<Props> = ({ nota, visible, onCerrar, onActualizar }) 
                   📝 Observaciones
                 </p>
                 <p style={{ fontSize: '0.87rem', color: 'var(--text-secondary)', lineHeight: '1.5' }}>
-                  {nota.observaciones}
+                  {notaActual.observaciones}
                 </p>
               </div>
             )}
@@ -542,7 +563,7 @@ const DetalleCxP: React.FC<Props> = ({ nota, visible, onCerrar, onActualizar }) 
 
                   {usarAnticipo && (
                     <div style={{ marginBottom: '0.75rem' }}>
-                      <select value={anticipoId} onChange={e => { setAnticipoId(e.target.value); const ant = anticiposDisponibles.find((a: any) => a.id === e.target.value); if (ant) setMontoPago(String(Math.min(nota.deuda_restante, Number(ant.deuda_restante)))); }} className="nota-pago-select" style={{ width: '100%', borderColor: '#a855f7' }} required>
+                      <select value={anticipoId} onChange={e => { setAnticipoId(e.target.value); const ant = anticiposDisponibles.find((a: any) => a.id === e.target.value); if (ant) setMontoPago(String(Math.min(notaActual.deuda_restante, Number(ant.deuda_restante)))); }} className="nota-pago-select" style={{ width: '100%', borderColor: '#a855f7' }} required>
                         <option value="">— Seleccionar Anticipo —</option>
                         {anticiposDisponibles.map((a: any) => <option key={a.id} value={a.id}>{formatFecha(a.fecha_emision)} — Bs {fmtMonto(a.deuda_restante)}</option>)}
                       </select>
@@ -563,7 +584,7 @@ const DetalleCxP: React.FC<Props> = ({ nota, visible, onCerrar, onActualizar }) 
                       type="number" 
                       step="0.01" 
                       min="0.01" 
-                      max={nota.deuda_restante} 
+                      max={notaActual.deuda_restante} 
                       value={montoPago} 
                       onChange={e => setMontoPago(e.target.value)} 
                       placeholder="Monto" 
@@ -606,7 +627,7 @@ const DetalleCxP: React.FC<Props> = ({ nota, visible, onCerrar, onActualizar }) 
             visible={!!movEditar}
             pago={movEditar}
             cajas={cajasBancos}
-            fechaEmisionNota={nota?.fecha_emision}
+            fechaEmisionNota={notaActual?.fecha_emision}
             onCerrar={() => setMovEditar(null)}
             onActualizar={() => {
               setMovEditar(null);
@@ -620,7 +641,7 @@ const DetalleCxP: React.FC<Props> = ({ nota, visible, onCerrar, onActualizar }) 
           <ModalEditarItemCxP
             visible={!!itemEditar}
             item={itemEditar}
-            notaId={nota.id}
+            notaId={notaActual.id}
             onCerrar={() => setItemEditar(null)}
             onActualizar={() => {
               setItemEditar(null);
@@ -633,9 +654,10 @@ const DetalleCxP: React.FC<Props> = ({ nota, visible, onCerrar, onActualizar }) 
         {cabeceraEditar && (
           <ModalEditarCabeceraCxP
             visible={cabeceraEditar}
-            nota={nota}
+            nota={notaActual}
             onCerrar={() => setCabeceraEditar(false)}
             onActualizar={() => {
+              cargarDetalle();
               onActualizar();
             }}
           />
