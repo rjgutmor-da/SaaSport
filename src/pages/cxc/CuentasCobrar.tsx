@@ -33,6 +33,7 @@ import { useAuthSaaSport } from '../../lib/authHelper';
 import { useCxcAlumnos, useCxcResumen } from '../../hooks/useFinanzas';
 import { useQueryClient } from '@tanstack/react-query';
 import { useIsMobile } from '../../hooks/useIsMobile';
+import { getDataScope } from '../../config/roles';
 
 /** Formatea un número como moneda (Bs) */
 const fmtMonto = (n: number): string =>
@@ -41,7 +42,7 @@ const fmtMonto = (n: number): string =>
 const CuentasCobrar: React.FC = () => {
   const navigate = useNavigate();
   const { setExtra } = useContext(SidebarContext);
-  const { escuelaId } = useAuthSaaSport();
+  const { escuelaId, sucursalId, perfil } = useAuthSaaSport();
   const queryClient = useQueryClient();
   const isMobile = useIsMobile();
 
@@ -57,16 +58,21 @@ const CuentasCobrar: React.FC = () => {
   const [filtroCancha, setFiltroCancha] = useState('');
   const [filtroHorario, setFiltroHorario] = useState('');
 
+  // Los roles con alcance de sucursal nunca deben poder ampliar CxC a toda la escuela.
+  // El filtro visible sigue disponible para usuarios con alcance escolar.
+  const sucursalBloqueada = getDataScope(perfil?.rol) === 'branch' && !!sucursalId;
+  const sucursalEfectiva = sucursalBloqueada ? sucursalId : filtroSucursal;
+
   // Paginación
   const [pagina, setPagina] = useState(1);
   const itemsPorPagina = 30;
 
   useEffect(() => {
     setPagina(1);
-  }, [debouncedBusqueda, soloConDeuda, soloActivos, filtroSucursal, filtroEntrenador, filtroCancha, filtroHorario]);
+  }, [debouncedBusqueda, soloConDeuda, soloActivos, sucursalEfectiva, filtroEntrenador, filtroCancha, filtroHorario]);
 
   const filtros = {
-    sucursalId: filtroSucursal,
+    sucursalId: sucursalEfectiva,
     entrenadorId: filtroEntrenador,
     canchaId: filtroCancha,
     horarioId: filtroHorario,
@@ -291,11 +297,12 @@ const CuentasCobrar: React.FC = () => {
               {!isMobile && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
                   <FiltrosCxc
-                    sucursalId={filtroSucursal}
+                    sucursalId={sucursalEfectiva}
+                    sucursalBloqueada={sucursalBloqueada}
                     entrenadorId={filtroEntrenador}
                     canchaId={filtroCancha}
                     horarioId={filtroHorario}
-                    onChangeSucursal={setFiltroSucursal}
+                    onChangeSucursal={sucursalBloqueada ? () => undefined : setFiltroSucursal}
                     onChangeEntrenador={setFiltroEntrenador}
                     onChangeCancha={setFiltroCancha}
                     onChangeHorario={setFiltroHorario}

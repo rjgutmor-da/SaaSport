@@ -25,6 +25,7 @@ interface FiltrosProps {
   onChangeCancha: (id: string) => void;
   onChangeHorario: (id: string) => void;
   onLimpiar: () => void;
+  sucursalBloqueada?: boolean;
   compact?: boolean;
   sidebar?: boolean;
 }
@@ -32,7 +33,7 @@ interface FiltrosProps {
 const FiltrosCxc: React.FC<FiltrosProps> = ({
   sucursalId, entrenadorId, canchaId, horarioId,
   onChangeSucursal, onChangeEntrenador, onChangeCancha, onChangeHorario,
-  onLimpiar, compact = false, sidebar = false,
+  onLimpiar, sucursalBloqueada = false, compact = false, sidebar = false,
 }) => {
   // Hooks de datos maestros con TanStack Query
   const { data: sucursalesRaw } = useSucursales();
@@ -80,7 +81,7 @@ const FiltrosCxc: React.FC<FiltrosProps> = ({
       <div className="sidebar-filters-grid">
         <div className="sidebar-filter-item">
           <label className="sidebar-filter-label">Sucursal</label>
-          <select value={sucursalId} onChange={e => onChangeSucursal(e.target.value)} className="sidebar-select">
+          <select value={sucursalId} onChange={e => onChangeSucursal(e.target.value)} className="sidebar-select" disabled={sucursalBloqueada}>
             <option value="">Todas</option>
             {filtrarOpciones.sucursalesFilt.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
           </select>
@@ -126,6 +127,8 @@ const FiltrosCxc: React.FC<FiltrosProps> = ({
         value={sucursalId}
         onChange={e => onChangeSucursal(e.target.value)}
         className="cxc-filtro-select"
+        disabled={sucursalBloqueada}
+        title={sucursalBloqueada ? 'Tu usuario está restringido a esta sucursal' : undefined}
       >
         <option value="">Sucursal</option>
         {filtrarOpciones.sucursalesFilt.map(s => (
