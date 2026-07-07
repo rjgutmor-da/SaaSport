@@ -2,8 +2,8 @@ import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react'
 import { supabase } from '../../lib/supabaseClient';
 import {
   RefreshCw, Landmark, ArrowDownRight, ArrowUpRight, Search,
-  CheckCircle2, ArrowRightLeft, CheckSquare, Square, Pencil, Trash2,
-  Star, GripVertical, MessageCircle
+  CheckCircle2, ArrowRightLeft, Square, Pencil, Trash2,
+  Star, GripVertical, MessageCircle, ShieldCheck, ShieldOff, LockKeyhole
 } from 'lucide-react';
 import { toBlob } from 'html-to-image';
 import type { CajaBanco } from '../../types/finanzas';
@@ -17,6 +17,8 @@ import ModalPagoRapidoCxP from '../../components/cxp/ModalPagoRapidoCxP';
 import NotaServicios from '../../components/cxc/NotaServicios';
 import DropdownAcciones from '../../components/cajas-bancos/DropdownAcciones';
 import { formatFecha } from '../../lib/dateUtils';
+import { logActivity } from '../../lib/auditLogger';
+import { can } from '../../config/roles';
 
 import { useAuthSaaSport } from '../../lib/authHelper';
 import { useCajasBancos, useMovimientos, useCxpEntidades, type MovimientoFinanciero } from '../../hooks/useFinanzas';
@@ -27,11 +29,11 @@ const fmtMonto = (n: number) =>
   n.toLocaleString('es-BO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 const CajasBancos: React.FC = () => {
-  const { esSuperAdmin, escuelaId, puedeEliminar, sucursalId, perfil } = useAuthSaaSport();
+  const { esSuperAdmin, escuelaId, puedeEliminar, perfil } = useAuthSaaSport();
   const queryClient = useQueryClient();
 
-  // Puede conciliar: SuperAdmin O Administrador sin sucursal específica asignada
-  const puedeConciliar = esSuperAdmin || (perfil?.rol === 'Administrador' && sucursalId === null);
+  // Puede conciliar: permiso centralizado de roles.
+  const puedeConciliar = !!perfil?.activo && can(perfil?.rol, 'finance.reconcile');
   const isMobile = useIsMobile();
 
   // ── Hooks de datos con TanStack Query ──
@@ -47,6 +49,8 @@ const CajasBancos: React.FC = () => {
   const [filtroCuenta, setFiltroCuenta] = useState<string>('todas');
   const [busqueda, setBusqueda] = useState('');
   const [busquedaCuenta, setBusquedaCuenta] = useState('');
+  const [modoConciliacion, setModoConciliacion] = useState(false);
+  const [conciliandoId, setConciliandoId] = useState<string | null>(null);
 
   // ── Drag-and-drop de tarjetas (solo super admin) ──
   const [cajasOrdenadas, setCajasOrdenadas] = useState<typeof cajas>([]);
@@ -256,28 +260,130 @@ const CajasBancos: React.FC = () => {
   }, [movimientos, filtroCuenta, busqueda, normalizar]);
 
 
+  const actualizarConciliadoMovimiento = async (mov: MovimientoFinanciero, conciliado: boolean) => {
+    const tabla = mov.tipo_origen === 'cobro' ? 'cobros_aplicados' : 'pagos_aplicados';
+    const isGrouped = (mov as any).is_grouped;
+
+    if (isGrouped) {
+      const ids = (mov as any).original_ids || [];
+      const resultados = await Promise.all(ids.map((id: string) =>
+        supabase.from(tabla).update({ conciliado }).eq('id', id)
+      ));
+      const error = resultados.find(r => r.error)?.error;
+      if (error) throw error;
+      return;
+    }
+
+    const { error: errUpd } = await supabase
+      .from(tabla)
+      .update({ conciliado })
+      .eq('id', mov.id);
+
+    if (errUpd) throw errUpd;
+  };
+
+  const registrarConciliacion = (
+    accion: 'conciliar' | 'desconciliar' | 'conciliar_hasta' | 'conciliar_visibles',
+    entidadId: string,
+    detalle: Record<string, any>
+  ) => {
+    if (!escuelaId || !perfil) return;
+    logActivity({
+      escuela_id: escuelaId,
+      usuario_id: perfil.id,
+      usuario_nombre: `${perfil.nombres || ''} ${perfil.apellidos || ''}`.trim() || perfil.email,
+      accion,
+      modulo: 'cajas_bancos',
+      entidad_id: entidadId,
+      detalle
+    });
+  };
+
   const toggleConciliar = async (mov: MovimientoFinanciero) => {
+    if (!puedeConciliar || conciliandoId) return;
+
     try {
-      const tabla = mov.tipo_origen === 'cobro' ? 'cobros_aplicados' : 'pagos_aplicados';
-      const isGrouped = (mov as any).is_grouped;
+      const siguienteEstado = !mov.conciliado;
+      let motivo: string | null = null;
 
-      if (isGrouped) {
-        const ids = (mov as any).original_ids || [];
-        for (const id of ids) {
-          await supabase.from(tabla).update({ conciliado: !mov.conciliado }).eq('id', id);
-        }
-      } else {
-        const { error: errUpd } = await supabase
-          .from(tabla)
-          .update({ conciliado: !mov.conciliado })
-          .eq('id', mov.id);
-
-        if (errUpd) throw errUpd;
+      if (!siguienteEstado) {
+        motivo = window.prompt('Motivo para desmarcar esta conciliacion:');
+        if (!motivo?.trim()) return;
       }
 
+      setConciliandoId(mov.id);
+      await actualizarConciliadoMovimiento(mov, siguienteEstado);
+      registrarConciliacion(siguienteEstado ? 'conciliar' : 'desconciliar', mov.id, {
+        cuenta_id: mov.cuenta_id,
+        cuenta_nombre: mov.cuenta_nombre,
+        saldo_verificado: (mov as any).saldo_historico || 0,
+        fecha_movimiento: mov.fecha,
+        motivo: motivo?.trim() || null
+      });
       manejarActualizacion();
     } catch (err: any) {
       alert("Error al actualizar estado: " + err.message);
+    } finally {
+      setConciliandoId(null);
+    }
+  };
+
+  const conciliarHastaMovimiento = async (mov: MovimientoFinanciero) => {
+    if (!puedeConciliar || conciliandoId || mov.conciliado) return;
+
+    const movimientosCuenta = movimientos.filter(m => m.cuenta_id === mov.cuenta_id);
+    const idx = movimientosCuenta.findIndex(m => m.id === mov.id);
+    if (idx < 0) return;
+
+    const pendientes = movimientosCuenta.slice(idx).filter(m => !m.conciliado);
+    if (pendientes.length === 0) return;
+
+    const saldo = Number((mov as any).saldo_historico || 0);
+    const ok = window.confirm(
+      `Conciliar ${pendientes.length} movimiento(s) de ${mov.cuenta_nombre} hasta este saldo verificado?\n\nSaldo verificado: Bs ${fmtMonto(saldo)}`
+    );
+    if (!ok) return;
+
+    try {
+      setConciliandoId(mov.id);
+      await Promise.all(pendientes.map(m => actualizarConciliadoMovimiento(m, true)));
+      registrarConciliacion('conciliar_hasta', mov.id, {
+        cuenta_id: mov.cuenta_id,
+        cuenta_nombre: mov.cuenta_nombre,
+        movimientos_marcados: pendientes.length,
+        saldo_verificado: saldo,
+        fecha_corte: mov.fecha
+      });
+      manejarActualizacion();
+    } catch (err: any) {
+      alert("Error al conciliar bloque: " + err.message);
+    } finally {
+      setConciliandoId(null);
+    }
+  };
+
+  const conciliarMovimientosVisibles = async (caja: CajaBanco, movsCaja: MovimientoFinanciero[]) => {
+    if (!puedeConciliar || conciliandoId) return;
+    const pendientes = movsCaja.filter(m => !m.conciliado);
+    if (pendientes.length === 0) return;
+
+    const ok = window.confirm(`Conciliar ${pendientes.length} movimiento(s) visibles de ${caja.nombre}?`);
+    if (!ok) return;
+
+    try {
+      setConciliandoId(`visibles-${caja.id}`);
+      await Promise.all(pendientes.map(m => actualizarConciliadoMovimiento(m, true)));
+      registrarConciliacion('conciliar_visibles', caja.id, {
+        cuenta_id: caja.id,
+        cuenta_nombre: caja.nombre,
+        movimientos_marcados: pendientes.length,
+        filtro_busqueda: busqueda.trim() || null
+      });
+      manejarActualizacion();
+    } catch (err: any) {
+      alert("Error al conciliar visibles: " + err.message);
+    } finally {
+      setConciliandoId(null);
     }
   };
 
@@ -921,6 +1027,49 @@ const CajasBancos: React.FC = () => {
             </div>
           )}
 
+          {puedeConciliar && !isMobile && (
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '1rem',
+              marginBottom: '1rem',
+              padding: '0.75rem 1rem',
+              background: modoConciliacion ? 'rgba(0,210,106,0.08)' : 'var(--bg-card)',
+              border: `1px solid ${modoConciliacion ? 'rgba(0,210,106,0.28)' : 'var(--border)'}`,
+              borderRadius: '8px'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <ShieldCheck size={18} style={{ color: modoConciliacion ? 'var(--success)' : 'var(--text-secondary)' }} />
+                <div>
+                  <div style={{ fontWeight: 800, fontSize: '0.9rem' }}>Modo conciliacion</div>
+                  <div style={{ fontSize: '0.78rem', color: 'var(--text-tertiary)' }}>
+                    Al activarlo, el check de una fila concilia esa cuenta hasta el saldo mostrado.
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setModoConciliacion(v => !v)}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.45rem',
+                  padding: '0.5rem 0.8rem',
+                  borderRadius: '8px',
+                  border: `1px solid ${modoConciliacion ? 'rgba(0,210,106,0.4)' : 'var(--border)'}`,
+                  background: modoConciliacion ? 'var(--success-bg)' : 'var(--bg-glass)',
+                  color: modoConciliacion ? 'var(--success)' : 'var(--text-primary)',
+                  fontWeight: 800,
+                  fontSize: '0.82rem'
+                }}
+              >
+                {modoConciliacion ? <ShieldOff size={16} /> : <ShieldCheck size={16} />}
+                {modoConciliacion ? 'Salir' : 'Activar'}
+              </button>
+            </div>
+          )}
+
           {cargando ? (
             <div className="pc-cargando">
               <RefreshCw size={32} className="spin" />
@@ -941,10 +1090,35 @@ const CajasBancos: React.FC = () => {
 
                 return (
                   <div key={caja.id} className="caja-seccion">
-                    <h3 style={{ marginBottom: '1rem', color: 'var(--text-primary)', fontSize: '1.2rem', fontWeight: 700 }}>
-                      <Landmark size={20} style={{ display: 'inline-block', verticalAlign: 'middle', marginRight: '8px', color: 'var(--primary)' }} />
-                      {caja.nombre}
-                    </h3>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', marginBottom: '1rem' }}>
+                      <h3 style={{ margin: 0, color: 'var(--text-primary)', fontSize: '1.2rem', fontWeight: 700 }}>
+                        <Landmark size={20} style={{ display: 'inline-block', verticalAlign: 'middle', marginRight: '8px', color: 'var(--primary)' }} />
+                        {caja.nombre}
+                      </h3>
+                      {modoConciliacion && puedeConciliar && !isMobile && movsCaja.some(m => !m.conciliado) && (
+                        <button
+                          type="button"
+                          onClick={() => conciliarMovimientosVisibles(caja, movsCaja)}
+                          disabled={!!conciliandoId}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.4rem',
+                            padding: '0.42rem 0.7rem',
+                            borderRadius: '8px',
+                            border: '1px solid rgba(0,210,106,0.28)',
+                            background: 'var(--success-bg)',
+                            color: 'var(--success)',
+                            fontWeight: 800,
+                            fontSize: '0.78rem'
+                          }}
+                          title="Marcar como conciliados todos los movimientos visibles de esta cuenta"
+                        >
+                          <CheckCircle2 size={15} />
+                          Conciliar visibles
+                        </button>
+                      )}
+                    </div>
                     <div className="cxc-tabla-wrapper" style={{ borderRadius: '12px', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
                       <table className="cxc-tabla" style={{ minWidth: isMobile ? '600px' : 'auto' }}>
                         <thead>
@@ -1159,18 +1333,36 @@ const CajasBancos: React.FC = () => {
                                     <button 
                                       onClick={(e) => { 
                                         e.stopPropagation(); 
-                                        if (puedeConciliar) toggleConciliar(mov); 
+                                        if (!puedeConciliar) return;
+                                        if (modoConciliacion && !mov.conciliado) {
+                                          conciliarHastaMovimiento(mov);
+                                        } else {
+                                          toggleConciliar(mov);
+                                        }
                                       }}
                                       style={{ 
-                                        background: 'none', border: 'none', 
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        width: '34px',
+                                        height: '30px',
+                                        borderRadius: '8px',
+                                        border: `1px solid ${mov.conciliado ? 'rgba(0,210,106,0.32)' : (modoConciliacion ? 'rgba(10,132,255,0.35)' : 'var(--border)')}`,
+                                        background: mov.conciliado ? 'var(--success-bg)' : (modoConciliacion ? 'rgba(10,132,255,0.08)' : 'var(--bg-glass)'),
                                         cursor: puedeConciliar ? 'pointer' : 'default', 
                                         color: mov.conciliado ? 'var(--success)' : 'var(--text-tertiary)',
                                         opacity: puedeConciliar ? 1 : 0.6
                                       }}
-                                      title={mov.conciliado ? "Conciliado" : (puedeConciliar ? "Marcar como conciliado" : "Sin permiso para conciliar")}
-                                      disabled={!puedeConciliar}
+                                      title={mov.conciliado
+                                        ? `Conciliado. Saldo verificado: Bs ${fmtMonto(Number((mov as any).saldo_historico || 0))}. Click para desmarcar con motivo.`
+                                        : (puedeConciliar
+                                          ? (modoConciliacion
+                                            ? `Conciliar hasta aqui. Saldo verificado: Bs ${fmtMonto(Number((mov as any).saldo_historico || 0))}`
+                                            : "Marcar solo este movimiento como conciliado")
+                                          : "Sin permiso para conciliar")}
+                                      disabled={!puedeConciliar || conciliandoId === mov.id}
                                     >
-                                      {mov.conciliado ? <CheckSquare size={18} /> : <Square size={18} />}
+                                      {mov.conciliado ? <LockKeyhole size={17} /> : (modoConciliacion ? <ShieldCheck size={17} /> : <Square size={17} />)}
                                     </button>
                                   </td>
                                 )}
