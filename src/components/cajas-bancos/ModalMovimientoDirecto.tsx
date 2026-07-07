@@ -4,6 +4,7 @@ import { X, ArrowDownRight, ArrowUpRight, DollarSign, Calendar, Hash, AlignLeft,
 import { getHoyISO, getHoraLocal, buildTimestampLocal } from '../../lib/dateUtils';
 import type { CajaBanco } from '../../types/finanzas';
 import type { CatalogoItem } from '../../types/cuentas';
+import { confirmarMovimientoEnPeriodoConciliado } from '../../lib/conciliacion';
 
 interface Props {
   visible: boolean;
@@ -94,9 +95,20 @@ const ModalMovimientoDirecto: React.FC<Props> = ({ visible, tipo, cajas, onCerra
       // 1. Sesión
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('No hay sesión activa.');
-      const { data: perfil } = await supabase.from('usuarios').select('escuela_id').eq('id', user.id).single();
+      const { data: perfil } = await supabase.from('usuarios').select('id, escuela_id, nombres, apellidos, email').eq('id', user.id).single();
       const escuelaId = perfil?.escuela_id;
       if (!escuelaId) throw new Error('No se pudo determinar la escuela.');
+      const cajaNombre = cajas.find(c => c.id === cajaId)?.nombre || 'la cuenta seleccionada';
+      const puedeContinuar = await confirmarMovimientoEnPeriodoConciliado({
+        cajaId,
+        cajaNombre,
+        fechaISO: fecha,
+        tipoMovimiento: isIngreso ? 'un ingreso' : 'una salida',
+        escuelaId,
+        usuarioId: perfil.id,
+        usuarioNombre: `${perfil.nombres || ''} ${perfil.apellidos || ''}`.trim() || perfil.email
+      });
+      if (!puedeContinuar) return;
 
       // 2. Crear el registro maestro (CxC o CxP)
       if (isIngreso) {

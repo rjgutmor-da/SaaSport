@@ -859,6 +859,29 @@ const CajasBancos: React.FC = () => {
                   </button>
                 )}
 
+                {puedeConciliar && !isMobile && (
+                  <button
+                    className="cxc-accion-btn"
+                    onClick={() => setModoConciliacion(v => !v)}
+                    title={modoConciliacion
+                      ? 'Salir del modo conciliacion'
+                      : 'Activar modo conciliacion: el check de una fila concilia esa cuenta hasta el saldo mostrado'}
+                    style={{
+                      width: '38px',
+                      height: '34px',
+                      padding: 0,
+                      justifyContent: 'center',
+                      background: modoConciliacion ? 'var(--success-bg)' : '#E5E7EB',
+                      color: modoConciliacion ? 'var(--success)' : '#000',
+                      border: modoConciliacion ? '1px solid rgba(0,210,106,0.45)' : 'none',
+                      borderRadius: '8px',
+                      boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                    }}
+                  >
+                    {modoConciliacion ? <ShieldOff size={17} /> : <ShieldCheck size={17} />}
+                  </button>
+                )}
+
                 <button className="btn-refrescar" onClick={manejarActualizacion} disabled={cargando}>
                   <RefreshCw size={18} className={cargando ? 'spin' : ''} />
                 </button>
@@ -1024,49 +1047,6 @@ const CajasBancos: React.FC = () => {
           {error && (
             <div className="pc-error" style={{ marginBottom: '1rem' }}>
               <p>⚠️ {error}</p>
-            </div>
-          )}
-
-          {puedeConciliar && !isMobile && (
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: '1rem',
-              marginBottom: '1rem',
-              padding: '0.75rem 1rem',
-              background: modoConciliacion ? 'rgba(0,210,106,0.08)' : 'var(--bg-card)',
-              border: `1px solid ${modoConciliacion ? 'rgba(0,210,106,0.28)' : 'var(--border)'}`,
-              borderRadius: '8px'
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                <ShieldCheck size={18} style={{ color: modoConciliacion ? 'var(--success)' : 'var(--text-secondary)' }} />
-                <div>
-                  <div style={{ fontWeight: 800, fontSize: '0.9rem' }}>Modo conciliacion</div>
-                  <div style={{ fontSize: '0.78rem', color: 'var(--text-tertiary)' }}>
-                    Al activarlo, el check de una fila concilia esa cuenta hasta el saldo mostrado.
-                  </div>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setModoConciliacion(v => !v)}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.45rem',
-                  padding: '0.5rem 0.8rem',
-                  borderRadius: '8px',
-                  border: `1px solid ${modoConciliacion ? 'rgba(0,210,106,0.4)' : 'var(--border)'}`,
-                  background: modoConciliacion ? 'var(--success-bg)' : 'var(--bg-glass)',
-                  color: modoConciliacion ? 'var(--success)' : 'var(--text-primary)',
-                  fontWeight: 800,
-                  fontSize: '0.82rem'
-                }}
-              >
-                {modoConciliacion ? <ShieldOff size={16} /> : <ShieldCheck size={16} />}
-                {modoConciliacion ? 'Salir' : 'Activar'}
-              </button>
             </div>
           )}
 

@@ -11,6 +11,7 @@ import { X, CreditCard, AlertCircle, Check, MessageCircle, Users, FileText, Refr
 import { getHoyISO, getHoraLocal } from '../../lib/dateUtils';
 import { useCobroMultiple } from './useCobroMultiple';
 import type { CatalogoItem } from '../../types/cuentas';
+import { confirmarMovimientoEnPeriodoConciliado } from '../../lib/conciliacion';
 
 /** Formatea un número como moneda (Bs) */
 const fmtMonto = (n: number): string =>
@@ -160,9 +161,20 @@ const ModalCobroRapido: React.FC<Props> = ({ alumnoInicial, visible, onCerrar, o
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Error de autenticación.');
       const { data: ctx } = await supabase.from('usuarios')
-        .select('id, escuela_id, sucursal_id, nombres, apellidos')
+        .select('id, escuela_id, sucursal_id, nombres, apellidos, email')
         .eq('id', user.id).single();
       if (!ctx) throw new Error('Error de contexto.');
+      const cuentaNombre = cuentasCobro.find(c => c.id === cuentaId)?.nombre || 'la cuenta seleccionada';
+      const puedeContinuar = await confirmarMovimientoEnPeriodoConciliado({
+        cajaId: cuentaId,
+        cajaNombre: cuentaNombre,
+        fechaISO: fecha,
+        tipoMovimiento: 'un cobro',
+        escuelaId: ctx.escuela_id,
+        usuarioId: ctx.id,
+        usuarioNombre: `${ctx.nombres || ''} ${ctx.apellidos || ''}`.trim() || ctx.email
+      });
+      if (!puedeContinuar) return;
 
       const concatDoc = nroDoc.trim();
 

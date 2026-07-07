@@ -6,6 +6,7 @@ import { X, CreditCard, AlertCircle, Check, FileText, Users, RefreshCw, DollarSi
 import { getHoyISO, getHoraLocal } from '../../lib/dateUtils';
 import { logActivity } from '../../lib/auditLogger';
 import type { CatalogoItem } from '../../types/cuentas';
+import { confirmarMovimientoEnPeriodoConciliado } from '../../lib/conciliacion';
 
 const fmtMonto = (n: number): string =>
   n.toLocaleString('es-BO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -141,9 +142,20 @@ const ModalPagoRapidoCxP: React.FC<Props> = ({ entidadInicial, entidades, visibl
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Error de autenticación.');
       const { data: ctx } = await supabase.from('usuarios')
-        .select('id, escuela_id, sucursal_id, nombres, apellidos')
+        .select('id, escuela_id, sucursal_id, nombres, apellidos, email')
         .eq('id', user.id).single();
       if (!ctx) throw new Error('Error de contexto.');
+      const cuentaNombre = cuentasPago.find(c => c.id === cuentaId)?.nombre || 'la cuenta seleccionada';
+      const puedeContinuar = await confirmarMovimientoEnPeriodoConciliado({
+        cajaId: cuentaId,
+        cajaNombre: cuentaNombre,
+        fechaISO: fechaPago,
+        tipoMovimiento: 'un pago',
+        escuelaId: ctx.escuela_id,
+        usuarioId: ctx.id,
+        usuarioNombre: `${ctx.nombres || ''} ${ctx.apellidos || ''}`.trim() || ctx.email
+      });
+      if (!puedeContinuar) return;
 
       let objetivoCxpId = cxpSelId;
       

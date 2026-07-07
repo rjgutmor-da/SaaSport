@@ -3,6 +3,7 @@ import { supabase } from '../../lib/supabaseClient';
 import { X, ArrowRightLeft, DollarSign, Calendar, Hash, AlignLeft, Building2, AlertCircle, Save, RefreshCw, Clock } from 'lucide-react';
 import { getHoyISO, getHoraLocal, buildTimestampLocal } from '../../lib/dateUtils';
 import type { CajaBanco } from '../../types/finanzas';
+import { confirmarMovimientoEnPeriodoConciliado } from '../../lib/conciliacion';
 
 interface Props {
   visible: boolean;
@@ -60,9 +61,33 @@ const ModalTransferencia: React.FC<Props> = ({ visible, cajas, onCerrar, onCread
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('No hay sesión activa.');
       
-      const { data: perfil } = await supabase.from('usuarios').select('escuela_id').eq('id', user.id).single();
+      const { data: perfil } = await supabase.from('usuarios').select('id, escuela_id, nombres, apellidos, email').eq('id', user.id).single();
       const escuelaId = perfil?.escuela_id;
       if (!escuelaId) throw new Error('No se pudo determinar la escuela.');
+      const usuarioNombre = `${perfil.nombres || ''} ${perfil.apellidos || ''}`.trim() || perfil.email;
+      const origenNombre = cajas.find(c => c.id === origenId)?.nombre || 'cuenta origen';
+      const destinoNombre = cajas.find(c => c.id === destinoId)?.nombre || 'cuenta destino';
+      const continuarOrigen = await confirmarMovimientoEnPeriodoConciliado({
+        cajaId: origenId,
+        cajaNombre: origenNombre,
+        fechaISO: fecha,
+        tipoMovimiento: 'una transferencia de salida',
+        escuelaId,
+        usuarioId: perfil.id,
+        usuarioNombre
+      });
+      if (!continuarOrigen) return;
+
+      const continuarDestino = await confirmarMovimientoEnPeriodoConciliado({
+        cajaId: destinoId,
+        cajaNombre: destinoNombre,
+        fechaISO: fecha,
+        tipoMovimiento: 'una transferencia de entrada',
+        escuelaId,
+        usuarioId: perfil.id,
+        usuarioNombre
+      });
+      if (!continuarDestino) return;
 
       const timestamp = buildTimestampLocal(fecha, getHoraLocal());
 
