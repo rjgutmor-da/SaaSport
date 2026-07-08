@@ -65,6 +65,7 @@ const ModalEditarMovimiento: React.FC<Props> = ({ visible, movimiento, cajas, on
   if (!visible || !movimiento) return null;
 
   const esIngreso = movimiento.debe > 0;
+  const esMovimientoDeNota = !!movimiento.cuenta_maestra_id;
 
   const handleGuardar = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -95,7 +96,7 @@ const ModalEditarMovimiento: React.FC<Props> = ({ visible, movimiento, cajas, on
           cuenta_id: cajaId,
           monto: valorMonto,
           fecha: fechaConTZ,
-          descripcion: descripcion.trim(),
+          descripcion: esMovimientoDeNota ? movimiento.descripcion : descripcion.trim(),
           nro_transaccion: nroTransaccion.trim() || null
         }
       });
@@ -181,7 +182,8 @@ const ModalEditarMovimiento: React.FC<Props> = ({ visible, movimiento, cajas, on
               <textarea
                 value={descripcion}
                 onChange={e => setDescripcion(e.target.value)}
-                required disabled={guardando}
+                required={!esMovimientoDeNota}
+                disabled={guardando || esMovimientoDeNota}
                 maxLength={255}
                 style={{ resize: 'vertical', minHeight: '60px', width: '100%' }}
               />

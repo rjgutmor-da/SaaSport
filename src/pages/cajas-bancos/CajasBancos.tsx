@@ -1225,14 +1225,9 @@ const CajasBancos: React.FC = () => {
                                         <button
                                           onClick={(e) => { 
                                             e.stopPropagation(); 
-                                            if (mov.tipo_origen === 'cobro' && mov.cuenta_maestra_id) {
-                                              abrirEdicionNotaCxc(mov.cuenta_maestra_id);
-                                            } else {
-                                              setMovEditar(mov);
-                                            }
+                                            setMovEditar(mov);
                                           }}
-                                          disabled={cargandoNotaCxc}
-                                          style={{ background: 'none', border: 'none', cursor: cargandoNotaCxc ? 'wait' : 'pointer', color: 'var(--secondary)' }}
+                                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--secondary)' }}
                                           title="Editar movimiento"
                                         >
                                           <Pencil size={15} />

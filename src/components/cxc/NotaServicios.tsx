@@ -404,7 +404,7 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
               cuenta_id: cobro.caja_id || null,
               monto: cobro.monto_editado,
               fecha: `${cobro.fecha_editada}T${horaOriginal}`,
-              descripcion: cobro.referencia_editada || 'Cobro CxC',
+              descripcion: descripcionFinal,
               nro_transaccion: cobro.referencia_editada || null,
             }
           });

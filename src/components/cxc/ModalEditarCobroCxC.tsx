@@ -24,11 +24,12 @@ interface Props {
   } | null;
   cajas: CajaBanco[];
   fechaEmisionNota?: string;
+  descripcionNota?: string;
   onCerrar: () => void;
   onActualizar: () => void;
 }
 
-const ModalEditarCobroCxC: React.FC<Props> = ({ visible, cobro, cajas, fechaEmisionNota, onCerrar, onActualizar }) => {
+const ModalEditarCobroCxC: React.FC<Props> = ({ visible, cobro, cajas, fechaEmisionNota, descripcionNota, onCerrar, onActualizar }) => {
   const [fecha, setFecha] = useState('');
   const [monto, setMonto] = useState('');
   const [cajaId, setCajaId] = useState('');
@@ -94,7 +95,7 @@ const ModalEditarCobroCxC: React.FC<Props> = ({ visible, cobro, cajas, fechaEmis
           cuenta_id: cajaId || null,
           monto: valorMonto,
           fecha: buildTimestampLocal(fecha, getHoraLocal()),
-          descripcion: referencia.trim() || 'Cobro CxC',
+          descripcion: descripcionNota || 'Cobro CxC',
           nro_transaccion: referencia.trim() || null,
         }
       });
