@@ -22,6 +22,7 @@ import SelectorFechas from './components/SelectorFechas';
 import GraficoDistribucion from './components/GraficoDistribucion';
 import TablaAlumnos from './components/TablaAlumnos';
 import TablaCuentasPorCobrar from './components/TablaCuentasPorCobrar';
+import FiltrosCxc from '../../../components/cxc/FiltrosCxc';
 
 // Hooks
 import { useEscuelaId } from './hooks/useEscuelaId';
@@ -66,16 +67,12 @@ const Estadisticas: React.FC = () => {
   const [itemSeleccionado, setItemSeleccionado] = useState<CatalogoItem | null>(null);
   const [dropdownItemAbierto, setDropdownItemAbierto] = useState(false);
   
-  // Nuevos filtros solicitados (Entrenador y Categoría/Sub)
+  // Filtros inteligentes compartidos entre alumnos por ítem y cuentas por cobrar
   const [entrenadorId, setEntrenadorId] = useState('');
-  const [subFiltro, setSubFiltro] = useState('');
+  const [sucursalId, setSucursalId] = useState('');
   const [horarioId, setHorarioId] = useState('');
   const [canchaId, setCanchaId] = useState('');
   const [pagadoFiltro, setPagadoFiltro] = useState('');
-  const [entrenadores, setEntrenadores] = useState<any[]>([]);
-  const [subCategorias, setSubCategorias] = useState<string[]>([]);
-  const [horarios, setHorarios] = useState<any[]>([]);
-  const [canchas, setCanchas] = useState<any[]>([]);
 
   // Subfiltros: meses (para Mensualidad) o torneo seleccionado (para Torneos)
   const [mesesSeleccionados, setMesesSeleccionados] = useState<string[]>([]);
@@ -119,8 +116,8 @@ const Estadisticas: React.FC = () => {
     undefined,
     undefined,
     subfiltrosActivos.length > 0 ? subfiltrosActivos : undefined,
+    sucursalId,
     entrenadorId,
-    subFiltro,
     horarioId,
     canchaId,
     itemSeleccionado?.nombre,
@@ -132,8 +129,8 @@ const Estadisticas: React.FC = () => {
     intervalo,
     undefined,
     undefined,
+    sucursalId,
     entrenadorId,
-    subFiltro,
     horarioId,
     canchaId
   );
@@ -163,57 +160,6 @@ const Estadisticas: React.FC = () => {
       }
       setCatalogo(unicos);
       setCargandoCatalogo(false);
-
-      // Cargar Entrenadores (Usuarios de la escuela con rol de Entrenador o Entrenarqueros)
-      const { data: users } = await supabase
-        .from('usuarios')
-        .select('id, nombres, apellidos')
-        .eq('escuela_id', escuelaId)
-        .in('rol', ['Entrenador', 'Entrenarqueros'])
-        .order('nombres');
-      setEntrenadores(users ?? []);
-
-      // Cargar Categorías (Sub) a partir de los alumnos activos
-      const { data: birthdates } = await supabase
-        .from('alumnos')
-        .select('fecha_nacimiento')
-        .eq('escuela_id', escuelaId)
-        .eq('archivado', false);
-
-      const anioActual = new Date().getFullYear();
-      const subsSet = new Set<string>();
-      if (birthdates) {
-        birthdates.forEach((a: any) => {
-          if (a.fecha_nacimiento) {
-            const anioNac = parseInt(a.fecha_nacimiento.split('-')[0], 10);
-            if (!isNaN(anioNac)) {
-              subsSet.add(`Sub-${anioActual - anioNac}`);
-            }
-          }
-        });
-      }
-      const listaSubs = Array.from(subsSet).sort((a, b) => {
-        const numA = parseInt(a.replace('Sub-', ''), 10);
-        const numB = parseInt(b.replace('Sub-', ''), 10);
-        return numA - numB;
-      });
-      setSubCategorias(listaSubs);
-
-      // Cargar Horarios
-      const { data: horas } = await supabase
-        .from('horarios')
-        .select('id, hora')
-        .eq('escuela_id', escuelaId)
-        .order('hora');
-      setHorarios(horas ?? []);
-
-      // Cargar Canchas
-      const { data: cchs } = await supabase
-        .from('canchas')
-        .select('id, nombre')
-        .eq('escuela_id', escuelaId)
-        .order('nombre');
-      setCanchas(cchs ?? []);
 
       // Cargar Torneos dinámicamente
       setCargandoTorneos(true);
@@ -366,62 +312,25 @@ const Estadisticas: React.FC = () => {
 
                 {/* Filtros laterales (Entrenador y Categoría) */}
                 <div className="est-filtros-laterales-wrap">
-                  <div className="est-filtro-item-label" style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', flex: 1 }}>
-                    <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 500, paddingLeft: '2px' }}>Entrenador</span>
-                    <select 
-                      className="est-select-premium"
-                      value={entrenadorId}
-                      onChange={e => setEntrenadorId(e.target.value)}
-                    >
-                      <option value="">Todos</option>
-                      {entrenadores.map(e => (
-                        <option key={e.id} value={e.id}>{e.nombres} {e.apellidos}</option>
-                      ))}
-                    </select>
+                  <div style={{ flex: '4 1 520px', minWidth: 0 }}>
+                    <FiltrosCxc
+                      sucursalId={sucursalId}
+                      entrenadorId={entrenadorId}
+                      canchaId={canchaId}
+                      horarioId={horarioId}
+                      onChangeSucursal={setSucursalId}
+                      onChangeEntrenador={setEntrenadorId}
+                      onChangeCancha={setCanchaId}
+                      onChangeHorario={setHorarioId}
+                      onLimpiar={() => {
+                        setSucursalId('');
+                        setEntrenadorId('');
+                        setCanchaId('');
+                        setHorarioId('');
+                      }}
+                      compact
+                    />
                   </div>
-
-                  <div className="est-filtro-item-label" style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', flex: 1 }}>
-                    <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 500, paddingLeft: '2px' }}>SUB</span>
-                    <select 
-                      className="est-select-premium"
-                      value={subFiltro}
-                      onChange={e => setSubFiltro(e.target.value)}
-                    >
-                      <option value="">Todas</option>
-                      {subCategorias.map(sub => (
-                        <option key={sub} value={sub}>{sub}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div className="est-filtro-item-label" style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', flex: 1 }}>
-                    <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 500, paddingLeft: '2px' }}>Horario</span>
-                    <select 
-                      className="est-select-premium"
-                      value={horarioId}
-                      onChange={e => setHorarioId(e.target.value)}
-                    >
-                      <option value="">Todos</option>
-                      {horarios.map(h => (
-                        <option key={h.id} value={h.id}>{h.hora}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div className="est-filtro-item-label" style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', flex: 1 }}>
-                    <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 500, paddingLeft: '2px' }}>Cancha</span>
-                    <select 
-                      className="est-select-premium"
-                      value={canchaId}
-                      onChange={e => setCanchaId(e.target.value)}
-                    >
-                      <option value="">Todas</option>
-                      {canchas.map(c => (
-                        <option key={c.id} value={c.id}>{c.nombre}</option>
-                      ))}
-                    </select>
-                  </div>
-
                   <div className="est-filtro-item-label" style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', flex: 1 }}>
                     <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 500, paddingLeft: '2px' }}>Pagado</span>
                     <select 
@@ -546,64 +455,24 @@ const Estadisticas: React.FC = () => {
         {/* ══════ PESTAÑA CUENTAS POR COBRAR ══════ */}
         {pestaña === 'cxc' && (
           <div className="est-panel">
-            <div className="est-filtros-alumnos-v3" style={{ marginBottom: '1rem' }}>
-              <div className="est-filtros-laterales-wrap" style={{ width: '100%' }}>
-                <div className="est-filtro-item-label" style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', flex: 1 }}>
-                  <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 500, paddingLeft: '2px' }}>Entrenador</span>
-                  <select 
-                    className="est-select-premium"
-                    value={entrenadorId}
-                    onChange={e => setEntrenadorId(e.target.value)}
-                  >
-                    <option value="">Todos</option>
-                    {entrenadores.map(e => (
-                      <option key={e.id} value={e.id}>{e.nombres} {e.apellidos}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="est-filtro-item-label" style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', flex: 1 }}>
-                  <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 500, paddingLeft: '2px' }}>SUB</span>
-                  <select 
-                    className="est-select-premium"
-                    value={subFiltro}
-                    onChange={e => setSubFiltro(e.target.value)}
-                  >
-                    <option value="">Todas</option>
-                    {subCategorias.map(sub => (
-                      <option key={sub} value={sub}>{sub}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="est-filtro-item-label" style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', flex: 1 }}>
-                  <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 500, paddingLeft: '2px' }}>Horario</span>
-                  <select 
-                    className="est-select-premium"
-                    value={horarioId}
-                    onChange={e => setHorarioId(e.target.value)}
-                  >
-                    <option value="">Todos</option>
-                    {horarios.map(h => (
-                      <option key={h.id} value={h.id}>{h.hora}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="est-filtro-item-label" style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', flex: 1 }}>
-                  <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 500, paddingLeft: '2px' }}>Cancha</span>
-                  <select 
-                    className="est-select-premium"
-                    value={canchaId}
-                    onChange={e => setCanchaId(e.target.value)}
-                  >
-                    <option value="">Todas</option>
-                    {canchas.map(c => (
-                      <option key={c.id} value={c.id}>{c.nombre}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
+            <div style={{ marginBottom: '1rem' }}>
+              <FiltrosCxc
+                sucursalId={sucursalId}
+                entrenadorId={entrenadorId}
+                canchaId={canchaId}
+                horarioId={horarioId}
+                onChangeSucursal={setSucursalId}
+                onChangeEntrenador={setEntrenadorId}
+                onChangeCancha={setCanchaId}
+                onChangeHorario={setHorarioId}
+                onLimpiar={() => {
+                  setSucursalId('');
+                  setEntrenadorId('');
+                  setCanchaId('');
+                  setHorarioId('');
+                }}
+                compact
+              />
             </div>
 
             <TablaCuentasPorCobrar 

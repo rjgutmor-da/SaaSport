@@ -36,8 +36,8 @@ export function useCuentasPorCobrar(
   intervalo: IntervaloPredefinido,
   desdePersonalizado?: string,
   hastaPersonalizado?: string,
+  sucursalId?: string,
   entrenadorId?: string,
-  subFiltro?: string, // Filtro por categoría SUB (ej. Sub-6)
   horarioId?: string,
   canchaId?: string
 ): UseCuentasPorCobrarResult {
@@ -52,7 +52,7 @@ export function useCuentasPorCobrar(
     if (!escuelaId) return;
     const rango = calcularRango(intervalo);
     cargarDatos(escuelaId, rango.desde, rango.hasta);
-  }, [escuelaId, intervalo, desdePersonalizado, hastaPersonalizado, tick, entrenadorId, subFiltro, horarioId, canchaId]);
+  }, [escuelaId, intervalo, desdePersonalizado, hastaPersonalizado, tick, sucursalId, entrenadorId, horarioId, canchaId]);
 
   async function cargarDatos(eid: string, desde: string, hasta: string) {
     setCargando(true);
@@ -80,6 +80,7 @@ export function useCuentasPorCobrar(
         .lte('fecha_emision', hasta);
 
       // Filtros opcionales (basados en las columnas de la vista)
+      if (sucursalId) query = query.eq('alumno_sucursal_id', sucursalId);
       if (entrenadorId) query = query.eq('alumno_entrenador_id', entrenadorId);
       if (horarioId) query = query.eq('alumno_horario_id', horarioId);
       if (canchaId) query = query.eq('alumno_cancha_id', canchaId);
@@ -150,8 +151,6 @@ export function useCuentasPorCobrar(
             const anioActual = new Date().getFullYear();
             if (!isNaN(anioNac)) subCalculado = `Sub-${anioActual - anioNac}`;
           }
-
-          if (subFiltro && subCalculado !== subFiltro) return;
 
           // Teléfono (con fallback si el preferido no existe)
           const tel = cxc.whatsapp_preferido === 'madre' 

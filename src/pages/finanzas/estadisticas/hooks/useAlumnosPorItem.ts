@@ -41,8 +41,8 @@ export function useAlumnosPorItem(
   desdePersonalizado?: string,
   hastaPersonalizado?: string,
   filtroSubItems?: string[], // meses o texto de torneo
+  sucursalId?: string,
   entrenadorId?: string,
-  subFiltro?: string, // Filtro por categoría SUB (ej. Sub-6)
   horarioId?: string,
   canchaId?: string,
   conceptoNombre?: string, // Para setear el concepto en el resultado
@@ -65,7 +65,7 @@ export function useAlumnosPorItem(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [escuelaId, catalogoItemId, intervalo, desdePersonalizado, hastaPersonalizado, tick,
     // serializar filtros para evitar re-renders infinitos
-    JSON.stringify(filtroSubItems), entrenadorId, subFiltro, horarioId, canchaId, conceptoNombre, pagadoFiltro]);
+    JSON.stringify(filtroSubItems), sucursalId, entrenadorId, horarioId, canchaId, conceptoNombre, pagadoFiltro]);
 
   async function cargarAlumnos(
     eid: string,
@@ -121,6 +121,9 @@ export function useAlumnosPorItem(
       if (entrenadorId) {
         query = query.eq('alumnos.profesor_asignado_id', entrenadorId);
       }
+      if (sucursalId) {
+        query = query.eq('alumnos.sucursal_id', sucursalId);
+      }
       if (horarioId) {
         query = query.eq('alumnos.horario_id', horarioId);
       }
@@ -145,6 +148,7 @@ export function useAlumnosPorItem(
 
         // Validar filtros del alumno en JS para asegurar que no se incluyan registros vacíos o no correspondientes
         if (entrenadorId && alu.profesor_asignado_id !== entrenadorId) continue;
+        if (sucursalId && alu.sucursal_id !== sucursalId) continue;
         if (horarioId && alu.horario_id !== horarioId) continue;
         if (canchaId && alu.cancha_id !== canchaId) continue;
 
@@ -163,9 +167,6 @@ export function useAlumnosPorItem(
             subCalculado = '—';
           }
         }
-
-        // Filtro adicional en JS para SUB
-        if (subFiltro && subCalculado !== subFiltro) continue;
 
         const montoTotalNota = Number(cxc.monto_total || 0);
         const montoCobrado = (cxc.cobros_aplicados || []).reduce(
