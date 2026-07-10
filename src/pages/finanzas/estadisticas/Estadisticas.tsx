@@ -266,9 +266,9 @@ const Estadisticas: React.FC = () => {
           <div className="est-panel">
             <div className="est-filtros-alumnos-v3">
               <div className="est-card-item-search">
-                <div className="est-filtro-item-label" style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', flex: 1.5 }}>
+                <div className="est-filtro-item-label est-filtro-concepto">
                   <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 500, paddingLeft: '2px' }}>Concepto</span>
-                  <div className="est-item-dropdown-wrap" style={{ width: '100%', maxWidth: '300px' }}>
+                  <div className="est-item-dropdown-wrap">
                     <button
                       className="est-item-dropdown-btn"
                     onClick={() => setDropdownItemAbierto(!dropdownItemAbierto)}
@@ -312,7 +312,7 @@ const Estadisticas: React.FC = () => {
 
                 {/* Filtros laterales (Entrenador y Categoría) */}
                 <div className="est-filtros-laterales-wrap">
-                  <div style={{ flex: '4 1 520px', minWidth: 0 }}>
+                  <div className="est-filtros-cxc-wrap">
                     <FiltrosCxc
                       sucursalId={sucursalId}
                       entrenadorId={entrenadorId}
@@ -331,7 +331,7 @@ const Estadisticas: React.FC = () => {
                       compact
                     />
                   </div>
-                  <div className="est-filtro-item-label" style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', flex: 1 }}>
+                  <div className="est-filtro-item-label est-filtro-pagado">
                     <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 500, paddingLeft: '2px' }}>Pagado</span>
                     <select 
                       className="est-select-premium"
