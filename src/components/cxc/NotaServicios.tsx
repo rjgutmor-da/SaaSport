@@ -20,6 +20,11 @@ import {
 import { useAuthSaaSport } from '../../lib/authHelper';
 import { useConfiguracionFacturacion } from '../../hooks/useConfiguracionFacturacion';
 
+type CatalogoNota = Pick<
+  CatalogoItem,
+  'id' | 'nombre' | 'tipo' | 'precio_venta' | 'cuenta_ingreso_id' | 'tipo_movimiento'
+>;
+
 interface NotaServiciosProps {
   visible: boolean;
   onCerrar: () => void;
@@ -70,7 +75,7 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
   const { perfil, escuelaId } = useAuthSaaSport();
   const configuracionFacturacion = useConfiguracionFacturacion(escuelaId, visible);
   const [alumnos, setAlumnos] = useState<{ id: string; nombres: string; apellidos: string; mensualidad?: number | null }[]>([]);
-  const [catalogo, setCatalogo] = useState<CatalogoItem[]>([]);
+  const [catalogo, setCatalogo] = useState<CatalogoNota[]>([]);
   const [cajasBancos, setCajasBancos] = useState<{ id: string; nombre: string; saldo_actual: number }[]>([]);
   const [torneos, setTorneos] = useState<string[]>([]);
 
