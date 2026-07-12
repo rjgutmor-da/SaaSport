@@ -192,7 +192,7 @@ const AdminUsuarios: React.FC = () => {
               <UserCog size={28} style={{ marginRight: '0.5rem', color: 'var(--primary)' }} />
               Administración de Usuarios
             </h1>
-            <p className="pc-subtitulo">Gestiona los accesos, roles y sucursales del personal de la escuela</p>
+            <p className="pc-subtitulo">Gestiona los accesos, roles y sucursales del personal de la escuela.</p>
           </div>
         </div>
         <div className="pc-header-acciones">
