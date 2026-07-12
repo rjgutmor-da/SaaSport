@@ -85,6 +85,7 @@ export function useAlumnosPorItem(
           id,
           monto_total,
           fecha_emision,
+          periodo_estadistico,
           anulada,
           alumno_id,
           descripcion,
@@ -113,8 +114,7 @@ export function useAlumnosPorItem(
         `)
         .eq('escuela_id', eid)
         .eq('anulada', false)
-        .gte('fecha_emision', desde)
-        .lte('fecha_emision', hasta)
+        .or(`and(periodo_estadistico.gte.${desde},periodo_estadistico.lte.${hasta}),and(periodo_estadistico.is.null,fecha_emision.gte.${desde},fecha_emision.lte.${hasta})`)
         .limit(5000);
 
       // Filtros adicionales condicionales
@@ -139,7 +139,8 @@ export function useAlumnosPorItem(
 
       for (const cxc of (data || []) as any[]) {
         const fechaEmision = cxc.fecha_emision?.split('T')[0] ?? cxc.fecha_emision;
-        if (!fechaEmision || fechaEmision < desde || fechaEmision > hasta) continue;
+        const fechaEstadistica = cxc.periodo_estadistico || fechaEmision;
+        if (!fechaEstadistica || fechaEstadistica < desde || fechaEstadistica > hasta) continue;
         if (cxc.anulada) continue;
         if (String(cxc.descripcion || '').toLowerCase().includes('saldo inicial')) continue;
 

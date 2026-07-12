@@ -14,11 +14,18 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   School, Users, UserCheck, GraduationCap,
-  Building2, UserCog, MapPin, Activity, RefreshCw, Camera, Lock
+  Building2, UserCog, MapPin, Activity, RefreshCw, Camera, Lock, Settings
 } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../../lib/supabaseClient';
 import LogoPorDefecto from '../../assets/LogoPorDefecto.png';
 import { useAuthSaaSport } from '../../lib/authHelper';
+import {
+  configuracionFacturacionKey,
+  configuracionFacturacionManual,
+  useConfiguracionFacturacion,
+  type ConfiguracionFacturacion,
+} from '../../hooks/useConfiguracionFacturacion';
 
 interface EscuelaInfo {
   id: string;
@@ -44,7 +51,8 @@ interface Estadisticas {
 
 const PanelEscuela: React.FC = () => {
   const navigate = useNavigate();
-  const { recargarDatosAuth } = useAuthSaaSport();
+  const queryClient = useQueryClient();
+  const { recargarDatosAuth, escuelaId, perfil } = useAuthSaaSport();
 
   // Escuelas con acceso habilitado a Fotos de Asistencia Grupal
   const ESCUELAS_CON_FOTOS_ASISTENCIA = ['Fundación Inter Stars'];
@@ -68,6 +76,20 @@ const PanelEscuela: React.FC = () => {
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [guardando, setGuardando] = useState(false);
   const [modalError, setModalError] = useState<string | null>(null);
+  const [configFacturacionAbierta, setConfigFacturacionAbierta] = useState(false);
+  const [guardandoFacturacion, setGuardandoFacturacion] = useState(false);
+  const [errorFacturacion, setErrorFacturacion] = useState<string | null>(null);
+  const [configFacturacionForm, setConfigFacturacionForm] = useState<ConfiguracionFacturacion | null>(null);
+  const configFacturacionQuery = useConfiguracionFacturacion(escuelaId, configFacturacionAbierta);
+
+  useEffect(() => {
+    if (!configFacturacionAbierta || !escuelaId) return;
+    if (configFacturacionQuery.data) {
+      setConfigFacturacionForm(configFacturacionQuery.data);
+    } else if (!configFacturacionQuery.isLoading) {
+      setConfigFacturacionForm(configuracionFacturacionManual(escuelaId));
+    }
+  }, [configFacturacionAbierta, escuelaId, configFacturacionQuery.data, configFacturacionQuery.isLoading]);
 
   useEffect(() => {
     cargarDatos();
@@ -213,6 +235,58 @@ const PanelEscuela: React.FC = () => {
       setModalError(err.message);
     } finally {
       setGuardando(false);
+    }
+  };
+
+  const handleGuardarFacturacion = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!escuelaId || !perfil || !configFacturacionForm) return;
+
+    if (configFacturacionForm.plan_calculo_monto === 'asistencia') {
+      const x = configFacturacionForm.asistencias_minimo_completo;
+      const y = configFacturacionForm.asistencias_minimo_parcial;
+      if (x === null || y === null || x <= y || y < 0) {
+        setErrorFacturacion('X debe ser mayor que Y, y ambos deben ser valores válidos.');
+        return;
+      }
+    }
+
+    if (
+      configFacturacionForm.plan_momento_emision === 'adelantado'
+      && configFacturacionForm.plan_calculo_monto === 'asistencia'
+    ) {
+      setErrorFacturacion('El cálculo por asistencia no puede emitirse por adelantado.');
+      return;
+    }
+
+    try {
+      setGuardandoFacturacion(true);
+      setErrorFacturacion(null);
+      const usaAsistencia = configFacturacionForm.plan_calculo_monto === 'asistencia';
+      const { error: guardarError } = await supabase
+        .from('configuracion_facturacion')
+        .upsert({
+          escuela_id: escuelaId,
+          plan_momento_emision: configFacturacionForm.plan_momento_emision,
+          plan_calculo_monto: configFacturacionForm.plan_calculo_monto,
+          asistencias_minimo_completo: usaAsistencia
+            ? configFacturacionForm.asistencias_minimo_completo
+            : null,
+          asistencias_minimo_parcial: usaAsistencia
+            ? configFacturacionForm.asistencias_minimo_parcial
+            : null,
+          porcentaje_monto_parcial: configFacturacionForm.porcentaje_monto_parcial,
+          activo: true,
+          updated_by: perfil.id,
+        }, { onConflict: 'escuela_id' });
+
+      if (guardarError) throw guardarError;
+      await queryClient.invalidateQueries({ queryKey: configuracionFacturacionKey(escuelaId) });
+      setConfigFacturacionAbierta(false);
+    } catch (err: any) {
+      setErrorFacturacion(err.message || 'No se pudo guardar la configuración de facturación.');
+    } finally {
+      setGuardandoFacturacion(false);
     }
   };
 
@@ -397,6 +471,21 @@ const PanelEscuela: React.FC = () => {
             <p className="pe-acceso-desc">Auditoría de acciones</p>
           </button>
 
+          <button
+            className="pe-acceso-card pe-acceso-orange"
+            onClick={() => {
+              setErrorFacturacion(null);
+              setConfigFacturacionForm(null);
+              setConfigFacturacionAbierta(true);
+            }}
+          >
+            <div className="pe-acceso-icon">
+              <Settings size={32} />
+            </div>
+            <h3 className="pe-acceso-titulo">Facturación</h3>
+            <p className="pe-acceso-desc">Planes y asistencias</p>
+          </button>
+
           {/* Fotos de Asistencia → solo escuelas habilitadas */}
           {(() => {
             const tieneAcceso = escuela && ESCUELAS_CON_FOTOS_ASISTENCIA.includes(escuela.nombre);
@@ -570,6 +659,146 @@ const PanelEscuela: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {configFacturacionAbierta && escuelaId && (
+        <div className="cxc-modal-overlay">
+          <div className="cxc-modal" style={{ maxWidth: '560px' }}>
+            <div className="cxc-modal-header">
+              <h2>Configuración de Facturación</h2>
+              <button
+                onClick={() => setConfigFacturacionAbierta(false)}
+                disabled={guardandoFacturacion}
+              >✕</button>
+            </div>
+
+            {configFacturacionQuery.isLoading || !configFacturacionForm ? (
+              <div style={{ padding: '2rem', display: 'flex', justifyContent: 'center' }}>
+                <RefreshCw className="spin" size={26} style={{ color: 'var(--primary)' }} />
+              </div>
+            ) : (
+              <form onSubmit={handleGuardarFacturacion} className="cxc-modal-form">
+                <div className="form-campo">
+                  <label>Momento de emisión</label>
+                  <select
+                    value={configFacturacionForm.plan_momento_emision}
+                    onChange={(e) => setConfigFacturacionForm({
+                      ...configFacturacionForm,
+                      plan_momento_emision: e.target.value as ConfiguracionFacturacion['plan_momento_emision'],
+                    })}
+                    disabled={guardandoFacturacion}
+                  >
+                    <option value="manual">Manual</option>
+                    <option value="adelantado">Al inicio del ciclo</option>
+                    <option value="atrasado">Al finalizar el ciclo</option>
+                  </select>
+                </div>
+
+                <div className="form-campo">
+                  <label>Cálculo del monto</label>
+                  <select
+                    value={configFacturacionForm.plan_calculo_monto}
+                    onChange={(e) => {
+                      const calculo = e.target.value as ConfiguracionFacturacion['plan_calculo_monto'];
+                      setConfigFacturacionForm({
+                        ...configFacturacionForm,
+                        plan_calculo_monto: calculo,
+                        asistencias_minimo_completo: calculo === 'asistencia'
+                          ? configFacturacionForm.asistencias_minimo_completo
+                          : null,
+                        asistencias_minimo_parcial: calculo === 'asistencia'
+                          ? configFacturacionForm.asistencias_minimo_parcial
+                          : null,
+                      });
+                    }}
+                    disabled={guardandoFacturacion}
+                  >
+                    <option value="manual">Manual</option>
+                    <option value="fijo">Mensualidad de la ficha</option>
+                    <option value="asistencia">Según asistencia</option>
+                  </select>
+                </div>
+
+                {configFacturacionForm.plan_calculo_monto === 'asistencia' && (
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.75rem' }}>
+                    <div className="form-campo">
+                      <label>X · monto completo</label>
+                      <input
+                        type="number"
+                        min="1"
+                        value={configFacturacionForm.asistencias_minimo_completo ?? ''}
+                        onChange={(e) => setConfigFacturacionForm({
+                          ...configFacturacionForm,
+                          asistencias_minimo_completo: e.target.value === '' ? null : Number(e.target.value),
+                        })}
+                        disabled={guardandoFacturacion}
+                        required
+                      />
+                    </div>
+                    <div className="form-campo">
+                      <label>Y · monto parcial</label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={configFacturacionForm.asistencias_minimo_parcial ?? ''}
+                        onChange={(e) => setConfigFacturacionForm({
+                          ...configFacturacionForm,
+                          asistencias_minimo_parcial: e.target.value === '' ? null : Number(e.target.value),
+                        })}
+                        disabled={guardandoFacturacion}
+                        required
+                      />
+                    </div>
+                    <div className="form-campo">
+                      <label>Porcentaje parcial</label>
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        step="0.01"
+                        value={configFacturacionForm.porcentaje_monto_parcial}
+                        onChange={(e) => setConfigFacturacionForm({
+                          ...configFacturacionForm,
+                          porcentaje_monto_parcial: Number(e.target.value),
+                        })}
+                        disabled={guardandoFacturacion}
+                        required
+                      />
+                    </div>
+                  </div>
+                )}
+
+                <div style={{ padding: '0.85rem', background: 'rgba(59,130,246,0.08)', border: '1px solid rgba(59,130,246,0.2)', borderRadius: '8px', color: 'var(--text-secondary)', fontSize: '0.8rem', lineHeight: 1.5 }}>
+                  {configFacturacionForm.plan_calculo_monto === 'asistencia'
+                    ? `Desde ${configFacturacionForm.asistencias_minimo_completo ?? 'X'} asistencias se cobra 100%; desde ${configFacturacionForm.asistencias_minimo_parcial ?? 'Y'} se cobra ${configFacturacionForm.porcentaje_monto_parcial}%; por debajo de Y se cobra 0%. Sin registros, el alumno queda para revisión.`
+                    : configFacturacionForm.plan_calculo_monto === 'fijo'
+                      ? 'El monto se tomará de la mensualidad configurada en la ficha de cada alumno.'
+                      : 'La creación y el monto continuarán siendo manuales.'}
+                </div>
+
+                {(errorFacturacion || configFacturacionQuery.error) && (
+                  <div className="login-error" style={{ margin: 0 }}>
+                    <span>{errorFacturacion || (configFacturacionQuery.error as Error)?.message}</span>
+                  </div>
+                )}
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginTop: '1rem', borderTop: '1px solid var(--border)', paddingTop: '1rem' }}>
+                  <button
+                    type="button"
+                    className="btn-volver"
+                    onClick={() => setConfigFacturacionAbierta(false)}
+                    disabled={guardandoFacturacion}
+                  >Cancelar</button>
+                  <button
+                    type="submit"
+                    className="btn-nueva-cuenta"
+                    disabled={guardandoFacturacion}
+                  >{guardandoFacturacion ? 'Guardando...' : 'Guardar configuración'}</button>
+                </div>
+              </form>
+            )}
           </div>
         </div>
       )}

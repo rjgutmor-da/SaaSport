@@ -25,6 +25,46 @@ export const getHoraLocal = (): string => {
 };
 
 /**
+ * Calcula el mes estadistico desde la fecha de inicio de un ciclo.
+ * Del dia 1 al 16 usa el mes de inicio; desde el 17 usa el mes siguiente.
+ * Retorna siempre el primer dia del mes en formato YYYY-MM-DD.
+ */
+export const calcularPeriodoEstadistico = (fechaInicio: string): string => {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(fechaInicio);
+  if (!match) return '';
+
+  let year = Number(match[1]);
+  let month = Number(match[2]);
+  const day = Number(match[3]);
+
+  if (month < 1 || month > 12 || day < 1 || day > 31) return '';
+  const fechaValidacion = new Date(year, month - 1, day);
+  if (
+    fechaValidacion.getFullYear() !== year
+    || fechaValidacion.getMonth() !== month - 1
+    || fechaValidacion.getDate() !== day
+  ) return '';
+  if (day >= 17) {
+    month += 1;
+    if (month === 13) {
+      month = 1;
+      year += 1;
+    }
+  }
+
+  return `${year}-${String(month).padStart(2, '0')}-01`;
+};
+
+/** Formato corto y estable para mostrar un periodo YYYY-MM-DD. */
+export const formatPeriodoEstadistico = (periodo: string): string => {
+  const match = /^(\d{4})-(\d{2})-\d{2}$/.exec(periodo);
+  if (!match) return '—';
+  const meses = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+    'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+  return `${meses[Number(match[2]) - 1]} ${match[1]}`;
+};
+
+/**
  * Construye un timestamp ISO con el offset de zona horaria local explícito.
  * Evita el bug de new Date(...).toISOString() que convierte a UTC y desplaza
  * la fecha un día en zonas UTC negativas (ej: Bolivia UTC-4).
@@ -82,7 +122,7 @@ export const formatFecha = (iso: string | null | undefined): string => {
       month: '2-digit', 
       year: 'numeric' 
     });
-  } catch (e) {
+  } catch {
     return iso;
   }
 };
@@ -117,7 +157,7 @@ export const formatFechaCorta = (iso: string | null | undefined): string => {
       month: 'short', 
       year: 'numeric' 
     });
-  } catch (e) {
+  } catch {
     return iso;
   }
 };

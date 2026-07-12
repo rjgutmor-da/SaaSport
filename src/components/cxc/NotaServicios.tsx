@@ -9,10 +9,16 @@ import type { CatalogoItem } from '../../types/cuentas';
 import type { LineaNota } from '../../types/cxc';
 import { MESES_ANIO } from '../../types/cxc';
 import {
-  X, Plus, Check, Trash2, Calendar, AlertCircle,
-  CreditCard, FileText, Users, RefreshCw, Hash, Lock, DollarSign
+  X, Plus, Trash2, FileText, Lock, DollarSign
 } from 'lucide-react';
-import { getHoyISO, getHoraLocal } from '../../lib/dateUtils';
+import {
+  calcularPeriodoEstadistico,
+  formatPeriodoEstadistico,
+  getHoyISO,
+  getHoraLocal,
+} from '../../lib/dateUtils';
+import { useAuthSaaSport } from '../../lib/authHelper';
+import { useConfiguracionFacturacion } from '../../hooks/useConfiguracionFacturacion';
 
 interface NotaServiciosProps {
   visible: boolean;
@@ -26,6 +32,12 @@ interface NotaServiciosProps {
 
 const fmtMonto = (n: number): string =>
   n.toLocaleString('es-BO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+const periodoMesLegacy = (periodo: string): string => {
+  const [year, month] = periodo.split('-');
+  const index = Number(month) - 1;
+  return index >= 0 && index < MESES_ANIO.length ? `${MESES_ANIO[index]}-${year}` : '';
+};
 
 const lineaVacia = (): LineaNota => ({
   catalogo_item_id: '',
@@ -43,9 +55,20 @@ interface LineaNotaUI extends LineaNota {
   torneo_select_value?: string;
 }
 
+interface CalculoAsistenciaResult {
+  estado: 'completo' | 'parcial' | 'sin_cobro' | 'sin_asistencia';
+  registros: number;
+  presentes: number;
+  monto: number | null;
+  mensualidad_base: number;
+  porcentaje_parcial?: number;
+}
+
 const NotaServicios: React.FC<NotaServiciosProps> = ({
   visible, onCerrar, onCreada, alumnoPreseleccionado, cxcEditar, esAnticipo = false, modoInicial
 }) => {
+  const { perfil, escuelaId } = useAuthSaaSport();
+  const configuracionFacturacion = useConfiguracionFacturacion(escuelaId, visible);
   const [alumnos, setAlumnos] = useState<{ id: string; nombres: string; apellidos: string; mensualidad?: number | null }[]>([]);
   const [catalogo, setCatalogo] = useState<CatalogoItem[]>([]);
   const [cajasBancos, setCajasBancos] = useState<{ id: string; nombre: string; saldo_actual: number }[]>([]);
@@ -56,6 +79,10 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
   const [observaciones, setObservaciones] = useState('');
   const [vencimiento, setVencimiento] = useState(getHoyISO());
   const [fechaEmision, setFechaEmision] = useState(getHoyISO());
+  const [cicloInicio, setCicloInicio] = useState(getHoyISO());
+  const [cicloFin, setCicloFin] = useState(getHoyISO());
+  const [calculandoAsistencia, setCalculandoAsistencia] = useState(false);
+  const [resumenAsistencia, setResumenAsistencia] = useState<string | null>(null);
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [exito, setExito] = useState<string | null>(null);
@@ -96,15 +123,12 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
     }
 
     const cargar = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-      const { data: usr } = await supabase.from('usuarios').select('escuela_id').eq('id', user.id).single();
-      if (!usr) return;
+      if (!perfil || !escuelaId) return;
 
       const [resAlum, resCat, resCajas] = await Promise.all([
         supabase.from('alumnos').select('id, nombres, apellidos, mensualidad').eq('archivado', false).order('nombres'),
-        supabase.from('catalogo_items').select('*').eq('activo', true).or('tipo_movimiento.eq.ingreso,tipo_movimiento.eq.ambos').order('nombre'),
-        supabase.from('cajas_bancos').select('id, nombre, saldo_actual').eq('activo', true).eq('escuela_id', usr.escuela_id).order('nombre'),
+        supabase.from('catalogo_items').select('id, nombre, tipo, precio_venta, cuenta_ingreso_id, tipo_movimiento').eq('activo', true).or('tipo_movimiento.eq.ingreso,tipo_movimiento.eq.ambos').order('nombre'),
+        supabase.from('cajas_bancos').select('id, nombre, saldo_actual, es_predeterminada').eq('activo', true).eq('escuela_id', escuelaId).order('nombre'),
       ]);
       setAlumnos(resAlum.data ?? []);
       
@@ -141,7 +165,7 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
         const { data: dbTorneos, error: tErr } = await supabase
           .from('torneos')
           .select('nombre')
-          .eq('escuela_id', usr.escuela_id)
+          .eq('escuela_id', escuelaId)
           .eq('activo', true)
           .order('nombre');
 
@@ -179,15 +203,27 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
         setObservaciones(cxcEditar.observaciones || '');
         setVencimiento(cxcEditar.fecha_vencimiento || cxcEditar.vencimiento || getHoyISO());
         setFechaEmision(cxcEditar.fecha_emision || getHoyISO());
+        setCicloInicio(cxcEditar.ciclo_inicio || cxcEditar.fecha_emision || getHoyISO());
+        setCicloFin(cxcEditar.ciclo_fin || cxcEditar.fecha_vencimiento || cxcEditar.fecha_emision || getHoyISO());
         setPagarAlCrear(false);
         setCobrosExistentes([]);
         // Cargar cobros existentes de forma asíncrona siempre que estemos editando
         (async () => {
-          const { data: cobros } = await supabase
-            .from('cobros_aplicados')
-            .select('id, monto_aplicado, fecha, documento_referencia, caja_id, conciliado')
-            .eq('cuenta_cobrar_id', cxcEditar.id)
-            .order('fecha', { ascending: true });
+          const [{ data: cobros }, { data: periodoNota }] = await Promise.all([
+            supabase
+              .from('cobros_aplicados')
+              .select('id, monto_aplicado, fecha, documento_referencia, caja_id, conciliado')
+              .eq('cuenta_cobrar_id', cxcEditar.id)
+              .order('fecha', { ascending: true }),
+            supabase
+              .from('cuentas_cobrar')
+              .select('ciclo_inicio, ciclo_fin')
+              .eq('id', cxcEditar.id)
+              .maybeSingle(),
+          ]);
+
+          if (periodoNota?.ciclo_inicio) setCicloInicio(periodoNota.ciclo_inicio);
+          if (periodoNota?.ciclo_fin) setCicloFin(periodoNota.ciclo_fin);
 
           if (cobros && cobros.length > 0) {
             setCobrosExistentes(cobros.map((c: any) => ({
@@ -209,6 +245,8 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
         setLineas([lineaVacia()]);
         setObservaciones(esAnticipo ? 'Cobro Anticipado - Saldo a Favor' : '');
         setFechaEmision(getHoyISO());
+        setCicloInicio(getHoyISO());
+        setCicloFin(getHoyISO());
         setVencimiento(getHoyISO());
         setFechaPago(getHoyISO());
         setPagarAlCrear(esAnticipo);
@@ -218,7 +256,28 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
       }
       setError(null); setExito(null);
     }
-  }, [visible, cxcEditar, alumnoPreseleccionado, esAnticipo]);
+  }, [visible, cxcEditar, alumnoPreseleccionado, esAnticipo, perfil, escuelaId]);
+
+  const tieneMensualidad = useMemo(
+    () => !esAnticipo && lineas.some(l => l.nombre === 'Mensualidad' && !!l.catalogo_item_id),
+    [lineas, esAnticipo],
+  );
+  const periodoEstadistico = useMemo(
+    () => calcularPeriodoEstadistico(cicloInicio),
+    [cicloInicio],
+  );
+
+  useEffect(() => {
+    if (!tieneMensualidad || !periodoEstadistico) return;
+    const mes = periodoMesLegacy(periodoEstadistico);
+    setLineas(actuales => actuales.map(linea => linea.nombre === 'Mensualidad'
+      ? { ...linea, periodo_meses: mes ? [mes] : [], cantidad: 1, subtotal: linea.precio_unitario }
+      : linea));
+  }, [tieneMensualidad, periodoEstadistico]);
+
+  useEffect(() => {
+    setResumenAsistencia(null);
+  }, [alumnoId, cicloInicio, cicloFin]);
 
   const total = useMemo(() => {
     if (esAnticipo) return parseFloat(montoAnticipo) || 0;
@@ -233,6 +292,41 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
       setMontoPago(String(total));
     }
   }, [pagarAlCrear, total, esAnticipo]);
+
+  const calcularMontoPorAsistencia = async () => {
+    if (!alumnoId || !cicloInicio || !cicloFin || cicloFin < cicloInicio) {
+      setError('Selecciona un alumno y un ciclo válido antes de calcular.');
+      return;
+    }
+
+    try {
+      setCalculandoAsistencia(true);
+      setError(null);
+      const { data, error: rpcError } = await supabase.rpc('rpc_calcular_mensualidad_alumno', {
+        p_alumno_id: alumnoId,
+        p_ciclo_inicio: cicloInicio,
+        p_ciclo_fin: cicloFin,
+      });
+      if (rpcError) throw rpcError;
+
+      const calculo = data as CalculoAsistenciaResult;
+      if (calculo.estado === 'sin_asistencia' || calculo.monto === null) {
+        setResumenAsistencia('Sin registros de asistencia: el alumno debe revisarse manualmente.');
+        return;
+      }
+
+      setLineas(actuales => actuales.map(linea => linea.nombre === 'Mensualidad'
+        ? { ...linea, precio_unitario: Number(calculo.monto), cantidad: 1, subtotal: Number(calculo.monto) }
+        : linea));
+      setResumenAsistencia(
+        `${calculo.presentes} presentes de ${calculo.registros} registros · ${calculo.estado === 'completo' ? '100%' : calculo.estado === 'parcial' ? `${calculo.porcentaje_parcial}%` : '0%'} · Bs ${fmtMonto(Number(calculo.monto))}`,
+      );
+    } catch (err: any) {
+      setError(err.message || 'No se pudo calcular la mensualidad por asistencia.');
+    } finally {
+      setCalculandoAsistencia(false);
+    }
+  };
 
   const guardarNota = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -250,6 +344,10 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
           setError('Debe seleccionar al menos un mes para el ítem Mensualidad.');
           return;
         }
+      }
+      if (tieneMensualidad && (!cicloInicio || !cicloFin || cicloFin < cicloInicio || !periodoEstadistico)) {
+        setError('Ingresa un rango válido para el ciclo de la mensualidad.');
+        return;
       }
     }
 
@@ -286,13 +384,14 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
 
     setGuardando(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Auth error');
-      const { data: ctx } = await supabase.from('usuarios').select('*').eq('id', user.id).single();
+      if (!perfil) throw new Error('Sesión expirada.');
+      const ctx = perfil;
 
       // 1. Guardar/Actualizar Nota
       let notaId = '';
+      let detalleGuardadoEnRpc = false;
       const descripcionFinal = esAnticipo ? 'Anticipo' : lineas.filter(l => l.catalogo_item_id && l.precio_unitario > 0).map(l => l.nombre).join(', ');
+      const lineasValidasGuardar = lineas.filter(l => l.catalogo_item_id && l.precio_unitario > 0);
 
       if (cxcEditar?.id) {
         notaId = cxcEditar.id;
@@ -326,12 +425,39 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
           estado: nuevoEstado,
           editado: true,
           editado_por: ctx.id,
-          updated_at: new Date().toISOString()
+          updated_at: new Date().toISOString(),
+          periodo: tieneMensualidad ? periodoEstadistico.slice(0, 7) : null,
+          periodo_estadistico: tieneMensualidad ? periodoEstadistico : null,
+          ciclo_inicio: tieneMensualidad ? cicloInicio : null,
+          ciclo_fin: tieneMensualidad ? cicloFin : null,
         }).eq('id', notaId);
         if (errU) throw errU;
 
         // Borrar detalle previo para re-insertar
         await supabase.from('cxc_detalle').delete().eq('cuenta_cobrar_id', notaId);
+      } else if (tieneMensualidad) {
+        const { data: nuevaId, error: errRpc } = await supabase.rpc('rpc_crear_nota_mensualidad', {
+          p_alumno_id: alumnoId,
+          p_sucursal_id: ctx.sucursal_id,
+          p_monto_total: total,
+          p_descripcion: descripcionFinal,
+          p_observaciones: observaciones || null,
+          p_fecha_emision: fechaEmision,
+          p_fecha_vencimiento: vencimiento || null,
+          p_ciclo_inicio: cicloInicio,
+          p_ciclo_fin: cicloFin,
+          p_lineas: lineasValidasGuardar.map(l => ({
+            catalogo_item_id: l.catalogo_item_id,
+            cantidad: l.cantidad,
+            precio_unitario: l.precio_unitario,
+            periodo_meses: l.periodo_meses.length > 0 ? l.periodo_meses : null,
+            detalle_extra: l.detalle_personalizado || null,
+          })),
+          p_nro_recibo: cobroNroDoc || null,
+        });
+        if (errRpc || !nuevaId) throw errRpc || new Error('No se pudo crear la mensualidad.');
+        notaId = nuevaId as string;
+        detalleGuardadoEnRpc = true;
       } else {
         const { data: nueva, error: errN } = await supabase.from('cuentas_cobrar').insert({
           escuela_id: ctx.escuela_id,
@@ -344,7 +470,12 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
           fecha_vencimiento: vencimiento || null,
           es_anticipo: esAnticipo,
           estado: 'pendiente',
-          nro_recibo: cobroNroDoc || null
+          nro_recibo: cobroNroDoc || null,
+          periodo: tieneMensualidad ? periodoEstadistico.slice(0, 7) : null,
+          periodo_estadistico: tieneMensualidad ? periodoEstadistico : null,
+          ciclo_inicio: tieneMensualidad ? cicloInicio : null,
+          ciclo_fin: tieneMensualidad ? cicloFin : null,
+          origen_facturacion: 'manual',
         }).select('id').single();
         if (errN) throw errN;
         notaId = nueva.id;
@@ -380,9 +511,8 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
           precio_unitario: total,
           detalle_extra: 'Anticipo'
         });
-      } else {
-        const lineasValidas = lineas.filter(l => l.catalogo_item_id && l.precio_unitario > 0);
-        await supabase.from('cxc_detalle').insert(lineasValidas.map(l => ({
+      } else if (!detalleGuardadoEnRpc) {
+        await supabase.from('cxc_detalle').insert(lineasValidasGuardar.map(l => ({
           escuela_id: ctx.escuela_id,
           cuenta_cobrar_id: notaId,
           catalogo_item_id: l.catalogo_item_id,
@@ -458,7 +588,9 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
       onCreada();
       setTimeout(() => { onCerrar(); }, 600);
     } catch (err: any) {
-      setError(`Error: ${err.message}`);
+      setError(err.code === '23505'
+        ? 'Ya existe una mensualidad activa para este alumno y periodo estadístico.'
+        : `Error: ${err.message}`);
     } finally {
       setGuardando(false);
     }
@@ -520,23 +652,6 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
                     const f = e.target.value;
                     setFechaEmision(f);
                     setVencimiento(f);
-                    
-                    // Sincronizar meses de mensualidad si existen
-                    if (f) {
-                      const monthIdx = parseInt(f.split('-')[1]) - 1;
-                      const nuevasLineas = lineas.map(l => {
-                        if (l.nombre === 'Mensualidad') {
-                          return { 
-                            ...l, 
-                            periodo_meses: [MESES_ANIO[monthIdx]],
-                            cantidad: 1,
-                            subtotal: l.precio_unitario
-                          };
-                        }
-                        return l;
-                      });
-                      setLineas(nuevasLineas);
-                    }
                   }} 
                   required 
                 />
@@ -610,34 +725,63 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
 
                       {esMensualidad && (
                         <div style={{ marginTop: '0.75rem', padding: '0.75rem', background: 'rgba(255,255,255,0.02)', borderRadius: '8px' }}>
-                          <p style={{ fontSize: '0.7rem', fontWeight: 700, color: '#94a3b8', marginBottom: '0.5rem', textTransform: 'uppercase' }}>Seleccionar Mes(es)</p>
-                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '0.4rem', marginBottom: '0.75rem' }}>
-                            {MESES_ANIO.map(mes => (
-                              <label key={mes} style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.75rem', cursor: 'pointer', background: linea.periodo_meses.includes(mes) ? 'rgba(59,130,246,0.1)' : 'transparent', padding: '0.2rem 0.4rem', borderRadius: '4px', border: '1px solid', borderColor: linea.periodo_meses.includes(mes) ? '#3b82f6' : 'rgba(255,255,255,0.1)' }}>
-                                <input 
-                                  type="checkbox" 
-                                  checked={linea.periodo_meses.includes(mes)} 
-                                  onChange={e => {
-                                    const meses = e.target.checked 
-                                      ? [...linea.periodo_meses, mes]
-                                      : linea.periodo_meses.filter(m => m !== mes);
-                                    const nuevas = [...lineas];
-                                    nuevas[idx].periodo_meses = meses;
-                                    
-                                    // Actualizar cantidad automáticamente según meses seleccionados
-                                    if (meses.length > 0) {
-                                      nuevas[idx].cantidad = meses.length;
-                                      nuevas[idx].subtotal = meses.length * nuevas[idx].precio_unitario;
-                                    }
-                                    
-                                    setLineas(nuevas);
-                                  }}
-                                  style={{ width: '12px', height: '12px' }}
-                                />
-                                {mes}
-                              </label>
-                            ))}
+                          <p style={{ fontSize: '0.7rem', fontWeight: 700, color: '#94a3b8', marginBottom: '0.5rem', textTransform: 'uppercase' }}>Ciclo y periodo estadístico</p>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1.15fr', gap: '0.65rem', marginBottom: '0.75rem' }}>
+                            <div className="form-campo">
+                              <label>Inicio del ciclo</label>
+                              <input
+                                type="date"
+                                value={cicloInicio}
+                                onChange={e => setCicloInicio(e.target.value)}
+                                disabled={guardando}
+                                required
+                              />
+                            </div>
+                            <div className="form-campo">
+                              <label>Fin del ciclo</label>
+                              <input
+                                type="date"
+                                value={cicloFin}
+                                min={cicloInicio}
+                                onChange={e => setCicloFin(e.target.value)}
+                                disabled={guardando}
+                                required
+                              />
+                            </div>
+                            <div className="form-campo">
+                              <label>Mes estadístico</label>
+                              <input
+                                type="text"
+                                value={formatPeriodoEstadistico(periodoEstadistico)}
+                                readOnly
+                                aria-readonly="true"
+                                style={{ cursor: 'not-allowed', opacity: 0.85 }}
+                              />
+                            </div>
                           </div>
+                          {configuracionFacturacion.data && (
+                            <p style={{ margin: '0 0 0.75rem', color: 'var(--text-tertiary)', fontSize: '0.72rem' }}>
+                              Plan de la escuela: {configuracionFacturacion.data.plan_momento_emision} · {configuracionFacturacion.data.plan_calculo_monto}
+                            </p>
+                          )}
+                          {configuracionFacturacion.data?.plan_calculo_monto === 'asistencia' && (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
+                              <button
+                                type="button"
+                                className="btn-volver"
+                                onClick={calcularMontoPorAsistencia}
+                                disabled={guardando || calculandoAsistencia || !alumnoId}
+                                style={{ height: '34px', padding: '0 0.85rem', fontSize: '0.75rem' }}
+                              >
+                                {calculandoAsistencia ? 'Calculando...' : 'Calcular por asistencia'}
+                              </button>
+                              {resumenAsistencia && (
+                                <span style={{ color: 'var(--text-secondary)', fontSize: '0.75rem' }}>
+                                  {resumenAsistencia}
+                                </span>
+                              )}
+                            </div>
+                          )}
                           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
                             <div style={{ flex: 1 }}>
                               <label style={{ fontSize: '0.7rem', fontWeight: 700, color: '#94a3b8', display: 'block', marginBottom: '0.2rem' }}>PERIODO ESPECÍFICO / DETALLE</label>
