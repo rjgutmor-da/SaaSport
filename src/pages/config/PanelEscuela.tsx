@@ -722,20 +722,38 @@ const PanelEscuela: React.FC = () => {
                 </div>
 
                 {configFacturacionForm.plan_calculo_monto === 'asistencia' && (
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.75rem' }}>
-                    <div className="form-campo">
-                      <label>X · monto completo</label>
-                      <input
-                        type="number"
-                        min="1"
-                        value={configFacturacionForm.asistencias_minimo_completo ?? ''}
-                        onChange={(e) => setConfigFacturacionForm({
-                          ...configFacturacionForm,
-                          asistencias_minimo_completo: e.target.value === '' ? null : Number(e.target.value),
-                        })}
-                        disabled={guardandoFacturacion}
-                        required
-                      />
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '0.75rem', alignItems: 'start' }}>
+                    <div style={{ display: 'grid', gap: '0.75rem' }}>
+                      <div className="form-campo">
+                        <label>X · monto completo</label>
+                        <input
+                          type="number"
+                          min="1"
+                          value={configFacturacionForm.asistencias_minimo_completo ?? ''}
+                          onChange={(e) => setConfigFacturacionForm({
+                            ...configFacturacionForm,
+                            asistencias_minimo_completo: e.target.value === '' ? null : Number(e.target.value),
+                          })}
+                          disabled={guardandoFacturacion}
+                          required
+                        />
+                      </div>
+                      <div className="form-campo">
+                        <label>Porcentaje parcial</label>
+                        <input
+                          type="number"
+                          min="0"
+                          max="100"
+                          step="0.01"
+                          value={configFacturacionForm.porcentaje_monto_parcial}
+                          onChange={(e) => setConfigFacturacionForm({
+                            ...configFacturacionForm,
+                            porcentaje_monto_parcial: Number(e.target.value),
+                          })}
+                          disabled={guardandoFacturacion}
+                          required
+                        />
+                      </div>
                     </div>
                     <div className="form-campo">
                       <label>Y · monto parcial</label>
@@ -746,22 +764,6 @@ const PanelEscuela: React.FC = () => {
                         onChange={(e) => setConfigFacturacionForm({
                           ...configFacturacionForm,
                           asistencias_minimo_parcial: e.target.value === '' ? null : Number(e.target.value),
-                        })}
-                        disabled={guardandoFacturacion}
-                        required
-                      />
-                    </div>
-                    <div className="form-campo">
-                      <label>Porcentaje parcial</label>
-                      <input
-                        type="number"
-                        min="0"
-                        max="100"
-                        step="0.01"
-                        value={configFacturacionForm.porcentaje_monto_parcial}
-                        onChange={(e) => setConfigFacturacionForm({
-                          ...configFacturacionForm,
-                          porcentaje_monto_parcial: Number(e.target.value),
                         })}
                         disabled={guardandoFacturacion}
                         required
