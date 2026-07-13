@@ -5,7 +5,7 @@ import { obtenerOrdenMes } from '../lib/dateUtils';
 const normalizar = (str: string) =>
   str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
 
-const LEGACY_GRUPO_TRANSACCION_KEY = ['asiento', 'id'].join('_');
+// Legacy key eliminada
 
 export const queryKeys = {
   cxc_resumen: (filtros: any) => ['cxc-resumen', filtros] as const,
@@ -356,47 +356,11 @@ const fetchMovimientos = async (escuelaId: string, cajaIds: string[]) => {
   if (cobros.error) throw cobros.error;
   if (pagos.error) throw pagos.error;
 
-  const movsAgrupados = new Map<string, any>();
-  const movsFinales: any[] = [];
-
-  const addMov = (mov: MovimientoFinanciero) => {
-    const grupoId = mov.grupo_transaccion_id;
-
-    if (grupoId) {
-      if (!movsAgrupados.has(grupoId)) {
-        movsAgrupados.set(grupoId, {
-          ...mov,
-          descripcion: mov.tipo_origen === 'cobro' ? '' : 'Pago Consolidado',
-          debe: 0,
-          haber: 0,
-          cuenta_nombre_list: [],
-          id: grupoId,
-          grupo_transaccion_id: grupoId,
-          is_grouped: true,
-          original_ids: [],
-          conciliados_count: 0,
-          total_count: 0
-        });
-      }
-      const g = movsAgrupados.get(grupoId);
-      g.debe += mov.debe;
-      g.haber += mov.haber;
-      if (mov.cuenta_nombre && !g.cuenta_nombre_list.includes(mov.cuenta_nombre)) {
-        g.cuenta_nombre_list.push(mov.cuenta_nombre);
-      }
-      g.original_ids.push(mov.id);
-      g.total_count += 1;
-      if (mov.conciliado) g.conciliados_count += 1;
-      g.conciliado = g.conciliados_count === g.total_count;
-      g.cuenta_nombre = g.cuenta_nombre_list.join(', ');
-    } else {
-      movsFinales.push(mov);
-    }
-  };
+  const movsFinales: MovimientoFinanciero[] = [];
 
   cobros.data.forEach((c: any) => {
     const monto = Number(c.monto_aplicado) || 0;
-    addMov({
+    movsFinales.push({
       id: c.id,
       tipo_origen: 'cobro',
       debe: monto > 0 ? monto : 0,
@@ -424,14 +388,13 @@ const fetchMovimientos = async (escuelaId: string, cajaIds: string[]) => {
       })(),
       conciliado: c.conciliado || false,
       cuenta_maestra_id: c.cuentas_cobrar?.id,
-      grupo_transaccion_id: c.grupo_transaccion_id ?? c[LEGACY_GRUPO_TRANSACCION_KEY],
       alumno_raw: c.cuentas_cobrar?.alumnos || null,
       detalles_cxc: c.cuentas_cobrar?.cxc_detalle || []
     });
   });
 
   pagos.data.forEach((p: any) => {
-    addMov({
+    movsFinales.push({
       id: p.id,
       tipo_origen: 'pago',
       debe: 0,
@@ -458,12 +421,9 @@ const fetchMovimientos = async (escuelaId: string, cajaIds: string[]) => {
         return res;
       })(),
       conciliado: p.conciliado || false,
-      cuenta_maestra_id: p.cuentas_pagar?.id,
-      grupo_transaccion_id: p.grupo_transaccion_id ?? p[LEGACY_GRUPO_TRANSACCION_KEY]
+      cuenta_maestra_id: p.cuentas_pagar?.id
     });
   });
-
-  movsFinales.push(...Array.from(movsAgrupados.values()));
 
   // Ordenar descendente: 1ero por Fecha (solo el día), 2do por fecha de creación real (para ordenar correctamente los ingresos del mismo día)
   return movsFinales.sort((a, b) => {
@@ -482,7 +442,7 @@ const fetchMovimientos = async (escuelaId: string, cajaIds: string[]) => {
     if (dateB !== dateA) return dateB - dateA;
     
     // Si la fecha es idéntica, el más recientemente registrado va arriba
-    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    return new Date(b.created_at || b.fecha).getTime() - new Date(a.created_at || a.fecha).getTime();
   });
 };
 

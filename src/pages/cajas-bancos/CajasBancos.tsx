@@ -1277,8 +1277,9 @@ const CajasBancos: React.FC = () => {
                                                     await supabase.from(tablaApl).delete().eq('id', id);
                                                   }
                                                 } else {
-                                                  const tablaMaestra = mov.tipo_origen === 'cobro' ? 'cuentas_cobrar' : 'cuentas_pagar';
-                                                  if (mov.cuenta_maestra_id) {
+                                                  const tieneCliente = mov.cliente && mov.cliente !== '—';
+                                                  if (mov.cuenta_maestra_id && !tieneCliente) {
+                                                    const tablaMaestra = mov.tipo_origen === 'cobro' ? 'cuentas_cobrar' : 'cuentas_pagar';
                                                     const { error: errDel } = await supabase.from(tablaMaestra).delete().eq('id', mov.cuenta_maestra_id);
                                                     if (errDel) throw errDel;
                                                   } else {
