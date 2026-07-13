@@ -225,3 +225,33 @@ export const ordenarMesesCalendario = (meses: string[] | null | undefined): stri
     const ordenB = obtenerOrdenMes(b) || 99;
     return ordenA - ordenB;
   });
+
+/**
+ * Formatea el rango de inicio y fin de ciclo como "Día Mes a Día Mes".
+ * Retorna null si el día de inicio es 1 (mes completo) o si las fechas son inválidas.
+ */
+export const formatCiclo = (inicioStr: string | null | undefined, finStr: string | null | undefined): string | null => {
+  if (!inicioStr || !finStr) return null;
+  
+  const inicioParts = inicioStr.split('-');
+  const finParts = finStr.split('-');
+  if (inicioParts.length !== 3 || finParts.length !== 3) return null;
+  
+  const diaIni = parseInt(inicioParts[2], 10);
+  const mesIni = parseInt(inicioParts[1], 10);
+  const diaFin = parseInt(finParts[2], 10);
+  const mesFin = parseInt(finParts[1], 10);
+  
+  if (diaIni === 1) return null;
+  
+  const meses = [
+    'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+    'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+  ];
+  
+  const nombreMesIni = meses[mesIni - 1] || '';
+  const nombreMesFin = meses[mesFin - 1] || '';
+  
+  return `${diaIni} ${nombreMesIni} a ${diaFin} ${nombreMesFin}`;
+};
+

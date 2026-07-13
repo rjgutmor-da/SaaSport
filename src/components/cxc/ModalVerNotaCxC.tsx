@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import ModalEditarCobroCxC from './ModalEditarCobroCxC';
 import type { CajaBanco } from '../../types/finanzas';
-import { formatFecha, formatFechaHora, ordenarMesesCalendario } from '../../lib/dateUtils';
+import { formatFecha, formatFechaHora, ordenarMesesCalendario, formatCiclo } from '../../lib/dateUtils';
 import { can } from '../../config/roles';
 
 interface Props {
@@ -305,16 +305,35 @@ const ModalVerNotaCxC: React.FC<Props> = ({ visible, cxcId, onCerrar, onEditar, 
                               ))}
                             </div>
                           )}
-                          {/* Detalle extra (ej: "8 Jun a 8 Jul") — siempre visible */}
-                          {item.detalle_extra && (
-                            <span style={{
-                              fontSize: '0.78rem', color: '#a78bfa', fontStyle: 'italic',
-                              display: 'inline-flex', alignItems: 'center', gap: '0.2rem',
-                              width: '100%', marginTop: item.periodo_meses && item.periodo_meses.length > 0 ? '0.15rem' : '0.25rem'
-                            }}>
-                              🏷️ {item.detalle_extra}
-                            </span>
-                          )}
+                          {/* Detalle extra o fechas de ciclo */}
+                          {(() => {
+                            const esMensualidad = item.nombre?.toLowerCase().includes('mensualidad');
+                            if (esMensualidad) {
+                              const cicloFormateado = formatCiclo(nota?.ciclo_inicio, nota?.ciclo_fin);
+                              if (cicloFormateado) {
+                                return (
+                                  <span style={{
+                                    fontSize: '0.78rem', color: '#a78bfa', fontStyle: 'italic',
+                                    display: 'inline-flex', alignItems: 'center', gap: '0.2rem',
+                                    width: '100%', marginTop: item.periodo_meses && item.periodo_meses.length > 0 ? '0.15rem' : '0.25rem'
+                                  }}>
+                                    🏷️ {cicloFormateado}
+                                  </span>
+                                );
+                              }
+                            } else if (item.detalle_extra) {
+                              return (
+                                <span style={{
+                                  fontSize: '0.78rem', color: '#a78bfa', fontStyle: 'italic',
+                                  display: 'inline-flex', alignItems: 'center', gap: '0.2rem',
+                                  width: '100%', marginTop: item.periodo_meses && item.periodo_meses.length > 0 ? '0.15rem' : '0.25rem'
+                                }}>
+                                  🏷️ {item.detalle_extra}
+                                </span>
+                              );
+                            }
+                            return null;
+                          })()}
                         </div>
                         {/* Subtotal: alineado a la derecha, no se encoge */}
                         <span style={{ fontWeight: 800, color: 'var(--text-primary)', fontSize: '1.1rem', whiteSpace: 'nowrap', flexShrink: 0 }}>

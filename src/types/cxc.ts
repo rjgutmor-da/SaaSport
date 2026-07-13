@@ -81,6 +81,9 @@ export interface CuentaCobrar {
   cancha_nombre: string | null;
   horario_hora: string | null;
   entrenador_nombre: string | null;
+  ciclo_inicio?: string | null;
+  ciclo_fin?: string | null;
+  periodo_estadistico?: string | null;
 }
 
 /** Alumno con resumen de deuda (vista v_alumnos_deuda) */

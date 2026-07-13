@@ -18,7 +18,7 @@ import ModalVerNotaCxC from './ModalVerNotaCxC';
 import ModalEditarMovimiento from '../cajas-bancos/ModalEditarMovimiento';
 import ModalDetalleMovimiento from '../cajas-bancos/ModalDetalleMovimiento';
 import FichaAnticiposCxC from './FichaAnticiposCxC';
-import { getHoraLocal, getHoyISO, formatFecha, formatFechaCorta, ordenarMesesCalendario } from '../../lib/dateUtils';
+import { getHoraLocal, getHoyISO, formatFecha, formatFechaCorta, ordenarMesesCalendario, formatCiclo } from '../../lib/dateUtils';
 import { useCobroMultiple } from './useCobroMultiple';
 import { can } from '../../config/roles';
 
@@ -882,7 +882,20 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                                             {mostrarMesSinAnio(mes)}
                                           </span>
                                         ))}
-                                        {(item.item_nombre === 'Inscripción a Torneos' || item.item_nombre === 'Inscripcion a Torneos') && item.detalle_extra && (
+                                        {/* Fechas de ciclo para Mensualidad */}
+                                        {item.item_nombre?.toLowerCase().includes('mensualidad') && (() => {
+                                          const cicloFormateado = formatCiclo(cxc.ciclo_inicio, cxc.ciclo_fin);
+                                          return cicloFormateado ? (
+                                            <span style={{ fontSize: '0.6rem', padding: '1px 4px', borderRadius: '4px', background: 'rgba(74,222,128,0.15)', color: '#4ade80', fontWeight: 600 }}>
+                                              {cicloFormateado}
+                                            </span>
+                                          ) : null;
+                                        })()}
+
+                                        {/* Detalle extra para otros conceptos (como Inscripciones) */}
+                                        {!item.item_nombre?.toLowerCase().includes('mensualidad') && 
+                                         (item.item_nombre === 'Inscripción a Torneos' || item.item_nombre === 'Inscripcion a Torneos') && 
+                                         item.detalle_extra && (
                                           <span style={{ fontSize: '0.6rem', padding: '1px 4px', borderRadius: '4px', background: 'rgba(74,222,128,0.15)', color: '#4ade80', fontWeight: 600 }}>
                                             {item.detalle_extra}
                                           </span>
@@ -1044,7 +1057,20 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                                             {mostrarMesSinAnio(mes)}
                                           </span>
                                         ))}
-                                        {(item.item_nombre === 'Inscripción a Torneos' || item.item_nombre === 'Inscripcion a Torneos') && item.detalle_extra && (
+                                        {/* Fechas de ciclo para Mensualidad */}
+                                        {item.item_nombre?.toLowerCase().includes('mensualidad') && (() => {
+                                          const cicloFormateado = formatCiclo(cxc.ciclo_inicio, cxc.ciclo_fin);
+                                          return cicloFormateado ? (
+                                            <span style={{ fontSize: '0.65rem', padding: '1px 6px', borderRadius: '4px', background: 'rgba(74,222,128,0.15)', color: '#4ade80', fontWeight: 600 }}>
+                                              {cicloFormateado}
+                                            </span>
+                                          ) : null;
+                                        })()}
+
+                                        {/* Detalle extra para otros conceptos (como Inscripciones) */}
+                                        {!item.item_nombre?.toLowerCase().includes('mensualidad') && 
+                                         (item.item_nombre === 'Inscripción a Torneos' || item.item_nombre === 'Inscripcion a Torneos') && 
+                                         item.detalle_extra && (
                                           <span style={{ fontSize: '0.65rem', padding: '1px 6px', borderRadius: '4px', background: 'rgba(74,222,128,0.15)', color: '#4ade80', fontWeight: 600 }}>
                                             {item.detalle_extra}
                                           </span>
