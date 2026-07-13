@@ -32,6 +32,8 @@ interface DetalleAlumnoProps {
 const fmtMonto = (n: number): string =>
   n.toLocaleString('es-BO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+const mostrarMesSinAnio = (mes: string): string => mes.replace(/-[0-9]{4}$/, '');
+
 const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
   alumno, visible, onCerrar, onActualizar
 }) => {
@@ -877,7 +879,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                                         )}
                                         {item.periodo_meses && ordenarMesesCalendario(item.periodo_meses).map((mes: string, mi: number) => (
                                           <span key={`${i}-${mi}`} style={{ fontSize: '0.6rem', padding: '1px 4px', borderRadius: '4px', background: 'rgba(74,222,128,0.15)', color: '#4ade80', fontWeight: 600 }}>
-                                            {mes}
+                                            {mostrarMesSinAnio(mes)}
                                           </span>
                                         ))}
                                         {(item.item_nombre === 'Inscripción a Torneos' || item.item_nombre === 'Inscripcion a Torneos') && item.detalle_extra && (
@@ -1039,7 +1041,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                                         )}
                                         {item.periodo_meses && ordenarMesesCalendario(item.periodo_meses).map((mes: string, mi: number) => (
                                           <span key={`${i}-${mi}`} style={{ fontSize: '0.65rem', padding: '1px 6px', borderRadius: '4px', background: 'rgba(74,222,128,0.15)', color: '#4ade80', fontWeight: 600 }}>
-                                            {mes}
+                                            {mostrarMesSinAnio(mes)}
                                           </span>
                                         ))}
                                         {(item.item_nombre === 'Inscripción a Torneos' || item.item_nombre === 'Inscripcion a Torneos') && item.detalle_extra && (

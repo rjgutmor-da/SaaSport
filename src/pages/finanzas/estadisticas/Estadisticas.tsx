@@ -76,6 +76,12 @@ const Estadisticas: React.FC = () => {
 
   // Subfiltros: meses (para Mensualidad) o torneo seleccionado (para Torneos)
   const [mesesSeleccionados, setMesesSeleccionados] = useState<string[]>([]);
+  const anioActual = new Date().getFullYear();
+  const [anioMensualidad, setAnioMensualidad] = useState<number>(anioActual);
+  const aniosMensualidad = useMemo(
+    () => Array.from({ length: 11 }, (_, index) => anioActual + 1 - index),
+    [anioActual],
+  );
   // Torneo: selección del dropdown predefinido
   const [torneoSeleccionado, setTorneoSeleccionado] = useState('');
   // Si el usuario elige "Otro", puede escribir uno personalizado
@@ -121,7 +127,8 @@ const Estadisticas: React.FC = () => {
     horarioId,
     canchaId,
     itemSeleccionado?.nombre,
-    pagadoFiltro
+    pagadoFiltro,
+    esMensualidad ? anioMensualidad : undefined,
   );
 
   const cxcResult = useCuentasPorCobrar(
@@ -194,13 +201,26 @@ const Estadisticas: React.FC = () => {
     );
   };
 
+  const cambiarIntervalo = (nuevoIntervalo: IntervaloPredefinido) => {
+    setIntervalo(nuevoIntervalo);
+
+    if (nuevoIntervalo === 'año-pasado') {
+      setAnioMensualidad(anioActual - 1);
+    } else if (nuevoIntervalo === 'mes-pasado') {
+      const mesPasado = new Date(anioActual, new Date().getMonth() - 1, 1);
+      setAnioMensualidad(mesPasado.getFullYear());
+    } else if (nuevoIntervalo === 'este-mes' || nuevoIntervalo === 'este-año') {
+      setAnioMensualidad(anioActual);
+    }
+  };
+
   return (
     <main className="main-content cxc-main">
 
       {/* ─── Selector de Fechas Omnipresente ─── */}
       <SelectorFechas
         intervalo={intervalo}
-        onCambiarIntervalo={setIntervalo}
+        onCambiarIntervalo={cambiarIntervalo}
       />
 
       {/* ─── Pestañas ─── */}
@@ -350,9 +370,26 @@ const Estadisticas: React.FC = () => {
               {/* Subfiltro para Mensualidad: selector de meses */}
               {esMensualidad && (
                 <div className="est-filtro-grupo est-filtro-meses">
-                  <label className="est-filtro-label">
-                    Meses <span className="est-filtro-hint">(opcional — deja vacío para ver todos)</span>
-                  </label>
+                  <div className="est-filtro-meses-cabecera">
+                    <label className="est-filtro-label">
+                      Meses <span className="est-filtro-hint">(opcional — deja vacío para ver todos)</span>
+                    </label>
+                    <label className="est-filtro-anio">
+                      <span>Año</span>
+                      <select
+                        className="est-select-premium"
+                        value={anioMensualidad}
+                        onChange={e => {
+                          setAnioMensualidad(Number(e.target.value));
+                          setIntervalo('total');
+                        }}
+                      >
+                        {aniosMensualidad.map(anio => (
+                          <option key={anio} value={anio}>{anio}</option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
                   <div className="est-meses-grid">
                     {NOMBRES_MESES.map(mes => (
                       <button

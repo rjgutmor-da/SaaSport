@@ -208,7 +208,13 @@ const ORDEN_MESES: Record<string, number> = {
 };
 
 const normalizarMes = (mes: string): string =>
-  mes.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim().replace(/\.$/, '');
+  mes
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim()
+    .replace(/-[0-9]{4}$/, '')
+    .replace(/\.$/, '');
 
 export const obtenerOrdenMes = (mes: string | null | undefined): number =>
   mes ? (ORDEN_MESES[normalizarMes(mes)] ?? 0) : 0;

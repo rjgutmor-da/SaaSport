@@ -46,7 +46,8 @@ export function useAlumnosPorItem(
   horarioId?: string,
   canchaId?: string,
   conceptoNombre?: string, // Para setear el concepto en el resultado
-  pagadoFiltro?: string
+  pagadoFiltro?: string,
+  anioMensualidad?: number,
 ): UseAlumnosPorItemResult {
   const [alumnos, setAlumnos] = useState<AlumnoPorItem[]>([]);
   const [cargando, setCargando] = useState(false);
@@ -60,12 +61,24 @@ export function useAlumnosPorItem(
       setAlumnos([]);
       return;
     }
-    const rango = calcularRango(intervalo);
+    const rangoIntervalo = calcularRango(intervalo);
+    const rango = anioMensualidad
+      ? {
+          desde: rangoIntervalo.desde > `${anioMensualidad}-01-01` ? rangoIntervalo.desde : `${anioMensualidad}-01-01`,
+          hasta: rangoIntervalo.hasta < `${anioMensualidad}-12-31` ? rangoIntervalo.hasta : `${anioMensualidad}-12-31`,
+        }
+      : rangoIntervalo;
+
+    if (rango.desde > rango.hasta) {
+      setAlumnos([]);
+      return;
+    }
     cargarAlumnos(escuelaId, catalogoItemId, rango.desde, rango.hasta);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [escuelaId, catalogoItemId, intervalo, desdePersonalizado, hastaPersonalizado, tick,
     // serializar filtros para evitar re-renders infinitos
-    JSON.stringify(filtroSubItems), sucursalId, entrenadorId, horarioId, canchaId, conceptoNombre, pagadoFiltro]);
+    JSON.stringify(filtroSubItems), sucursalId, entrenadorId, horarioId, canchaId, conceptoNombre, pagadoFiltro,
+    anioMensualidad]);
 
   async function cargarAlumnos(
     eid: string,
@@ -186,7 +199,11 @@ export function useAlumnosPorItem(
         // Filtro de sub-ítems (Meses o Torneos)
         if (filtroSubItems && filtroSubItems.length > 0) {
           let cumpleSub = false;
-          if (Array.isArray(detInteres.periodo_meses)) {
+          const mesPeriodoEstadistico = /^\d{4}-(\d{2})-\d{2}$/.exec(cxc.periodo_estadistico || '')?.[1];
+          if (mesPeriodoEstadistico) {
+            const ordenesFiltro = filtroSubItems.map(f => obtenerOrdenMes(f)).filter(o => o > 0);
+            cumpleSub = ordenesFiltro.includes(Number(mesPeriodoEstadistico));
+          } else if (Array.isArray(detInteres.periodo_meses)) {
             // Comparación robusta de meses (coincidir "Abr" con "Abril" usando el orden del mes)
             const ordenesFiltro = filtroSubItems.map(f => obtenerOrdenMes(f)).filter(o => o > 0);
             cumpleSub = (detInteres.periodo_meses as string[]).some(m => {

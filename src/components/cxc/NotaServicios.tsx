@@ -44,6 +44,48 @@ const periodoMesLegacy = (periodo: string): string => {
   return index >= 0 && index < MESES_ANIO.length ? `${MESES_ANIO[index]}-${year}` : '';
 };
 
+const finDeCicloMensual = (inicio: string): string => {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(inicio);
+  if (!match) return '';
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const fechaValidacion = new Date(year, month - 1, day);
+  if (
+    month < 1 || month > 12
+    || fechaValidacion.getFullYear() !== year
+    || fechaValidacion.getMonth() !== month - 1
+    || fechaValidacion.getDate() !== day
+  ) return '';
+
+  const primerDiaMesSiguiente = new Date(year, month, 1);
+  const ultimoDiaMesSiguiente = new Date(year, month + 1, 0).getDate();
+  const mismoDiaMesSiguiente = new Date(
+    primerDiaMesSiguiente.getFullYear(),
+    primerDiaMesSiguiente.getMonth(),
+    Math.min(day, ultimoDiaMesSiguiente),
+  );
+  mismoDiaMesSiguiente.setDate(mismoDiaMesSiguiente.getDate() - 1);
+
+  return `${mismoDiaMesSiguiente.getFullYear()}-${String(mismoDiaMesSiguiente.getMonth() + 1).padStart(2, '0')}-${String(mismoDiaMesSiguiente.getDate()).padStart(2, '0')}`;
+};
+
+const cicloCompletoDelMes = (fecha: string): { inicio: string; fin: string } | null => {
+  const match = /^(\d{4})-(\d{2})-\d{2}$/.exec(fecha);
+  if (!match) return null;
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  if (month < 1 || month > 12) return null;
+
+  const inicio = `${match[1]}-${match[2]}-01`;
+  return {
+    inicio,
+    fin: finDeCicloMensual(inicio),
+  };
+};
+
 const lineaVacia = (): LineaNota => ({
   catalogo_item_id: '',
   nombre: '',
@@ -657,7 +699,14 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
                     const f = e.target.value;
                     setFechaEmision(f);
                     setVencimiento(f);
-                  }} 
+                    if (tieneMensualidad) {
+                      const ciclo = cicloCompletoDelMes(f);
+                      if (ciclo) {
+                        setCicloInicio(ciclo.inicio);
+                        setCicloFin(ciclo.fin);
+                      }
+                    }
+                  }}
                   required 
                 />
               </div>
@@ -696,7 +745,7 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
                               }
                             }
 
-                            nuevas[idx] = { 
+                            nuevas[idx] = {
                               ...nuevas[idx], 
                               catalogo_item_id: it.id, 
                               nombre: it.nombre, 
@@ -707,6 +756,13 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
                               detalle_personalizado: ''
                             };
                             setLineas(nuevas);
+                            if (esMensualidad) {
+                              const ciclo = cicloCompletoDelMes(fechaEmision);
+                              if (ciclo) {
+                                setCicloInicio(ciclo.inicio);
+                                setCicloFin(ciclo.fin);
+                              }
+                            }
                           }
                         }} required disabled={guardando}>
                           <option value="">— Seleccionar Ítem —</option>
@@ -735,9 +791,14 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
                             <div className="form-campo">
                               <label>Inicio del ciclo</label>
                               <input
-                                type="date"
-                                value={cicloInicio}
-                                onChange={e => setCicloInicio(e.target.value)}
+                                 type="date"
+                                 value={cicloInicio}
+                                 onChange={e => {
+                                   const nuevoInicio = e.target.value;
+                                   setCicloInicio(nuevoInicio);
+                                   const nuevoFin = finDeCicloMensual(nuevoInicio);
+                                   if (nuevoFin) setCicloFin(nuevoFin);
+                                 }}
                                 disabled={guardando}
                                 required
                               />
@@ -746,9 +807,14 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
                               <label>Fin del ciclo</label>
                               <input
                                 type="date"
-                                value={cicloFin}
-                                min={cicloInicio}
-                                onChange={e => setCicloFin(e.target.value)}
+                                 value={cicloFin}
+                                 min={cicloInicio}
+                                 onChange={e => {
+                                   const nuevoFin = e.target.value;
+                                   if (!nuevoFin || !cicloInicio || nuevoFin >= cicloInicio) {
+                                     setCicloFin(nuevoFin);
+                                   }
+                                 }}
                                 disabled={guardando}
                                 required
                               />

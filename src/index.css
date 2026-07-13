@@ -1927,6 +1927,36 @@ input[type=number] {
 }
 
 /* Selector de meses */
+.est-filtro-meses-cabecera {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.45rem;
+}
+
+.est-filtro-meses-cabecera > .est-filtro-label {
+  margin-bottom: 0;
+}
+
+.est-filtro-anio {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex: 0 0 auto;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.est-filtro-anio .est-select-premium {
+  width: 92px;
+  min-width: 92px;
+  padding-top: 0.35rem;
+  padding-bottom: 0.35rem;
+}
+
 .est-meses-grid {
   display: flex;
   flex-wrap: wrap;
