@@ -477,6 +477,8 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
           periodo_estadistico: tieneMensualidad ? periodoEstadistico : null,
           ciclo_inicio: tieneMensualidad ? cicloInicio : null,
           ciclo_fin: tieneMensualidad ? cicloFin : null,
+          origen_facturacion: 'manual',
+          ejecucion_facturacion_id: null,
         }).eq('id', notaId);
         if (errU) throw errU;
 
