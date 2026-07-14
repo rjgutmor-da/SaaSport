@@ -87,6 +87,13 @@ const Sidebar: React.FC<SidebarProps> = ({ onLogout, theme, onCycleTheme, extra 
             <span>Alumnos (CxC)</span>
           </NavLink>
         </div>}
+
+        {can(perfil?.rol, 'finance.boxes.view') && <div className="sidebar-item-group">
+          <NavLink to="/cajas-bancos" className={({ isActive }) => (isActive ? 'sidebar-link active' : 'sidebar-link')}>
+            <Landmark size={20} strokeWidth={1.5} />
+            <span>Cajas y Bancos</span>
+          </NavLink>
+        </div>}
         
         {can(perfil?.rol, 'finance.cxp.view') && <div className="sidebar-item-group">
           <NavLink to="/cxp" className={({ isActive }) => (isActive ? 'sidebar-link active' : 'sidebar-link')}>
@@ -94,29 +101,6 @@ const Sidebar: React.FC<SidebarProps> = ({ onLogout, theme, onCycleTheme, extra 
             <span>Proveedores (CxP)</span>
           </NavLink>
         </div>}
-        
-        {can(perfil?.rol, 'finance.boxes.view') && <div className="sidebar-item-group">
-          <NavLink to="/cajas-bancos" className={({ isActive }) => (isActive ? 'sidebar-link active' : 'sidebar-link')}>
-            <Landmark size={20} strokeWidth={1.5} />
-            <span>Cajas y Bancos</span>
-          </NavLink>
-        </div>}
-
-        {can(perfil?.rol, 'finance.manageAccounts') && <div className="sidebar-item-group">
-          <NavLink to="/cuentas" className={({ isActive }) => (isActive ? 'sidebar-link active' : 'sidebar-link')}>
-            <BookOpen size={20} strokeWidth={1.5} />
-            <span>Cuentas</span>
-          </NavLink>
-        </div>}
-
-        {esSuperAdmin && (
-          <div className="sidebar-item-group">
-            <NavLink to="/panel-escuela" className={({ isActive }) => (isActive ? 'sidebar-link active' : 'sidebar-link')}>
-              <School size={20} strokeWidth={1.5} />
-              <span>Panel de Escuela</span>
-            </NavLink>
-          </div>
-        )}
 
         {can(perfil?.rol, 'finance.statistics.view') && <div className="sidebar-item-group">
           <NavLink to="/estadisticas" className={({ isActive }) => (isActive ? 'sidebar-link active' : 'sidebar-link')}>
@@ -130,6 +114,22 @@ const Sidebar: React.FC<SidebarProps> = ({ onLogout, theme, onCycleTheme, extra 
             <NavLink to="/finanzas/notas-automaticas" className={({ isActive }) => (isActive ? 'sidebar-link active' : 'sidebar-link')}>
               <FileText size={20} strokeWidth={1.5} />
               <span>Notas Automáticas</span>
+            </NavLink>
+          </div>
+        )}
+
+        {can(perfil?.rol, 'finance.manageAccounts') && <div className="sidebar-item-group">
+          <NavLink to="/cuentas" className={({ isActive }) => (isActive ? 'sidebar-link active' : 'sidebar-link')}>
+            <BookOpen size={20} strokeWidth={1.5} />
+            <span>Cuentas</span>
+          </NavLink>
+        </div>}
+
+        {esSuperAdmin && (
+          <div className="sidebar-item-group">
+            <NavLink to="/panel-escuela" className={({ isActive }) => (isActive ? 'sidebar-link active' : 'sidebar-link')}>
+              <School size={20} strokeWidth={1.5} />
+              <span>Panel de Escuela</span>
             </NavLink>
           </div>
         )}
