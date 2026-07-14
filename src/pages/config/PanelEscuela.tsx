@@ -14,7 +14,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   School, Users, UserCheck, GraduationCap,
-  Building2, UserCog, MapPin, Activity, RefreshCw, Camera, Lock, Settings
+  Building2, UserCog, MapPin, Activity, RefreshCw, Camera, Lock, Settings, Eye
 } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../../lib/supabaseClient';
@@ -779,6 +779,19 @@ const PanelEscuela: React.FC = () => {
                       ? 'El monto se tomará de la mensualidad configurada en la ficha de cada alumno.'
                       : 'La creación y el monto continuarán siendo manuales.'}
                 </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setConfigFacturacionAbierta(false);
+                    navigate('/finanzas/historial-facturacion');
+                  }}
+                  className="btn-volver"
+                  style={{ width: '100%', marginTop: '0.75rem', justifyContent: 'center', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+                >
+                  <Eye size={16} />
+                  Ver Historial de Facturación Automática
+                </button>
 
                 {(errorFacturacion || configFacturacionQuery.error) && (
                   <div className="login-error" style={{ margin: 0 }}>
