@@ -29,7 +29,7 @@ export const ROLE_MATRIX = {
   }},
   Entrenador: { label: 'Entrenador', dataScope: 'assigned_students', permissions: {
     'asisport.access': true, 'asisport.viewStatistics': false, 'asisport.viewActivityLog': false,
-    'asisport.manageAttendanceForOthers': false, 'asisport.editStudents': false,
+    'asisport.manageAttendanceForOthers': false, 'asisport.editStudents': true,
     'saasport.access': false, 'school.manage': false, 'users.manage': false,
     'finance.delete': false, 'finance.reconcile': false, 'finance.manageAccounts': false,
     'finance.cxc.view': false, 'finance.cxc.create': false, 'finance.cxc.edit': false, 'finance.cxc.void': false,
@@ -38,7 +38,7 @@ export const ROLE_MATRIX = {
   }},
   Entrenarqueros: { label: 'Entrenador de Arqueros', dataScope: 'goalkeepers', permissions: {
     'asisport.access': true, 'asisport.viewStatistics': false, 'asisport.viewActivityLog': false,
-    'asisport.manageAttendanceForOthers': false, 'asisport.editStudents': false,
+    'asisport.manageAttendanceForOthers': false, 'asisport.editStudents': true,
     'saasport.access': false, 'school.manage': false, 'users.manage': false,
     'finance.delete': false, 'finance.reconcile': false, 'finance.manageAccounts': false,
     'finance.cxc.view': false, 'finance.cxc.create': false, 'finance.cxc.edit': false, 'finance.cxc.void': false,
