@@ -267,7 +267,7 @@ const HistorialFacturacionAutomatica: React.FC = () => {
                   <RefreshCw size={24} className="spin" style={{ color: 'var(--primary)' }} />
                 </div>
               ) : detalles.length === 0 ? (
-                <div style={{ textLight: 'center', padding: '2rem', color: 'var(--text-secondary)' }}>
+                <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-secondary)' }}>
                   No se encontraron facturas vinculadas a esta ejecución.
                 </div>
               ) : (
