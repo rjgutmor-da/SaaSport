@@ -2,12 +2,14 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import type { CatalogoItem } from '../../types/cuentas';
 import type { LineaNota, AlumnoDeuda } from '../../types/cxc';
-import { MESES_ANIO } from '../../types/cxc';
 import {
-  X, Plus, Check, Trash2, Calendar, AlertCircle,
-  CreditCard, FileText, Users, RefreshCw, Hash
+  X, Plus, Trash2, Users,
 } from 'lucide-react';
-import { getHoyISO } from '../../lib/dateUtils';
+import {
+  calcularPeriodoEstadistico,
+  formatPeriodoEstadistico,
+  getHoyISO,
+} from '../../lib/dateUtils';
 
 interface ModalNotaMasivaProps {
   visible: boolean;
@@ -18,6 +20,38 @@ interface ModalNotaMasivaProps {
 
 const fmtMonto = (n: number): string =>
   n.toLocaleString('es-BO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+// ---------- helpers de ciclo (idénticos a NotaServicios) ----------
+const finDeCicloMensual = (inicio: string): string => {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(inicio);
+  if (!match) return '';
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const fechaValidacion = new Date(year, month - 1, day);
+  if (
+    month < 1 || month > 12
+    || fechaValidacion.getFullYear() !== year
+    || fechaValidacion.getMonth() !== month - 1
+    || fechaValidacion.getDate() !== day
+  ) return '';
+  const ultimoDiaMesSiguiente = new Date(year, month + 1, 0).getDate();
+  const mismoDiaMesSiguiente = new Date(
+    year, month, Math.min(day, ultimoDiaMesSiguiente),
+  );
+  mismoDiaMesSiguiente.setDate(mismoDiaMesSiguiente.getDate() - 1);
+  return `${mismoDiaMesSiguiente.getFullYear()}-${String(mismoDiaMesSiguiente.getMonth() + 1).padStart(2, '0')}-${String(mismoDiaMesSiguiente.getDate()).padStart(2, '0')}`;
+};
+
+const cicloCompletoDelMes = (fecha: string): { inicio: string; fin: string } | null => {
+  const match = /^(\d{4})-(\d{2})-\d{2}$/.exec(fecha);
+  if (!match) return null;
+  const month = Number(match[2]);
+  if (month < 1 || month > 12) return null;
+  const inicio = `${match[1]}-${match[2]}-01`;
+  return { inicio, fin: finDeCicloMensual(inicio) };
+};
+// ----------------------------------------------------------------
 
 const lineaVacia = (): LineaNota => ({
   catalogo_item_id: '',
@@ -48,10 +82,27 @@ const ModalNotaMasiva: React.FC<ModalNotaMasivaProps> = ({
   const [observaciones, setObservaciones] = useState('');
   const [vencimiento, setVencimiento] = useState(getHoyISO());
   const [fechaEmision, setFechaEmision] = useState(getHoyISO());
+
+  // Ciclo (nuevo sistema de facturación)
+  const [cicloInicio, setCicloInicio] = useState(getHoyISO());
+  const [cicloFin, setCicloFin] = useState(getHoyISO());
+
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [exito, setExito] = useState<string | null>(null);
   const [progreso, setProgreso] = useState<number>(0);
+
+  // ¿Alguna línea es Mensualidad?
+  const tieneMensualidad = useMemo(
+    () => lineas.some(l => l.catalogo_item_id && esLineaMensualidad(l)),
+    [lineas],
+  );
+
+  // Período estadístico calculado automáticamente (igual que NotaServicios)
+  const periodoEstadistico = useMemo(
+    () => calcularPeriodoEstadistico(cicloInicio),
+    [cicloInicio],
+  );
 
   useEffect(() => {
     if (!visible) return;
@@ -61,8 +112,25 @@ const ModalNotaMasiva: React.FC<ModalNotaMasivaProps> = ({
       const { data: usr } = await supabase.from('usuarios').select('escuela_id').eq('id', user.id).single();
       if (!usr) return;
 
-      const { data: resCat } = await supabase.from('catalogo_items').select('*').eq('activo', true).or('tipo_movimiento.eq.ingreso,tipo_movimiento.eq.ambos').order('nombre');
-      setCatalogo(resCat ?? []);
+      const { data: resCat } = await supabase
+        .from('catalogo_items')
+        .select('*')
+        .eq('activo', true)
+        .or('tipo_movimiento.eq.ingreso,tipo_movimiento.eq.ambos')
+        .order('nombre');
+
+      const catalogoData = resCat ?? [];
+      const orderPriorities: Record<string, number> = {
+        'Mensualidad': 1,
+        'Inscripción a Torneos': 2,
+        'Uniformes': 3,
+      };
+      catalogoData.sort((a: any, b: any) => {
+        const pA = orderPriorities[a.nombre] || 99;
+        const pB = orderPriorities[b.nombre] || 99;
+        return pA !== pB ? pA - pB : a.nombre.localeCompare(b.nombre);
+      });
+      setCatalogo(catalogoData);
 
       try {
         const { data: dbTorneos, error: tErr } = await supabase
@@ -85,10 +153,20 @@ const ModalNotaMasiva: React.FC<ModalNotaMasivaProps> = ({
     };
     cargar();
 
+    // Reiniciar estado del formulario
     setLineas([lineaVacia()]);
     setObservaciones('');
     setFechaEmision(getHoyISO());
     setVencimiento(getHoyISO());
+    // Ciclo inicial = mes completo del día de hoy
+    const cicloHoy = cicloCompletoDelMes(getHoyISO());
+    if (cicloHoy) {
+      setCicloInicio(cicloHoy.inicio);
+      setCicloFin(cicloHoy.fin);
+    } else {
+      setCicloInicio(getHoyISO());
+      setCicloFin(getHoyISO());
+    }
     setError(null); setExito(null); setProgreso(0);
   }, [visible]);
 
@@ -96,26 +174,22 @@ const ModalNotaMasiva: React.FC<ModalNotaMasivaProps> = ({
     return lineas.reduce((s, l) => s + l.subtotal, 0);
   }, [lineas]);
 
-  const usaMensualidadPorFicha = useMemo(() => {
-    return lineas.some(l => l.catalogo_item_id && esLineaMensualidad(l));
-  }, [lineas]);
-
   const guardarNotasMasivas = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null); setExito(null); setProgreso(0);
-    
+
     if (alumnosSeleccionados.length === 0) {
       setError('No hay alumnos seleccionados.'); return;
     }
-    
+
+    // Para Mensualidad se acepta precio_unitario = 0 (viene de la ficha del alumno)
     const lineasValidas = lineas.filter(l => l.catalogo_item_id && (esLineaMensualidad(l) || l.precio_unitario > 0));
     if (lineasValidas.length === 0) { setError('Agrega ítems válidos.'); return; }
 
-    for (const l of lineasValidas) {
-      if (esLineaMensualidad(l) && l.periodo_meses.length === 0) {
-        setError('Debe seleccionar al menos un mes para el item Mensualidad.');
-        return;
-      }
+    // Validar ciclo si hay Mensualidad
+    if (tieneMensualidad && (!cicloInicio || !cicloFin || cicloFin < cicloInicio || !periodoEstadistico)) {
+      setError('Ingresa un rango de ciclo válido para la Mensualidad.');
+      return;
     }
 
     setGuardando(true);
@@ -125,9 +199,9 @@ const ModalNotaMasiva: React.FC<ModalNotaMasivaProps> = ({
       const { data: ctx } = await supabase.from('usuarios').select('*').eq('id', user.id).single();
 
       const descripcionFinal = lineasValidas.map(l => l.nombre).join(', ');
-      const tieneMensualidad = lineasValidas.some(esLineaMensualidad);
-      const mensualidadesPorAlumno = new Map<string, number | null>();
 
+      // Si hay Mensualidad, obtener mensualidad de la ficha de cada alumno
+      const mensualidadesPorAlumno = new Map<string, number | null>();
       if (tieneMensualidad) {
         const { data: alumnosFicha, error: errFicha } = await supabase
           .from('alumnos')
@@ -142,13 +216,13 @@ const ModalNotaMasiva: React.FC<ModalNotaMasivaProps> = ({
             alumno.id,
             alumno.mensualidad === null || alumno.mensualidad === undefined
               ? null
-              : Number(alumno.mensualidad)
+              : Number(alumno.mensualidad),
           );
         });
 
         const alumnosSinMensualidad = alumnosSeleccionados.filter(alumno => {
-          const mensualidad = mensualidadesPorAlumno.get(alumno.alumno_id);
-          return mensualidad === null || mensualidad === undefined || Number.isNaN(mensualidad) || mensualidad <= 0;
+          const m = mensualidadesPorAlumno.get(alumno.alumno_id);
+          return m === null || m === undefined || Number.isNaN(m) || m <= 0;
         });
 
         if (alumnosSinMensualidad.length > 0) {
@@ -156,58 +230,77 @@ const ModalNotaMasiva: React.FC<ModalNotaMasivaProps> = ({
             .slice(0, 5)
             .map(a => `${a.nombres} ${a.apellidos}`)
             .join(', ');
-          const extra = alumnosSinMensualidad.length > 5 ? ` y ${alumnosSinMensualidad.length - 5} mas` : '';
+          const extra = alumnosSinMensualidad.length > 5 ? ` y ${alumnosSinMensualidad.length - 5} más` : '';
           throw new Error(`No se puede generar Mensualidad masiva: hay alumnos sin valor de mensualidad en su ficha (${nombres}${extra}).`);
         }
       }
 
-      // Iterar sobre cada alumno seleccionado y crear su nota individual
       let completados = 0;
       for (const alumno of alumnosSeleccionados) {
+        // Construir líneas con precio real para este alumno
         const lineasAlumno = lineasValidas.map(l => {
           if (!esLineaMensualidad(l)) return l;
-
-          const cantidad = Math.max(l.periodo_meses.length, 1);
           const precioUnitario = Number(mensualidadesPorAlumno.get(alumno.alumno_id));
-
           return {
             ...l,
-            cantidad,
+            cantidad: 1,
             precio_unitario: precioUnitario,
-            subtotal: precioUnitario * cantidad,
+            subtotal: precioUnitario,
           };
         });
         const totalAlumno = lineasAlumno.reduce((s, l) => s + l.subtotal, 0);
 
-        // 1. Guardar Nota
-        const { data: nueva, error: errN } = await supabase.from('cuentas_cobrar').insert({
-          escuela_id: ctx.escuela_id,
-          sucursal_id: ctx.sucursal_id,
-          alumno_id: alumno.alumno_id,
-          monto_total: totalAlumno,
-          descripcion: descripcionFinal,
-          observaciones: observaciones,
-          fecha_emision: fechaEmision,
-          fecha_vencimiento: vencimiento || null,
-          es_anticipo: false,
-          estado: 'pendiente',
-          nro_recibo: null
-        }).select('id').single();
-        
-        if (errN) throw errN;
-        const notaId = nueva.id;
+        if (tieneMensualidad) {
+          // Usar el RPC del sistema nuevo (igual que NotaServicios)
+          const { error: errRpc } = await supabase.rpc('rpc_crear_nota_mensualidad', {
+            p_alumno_id: alumno.alumno_id,
+            p_sucursal_id: ctx.sucursal_id,
+            p_monto_total: totalAlumno,
+            p_descripcion: descripcionFinal,
+            p_observaciones: observaciones || null,
+            p_fecha_emision: fechaEmision,
+            p_fecha_vencimiento: vencimiento || null,
+            p_ciclo_inicio: cicloInicio,
+            p_ciclo_fin: cicloFin,
+            p_lineas: lineasAlumno.map(l => ({
+              catalogo_item_id: l.catalogo_item_id,
+              cantidad: l.cantidad,
+              precio_unitario: l.precio_unitario,
+              periodo_meses: l.periodo_meses.length > 0 ? l.periodo_meses : null,
+              detalle_extra: l.detalle_personalizado || null,
+            })),
+            p_nro_recibo: null,
+          });
+          if (errRpc) throw errRpc;
+        } else {
+          // Nota sin mensualidad: inserción directa
+          const { data: nueva, error: errN } = await supabase.from('cuentas_cobrar').insert({
+            escuela_id: ctx.escuela_id,
+            sucursal_id: ctx.sucursal_id,
+            alumno_id: alumno.alumno_id,
+            monto_total: totalAlumno,
+            descripcion: descripcionFinal,
+            observaciones: observaciones,
+            fecha_emision: fechaEmision,
+            fecha_vencimiento: vencimiento || null,
+            es_anticipo: false,
+            estado: 'pendiente',
+            nro_recibo: null,
+            origen_facturacion: 'manual',
+          }).select('id').single();
+          if (errN) throw errN;
 
-        // 2. Detalle
-        await supabase.from('cxc_detalle').insert(lineasAlumno.map(l => ({
-          escuela_id: ctx.escuela_id,
-          cuenta_cobrar_id: notaId,
-          catalogo_item_id: l.catalogo_item_id,
-          cantidad: l.cantidad,
-          precio_unitario: l.precio_unitario,
-          periodo_meses: l.periodo_meses.length > 0 ? l.periodo_meses : null,
-          detalle_extra: l.detalle_personalizado
-        })));
-        
+          await supabase.from('cxc_detalle').insert(lineasAlumno.map(l => ({
+            escuela_id: ctx.escuela_id,
+            cuenta_cobrar_id: nueva.id,
+            catalogo_item_id: l.catalogo_item_id,
+            cantidad: l.cantidad,
+            precio_unitario: l.precio_unitario,
+            periodo_meses: l.periodo_meses.length > 0 ? l.periodo_meses : null,
+            detalle_extra: l.detalle_personalizado,
+          })));
+        }
+
         completados++;
         setProgreso(completados);
       }
@@ -216,7 +309,9 @@ const ModalNotaMasiva: React.FC<ModalNotaMasivaProps> = ({
       onCreada();
       setTimeout(() => { onCerrar(); }, 1000);
     } catch (err: any) {
-      setError(`Error: ${err.message}`);
+      setError(err.code === '23505'
+        ? 'Ya existe una mensualidad activa para uno o más alumnos en este período estadístico.'
+        : `Error: ${err.message}`);
     } finally {
       setGuardando(false);
     }
@@ -247,35 +342,24 @@ const ModalNotaMasiva: React.FC<ModalNotaMasivaProps> = ({
           </div>
 
           <form onSubmit={guardarNotasMasivas}>
+            {/* Fechas de emisión y vencimiento */}
             <div className="modal-form-grid" style={{ marginBottom: '1.5rem' }}>
               <div className="form-campo">
                 <label>Fecha Emisión</label>
-                <input 
-                  type="date" 
-                  value={fechaEmision} 
+                <input
+                  type="date"
+                  value={fechaEmision}
                   onChange={e => {
                     const f = e.target.value;
                     setFechaEmision(f);
                     setVencimiento(f);
-
-                    // Sincronizar meses de mensualidad si existen
-                    if (f) {
-                      const monthIdx = parseInt(f.split('-')[1]) - 1;
-                      const nuevasLineas = lineas.map(l => {
-                        if (l.nombre === 'Mensualidad') {
-                          return { 
-                            ...l, 
-                            periodo_meses: [MESES_ANIO[monthIdx]],
-                            cantidad: 1,
-                            subtotal: l.precio_unitario
-                          };
-                        }
-                        return l;
-                      });
-                      setLineas(nuevasLineas);
+                    // Actualizar ciclo si hay mensualidad
+                    if (tieneMensualidad) {
+                      const ciclo = cicloCompletoDelMes(f);
+                      if (ciclo) { setCicloInicio(ciclo.inicio); setCicloFin(ciclo.fin); }
                     }
-                  }} 
-                  required 
+                  }}
+                  required
                 />
               </div>
               <div className="form-campo">
@@ -284,6 +368,7 @@ const ModalNotaMasiva: React.FC<ModalNotaMasivaProps> = ({
               </div>
             </div>
 
+            {/* Ítems */}
             <div style={{ marginBottom: '1.5rem' }}>
               {lineas.map((linea, idx) => {
                 const esMensualidad = linea.nombre === 'Mensualidad';
@@ -292,150 +377,192 @@ const ModalNotaMasiva: React.FC<ModalNotaMasivaProps> = ({
                 return (
                   <div key={idx} style={{ marginBottom: '1rem', paddingBottom: '1rem', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 60px 100px 100px 30px', gap: '0.5rem', alignItems: 'center' }}>
+                      {/* Selector de ítem */}
                       <select value={linea.catalogo_item_id} onChange={e => {
                         const it = catalogo.find(c => c.id === e.target.value);
                         if (it) {
                           const nuevas = [...lineas];
-                          const esMensualidad = it.nombre === 'Mensualidad';
-                          const monthIdx = parseInt(fechaEmision.split('-')[1]) - 1;
-                          const mesesIniciales = esMensualidad ? [MESES_ANIO[monthIdx]] : [];
-                          const cantidadInicial = esMensualidad ? 1 : nuevas[idx].cantidad;
-
-                          nuevas[idx] = { 
-                            ...nuevas[idx], 
-                            catalogo_item_id: it.id, 
-                            nombre: it.nombre, 
-                            precio_unitario: Number(it.precio_venta) || 0, 
-                            cantidad: cantidadInicial,
-                            subtotal: (Number(it.precio_venta) || 0) * cantidadInicial,
-                            periodo_meses: mesesIniciales,
-                            detalle_personalizado: ''
+                          const esMens = it.nombre === 'Mensualidad';
+                          nuevas[idx] = {
+                            ...nuevas[idx],
+                            catalogo_item_id: it.id,
+                            nombre: it.nombre,
+                            precio_unitario: Number(it.precio_venta) || 0,
+                            cantidad: 1,
+                            subtotal: (Number(it.precio_venta) || 0) * 1,
+                            periodo_meses: [],
+                            detalle_personalizado: '',
                           };
                           setLineas(nuevas);
+                          // Al seleccionar Mensualidad, actualizar ciclo
+                          if (esMens) {
+                            const ciclo = cicloCompletoDelMes(fechaEmision);
+                            if (ciclo) { setCicloInicio(ciclo.inicio); setCicloFin(ciclo.fin); }
+                          }
                         }
                       }} required disabled={guardando}>
                         <option value="">— Seleccionar Ítem —</option>
                         {catalogo.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
                       </select>
+
+                      {/* Cantidad */}
                       <input type="number" value={linea.cantidad} onChange={e => {
                         const cant = parseInt(e.target.value) || 1;
                         const nuevas = [...lineas];
                         nuevas[idx] = { ...nuevas[idx], cantidad: cant, subtotal: cant * nuevas[idx].precio_unitario };
                         setLineas(nuevas);
                       }} min="1" disabled={guardando || esMensualidad} title="Cantidad" />
+
+                      {/* Precio unitario */}
                       <input type="number" step="0.01" value={linea.precio_unitario} onChange={e => {
                         const prec = parseFloat(e.target.value) || 0;
                         const nuevas = [...lineas];
                         nuevas[idx] = { ...nuevas[idx], precio_unitario: prec, subtotal: prec * nuevas[idx].cantidad };
                         setLineas(nuevas);
-                      }} disabled={guardando || esMensualidad} title={esMensualidad ? 'Se usara la mensualidad de la ficha de cada alumno' : 'Precio Unitario'} />
-                      <div style={{ textAlign: 'right', fontWeight: 700, fontSize: '0.9rem' }}>{esMensualidad ? 'Ficha' : `Bs ${fmtMonto(linea.subtotal)}`}</div>
-                      <button type="button" onClick={() => setLineas(lineas.filter((_, i) => i !== idx))} disabled={lineas.length === 1} style={{ color: '#f87171' }}><Trash2 size={16} /></button>
+                      }} disabled={guardando || esMensualidad} title={esMensualidad ? 'Se usará la mensualidad de la ficha de cada alumno' : 'Precio Unitario'} />
+
+                      {/* Subtotal */}
+                      <div style={{ textAlign: 'right', fontWeight: 700, fontSize: '0.9rem' }}>
+                        {esMensualidad ? 'Ficha' : `Bs ${fmtMonto(linea.subtotal)}`}
+                      </div>
+
+                      {/* Eliminar */}
+                      <button type="button" onClick={() => setLineas(lineas.filter((_, i) => i !== idx))} disabled={lineas.length === 1} style={{ color: '#f87171' }}>
+                        ✕
+                      </button>
                     </div>
 
+                    {/* Panel de ciclo para Mensualidad (NUEVO SISTEMA) */}
                     {esMensualidad && (
                       <div style={{ marginTop: '0.75rem', padding: '0.75rem', background: 'rgba(255,255,255,0.02)', borderRadius: '8px' }}>
-                        <p style={{ fontSize: '0.7rem', fontWeight: 700, color: '#94a3b8', marginBottom: '0.5rem', textTransform: 'uppercase' }}>Seleccionar Mes(es)</p>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '0.4rem', marginBottom: '0.75rem' }}>
-                          {MESES_ANIO.map(mes => (
-                            <label key={mes} style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.75rem', cursor: 'pointer', background: linea.periodo_meses.includes(mes) ? 'rgba(59,130,246,0.1)' : 'transparent', padding: '0.2rem 0.4rem', borderRadius: '4px', border: '1px solid', borderColor: linea.periodo_meses.includes(mes) ? '#3b82f6' : 'rgba(255,255,255,0.1)' }}>
-                              <input 
-                                type="checkbox" 
-                                checked={linea.periodo_meses.includes(mes)} 
-                                onChange={e => {
-                                  const meses = e.target.checked 
-                                    ? [...linea.periodo_meses, mes]
-                                    : linea.periodo_meses.filter(m => m !== mes);
-                                  const nuevas = [...lineas];
-                                  nuevas[idx].periodo_meses = meses;
-                                  nuevas[idx].cantidad = Math.max(meses.length, 1);
-                                  nuevas[idx].subtotal = Math.max(meses.length, 1) * nuevas[idx].precio_unitario;
-                                  setLineas(nuevas);
-                                }}
-                                style={{ width: '12px', height: '12px' }}
-                              />
-                              {mes}
-                            </label>
-                          ))}
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                          <div style={{ flex: 1 }}>
-                            <label style={{ fontSize: '0.7rem', fontWeight: 700, color: '#94a3b8', display: 'block', marginBottom: '0.2rem' }}>PERIODO ESPECÍFICO / DETALLE</label>
-                            <input 
-                              type="text" 
-                              value={linea.detalle_personalizado} 
+                        <p style={{ fontSize: '0.7rem', fontWeight: 700, color: '#94a3b8', marginBottom: '0.5rem', textTransform: 'uppercase' }}>
+                          Ciclo y período estadístico
+                        </p>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1.15fr', gap: '0.65rem', marginBottom: '0.75rem' }}>
+                          <div className="form-campo">
+                            <label>Inicio del ciclo</label>
+                            <input
+                              type="date"
+                              value={cicloInicio}
                               onChange={e => {
-                                const nuevas = [...lineas];
-                                nuevas[idx].detalle_personalizado = e.target.value;
-                                setLineas(nuevas);
+                                const nuevoInicio = e.target.value;
+                                setCicloInicio(nuevoInicio);
+                                const nuevoFin = finDeCicloMensual(nuevoInicio);
+                                if (nuevoFin) setCicloFin(nuevoFin);
                               }}
-                              placeholder="Ej: Curso de Verano, Enero-Febrero, etc."
-                              style={{ width: '100%', padding: '0.4rem', fontSize: '0.8rem', background: 'rgba(0,0,0,0.2)' }}
+                              disabled={guardando}
+                              required
                             />
                           </div>
+                          <div className="form-campo">
+                            <label>Fin del ciclo</label>
+                            <input
+                              type="date"
+                              value={cicloFin}
+                              min={cicloInicio}
+                              onChange={e => {
+                                const nuevoFin = e.target.value;
+                                if (!nuevoFin || !cicloInicio || nuevoFin >= cicloInicio) {
+                                  setCicloFin(nuevoFin);
+                                }
+                              }}
+                              disabled={guardando}
+                              required
+                            />
+                          </div>
+                          <div className="form-campo">
+                            <label>Mes estadístico</label>
+                            <input
+                              type="text"
+                              value={formatPeriodoEstadistico(periodoEstadistico)}
+                              readOnly
+                              aria-readonly="true"
+                              style={{ cursor: 'not-allowed', opacity: 0.85 }}
+                            />
+                          </div>
+                        </div>
+                        {/* Campo detalle personalizado */}
+                        <div>
+                          <label style={{ fontSize: '0.7rem', fontWeight: 700, color: '#94a3b8', display: 'block', marginBottom: '0.2rem' }}>
+                            PERIODO ESPECÍFICO / DETALLE
+                          </label>
+                          <input
+                            type="text"
+                            value={linea.detalle_personalizado}
+                            onChange={e => {
+                              const nuevas = [...lineas];
+                              nuevas[idx].detalle_personalizado = e.target.value;
+                              setLineas(nuevas);
+                            }}
+                            placeholder="Ej: Curso de Verano, Enero-Febrero, etc."
+                            style={{ width: '100%', padding: '0.4rem', fontSize: '0.8rem', background: 'rgba(0,0,0,0.2)' }}
+                          />
                         </div>
                       </div>
                     )}
 
-                     {esTorneo && (() => {
-                        const selectVal = linea.torneo_select_value !== undefined
-                          ? linea.torneo_select_value
-                          : (linea.detalle_personalizado
-                              ? (torneos.includes(linea.detalle_personalizado) ? linea.detalle_personalizado : 'Otro')
-                              : '');
+                    {/* Panel de torneo */}
+                    {esTorneo && (() => {
+                      const selectVal = linea.torneo_select_value !== undefined
+                        ? linea.torneo_select_value
+                        : (linea.detalle_personalizado
+                          ? (torneos.includes(linea.detalle_personalizado) ? linea.detalle_personalizado : 'Otro')
+                          : '');
 
-                        return (
-                          <div style={{ marginTop: '0.75rem', padding: '0.75rem', background: 'rgba(255,255,255,0.02)', borderRadius: '8px' }}>
-                            <div style={{ display: 'grid', gridTemplateColumns: selectVal === 'Otro' ? '1fr 1fr' : '1fr', gap: '1rem' }}>
+                      return (
+                        <div style={{ marginTop: '0.75rem', padding: '0.75rem', background: 'rgba(255,255,255,0.02)', borderRadius: '8px' }}>
+                          <div style={{ display: 'grid', gridTemplateColumns: selectVal === 'Otro' ? '1fr 1fr' : '1fr', gap: '1rem' }}>
+                            <div>
+                              <label style={{ fontSize: '0.7rem', fontWeight: 700, color: '#94a3b8', display: 'block', marginBottom: '0.2rem' }}>SELECCIONAR TORNEO</label>
+                              <select
+                                value={selectVal}
+                                onChange={e => {
+                                  const val = e.target.value;
+                                  const nuevas = [...lineas];
+                                  nuevas[idx] = {
+                                    ...nuevas[idx],
+                                    torneo_select_value: val,
+                                    detalle_personalizado: val === 'Otro'
+                                      ? (nuevas[idx].detalle_personalizado && !torneos.includes(nuevas[idx].detalle_personalizado)
+                                        ? nuevas[idx].detalle_personalizado
+                                        : '')
+                                      : val,
+                                  };
+                                  setLineas(nuevas);
+                                }}
+                                style={{ width: '100%', padding: '0.4rem', fontSize: '0.8rem', background: 'rgba(0,0,0,0.2)' }}
+                              >
+                                <option value="">— Seleccionar —</option>
+                                {torneos.map(t => <option key={t} value={t}>{t}</option>)}
+                                <option value="Otro">Otro</option>
+                              </select>
+                            </div>
+                            {selectVal === 'Otro' && (
                               <div>
-                                <label style={{ fontSize: '0.7rem', fontWeight: 700, color: '#94a3b8', display: 'block', marginBottom: '0.2rem' }}>SELECCIONAR TORNEO</label>
-                                <select 
-                                  value={selectVal}
+                                <label style={{ fontSize: '0.7rem', fontWeight: 700, color: '#94a3b8', display: 'block', marginBottom: '0.2rem' }}>NOMBRE DEL TORNEO</label>
+                                <input
+                                  type="text"
+                                  value={linea.detalle_personalizado || ''}
                                   onChange={e => {
-                                    const val = e.target.value;
                                     const nuevas = [...lineas];
-                                    nuevas[idx] = {
-                                      ...nuevas[idx],
-                                      torneo_select_value: val,
-                                      detalle_personalizado: val === 'Otro'
-                                        ? (nuevas[idx].detalle_personalizado && !torneos.includes(nuevas[idx].detalle_personalizado)
-                                            ? nuevas[idx].detalle_personalizado
-                                            : '')
-                                        : val
-                                    };
+                                    nuevas[idx] = { ...nuevas[idx], detalle_personalizado: e.target.value };
                                     setLineas(nuevas);
                                   }}
+                                  placeholder="Escriba el torneo..."
                                   style={{ width: '100%', padding: '0.4rem', fontSize: '0.8rem', background: 'rgba(0,0,0,0.2)' }}
-                                >
-                                  <option value="">— Seleccionar —</option>
-                                  {torneos.map(t => <option key={t} value={t}>{t}</option>)}
-                                  <option value="Otro">Otro</option>
-                                </select>
+                                />
                               </div>
-                              {selectVal === 'Otro' && (
-                                <div>
-                                  <label style={{ fontSize: '0.7rem', fontWeight: 700, color: '#94a3b8', display: 'block', marginBottom: '0.2rem' }}>NOMBRE DEL TORNEO</label>
-                                  <input 
-                                    type="text" 
-                                    value={linea.detalle_personalizado || ''} 
-                                    onChange={e => {
-                                      const nuevas = [...lineas];
-                                      nuevas[idx] = { ...nuevas[idx], detalle_personalizado: e.target.value };
-                                      setLineas(nuevas);
-                                    }}
-                                    placeholder="Escriba el torneo..."
-                                    style={{ width: '100%', padding: '0.4rem', fontSize: '0.8rem', background: 'rgba(0,0,0,0.2)' }}
-                                  />
-                                </div>
-                              )}
-                            </div>
+                            )}
                           </div>
-                        );
-                      })()}
+                        </div>
+                      );
+                    })()}
                   </div>
                 );
               })}
-              <button type="button" onClick={() => setLineas([...lineas, lineaVacia()])} style={{ fontSize: '0.8rem', color: '#3b82f6', display: 'flex', alignItems: 'center', gap: '0.3rem' }}><Plus size={14} /> Agregar otro ítem</button>
+              <button type="button" onClick={() => setLineas([...lineas, lineaVacia()])} style={{ fontSize: '0.8rem', color: '#3b82f6', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                <Plus size={14} /> Agregar otro ítem
+              </button>
             </div>
 
             {/* Observaciones generales */}
@@ -451,7 +578,7 @@ const ModalNotaMasiva: React.FC<ModalNotaMasivaProps> = ({
                 style={{
                   width: '100%', padding: '0.6rem 0.75rem', fontSize: '0.85rem',
                   background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)',
-                  borderRadius: '8px', color: 'inherit', resize: 'vertical', minHeight: '50px'
+                  borderRadius: '8px', color: 'inherit', resize: 'vertical', minHeight: '50px',
                 }}
                 disabled={guardando}
               />
@@ -459,7 +586,7 @@ const ModalNotaMasiva: React.FC<ModalNotaMasivaProps> = ({
 
             <div style={{ marginTop: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div style={{ fontSize: '1.2rem', fontWeight: 800 }}>
-                Total por Alumno: {usaMensualidadPorFicha ? 'segun ficha del alumno' : `Bs ${fmtMonto(total)}`}
+                Total por Alumno: {tieneMensualidad ? 'según ficha del alumno' : `Bs ${fmtMonto(total)}`}
               </div>
               <div style={{ display: 'flex', gap: '0.75rem' }}>
                 <button type="button" onClick={onCerrar} className="btn-refrescar" style={{ width: 'auto' }}>Cancelar</button>
