@@ -18,9 +18,10 @@ import ModalVerNotaCxC from './ModalVerNotaCxC';
 import ModalEditarMovimiento from '../cajas-bancos/ModalEditarMovimiento';
 import ModalDetalleMovimiento from '../cajas-bancos/ModalDetalleMovimiento';
 import FichaAnticiposCxC from './FichaAnticiposCxC';
-import { getHoraLocal, getHoyISO, formatFecha, formatFechaCorta, ordenarMesesCalendario, formatCiclo } from '../../lib/dateUtils';
+import { getHoraLocal, getHoyISO, formatFecha, formatFechaCorta, ordenarMesesCalendario, formatCiclo, formatearMesCorto } from '../../lib/dateUtils';
 import { useCobroMultiple } from './useCobroMultiple';
 import { can } from '../../config/roles';
+import { esObservacionAnticipoAutomatica } from '../../lib/cxcUtils';
 
 interface DetalleAlumnoProps {
   alumno: AlumnoDeuda | null;
@@ -31,8 +32,6 @@ interface DetalleAlumnoProps {
 
 const fmtMonto = (n: number): string =>
   n.toLocaleString('es-BO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-
-const mostrarMesSinAnio = (mes: string): string => mes.replace(/-[0-9]{4}$/, '');
 
 const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
   alumno, visible, onCerrar, onActualizar
@@ -280,7 +279,6 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
               estado: 'pendiente',
               es_anticipo: true,
               fecha_emision: cobroFecha, // Especificar la fecha elegida para el pago
-              observaciones: `Generado automáticamente por pago de Bs ${fmtMonto(monto)} con exceso de Bs ${fmtMonto(exceso)}.`
             }).select('id').single();
 
             if (errAnt || !notaAnticipo) throw new Error('Error al registrar el anticipo del exceso.');
@@ -879,7 +877,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                                         )}
                                         {item.periodo_meses && ordenarMesesCalendario(item.periodo_meses).map((mes: string, mi: number) => (
                                           <span key={`${i}-${mi}`} style={{ fontSize: '0.6rem', padding: '1px 4px', borderRadius: '4px', background: 'rgba(74,222,128,0.15)', color: '#4ade80', fontWeight: 600 }}>
-                                            {mostrarMesSinAnio(mes)}
+                                            {formatearMesCorto(mes)}
                                           </span>
                                         ))}
                                         {/* Fechas de ciclo para Mensualidad */}
@@ -904,7 +902,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                                     ))}
                                   </div>
                                 )}
-                                {cxc.observaciones && (
+                                {cxc.observaciones && (!isAnticipo || !esObservacionAnticipoAutomatica(cxc.observaciones)) && (
                                   <span style={{ 
                                     fontSize: '0.65rem', 
                                     color: 'var(--text-tertiary)', 
@@ -1054,7 +1052,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                                         )}
                                         {item.periodo_meses && ordenarMesesCalendario(item.periodo_meses).map((mes: string, mi: number) => (
                                           <span key={`${i}-${mi}`} style={{ fontSize: '0.65rem', padding: '1px 6px', borderRadius: '4px', background: 'rgba(74,222,128,0.15)', color: '#4ade80', fontWeight: 600 }}>
-                                            {mostrarMesSinAnio(mes)}
+                                            {formatearMesCorto(mes)}
                                           </span>
                                         ))}
                                         {/* Fechas de ciclo para Mensualidad */}
@@ -1079,7 +1077,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                                     ))}
                                   </div>
                                 )}
-                                {cxc.observaciones && (
+                                {cxc.observaciones && (!isAnticipo || !esObservacionAnticipoAutomatica(cxc.observaciones)) && (
                                   <span style={{ 
                                     fontSize: '0.75rem', 
                                     color: 'var(--text-tertiary)', 

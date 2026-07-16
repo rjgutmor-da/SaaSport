@@ -38,7 +38,7 @@ const ModalSaldoInicialCxC: React.FC<Props> = ({ visible, onCerrar, onCreado, ed
       setMonto(String(edicionItem.monto_total || ''));
       setFecha(edicionItem.fecha_emision || getHoyISO());
       setDescripcion(edicionItem.descripcion || '');
-      setNaturalezaSaldo((edicionItem.observaciones || '').includes('SIA-') ? 'anticipo' : 'deuda');
+      setNaturalezaSaldo(edicionItem.es_anticipo || (edicionItem.observaciones || '').includes('SIA-') ? 'anticipo' : 'deuda');
       setError(null); setExito(null);
     } else {
       setAlumnoId(''); setMonto(''); setFecha(getHoyISO()); setDescripcion('Saldo inicial de deuda');
@@ -105,7 +105,7 @@ const ModalSaldoInicialCxC: React.FC<Props> = ({ visible, onCerrar, onCreado, ed
         monto_total: valorMonto,
         fecha_emision: fecha,
         descripcion: descripcion.trim() || (esAnticipo ? 'Saldo inicial de anticipo' : 'Saldo inicial de deuda'),
-        observaciones: (esAnticipo ? 'SIA-' : 'Saldo inicial - ajuste administrativo'),
+        observaciones: esAnticipo ? null : 'Saldo inicial - ajuste administrativo',
         es_anticipo: esAnticipo,
         estado: 'pendiente',
       }).select('id').single();

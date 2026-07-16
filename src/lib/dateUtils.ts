@@ -219,6 +219,20 @@ const normalizarMes = (mes: string): string =>
 export const obtenerOrdenMes = (mes: string | null | undefined): number =>
   mes ? (ORDEN_MESES[normalizarMes(mes)] ?? 0) : 0;
 
+/**
+ * Unifica los periodos de mensualidad para mostrarlos sin el año completo.
+ * Acepta valores heredados como "Jun-2026" y devuelve "Jun".
+ */
+export const formatearMesCorto = (mes: string | null | undefined): string => {
+  if (!mes) return '';
+
+  const sinAnio = mes.trim().replace(/-[0-9]{2,4}$/, '');
+  const orden = obtenerOrdenMes(sinAnio);
+  const mesesCortos = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+
+  return orden > 0 ? mesesCortos[orden - 1] : sinAnio;
+};
+
 export const ordenarMesesCalendario = (meses: string[] | null | undefined): string[] =>
   [...(meses || [])].sort((a, b) => {
     const ordenA = obtenerOrdenMes(a) || 99;
@@ -280,5 +294,4 @@ export const formatCicloCompleto = (inicioStr: string | null | undefined, finStr
   
   return `${diaIni} ${nombreMesIni} al ${diaFin} ${nombreMesFin}`;
 };
-
 

@@ -291,7 +291,6 @@ const ModalCobroRapido: React.FC<Props> = ({ alumnoInicial, visible, onCerrar, o
             estado: 'pendiente',
             es_anticipo: true,
             fecha_emision: fecha, // Especificar la fecha elegida para el pago
-            observaciones: `Generado automáticamente por pago de Bs ${fmtMonto(montoNum)} con exceso de Bs ${fmtMonto(exceso)}.`
           }).select('id').single();
 
           if (errAnt || !notaAnticipo) throw new Error('Error al registrar el anticipo del exceso.');

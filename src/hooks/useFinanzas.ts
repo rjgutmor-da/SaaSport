@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../lib/supabaseClient';
-import { obtenerOrdenMes } from '../lib/dateUtils';
+import { formatearMesCorto, obtenerOrdenMes } from '../lib/dateUtils';
 
 const normalizar = (str: string) =>
   str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
@@ -223,7 +223,9 @@ const fetchCxcAlumnos = async (escuelaId: string, filtros: any) => {
   return {
     data: lista.map((alumno: any) => ({
       ...alumno,
-      ultima_mensualidad: ultimaPorAlumno[alumno.alumno_id]?.mes ?? alumno.ultima_mensualidad,
+      ultima_mensualidad: formatearMesCorto(
+        ultimaPorAlumno[alumno.alumno_id]?.mes ?? alumno.ultima_mensualidad,
+      ),
     })),
     count,
   };

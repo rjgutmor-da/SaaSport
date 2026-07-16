@@ -16,6 +16,7 @@ import ModalEditarCobroCxC from './ModalEditarCobroCxC';
 import type { CajaBanco } from '../../types/finanzas';
 import { formatFecha, formatFechaHora, ordenarMesesCalendario, formatCiclo } from '../../lib/dateUtils';
 import { can } from '../../config/roles';
+import { esObservacionAnticipoAutomatica } from '../../lib/cxcUtils';
 
 interface Props {
   visible: boolean;
@@ -359,7 +360,7 @@ const ModalVerNotaCxC: React.FC<Props> = ({ visible, cxcId, onCerrar, onEditar, 
             </div>
 
             {/* ── Observaciones Generales ── */}
-            {nota.observaciones && (
+            {nota.observaciones && !(nota.es_anticipo && esObservacionAnticipoAutomatica(nota.observaciones)) && (
               <div style={{
                 marginBottom: '1.25rem',
                 padding: '0.9rem 1rem',

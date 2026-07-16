@@ -19,6 +19,7 @@ import {
 } from '../../lib/dateUtils';
 import { useAuthSaaSport } from '../../lib/authHelper';
 import { useConfiguracionFacturacion } from '../../hooks/useConfiguracionFacturacion';
+import { esObservacionAnticipoAutomatica } from '../../lib/cxcUtils';
 
 type CatalogoNota = Pick<
   CatalogoItem,
@@ -247,7 +248,11 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
           return l;
         });
         setLineas(lineasNormalizadas.length > 0 ? lineasNormalizadas : [lineaVacia()]);
-        setObservaciones(cxcEditar.observaciones || '');
+        setObservaciones(
+          cxcEditar.es_anticipo && esObservacionAnticipoAutomatica(cxcEditar.observaciones)
+            ? ''
+            : cxcEditar.observaciones || '',
+        );
         setVencimiento(cxcEditar.fecha_vencimiento || cxcEditar.vencimiento || getHoyISO());
         setFechaEmision(cxcEditar.fecha_emision || getHoyISO());
         setCicloInicio(cxcEditar.ciclo_inicio || cxcEditar.fecha_emision || getHoyISO());
@@ -290,7 +295,7 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
       } else {
         setAlumnoId(alumnoPreseleccionado?.id || '');
         setLineas([lineaVacia()]);
-        setObservaciones(esAnticipo ? 'Cobro Anticipado - Saldo a Favor' : '');
+        setObservaciones('');
         setFechaEmision(getHoyISO());
         setCicloInicio(getHoyISO());
         setCicloFin(getHoyISO());
