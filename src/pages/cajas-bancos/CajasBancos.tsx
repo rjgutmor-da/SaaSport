@@ -4,7 +4,7 @@ import {
   RefreshCw, Landmark, ArrowDownRight, ArrowUpRight, Search,
   CheckCircle2, ArrowRightLeft, Square, Pencil, Trash2,
   Star, GripVertical, MessageCircle, ShieldCheck, ShieldOff, LockKeyhole,
-  AlertTriangle, Calendar
+  AlertTriangle, Calendar, Copy, Check
 } from 'lucide-react';
 import { toBlob } from 'html-to-image';
 import type { CajaBanco } from '../../types/finanzas';
@@ -92,6 +92,7 @@ const CajasBancos: React.FC = () => {
   const [busquedaCuenta, setBusquedaCuenta] = useState('');
   const [modoConciliacion, setModoConciliacion] = useState(false);
   const [conciliandoId, setConciliandoId] = useState<string | null>(null);
+  const [copiadoCajaId, setCopiadoCajaId] = useState<string | null>(null);
 
   // Estados para Filtro de Fechas
   const [tipoFecha, setTipoFecha] = useState<'ultimos' | 'hoy' | 'ayer' | 'semana' | 'mes' | 'rango'>('ultimos');
@@ -209,6 +210,49 @@ const CajasBancos: React.FC = () => {
   const manejarActualizacion = () => {
     queryClient.invalidateQueries({ queryKey: ['cajas-bancos', escuelaId] });
     queryClient.invalidateQueries({ queryKey: ['movimientos-financieros', escuelaId] });
+  };
+
+  const copiarTablaCaja = (cajaId: string, movs: MovimientoFinanciero[]) => {
+    const cabecera = ['Fecha', 'Documento', 'Alumno / Proveedor', 'Cuentas', 'Ingreso', 'Salida', 'Saldo'].join('\t');
+    const filas = movs.map(mov => {
+      const fechaStr = formatFecha(mov.fecha);
+      
+      // Documento
+      let doc = '';
+      if (mov.nro_transaccion) {
+        const nroTrim = mov.nro_transaccion.trim();
+        const esMetodo = /^(efectivo|transferencia|qr|transferencia bancaria|pago qr)$/i.test(nroTrim);
+        if (!esMetodo) {
+          doc = nroTrim;
+        }
+      }
+      
+      // Alumno / Proveedor
+      const cliente = mov.cliente && mov.cliente !== '—' ? mov.cliente : '';
+      let desc = mov.descripcion?.trim() || '';
+      desc = desc.replace(/^\[(INGRESO|EGRESO) TRF\]\s*/i, '');
+      const cuentaTrim = mov.cuenta_nombre?.trim() || '';
+      if (desc === cuentaTrim) desc = '';
+      else if (cuentaTrim && desc.startsWith(cuentaTrim)) {
+        desc = desc.substring(cuentaTrim.length).trim().replace(/^[:\-\s,]+/, '').trim();
+      }
+      desc = desc.replace(/\b(efectivo|transferencia|qr|transferencia bancaria|pago qr)\b/gi, '').replace(/^[:\-\s,]+/, '').trim();
+      
+      const concepto = cliente ? (desc ? `${cliente} - ${desc}` : cliente) : (desc || '—');
+      
+      const cuenta = mov.cuenta_nombre || '';
+      const ingreso = mov.debe > 0 ? mov.debe.toFixed(2).replace('.', ',') : '';
+      const salida = mov.haber > 0 ? mov.haber.toFixed(2).replace('.', ',') : '';
+      const saldo = (mov as any).saldo_historico !== undefined ? (mov as any).saldo_historico.toFixed(2).replace('.', ',') : '0,00';
+      
+      return [fechaStr, doc, concepto, cuenta, ingreso, salida, saldo].join('\t');
+    });
+    
+    const texto = [cabecera, ...filas].join('\n');
+    navigator.clipboard.writeText(texto).then(() => {
+      setCopiadoCajaId(cajaId);
+      setTimeout(() => setCopiadoCajaId(null), 2500);
+    });
   };
 
 
@@ -891,6 +935,35 @@ const CajasBancos: React.FC = () => {
                 <h1 className="cxc-titulo-principal" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                   Caja y Bancos
                 </h1>
+                {!isMobile && (
+                  <div className="pc-busqueda" style={{ flexShrink: 0, width: '300px', marginLeft: '1.5rem', height: '36px' }}>
+                    <Search size={15} className="pc-busqueda-icono" />
+                    <input
+                      type="text"
+                      placeholder="Buscar por cuenta, alumno, proveedor..."
+                      value={busqueda}
+                      onChange={e => setBusqueda(e.target.value)}
+                      className="pc-busqueda-input"
+                      style={{ padding: '0.4rem 0.6rem' }}
+                    />
+                    {busqueda && (
+                      <button 
+                        className="cxc-limpiar-busqueda" 
+                        onClick={() => setBusqueda('')}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: 'var(--text-secondary)',
+                          cursor: 'pointer',
+                          padding: '0 4px',
+                          fontSize: '0.9rem'
+                        }}
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
               <div className="cxc-header-acciones">
                 {/* Dropdown unificado para Ingresos (Cobro e Ingreso Directo) */}
@@ -1011,17 +1084,6 @@ const CajasBancos: React.FC = () => {
               gap: '1rem',
               flexWrap: 'wrap'
             }}>
-              <div className="pc-busqueda" style={{ flexShrink: 0, width: '300px' }}>
-                <Search size={16} className="pc-busqueda-icono" />
-                <input
-                  type="text"
-                  placeholder="Buscar por cuenta, alumno, proveedor o documento..."
-                  value={busqueda}
-                  onChange={e => setBusqueda(e.target.value)}
-                  className="pc-busqueda-input"
-                />
-              </div>
-
               {/* Filtro de Fechas */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
                 <Calendar size={16} style={{ color: 'var(--text-tertiary)' }} />
@@ -1223,9 +1285,6 @@ const CajasBancos: React.FC = () => {
                 })}
               </div>
 
-              {busqueda && (
-                <button className="cxc-limpiar-busqueda" onClick={() => setBusqueda('')}>✕</button>
-              )}
               {!isMobile && (
                 <span className="cxc-conteo-resultado" style={{ marginLeft: 'auto', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
                   {movimientosFiltrados.length} movimientos mostrados
@@ -1307,29 +1366,51 @@ const CajasBancos: React.FC = () => {
                           </span>
                         )}
                       </div>
-                      {modoConciliacion && puedeConciliar && !isMobile && movsCaja.some(m => !m.conciliado) && (
-                        <button
-                          type="button"
-                          onClick={() => conciliarMovimientosVisibles(caja, movsCaja)}
-                          disabled={!!conciliandoId}
-                          style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '0.4rem',
-                            padding: '0.42rem 0.7rem',
-                            borderRadius: '8px',
-                            border: '1px solid rgba(0,210,106,0.28)',
-                            background: 'var(--success-bg)',
-                            color: 'var(--success)',
-                            fontWeight: 800,
-                            fontSize: '0.78rem'
-                          }}
-                          title="Marcar como conciliados todos los movimientos visibles de esta cuenta"
-                        >
-                          <CheckCircle2 size={15} />
-                          Conciliar visibles
-                        </button>
-                      )}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                        {!isMobile && (
+                          <button
+                            type="button"
+                            className={`est-tabla-copiar ${copiadoCajaId === caja.id ? 'est-tabla-copiar--ok' : ''}`}
+                            onClick={() => copiarTablaCaja(caja.id, movsCaja)}
+                            title="Copiar movimientos de esta cuenta para Excel (formato TSV)"
+                          >
+                            {copiadoCajaId === caja.id ? (
+                              <>
+                                <Check size={14} />
+                                <span>¡Copiado!</span>
+                              </>
+                            ) : (
+                              <>
+                                <Copy size={14} />
+                                <span>Copiar a Excel</span>
+                              </>
+                            )}
+                          </button>
+                        )}
+                        {modoConciliacion && puedeConciliar && !isMobile && movsCaja.some(m => !m.conciliado) && (
+                          <button
+                            type="button"
+                            onClick={() => conciliarMovimientosVisibles(caja, movsCaja)}
+                            disabled={!!conciliandoId}
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.4rem',
+                              padding: '0.42rem 0.7rem',
+                              borderRadius: '8px',
+                              border: '1px solid rgba(0,210,106,0.28)',
+                              background: 'var(--success-bg)',
+                              color: 'var(--success)',
+                              fontWeight: 800,
+                              fontSize: '0.78rem'
+                            }}
+                            title="Marcar como conciliados todos los movimientos visibles de esta cuenta"
+                          >
+                            <CheckCircle2 size={15} />
+                            Conciliar visibles
+                          </button>
+                        )}
+                      </div>
                     </div>
                     <div className="cxc-tabla-wrapper" style={{ borderRadius: '12px', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
                       <table className="cxc-tabla" style={{ minWidth: isMobile ? '600px' : 'auto' }}>
