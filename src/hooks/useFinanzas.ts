@@ -314,119 +314,214 @@ const fetchCajasBancos = async (escuelaId: string) => {
   return data;
 };
 
-const fetchMovimientos = async (escuelaId: string, cajaIds: string[]) => {
-  if (!escuelaId || cajaIds.length === 0) return [];
-  
-  const [cobros, pagos] = await Promise.all([
-    supabase.from('cobros_aplicados').select(`
-      *,
-      cuentas_cobrar (
-        id, descripcion, nro_recibo, es_anticipo,
-        alumnos ( nombres, apellidos, telefono_padre, telefono_madre, whatsapp_preferido ),
-        cxc_detalle (
-          cantidad,
-          precio_unitario,
-          periodo_meses,
-          detalle_extra,
-          catalogo_items ( nombre )
-        )
-      )
-    `)
-    .in('caja_id', cajaIds)
-    .order('fecha', { ascending: false })
-    .order('created_at', { ascending: false })
-    .limit(5000),
-    supabase.from('pagos_aplicados').select(`
-      *,
-      cuentas_pagar (
-        id, descripcion, es_anticipo,
-        proveedores ( nombre ),
-        personal ( nombres, apellidos ),
-        cxp_detalle (
-          catalogo_items ( nombre )
-        )
-      )
-    `)
-    .in('caja_id', cajaIds)
-    .order('fecha', { ascending: false })
-    .order('created_at', { ascending: false })
-    .limit(5000)
-  ]);
+export interface CajaConSaldo {
+  id: string;
+  saldo_actual: number;
+}
 
-  if (cobros.error) throw cobros.error;
-  if (pagos.error) throw pagos.error;
+export interface RangoFecha {
+  desde: string; // ISO String UTC
+  hasta: string; // ISO String UTC
+  usarRpc: boolean;
+}
 
-  const movsFinales: MovimientoFinanciero[] = [];
+export interface MovimientosResult {
+  movimientos: MovimientoFinanciero[];
+  limiteAlcanzadoPorCaja: Record<string, boolean>;
+}
 
-  cobros.data.forEach((c: any) => {
-    const monto = Number(c.monto_aplicado) || 0;
-    movsFinales.push({
-      id: c.id,
-      tipo_origen: 'cobro',
-      debe: monto > 0 ? monto : 0,
-      haber: monto < 0 ? -monto : 0,
-      fecha: c.fecha || c.created_at,
-      created_at: c.created_at,
-      descripcion: c.cuentas_cobrar?.descripcion || 'Cobro / Ingreso',
-      nro_transaccion: c.documento_referencia || c.cuentas_cobrar?.nro_recibo || '',
-      cliente: c.cuentas_cobrar?.alumnos ? `${c.cuentas_cobrar.alumnos.nombres} ${c.cuentas_cobrar.alumnos.apellidos}` : '—',
-      cuenta_id: c.caja_id,
-      cuenta_nombre: (() => {
-        if (c.cuentas_cobrar?.descripcion?.startsWith('[INGRESO TRF]')) {
-          return 'Transferencia';
-        }
-        if (c.cuentas_cobrar?.es_anticipo) {
-          const items = c.cuentas_cobrar?.cxc_detalle?.map((d: any) => d.catalogo_items?.nombre).filter(Boolean);
-          if (items && items.length > 0) return Array.from(new Set(items)).join(', ');
-          return c.cuentas_cobrar?.descripcion || 'Anticipo';
-        }
-        const items = c.cuentas_cobrar?.cxc_detalle?.map((d: any) => d.catalogo_items?.nombre).filter(Boolean);
-        if (!items || items.length === 0) {
-          return c.cuentas_cobrar?.descripcion || 'Concepto no especificado';
-        }
-        return Array.from(new Set(items)).join(', ');
-      })(),
-      conciliado: c.conciliado || false,
-      cuenta_maestra_id: c.cuentas_cobrar?.id,
-      alumno_raw: c.cuentas_cobrar?.alumnos || null,
-      detalles_cxc: c.cuentas_cobrar?.cxc_detalle || []
+const fetchMovimientos = async (
+  escuelaId: string,
+  cajas: CajaConSaldo[],
+  rango: RangoFecha | null
+): Promise<MovimientosResult> => {
+  if (!escuelaId || cajas.length === 0) {
+    return { movimientos: [], limiteAlcanzadoPorCaja: {} };
+  }
+
+  // 1. Obtener saldos de cierre por caja
+  const saldosCierre: Record<string, number> = {};
+  if (rango) {
+    const { data: saldosRpc, error: errorRpc } = await supabase.rpc('obtener_saldo_cierre_cajas', {
+      p_caja_ids: cajas.map(c => c.id),
+      p_hasta: rango.hasta
     });
-  });
+    if (errorRpc) throw errorRpc;
 
-  pagos.data.forEach((p: any) => {
-    movsFinales.push({
-      id: p.id,
-      tipo_origen: 'pago',
-      debe: 0,
-      haber: Number(p.monto_aplicado) || 0,
-      fecha: p.fecha || p.created_at,
-      created_at: p.created_at,
-      descripcion: p.cuentas_pagar?.descripcion || 'Pago / Egreso',
-      nro_transaccion: p.referencia || '',
-      cliente: p.cuentas_pagar?.proveedores?.nombre || (p.cuentas_pagar?.personal ? `${p.cuentas_pagar.personal.nombres} ${p.cuentas_pagar.personal.apellidos}` : '—'),
-      cuenta_id: p.caja_id,
-      cuenta_nombre: (() => {
-        if (p.cuentas_pagar?.descripcion?.startsWith('[EGRESO TRF]')) {
-          return 'Transferencia';
-        }
-        if (p.cuentas_pagar?.es_anticipo) {
-          const items = p.cuentas_pagar?.cxp_detalle?.map((d: any) => d.catalogo_items?.nombre).filter(Boolean);
-          if (items && items.length > 0) return Array.from(new Set(items)).join(', ');
-          return p.cuentas_pagar?.descripcion || 'Anticipo';
-        }
-        const items = p.cuentas_pagar?.cxp_detalle?.map((d: any) => d.catalogo_items?.nombre).filter(Boolean);
-        if (!items || items.length === 0) return 'Concepto no especificado';
-        let res = Array.from(new Set(items)).join(', ');
-        if (p.cuentas_pagar?.personal && res === 'ACF') return 'Sueldos y Salarios';
-        return res;
-      })(),
-      conciliado: p.conciliado || false,
-      cuenta_maestra_id: p.cuentas_pagar?.id
+    cajas.forEach(c => {
+      const found = saldosRpc?.find((r: any) => r.caja_id === c.id);
+      saldosCierre[c.id] = found ? Number(found.saldo_cierre) : 0;
     });
-  });
+  } else {
+    cajas.forEach(c => {
+      saldosCierre[c.id] = Number(c.saldo_actual) || 0;
+    });
+  }
 
-  // Ordenar descendente: 1ero por Fecha (solo el día), 2do por fecha de creación real (para ordenar correctamente los ingresos del mismo día)
-  return movsFinales.sort((a, b) => {
+  const limiteAlcanzadoPorCaja: Record<string, boolean> = {};
+  const todosLosMovimientos: MovimientoFinanciero[] = [];
+
+  // Consultar de forma concurrente para cada caja
+  await Promise.all(
+    cajas.map(async (caja) => {
+      let queryCobros = supabase.from('cobros_aplicados').select(`
+        *,
+        cuentas_cobrar (
+          id, descripcion, nro_recibo, es_anticipo,
+          alumnos ( nombres, apellidos, telefono_padre, telefono_madre, whatsapp_preferido ),
+          cxc_detalle (
+            cantidad,
+            precio_unitario,
+            periodo_meses,
+            detalle_extra,
+            catalogo_items ( nombre )
+          )
+        )
+      `)
+      .eq('caja_id', caja.id)
+      .order('fecha', { ascending: false })
+      .order('created_at', { ascending: false })
+      .limit(201); // Fila centinela
+
+      let queryPagos = supabase.from('pagos_aplicados').select(`
+        *,
+        cuentas_pagar (
+          id, descripcion, es_anticipo,
+          proveedores ( nombre ),
+          personal ( nombres, apellidos ),
+          cxp_detalle (
+            catalogo_items ( nombre )
+          )
+        )
+      `)
+      .eq('caja_id', caja.id)
+      .order('fecha', { ascending: false })
+      .order('created_at', { ascending: false })
+      .limit(201); // Fila centinela
+
+      if (rango) {
+        // Filtro inclusivo de desde y exclusivo de hasta, soportando nulos de fecha de forma defensiva
+        const filter = `and(fecha.gte.${rango.desde},fecha.lt.${rango.hasta}),and(fecha.is.null,created_at.gte.${rango.desde},created_at.lt.${rango.hasta})`;
+        queryCobros = queryCobros.or(filter);
+        queryPagos = queryPagos.or(filter);
+      }
+
+      const [cobrosRes, pagosRes] = await Promise.all([queryCobros, queryPagos]);
+
+      if (cobrosRes.error) throw cobrosRes.error;
+      if (pagosRes.error) throw pagosRes.error;
+
+      const movsCaja: MovimientoFinanciero[] = [];
+
+      // Mapear cobros
+      cobrosRes.data.forEach((c: any) => {
+        const monto = Number(c.monto_aplicado) || 0;
+        movsCaja.push({
+          id: c.id,
+          tipo_origen: 'cobro',
+          debe: monto > 0 ? monto : 0,
+          haber: monto < 0 ? -monto : 0,
+          fecha: c.fecha || c.created_at,
+          created_at: c.created_at,
+          descripcion: c.cuentas_cobrar?.descripcion || 'Cobro / Ingreso',
+          nro_transaccion: c.documento_referencia || c.cuentas_cobrar?.nro_recibo || '',
+          cliente: c.cuentas_cobrar?.alumnos ? `${c.cuentas_cobrar.alumnos.nombres} ${c.cuentas_cobrar.alumnos.apellidos}` : '—',
+          cuenta_id: c.caja_id,
+          cuenta_nombre: (() => {
+            if (c.cuentas_cobrar?.descripcion?.startsWith('[INGRESO TRF]')) {
+              return 'Transferencia';
+            }
+            if (c.cuentas_cobrar?.es_anticipo) {
+              const items = c.cuentas_cobrar?.cxc_detalle?.map((d: any) => d.catalogo_items?.nombre).filter(Boolean);
+              if (items && items.length > 0) return Array.from(new Set(items)).join(', ');
+              return c.cuentas_cobrar?.descripcion || 'Anticipo';
+            }
+            const items = c.cuentas_cobrar?.cxc_detalle?.map((d: any) => d.catalogo_items?.nombre).filter(Boolean);
+            if (!items || items.length === 0) {
+              return c.cuentas_cobrar?.descripcion || 'Concepto no especificado';
+            }
+            return Array.from(new Set(items)).join(', ');
+          })(),
+          conciliado: c.conciliado || false,
+          cuenta_maestra_id: c.cuentas_cobrar?.id,
+          alumno_raw: c.cuentas_cobrar?.alumnos || null,
+          detalles_cxc: c.cuentas_cobrar?.cxc_detalle || []
+        });
+      });
+
+      // Mapear pagos
+      pagosRes.data.forEach((p: any) => {
+        movsCaja.push({
+          id: p.id,
+          tipo_origen: 'pago',
+          debe: 0,
+          haber: Number(p.monto_aplicado) || 0,
+          fecha: p.fecha || p.created_at,
+          created_at: p.created_at,
+          descripcion: p.cuentas_pagar?.descripcion || 'Pago / Egreso',
+          nro_transaccion: p.referencia || '',
+          cliente: p.cuentas_pagar?.proveedores?.nombre || (p.cuentas_pagar?.personal ? `${p.cuentas_pagar.personal.nombres} ${p.cuentas_pagar.personal.apellidos}` : '—'),
+          cuenta_id: p.caja_id,
+          cuenta_nombre: (() => {
+            if (p.cuentas_pagar?.descripcion?.startsWith('[EGRESO TRF]')) {
+              return 'Transferencia';
+            }
+            if (p.cuentas_pagar?.es_anticipo) {
+              const items = p.cuentas_pagar?.cxp_detalle?.map((d: any) => d.catalogo_items?.nombre).filter(Boolean);
+              if (items && items.length > 0) return Array.from(new Set(items)).join(', ');
+              return p.cuentas_pagar?.descripcion || 'Anticipo';
+            }
+            const items = p.cuentas_pagar?.cxp_detalle?.map((d: any) => d.catalogo_items?.nombre).filter(Boolean);
+            if (!items || items.length === 0) return 'Concepto no especificado';
+            let res = Array.from(new Set(items)).join(', ');
+            if (p.cuentas_pagar?.personal && res === 'ACF') return 'Sueldos y Salarios';
+            return res;
+          })(),
+          conciliado: p.conciliado || false,
+          cuenta_maestra_id: p.cuentas_pagar?.id
+        });
+      });
+
+      // Ordenar descendente: primero por fecha (día), luego por timestamp de creación
+      movsCaja.sort((a, b) => {
+        const getJustDate = (f: string) => {
+          if (!f) return 0;
+          const match = f.match(/^(\d{4})-(\d{2})-(\d{2})/);
+          if (match) {
+            return new Date(parseInt(match[1], 10), parseInt(match[2], 10) - 1, parseInt(match[3], 10)).getTime();
+          }
+          return 0;
+        };
+
+        const dateB = getJustDate(b.fecha);
+        const dateA = getJustDate(a.fecha);
+
+        if (dateB !== dateA) return dateB - dateA;
+        return new Date(b.created_at || b.fecha).getTime() - new Date(a.created_at || a.fecha).getTime();
+      });
+
+      // Evaluar si se excede el límite usando fila centinela
+      const masDe200 = movsCaja.length > 200 || cobrosRes.data.length > 200 || pagosRes.data.length > 200;
+      limiteAlcanzadoPorCaja[caja.id] = masDe200;
+
+      // Mantener solo los 200 movimientos más recientes de esta caja
+      const sliceMovs = movsCaja.slice(0, 200);
+
+      // Calcular saldo histórico hacia atrás:
+      // saldoAnterior = saldoActual - debe + haber
+      let runningBalance = saldosCierre[caja.id] || 0;
+      for (let i = 0; i < sliceMovs.length; i++) {
+        const m = sliceMovs[i];
+        m.saldo_historico = runningBalance;
+        runningBalance = runningBalance - m.debe + m.haber;
+      }
+
+      todosLosMovimientos.push(...sliceMovs);
+    })
+  );
+
+  // Ordenar la lista combinada global de forma descendente por fecha
+  todosLosMovimientos.sort((a, b) => {
     const getJustDate = (f: string) => {
       if (!f) return 0;
       const match = f.match(/^(\d{4})-(\d{2})-(\d{2})/);
@@ -440,10 +535,13 @@ const fetchMovimientos = async (escuelaId: string, cajaIds: string[]) => {
     const dateA = getJustDate(a.fecha);
     
     if (dateB !== dateA) return dateB - dateA;
-    
-    // Si la fecha es idéntica, el más recientemente registrado va arriba
     return new Date(b.created_at || b.fecha).getTime() - new Date(a.created_at || a.fecha).getTime();
   });
+
+  return {
+    movimientos: todosLosMovimientos,
+    limiteAlcanzadoPorCaja
+  };
 };
 
 export const useCajasBancos = (escuelaId: string | null) =>
@@ -454,10 +552,21 @@ export const useCajasBancos = (escuelaId: string | null) =>
     staleTime: 0, // Siempre verificar saldo fresco
   });
 
-export const useMovimientos = (escuelaId: string | null, cajaIds: string[]) =>
+export const useMovimientos = (
+  escuelaId: string | null,
+  cajas: CajaConSaldo[],
+  rango: RangoFecha | null,
+  habilitado = true
+) =>
   useQuery({
-    queryKey: ['movimientos-financieros', escuelaId, cajaIds],
-    queryFn: () => fetchMovimientos(escuelaId!, cajaIds),
-    enabled: !!escuelaId && cajaIds.length > 0,
+    queryKey: [
+      'movimientos-financieros',
+      escuelaId,
+      cajas.map(c => c.id).join(','),
+      rango,
+      cajas.map(c => c.saldo_actual).join(',')
+    ],
+    queryFn: () => fetchMovimientos(escuelaId!, cajas, rango),
+    enabled: habilitado && !!escuelaId && cajas.length > 0,
     staleTime: 0, // Siempre verificar movimientos frescos
   });

@@ -3,7 +3,8 @@ import { supabase } from '../../lib/supabaseClient';
 import {
   RefreshCw, Landmark, ArrowDownRight, ArrowUpRight, Search,
   CheckCircle2, ArrowRightLeft, Square, Pencil, Trash2,
-  Star, GripVertical, MessageCircle, ShieldCheck, ShieldOff, LockKeyhole
+  Star, GripVertical, MessageCircle, ShieldCheck, ShieldOff, LockKeyhole,
+  AlertTriangle, Calendar
 } from 'lucide-react';
 import { toBlob } from 'html-to-image';
 import type { CajaBanco } from '../../types/finanzas';
@@ -21,12 +22,61 @@ import { logActivity } from '../../lib/auditLogger';
 import { can } from '../../config/roles';
 
 import { useAuthSaaSport } from '../../lib/authHelper';
-import { useCajasBancos, useMovimientos, useCxpEntidades, type MovimientoFinanciero } from '../../hooks/useFinanzas';
+import { useCajasBancos, useMovimientos, useCxpEntidades, type MovimientoFinanciero, type RangoFecha } from '../../hooks/useFinanzas';
 import { useQueryClient } from '@tanstack/react-query';
 import { useIsMobile } from '../../hooks/useIsMobile';
 
 const fmtMonto = (n: number) =>
   n.toLocaleString('es-BO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+const obtenerRangoFechas = (
+  tipo: 'ultimos' | 'hoy' | 'ayer' | 'semana' | 'mes' | 'rango',
+  desdeStr?: string,
+  hastaStr?: string
+): RangoFecha | null => {
+  if (tipo === 'ultimos') return null;
+
+  const nowBolivia = new Date(Date.now() - 4 * 60 * 60 * 1000);
+  const y = nowBolivia.getUTCFullYear();
+  const m = nowBolivia.getUTCMonth();
+  const d = nowBolivia.getUTCDate();
+
+  let desdeBolivia = 0;
+  let hastaBolivia = 0;
+  // Todo rango explícito necesita su saldo de cierre. Solo "Últimos movimientos"
+  // puede partir del saldo actual, porque incluye todo el historial disponible.
+  const usarRpc = true;
+
+  if (tipo === 'hoy') {
+    desdeBolivia = Date.UTC(y, m, d, 0, 0, 0);
+    hastaBolivia = Date.UTC(y, m, d + 1, 0, 0, 0);
+  } else if (tipo === 'ayer') {
+    desdeBolivia = Date.UTC(y, m, d - 1, 0, 0, 0);
+    hastaBolivia = Date.UTC(y, m, d, 0, 0, 0);
+  } else if (tipo === 'semana') {
+    const day = nowBolivia.getUTCDay();
+    const diff = day === 0 ? 6 : day - 1;
+    desdeBolivia = Date.UTC(y, m, d - diff, 0, 0, 0);
+    hastaBolivia = Date.UTC(y, m, d + 1, 0, 0, 0);
+  } else if (tipo === 'mes') {
+    desdeBolivia = Date.UTC(y, m, 1, 0, 0, 0);
+    hastaBolivia = Date.UTC(y, m, d + 1, 0, 0, 0);
+  } else if (tipo === 'rango') {
+    if (!desdeStr || !hastaStr) return null;
+    const [dY, dM, dD] = desdeStr.split('-').map(Number);
+    const [hY, hM, hD] = hastaStr.split('-').map(Number);
+
+    desdeBolivia = Date.UTC(dY, dM - 1, dD, 0, 0, 0);
+    hastaBolivia = Date.UTC(hY, hM - 1, hD + 1, 0, 0, 0);
+
+  }
+
+  return {
+    desde: new Date(desdeBolivia + 4 * 60 * 60 * 1000).toISOString(),
+    hasta: new Date(hastaBolivia + 4 * 60 * 60 * 1000).toISOString(),
+    usarRpc
+  };
+};
 
 const CajasBancos: React.FC = () => {
   const { esSuperAdmin, escuelaId, puedeEliminar, perfil } = useAuthSaaSport();
@@ -36,21 +86,69 @@ const CajasBancos: React.FC = () => {
   const puedeConciliar = !!perfil?.activo && can(perfil?.rol, 'finance.reconcile');
   const isMobile = useIsMobile();
 
-  // ── Hooks de datos con TanStack Query ──
-  const { data: cajas = [], isLoading: cargandoCajas } = useCajasBancos(escuelaId);
-  const cajaIds = useMemo(() => cajas.map(c => c.id), [cajas]);
-  const { data: movimientosRaw = [], isLoading: cargandoMovimientos, error: errorMovs } = useMovimientos(escuelaId, cajaIds);
-  const { data: entidades = [] } = useCxpEntidades(escuelaId, {});
-
-  const cargando = cargandoCajas || cargandoMovimientos;
-  const error = errorMovs ? (errorMovs instanceof Error ? errorMovs.message : 'Error al cargar datos') : null;
-
   // Filtros
   const [filtroCuenta, setFiltroCuenta] = useState<string>('todas');
   const [busqueda, setBusqueda] = useState('');
   const [busquedaCuenta, setBusquedaCuenta] = useState('');
   const [modoConciliacion, setModoConciliacion] = useState(false);
   const [conciliandoId, setConciliandoId] = useState<string | null>(null);
+
+  // Estados para Filtro de Fechas
+  const [tipoFecha, setTipoFecha] = useState<'ultimos' | 'hoy' | 'ayer' | 'semana' | 'mes' | 'rango'>('ultimos');
+  const [fechaDesde, setFechaDesde] = useState('');
+  const [fechaHasta, setFechaHasta] = useState('');
+  const [rangoAplicado, setRangoAplicado] = useState<RangoFecha | null>(null);
+  const [rangoPendiente, setRangoPendiente] = useState(false);
+
+  const handleCambiarTipoFecha = (tipo: typeof tipoFecha) => {
+    setTipoFecha(tipo);
+    if (tipo === 'rango') {
+      setRangoAplicado(null);
+      setRangoPendiente(true);
+      return;
+    }
+    setRangoPendiente(false);
+    setRangoAplicado(obtenerRangoFechas(tipo));
+  };
+
+  const handleAplicarRangoPersonalizado = () => {
+    if (!fechaDesde || !fechaHasta) {
+      alert('Por favor, selecciona ambas fechas.');
+      return;
+    }
+    if (fechaDesde > fechaHasta) {
+      alert('La fecha Desde no puede ser posterior a la fecha Hasta.');
+      return;
+    }
+    setRangoAplicado(obtenerRangoFechas('rango', fechaDesde, fechaHasta));
+    setRangoPendiente(false);
+  };
+
+  // ── Hooks de datos con TanStack Query ──
+  const { data: cajas = [], isLoading: cargandoCajas } = useCajasBancos(escuelaId);
+
+  const cajasAConsultar = useMemo(() => {
+    if (filtroCuenta === 'todas') {
+      return cajas.map(c => ({ id: c.id, saldo_actual: Number(c.saldo_actual) || 0 }));
+    }
+    return cajas
+      .filter(c => c.id === filtroCuenta)
+      .map(c => ({ id: c.id, saldo_actual: Number(c.saldo_actual) || 0 }));
+  }, [cajas, filtroCuenta]);
+
+  const { data: resultMovs, isLoading: cargandoMovimientos, error: errorMovs } = useMovimientos(
+    escuelaId,
+    cajasAConsultar,
+    rangoAplicado,
+    !rangoPendiente
+  );
+
+  const movimientosRaw = rangoPendiente ? [] : resultMovs?.movimientos || [];
+  const limiteAlcanzadoPorCaja = rangoPendiente ? {} : resultMovs?.limiteAlcanzadoPorCaja || {};
+  const { data: entidades = [] } = useCxpEntidades(escuelaId, {});
+
+  const cargando = cargandoCajas || (!rangoPendiente && cargandoMovimientos);
+  const error = errorMovs ? (errorMovs instanceof Error ? errorMovs.message : 'Error al cargar datos') : null;
 
   // ── Drag-and-drop de tarjetas (solo super admin) ──
   const [cajasOrdenadas, setCajasOrdenadas] = useState<typeof cajas>([]);
@@ -103,27 +201,18 @@ const CajasBancos: React.FC = () => {
     fetchEscuela();
   }, [escuelaId]);
 
-  // Procesar movimientos con saldo histórico
-  const movimientos = useMemo(() => {
-    const list = [...movimientosRaw].reverse(); // Empezar por el más antiguo para saldo
-    const saldosHistoricos: Record<string, number> = {};
-    
-    const result = list.map(m => {
-      if (!saldosHistoricos[m.cuenta_id]) saldosHistoricos[m.cuenta_id] = 0;
-      saldosHistoricos[m.cuenta_id] += (m.debe - m.haber);
-      return {
-        ...m,
-        saldo_historico: saldosHistoricos[m.cuenta_id]
-      };
-    });
+  // Los movimientos ya vienen procesados con saldo_historico y ordenados
+  const movimientos = movimientosRaw;
 
-    return result.reverse(); // Volver al más reciente primero
-  }, [movimientosRaw, cajas]);
+  const algunLimiteAlcanzado = useMemo(() => {
+    return Object.values(limiteAlcanzadoPorCaja).some(val => val === true);
+  }, [limiteAlcanzadoPorCaja]);
 
   const manejarActualizacion = () => {
     queryClient.invalidateQueries({ queryKey: ['cajas-bancos', escuelaId] });
     queryClient.invalidateQueries({ queryKey: ['movimientos-financieros', escuelaId] });
   };
+
 
   // ── Guardar nuevo orden en BD ──
   const guardarOrden = useCallback(async (listaOrdenada: typeof cajas) => {
@@ -649,125 +738,148 @@ const CajasBancos: React.FC = () => {
 
             return (
               <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: '10px', overflow: 'hidden' }}>
-                {/* Header de la tabla */}
-                {cajaActiva && (
+                {rangoPendiente ? (
                   <div style={{
-                    padding: '0.75rem 1rem', borderBottom: '1px solid var(--border)',
-                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                    background: 'var(--bg-table-header)'
+                    padding: '2.5rem 1.5rem',
+                    textAlign: 'center',
+                    color: 'var(--text-secondary)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.6rem'
                   }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <Landmark size={16} style={{ color: 'var(--text-table-header)' }} />
-                      <span style={{ fontWeight: 800, fontSize: '0.85rem', color: 'var(--text-table-header)' }}>
-                        {cajaActiva.nombre}
-                      </span>
-                    </div>
-                    <span style={{ fontWeight: 900, fontSize: '0.9rem', color: (Number(cajaActiva.saldo_actual) || 0) >= 0 ? '#10b981' : '#ef4444' }}>
-                      Bs {fmtMonto(Number(cajaActiva.saldo_actual) || 0)}
-                    </span>
+                    <Calendar size={32} style={{ color: 'var(--primary)', opacity: 0.8 }} />
+                    <span style={{ fontWeight: 800, fontSize: '0.9rem', color: 'var(--text-primary)' }}>Rango de fechas no aplicado</span>
+                    <p style={{ margin: 0, fontSize: '0.8rem', lineHeight: 1.4 }}>
+                      Selecciona las fechas de inicio y fin arriba, luego toca <strong>Aplicar</strong> para ver los movimientos.
+                    </p>
                   </div>
-                )}
-                {!cajaActiva && (
-                  <div style={{
-                    padding: '0.75rem 1rem', borderBottom: '1px solid var(--border)',
-                    background: 'var(--bg-table-header)',
-                    display: 'flex', justifyContent: 'space-between', alignItems: 'center'
-                  }}>
-                    <span style={{ fontWeight: 800, fontSize: '0.85rem', color: 'var(--text-table-header)' }}>
-                      Todos los movimientos
-                    </span>
-                    <span style={{ fontWeight: 900, fontSize: '0.9rem', color: 'var(--primary)' }}>
-                      Bs {fmtMonto(saldoTotal)}
-                    </span>
-                  </div>
-                )}
-
-                {/* Lista de movimientos tipo tarjeta */}
-                <div style={{ maxHeight: '50vh', overflowY: 'auto' }}>
-                  {movsFiltrados.length === 0 ? (
-                    <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-tertiary)', fontSize: '0.85rem' }}>
-                      {filtroCuenta === 'todas' ? 'No hay movimientos registrados.' : 'No hay movimientos en esta cuenta.'}
-                    </div>
-                  ) : (
-                    movsFiltrados.map(mov => {
-                      const esIngreso = mov.debe > 0;
-                      const fechaStr = formatFecha(mov.fecha);
-                      const cliente = mov.cliente && mov.cliente !== '—' ? mov.cliente : '';
-                      const desc = mov.descripcion?.trim() || '';
-                      const descLimpia = desc.replace(/^\[(INGRESO|EGRESO) TRF\]\s*/i, '');
-
-                      return (
-                        <div
-                          key={mov.id}
-                          style={{
-                            padding: '0.7rem 1rem',
-                            borderBottom: '1px solid var(--border)',
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center',
-                            gap: '0.75rem'
-                          }}
-                        >
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', overflow: 'hidden', flex: 1, minWidth: 0 }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                              <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', fontWeight: 500 }}>
-                                {fechaStr}
-                              </span>
-                              {mov.tipo_origen === 'cobro' && (
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    generarReciboWhatsApp(mov);
-                                  }}
-                                  disabled={generandoReciboId !== null}
-                                  style={{
-                                    background: 'none',
-                                    border: 'none',
-                                    padding: 0,
-                                    margin: 0,
-                                    cursor: generandoReciboId !== null ? 'wait' : 'pointer',
-                                    color: generandoReciboId === mov.id ? 'var(--success)' : '#25D366',
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center'
-                                  }}
-                                  title="Enviar recibo por WhatsApp"
-                                >
-                                  {generandoReciboId === mov.id ? (
-                                    <RefreshCw size={11} className="animate-spin" style={{ color: 'var(--success)' }} />
-                                  ) : (
-                                    <MessageCircle size={13} />
-                                  )}
-                                </button>
-                              )}
-                            </div>
-                            <span style={{
-                              fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)',
-                              whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'
-                            }}>
-                              {cliente || descLimpia || 'Movimiento'}
-                            </span>
-                            {cliente && descLimpia && (
-                              <span style={{
-                                fontSize: '0.75rem', color: 'var(--text-tertiary)',
-                                whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'
-                              }}>
-                                {descLimpia}
-                              </span>
-                            )}
-                          </div>
-                          <div style={{
-                            fontSize: '0.9rem', fontWeight: 700,
-                            color: esIngreso ? '#10b981' : '#ef4444',
-                            whiteSpace: 'nowrap', flexShrink: 0
-                          }}>
-                            {esIngreso ? '+' : '-'} Bs {fmtMonto(esIngreso ? mov.debe : mov.haber)}
-                          </div>
+                ) : (
+                  <>
+                    {/* Header de la tabla */}
+                    {cajaActiva && (
+                      <div style={{
+                        padding: '0.75rem 1rem', borderBottom: '1px solid var(--border)',
+                        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                        background: 'var(--bg-table-header)'
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <Landmark size={16} style={{ color: 'var(--text-table-header)' }} />
+                          <span style={{ fontWeight: 800, fontSize: '0.85rem', color: 'var(--text-table-header)' }}>
+                            {cajaActiva.nombre}
+                          </span>
                         </div>
-                      );
-                    })
-                  )}
-                </div>
+                        <span style={{ fontWeight: 900, fontSize: '0.9rem', color: (Number(cajaActiva.saldo_actual) || 0) >= 0 ? '#10b981' : '#ef4444' }}>
+                          Bs {fmtMonto(Number(cajaActiva.saldo_actual) || 0)}
+                        </span>
+                      </div>
+                    )}
+                    {!cajaActiva && (
+                      <div style={{
+                        padding: '0.75rem 1rem', borderBottom: '1px solid var(--border)',
+                        background: 'var(--bg-table-header)',
+                        display: 'flex', justifyContent: 'space-between', alignItems: 'center'
+                      }}>
+                        <span style={{ fontWeight: 800, fontSize: '0.85rem', color: 'var(--text-table-header)' }}>
+                          Todos los movimientos
+                        </span>
+                        <span style={{ fontWeight: 900, fontSize: '0.9rem', color: 'var(--primary)' }}>
+                          Bs {fmtMonto(saldoTotal)}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Lista de movimientos tipo tarjeta */}
+                    <div style={{ maxHeight: '50vh', overflowY: 'auto' }}>
+                      {movsFiltrados.length === 0 ? (
+                        <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-tertiary)', fontSize: '0.85rem' }}>
+                          {filtroCuenta === 'todas' ? 'No hay movimientos registrados.' : 'No hay movimientos en esta cuenta.'}
+                        </div>
+                      ) : (
+                        movsFiltrados.map(mov => {
+                          const esIngreso = mov.debe > 0;
+                          const fechaStr = formatFecha(mov.fecha);
+                          const cliente = mov.cliente && mov.cliente !== '—' ? mov.cliente : '';
+                          const desc = mov.descripcion?.trim() || '';
+                          const descLimpia = desc.replace(/^\[(INGRESO|EGRESO) TRF\]\s*/i, '');
+
+                          return (
+                            <div
+                              key={mov.id}
+                              onClick={() => setMovDetalle(mov)}
+                              style={{
+                                padding: '0.7rem 1rem',
+                                borderBottom: '1px solid var(--border)',
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center',
+                                gap: '0.75rem',
+                                cursor: 'pointer'
+                              }}
+                            >
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', overflow: 'hidden', flex: 1, minWidth: 0 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                  <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', fontWeight: 500 }}>
+                                    {fechaStr}
+                                  </span>
+                                  {mov.tipo_origen === 'cobro' && (
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        generarReciboWhatsApp(mov);
+                                      }}
+                                      disabled={generandoReciboId !== null}
+                                      style={{
+                                        background: 'none',
+                                        border: 'none',
+                                        padding: 0,
+                                        margin: 0,
+                                        cursor: generandoReciboId !== null ? 'wait' : 'pointer',
+                                        color: generandoReciboId === mov.id ? 'var(--success)' : '#25D366',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center'
+                                      }}
+                                      title="Enviar recibo por WhatsApp"
+                                    >
+                                      {generandoReciboId === mov.id ? (
+                                        <RefreshCw size={11} className="animate-spin" style={{ color: 'var(--success)' }} />
+                                      ) : (
+                                        <MessageCircle size={13} />
+                                      )}
+                                    </button>
+                                  )}
+                                </div>
+                                <span style={{
+                                  fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)',
+                                  whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'
+                                }}>
+                                  {cliente || descLimpia || 'Movimiento'}
+                                </span>
+                                {cliente && descLimpia && (
+                                  <span style={{
+                                    fontSize: '0.75rem', color: 'var(--text-tertiary)',
+                                    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'
+                                  }}>
+                                    {descLimpia}
+                                  </span>
+                                )}
+                              </div>
+                              <div style={{
+                                fontSize: '0.9rem', fontWeight: 700,
+                                color: esIngreso ? '#10b981' : '#ef4444',
+                                whiteSpace: 'nowrap', flexShrink: 0
+                              }}>
+                                {esIngreso ? '+' : '-'} Bs {fmtMonto(esIngreso ? mov.debe : mov.haber)}
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  </>
+                )}
               </div>
             );
           })()}
@@ -912,6 +1024,87 @@ const CajasBancos: React.FC = () => {
                 />
               </div>
 
+              {/* Filtro de Fechas */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
+                <Calendar size={16} style={{ color: 'var(--text-tertiary)' }} />
+                <select
+                  value={tipoFecha}
+                  onChange={e => handleCambiarTipoFecha(e.target.value as any)}
+                  style={{
+                    padding: '0.4rem 2rem 0.4rem 0.8rem',
+                    borderRadius: '8px',
+                    border: '1px solid var(--border)',
+                    background: 'rgba(255,255,255,0.05)',
+                    color: 'var(--text-primary)',
+                    fontSize: '0.875rem',
+                    cursor: 'pointer',
+                    outline: 'none',
+                    fontWeight: 500,
+                  }}
+                >
+                  <option value="ultimos">Últimos movimientos</option>
+                  <option value="hoy">Hoy</option>
+                  <option value="ayer">Ayer</option>
+                  <option value="semana">Esta semana</option>
+                  <option value="mes">Este mes</option>
+                  <option value="rango">Rango de fechas</option>
+                </select>
+              </div>
+
+              {/* Rango de Fechas Personalizado */}
+              {tipoFecha === 'rango' && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                  <input
+                    type="date"
+                    value={fechaDesde}
+                    onChange={e => setFechaDesde(e.target.value)}
+                    style={{
+                      padding: '0.35rem 0.6rem',
+                      borderRadius: '6px',
+                      border: '1px solid var(--border)',
+                      background: 'rgba(255,255,255,0.05)',
+                      color: 'var(--text-primary)',
+                      fontSize: '0.85rem',
+                      outline: 'none'
+                    }}
+                  />
+                  <span style={{ color: 'var(--text-tertiary)', fontSize: '0.85rem' }}>a</span>
+                  <input
+                    type="date"
+                    value={fechaHasta}
+                    onChange={e => setFechaHasta(e.target.value)}
+                    style={{
+                      padding: '0.35rem 0.6rem',
+                      borderRadius: '6px',
+                      border: '1px solid var(--border)',
+                      background: 'rgba(255,255,255,0.05)',
+                      color: 'var(--text-primary)',
+                      fontSize: '0.85rem',
+                      outline: 'none'
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={handleAplicarRangoPersonalizado}
+                    style={{
+                      padding: '0.35rem 0.8rem',
+                      borderRadius: '6px',
+                      border: 'none',
+                      background: 'var(--primary)',
+                      color: '#ffffff',
+                      fontSize: '0.85rem',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      transition: 'opacity 0.2s'
+                    }}
+                    onMouseOver={e => e.currentTarget.style.opacity = '0.85'}
+                    onMouseOut={e => e.currentTarget.style.opacity = '1'}
+                  >
+                    Aplicar
+                  </button>
+                </div>
+              )}
+
               {/* Tarjetas de Cajas/Bancos — drag-and-drop (solo super admin) */}
               <div className="cajas-grid-header" style={{ 
                 display: 'flex', 
@@ -1036,8 +1229,8 @@ const CajasBancos: React.FC = () => {
                 <button className="cxc-limpiar-busqueda" onClick={() => setBusqueda('')}>✕</button>
               )}
               {!isMobile && (
-                <span className="cxc-conteo-resultado" style={{ marginLeft: 'auto' }}>
-                  {movimientosFiltrados.length} mov.
+                <span className="cxc-conteo-resultado" style={{ marginLeft: 'auto', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                  {movimientosFiltrados.length} movimientos mostrados
                 </span>
               )}
             </div>
@@ -1050,7 +1243,50 @@ const CajasBancos: React.FC = () => {
             </div>
           )}
 
-          {cargando ? (
+          {algunLimiteAlcanzado && (
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '10px 14px',
+              backgroundColor: 'rgba(245, 158, 11, 0.08)',
+              border: '1px solid rgba(245, 158, 11, 0.2)',
+              color: '#d97706',
+              borderRadius: '8px',
+              marginBottom: '1rem',
+              fontSize: '0.875rem',
+              fontWeight: 500
+            }}>
+              <AlertTriangle size={16} style={{ flexShrink: 0 }} />
+              <span>
+                {filtroCuenta !== 'todas'
+                  ? 'Mostrando los 200 movimientos más recientes de esta caja para el periodo.'
+                  : 'Se ha alcanzado el límite de 200 movimientos en una o más cajas. Mostrando los más recientes para el periodo.'}
+              </span>
+            </div>
+          )}
+
+          {rangoPendiente ? (
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '3rem 1.5rem',
+              textAlign: 'center',
+              background: 'var(--bg-card)',
+              border: '1px dashed var(--border)',
+              borderRadius: '12px',
+              marginTop: '1rem',
+              color: 'var(--text-secondary)'
+            }}>
+              <Calendar size={40} style={{ color: 'var(--primary)', marginBottom: '0.75rem', opacity: 0.8 }} />
+              <h4 style={{ margin: '0 0 0.5rem 0', color: 'var(--text-primary)', fontSize: '1.05rem', fontWeight: 700 }}>Rango de fechas no aplicado</h4>
+              <p style={{ margin: 0, fontSize: '0.9rem', maxWidth: '420px', lineHeight: 1.5 }}>
+                Selecciona una fecha de inicio y una de fin en el filtro de arriba, luego haz clic en <strong>Aplicar</strong> para cargar y mostrar los movimientos.
+              </p>
+            </div>
+          ) : cargando ? (
             <div className="pc-cargando">
               <RefreshCw size={32} className="spin" />
               <p>Cargando movimientos...</p>
@@ -1099,6 +1335,24 @@ const CajasBancos: React.FC = () => {
                         </button>
                       )}
                     </div>
+                    {limiteAlcanzadoPorCaja[caja.id] && (
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        padding: '8px 12px',
+                        backgroundColor: 'rgba(245, 158, 11, 0.08)',
+                        border: '1px solid rgba(245, 158, 11, 0.2)',
+                        color: '#d97706',
+                        borderRadius: '8px',
+                        marginBottom: '0.75rem',
+                        fontSize: '0.85rem',
+                        fontWeight: 500
+                      }}>
+                        <AlertTriangle size={14} style={{ flexShrink: 0 }} />
+                        <span>Mostrando los 200 movimientos más recientes de esta caja para el periodo.</span>
+                      </div>
+                    )}
                     <div className="cxc-tabla-wrapper" style={{ borderRadius: '12px', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
                       <table className="cxc-tabla" style={{ minWidth: isMobile ? '600px' : 'auto' }}>
                         <thead>
@@ -1118,7 +1372,9 @@ const CajasBancos: React.FC = () => {
                           {movsCaja.length === 0 ? (
                             <tr>
                               <td colSpan={isMobile ? 5 : 9} className="cxc-td cxc-td-center cxc-td-meta" style={{ padding: '2rem' }}>
-                                {busqueda ? 'No se encontraron movimientos para esta búsqueda en esta cuenta.' : 'No hay movimientos registrados en esta cuenta.'}
+                                {rangoPendiente
+                                  ? 'Selecciona el rango de fechas y presiona Aplicar.'
+                                  : busqueda ? 'No se encontraron movimientos para esta búsqueda en esta cuenta.' : 'No hay movimientos registrados en esta cuenta.'}
                               </td>
                             </tr>
                           ) : movsCaja.map(mov => {
