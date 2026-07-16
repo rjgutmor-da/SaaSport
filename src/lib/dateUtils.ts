@@ -255,3 +255,30 @@ export const formatCiclo = (inicioStr: string | null | undefined, finStr: string
   return `${diaIni} ${nombreMesIni} a ${diaFin} ${nombreMesFin}`;
 };
 
+/**
+ * Formatea un rango de ciclo completo como "Día Mes al Día Mes" sin omitir el día 1.
+ */
+export const formatCicloCompleto = (inicioStr: string | null | undefined, finStr: string | null | undefined): string | null => {
+  if (!inicioStr || !finStr) return null;
+  
+  const inicioParts = inicioStr.split('-');
+  const finParts = finStr.split('-');
+  if (inicioParts.length !== 3 || finParts.length !== 3) return null;
+  
+  const diaIni = parseInt(inicioParts[2], 10);
+  const mesIni = parseInt(inicioParts[1], 10);
+  const diaFin = parseInt(finParts[2], 10);
+  const mesFin = parseInt(finParts[1], 10);
+  
+  const meses = [
+    'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun',
+    'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'
+  ];
+  
+  const nombreMesIni = meses[mesIni - 1] || '';
+  const nombreMesFin = meses[mesFin - 1] || '';
+  
+  return `${diaIni} ${nombreMesIni} al ${diaFin} ${nombreMesFin}`;
+};
+
+

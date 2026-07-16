@@ -17,7 +17,7 @@ import ModalCobroRapido from '../../components/cxc/ModalCobroRapido';
 import ModalPagoRapidoCxP from '../../components/cxp/ModalPagoRapidoCxP';
 import NotaServicios from '../../components/cxc/NotaServicios';
 import DropdownAcciones from '../../components/cajas-bancos/DropdownAcciones';
-import { formatFecha } from '../../lib/dateUtils';
+import { formatFecha, formatCicloCompleto } from '../../lib/dateUtils';
 import { logActivity } from '../../lib/auditLogger';
 import { can } from '../../config/roles';
 
@@ -1934,32 +1934,57 @@ const CajasBancos: React.FC = () => {
                         }
 
                         const totalLinea = (det.cantidad || 1) * (det.precio_unitario || 0);
+                        const tieneCiclo = nombreLower.includes('mensualidad') && movimientoParaRecibo.ciclo_inicio && movimientoParaRecibo.ciclo_fin;
+                        const cicloFormateado = tieneCiclo ? formatCicloCompleto(movimientoParaRecibo.ciclo_inicio, movimientoParaRecibo.ciclo_fin) : null;
+
                         return (
-                          <li key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                              <div style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#ff6b35' }} />
-                              <span style={{ color: '#e5e2e1', fontFamily: '"Inter", sans-serif', fontSize: '13px' }}>
-                                {nombreConcepto}
+                          <li key={idx} style={{ display: 'flex', flexDirection: 'column', gap: '2px', width: '100%' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                <div style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#ff6b35' }} />
+                                <span style={{ color: '#e5e2e1', fontFamily: '"Inter", sans-serif', fontSize: '13px' }}>
+                                  {nombreConcepto}
+                                </span>
+                              </div>
+                              <span style={{ color: '#e5e2e1', fontFamily: '"Inter", sans-serif', fontSize: '13px', fontWeight: '500' }}>
+                                {fmtMonto(totalLinea)}
                               </span>
                             </div>
-                            <span style={{ color: '#e5e2e1', fontFamily: '"Inter", sans-serif', fontSize: '13px', fontWeight: '500' }}>
-                              {fmtMonto(totalLinea)}
-                            </span>
+                            {cicloFormateado && (
+                              <div style={{ paddingLeft: '18px', color: '#ff6b35', opacity: 0.85, fontFamily: '"Inter", sans-serif', fontSize: '11px', fontStyle: 'italic' }}>
+                                Ciclo: {cicloFormateado}
+                              </div>
+                            )}
                           </li>
                         );
                       })
                     ) : (
-                      <li style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                          <div style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#ff6b35' }} />
-                          <span style={{ color: '#e5e2e1', fontFamily: '"Inter", sans-serif', fontSize: '13px' }}>
-                            {movimientoParaRecibo.descripcion || 'Cobro registrado'}
-                          </span>
-                        </div>
-                        <span style={{ color: '#e5e2e1', fontFamily: '"Inter", sans-serif', fontSize: '13px', fontWeight: '500' }}>
-                          {fmtMonto(movimientoParaRecibo.debe)}
-                        </span>
-                      </li>
+                      (() => {
+                        const descLower = (movimientoParaRecibo.descripcion || '').toLowerCase();
+                        const tieneCicloDesc = descLower.includes('mensualidad') && movimientoParaRecibo.ciclo_inicio && movimientoParaRecibo.ciclo_fin;
+                        const cicloFormateadoDesc = tieneCicloDesc ? formatCicloCompleto(movimientoParaRecibo.ciclo_inicio, movimientoParaRecibo.ciclo_fin) : null;
+
+                        return (
+                          <li style={{ display: 'flex', flexDirection: 'column', gap: '2px', width: '100%' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                <div style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#ff6b35' }} />
+                                <span style={{ color: '#e5e2e1', fontFamily: '"Inter", sans-serif', fontSize: '13px' }}>
+                                  {movimientoParaRecibo.descripcion || 'Cobro registrado'}
+                                </span>
+                              </div>
+                              <span style={{ color: '#e5e2e1', fontFamily: '"Inter", sans-serif', fontSize: '13px', fontWeight: '500' }}>
+                                {fmtMonto(movimientoParaRecibo.debe)}
+                              </span>
+                            </div>
+                            {cicloFormateadoDesc && (
+                              <div style={{ paddingLeft: '18px', color: '#ff6b35', opacity: 0.85, fontFamily: '"Inter", sans-serif', fontSize: '11px', fontStyle: 'italic' }}>
+                                Ciclo: {cicloFormateadoDesc}
+                              </div>
+                            )}
+                          </li>
+                        );
+                      })()
                     )}
                   </ul>
                 </div>

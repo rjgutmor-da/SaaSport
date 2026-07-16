@@ -32,6 +32,8 @@ export interface MovimientoFinanciero {
   grupo_transaccion_id?: string | null;
   alumno_raw?: any;
   detalles_cxc?: any[];
+  ciclo_inicio?: string | null;
+  ciclo_fin?: string | null;
 }
 
 // --- Resúmenes (Fase 1: Cálculos en DB) ---
@@ -367,7 +369,7 @@ const fetchMovimientos = async (
       let queryCobros = supabase.from('cobros_aplicados').select(`
         *,
         cuentas_cobrar (
-          id, descripcion, nro_recibo, es_anticipo,
+          id, descripcion, nro_recibo, es_anticipo, ciclo_inicio, ciclo_fin,
           alumnos ( nombres, apellidos, telefono_padre, telefono_madre, whatsapp_preferido ),
           cxc_detalle (
             cantidad,
@@ -443,9 +445,11 @@ const fetchMovimientos = async (
             return Array.from(new Set(items)).join(', ');
           })(),
           conciliado: c.conciliado || false,
-          cuenta_maestra_id: c.cuentas_cobrar?.id,
+           cuenta_maestra_id: c.cuentas_cobrar?.id,
           alumno_raw: c.cuentas_cobrar?.alumnos || null,
-          detalles_cxc: c.cuentas_cobrar?.cxc_detalle || []
+          detalles_cxc: c.cuentas_cobrar?.cxc_detalle || [],
+          ciclo_inicio: c.cuentas_cobrar?.ciclo_inicio || null,
+          ciclo_fin: c.cuentas_cobrar?.ciclo_fin || null
         });
       });
 
