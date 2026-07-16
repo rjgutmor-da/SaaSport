@@ -204,9 +204,7 @@ const CajasBancos: React.FC = () => {
   // Los movimientos ya vienen procesados con saldo_historico y ordenados
   const movimientos = movimientosRaw;
 
-  const algunLimiteAlcanzado = useMemo(() => {
-    return Object.values(limiteAlcanzadoPorCaja).some(val => val === true);
-  }, [limiteAlcanzadoPorCaja]);
+
 
   const manejarActualizacion = () => {
     queryClient.invalidateQueries({ queryKey: ['cajas-bancos', escuelaId] });
@@ -1243,28 +1241,7 @@ const CajasBancos: React.FC = () => {
             </div>
           )}
 
-          {algunLimiteAlcanzado && (
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              padding: '10px 14px',
-              backgroundColor: 'rgba(245, 158, 11, 0.08)',
-              border: '1px solid rgba(245, 158, 11, 0.2)',
-              color: '#d97706',
-              borderRadius: '8px',
-              marginBottom: '1rem',
-              fontSize: '0.875rem',
-              fontWeight: 500
-            }}>
-              <AlertTriangle size={16} style={{ flexShrink: 0 }} />
-              <span>
-                {filtroCuenta !== 'todas'
-                  ? 'Mostrando los 200 movimientos más recientes de esta caja para el periodo.'
-                  : 'Se ha alcanzado el límite de 200 movimientos en una o más cajas. Mostrando los más recientes para el periodo.'}
-              </span>
-            </div>
-          )}
+
 
           {rangoPendiente ? (
             <div style={{
@@ -1307,10 +1284,29 @@ const CajasBancos: React.FC = () => {
                 return (
                   <div key={caja.id} className="caja-seccion">
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', marginBottom: '1rem' }}>
-                      <h3 style={{ margin: 0, color: 'var(--text-primary)', fontSize: '1.2rem', fontWeight: 700 }}>
-                        <Landmark size={20} style={{ display: 'inline-block', verticalAlign: 'middle', marginRight: '8px', color: 'var(--primary)' }} />
-                        {caja.nombre}
-                      </h3>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                        <h3 style={{ margin: 0, color: 'var(--text-primary)', fontSize: '1.2rem', fontWeight: 700, display: 'flex', alignItems: 'center' }}>
+                          <Landmark size={20} style={{ display: 'inline-block', verticalAlign: 'middle', marginRight: '8px', color: 'var(--primary)' }} />
+                          {caja.nombre}
+                        </h3>
+                        {limiteAlcanzadoPorCaja[caja.id] && (
+                          <span style={{
+                            fontSize: '0.75rem',
+                            fontWeight: 500,
+                            color: '#d97706',
+                            backgroundColor: 'rgba(245, 158, 11, 0.08)',
+                            border: '1px solid rgba(245, 158, 11, 0.2)',
+                            padding: '2px 8px',
+                            borderRadius: '6px',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px'
+                          }}>
+                            <AlertTriangle size={12} />
+                            Mostrando los 200 movimientos más recientes
+                          </span>
+                        )}
+                      </div>
                       {modoConciliacion && puedeConciliar && !isMobile && movsCaja.some(m => !m.conciliado) && (
                         <button
                           type="button"
@@ -1335,24 +1331,6 @@ const CajasBancos: React.FC = () => {
                         </button>
                       )}
                     </div>
-                    {limiteAlcanzadoPorCaja[caja.id] && (
-                      <div style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '6px',
-                        padding: '8px 12px',
-                        backgroundColor: 'rgba(245, 158, 11, 0.08)',
-                        border: '1px solid rgba(245, 158, 11, 0.2)',
-                        color: '#d97706',
-                        borderRadius: '8px',
-                        marginBottom: '0.75rem',
-                        fontSize: '0.85rem',
-                        fontWeight: 500
-                      }}>
-                        <AlertTriangle size={14} style={{ flexShrink: 0 }} />
-                        <span>Mostrando los 200 movimientos más recientes de esta caja para el periodo.</span>
-                      </div>
-                    )}
                     <div className="cxc-tabla-wrapper" style={{ borderRadius: '12px', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
                       <table className="cxc-tabla" style={{ minWidth: isMobile ? '600px' : 'auto' }}>
                         <thead>
