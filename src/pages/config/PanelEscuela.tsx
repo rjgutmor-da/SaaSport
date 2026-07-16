@@ -125,7 +125,7 @@ const PanelEscuela: React.FC = () => {
         supabase.from('usuarios').select('id', { count: 'exact', head: true })
           .eq('escuela_id', escuela_id).eq('activo', true),
         supabase.from('usuarios').select('id', { count: 'exact', head: true })
-          .eq('escuela_id', escuela_id).eq('rol', 'Entrenador').eq('activo', true),
+          .eq('escuela_id', escuela_id).in('rol', ['Entrenador', 'Entrenarqueros']).eq('activo', true),
         supabase.from('sucursales').select('id, nombre').eq('escuela_id', escuela_id),
       ]);
 
