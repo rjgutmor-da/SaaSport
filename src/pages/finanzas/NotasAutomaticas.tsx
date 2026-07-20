@@ -2,7 +2,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import { 
   ChevronLeft, RefreshCw, Search, Pencil, FileText, Calendar, Landmark, AlertCircle,
-  Check, CheckCheck, Percent
+  Check, CheckCheck, Percent, Trash2
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthSaaSport } from '../../lib/authHelper';
@@ -192,6 +192,33 @@ const NotasAutomaticas: React.FC = () => {
       cargarNotas();
     } catch (err: any) {
       alert('Error al aprobar las notas: ' + (err.message || err));
+    } finally {
+      setProcesandoAccion(null);
+    }
+  };
+
+  // Borrar una nota borrador (elimina cxc_detalle + cuentas_cobrar)
+  const borrarNota = async (id: string) => {
+    if (!window.confirm('¿Estás seguro de eliminar esta nota automática? Esta acción no se puede deshacer.')) return;
+    setProcesandoAccion(id);
+    try {
+      // Primero borrar detalles
+      const { error: err1 } = await supabase
+        .from('cxc_detalle')
+        .delete()
+        .eq('cuenta_cobrar_id', id);
+      if (err1) throw err1;
+
+      // Luego borrar la nota
+      const { error: err2 } = await supabase
+        .from('cuentas_cobrar')
+        .delete()
+        .eq('id', id);
+      if (err2) throw err2;
+
+      setNotas(prev => prev.filter(n => n.id !== id));
+    } catch (err: any) {
+      alert('Error al eliminar la nota: ' + (err.message || err));
     } finally {
       setProcesandoAccion(null);
     }
@@ -482,6 +509,26 @@ const NotasAutomaticas: React.FC = () => {
                             title="Editar manualmente antes de aprobar"
                           >
                             <Pencil size={12} />
+                          </button>
+                          <button 
+                            onClick={() => borrarNota(nota.id)}
+                            disabled={estaCargando}
+                            style={{ 
+                              height: '30px', 
+                              padding: '0 0.5rem', 
+                              fontSize: '0.8rem', 
+                              display: 'inline-flex', 
+                              alignItems: 'center', 
+                              gap: '0.35rem',
+                              background: '#ef4444',
+                              color: '#ffffff',
+                              border: 'none',
+                              borderRadius: '6px',
+                              cursor: 'pointer'
+                            }}
+                            title="Eliminar esta nota automática"
+                          >
+                            <Trash2 size={12} />
                           </button>
                         </div>
                       </td>
