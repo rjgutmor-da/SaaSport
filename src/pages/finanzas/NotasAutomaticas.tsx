@@ -431,7 +431,6 @@ const NotasAutomaticas: React.FC = () => {
                   <th style={{ padding: '1rem', color: 'var(--text-secondary)', fontWeight: 600 }}>Concepto</th>
                   <th style={{ padding: '1rem', color: 'var(--text-secondary)', fontWeight: 600 }}>Ciclo Facturado</th>
                   <th style={{ padding: '1rem', color: 'var(--text-secondary)', fontWeight: 600 }}>F. Emisión</th>
-                  <th style={{ padding: '1rem', color: 'var(--text-secondary)', fontWeight: 600 }}>F. Venc.</th>
                   <th style={{ padding: '1rem', textAlign: 'right', color: 'var(--text-secondary)', fontWeight: 600 }}>Modalidad / Monto</th>
                   <th style={{ padding: '1rem', textAlign: 'center', color: 'var(--text-secondary)', fontWeight: 600 }}>Acciones</th>
                 </tr>
@@ -463,9 +462,6 @@ const NotasAutomaticas: React.FC = () => {
                       </td>
                       <td style={{ padding: '1rem', color: 'var(--text-secondary)' }}>
                         {formatFechaBonita(nota.fecha_emision)}
-                      </td>
-                      <td style={{ padding: '1rem', color: 'var(--text-secondary)' }}>
-                        {formatFechaBonita(nota.fecha_vencimiento)}
                       </td>
                       <td style={{ padding: '1rem', textAlign: 'right' }}>
                         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.25rem' }}>
