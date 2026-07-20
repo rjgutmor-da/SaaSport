@@ -6,6 +6,7 @@ import { getUsuarios, updateUserRole, toggleUserStatus, updateUserSucursal, crea
 import type { Usuario } from '../../services/usuarios';
 import { getSucursales } from '../../services/sucursales';
 import type { Sucursal } from '../../services/sucursales';
+import { supabase } from '../../lib/supabaseClient';
 import { getRoleOptions } from '../../config/roles';
 
 const AdminUsuarios: React.FC = () => {
@@ -14,6 +15,7 @@ const AdminUsuarios: React.FC = () => {
 
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [sucursales, setSucursales] = useState<Sucursal[]>([]);
+  const [fichaMedicaHabilitada, setFichaMedicaHabilitada] = useState<boolean>(false);
   const [loading, setLoading] = useState(true);
 
   // Determinar si ya existe un SuperAdministrador activo en la escuela
@@ -34,7 +36,7 @@ const AdminUsuarios: React.FC = () => {
   // Alerta interna de la página
   const [alerta, setAlerta] = useState<{ tipo: 'success' | 'error'; mensaje: string } | null>(null);
 
-  const rolesOptions = getRoleOptions();
+  const rolesOptions = getRoleOptions({ fichaMedicaHabilitada });
 
   useEffect(() => {
     if (escuelaId && currentUser) {
@@ -56,12 +58,16 @@ const AdminUsuarios: React.FC = () => {
     if (!escuelaId || !currentUser) return;
     try {
       setLoading(true);
-      const [usuariosData, sucursalesData] = await Promise.all([
+      const [usuariosData, sucursalesData, escuelaRes] = await Promise.all([
         getUsuarios(escuelaId, currentUser),
-        getSucursales(escuelaId)
+        getSucursales(escuelaId),
+        supabase.from('escuelas').select('ficha_medica_habilitada').eq('id', escuelaId).single()
       ]);
       setUsuarios(usuariosData || []);
       setSucursales(sucursalesData || []);
+      if (escuelaRes?.data) {
+        setFichaMedicaHabilitada(!!escuelaRes.data.ficha_medica_habilitada);
+      }
     } catch (error: any) {
       console.error(error);
       setAlerta({ tipo: 'error', mensaje: error.message || 'Error al cargar los datos de usuarios o sucursales.' });

@@ -1,7 +1,8 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import { 
-  ChevronLeft, RefreshCw, Search, Pencil, FileText, Calendar, Landmark, AlertCircle
+  ChevronLeft, RefreshCw, Search, Pencil, FileText, Calendar, Landmark, AlertCircle,
+  Check, CheckCheck, Percent
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthSaaSport } from '../../lib/authHelper';
@@ -11,6 +12,7 @@ interface Alumno {
   id: string;
   nombres: string;
   apellidos: string;
+  mensualidad?: number;
 }
 
 interface Sucursal {
@@ -44,6 +46,7 @@ const NotasAutomaticas: React.FC = () => {
   const [notas, setNotas] = useState<CuentaCobrar[]>([]);
   const [sucursales, setSucursales] = useState<Sucursal[]>([]);
   const [cargando, setCargando] = useState(true);
+  const [procesandoAccion, setProcesandoAccion] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   // Filtros
@@ -70,7 +73,7 @@ const NotasAutomaticas: React.FC = () => {
     }
   };
 
-  // Cargar las notas generadas automáticamente pendientes de pago
+  // Cargar las notas generadas automáticamente en borrador (pendientes de aprobación)
   const cargarNotas = async () => {
     if (!escuelaId) return;
     setCargando(true);
@@ -88,12 +91,12 @@ const NotasAutomaticas: React.FC = () => {
           ciclo_inicio,
           ciclo_fin,
           periodo,
-          alumnos (id, nombres, apellidos),
+          alumnos (id, nombres, apellidos, mensualidad),
           sucursales (id, nombre),
           cobros_aplicados (monto_aplicado)
         `)
         .eq('origen_facturacion', 'automatico')
-        .neq('estado', 'pagada')
+        .eq('estado', 'borrador')
         .eq('escuela_id', escuelaId)
         .order('fecha_emision', { ascending: false });
 
@@ -150,6 +153,81 @@ const NotasAutomaticas: React.FC = () => {
       sucursal_id: nota.sucursales?.id
     });
     setModalNotaVisible(true);
+  };
+
+  // Aprobar una nota borrador (pasa a pendiente y suma a deuda en la ficha del alumno)
+  const aprobarNota = async (id: string) => {
+    setProcesandoAccion(id);
+    try {
+      const { error: err } = await supabase
+        .from('cuentas_cobrar')
+        .update({ estado: 'pendiente' })
+        .eq('id', id);
+
+      if (err) throw err;
+      setNotas(prev => prev.filter(n => n.id !== id));
+    } catch (err: any) {
+      alert('Error al aprobar la nota: ' + (err.message || err));
+    } finally {
+      setProcesandoAccion(null);
+    }
+  };
+
+  // Aprobar todas las notas filtradas
+  const aprobarTodas = async () => {
+    if (notasFiltradas.length === 0) return;
+    if (!window.confirm(`¿Estás seguro de aprobar las ${notasFiltradas.length} notas automáticas visibles? Pasarán a figurar como deuda pendiente en la ficha de cada alumno.`)) {
+      return;
+    }
+
+    setProcesandoAccion('todas');
+    try {
+      const ids = notasFiltradas.map(n => n.id);
+      const { error: err } = await supabase
+        .from('cuentas_cobrar')
+        .update({ estado: 'pendiente' })
+        .in('id', ids);
+
+      if (err) throw err;
+      cargarNotas();
+    } catch (err: any) {
+      alert('Error al aprobar las notas: ' + (err.message || err));
+    } finally {
+      setProcesandoAccion(null);
+    }
+  };
+
+  // Cambiar el monto entre Completa (100%) y Parcial (50%)
+  const cambiarModalidadMonto = async (nota: CuentaCobrar, tipo: 'completa' | 'parcial') => {
+    const mensualidadBase = Number(nota.alumnos?.mensualidad || nota.monto_total);
+    const nuevoMonto = tipo === 'completa' ? mensualidadBase : Math.round(mensualidadBase * 0.5 * 100) / 100;
+
+    if (nota.monto_total === nuevoMonto) return; // Sin cambios
+
+    setProcesandoAccion(nota.id);
+    try {
+      // 1. Actualizar cuentas_cobrar
+      const { error: err1 } = await supabase
+        .from('cuentas_cobrar')
+        .update({ monto_total: nuevoMonto })
+        .eq('id', nota.id);
+
+      if (err1) throw err1;
+
+      // 2. Actualizar cxc_detalle
+      const { error: err2 } = await supabase
+        .from('cxc_detalle')
+        .update({ precio_unitario: nuevoMonto })
+        .eq('cuenta_cobrar_id', nota.id);
+
+      if (err2) throw err2;
+
+      setNotas(prev => prev.map(n => n.id === nota.id ? { ...n, monto_total: nuevoMonto } : n));
+    } catch (err: any) {
+      alert('Error al cambiar el monto: ' + (err.message || err));
+    } finally {
+      setProcesandoAccion(null);
+    }
   };
 
   return (
@@ -237,6 +315,31 @@ const NotasAutomaticas: React.FC = () => {
           <RefreshCw size={14} className={cargando ? 'spin' : ''} />
           <span>Actualizar</span>
         </button>
+
+        {notasFiltradas.length > 0 && (
+          <button 
+            onClick={aprobarTodas}
+            disabled={procesandoAccion === 'todas'}
+            style={{ 
+              height: '34px', 
+              marginTop: 'auto', 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '0.5rem', 
+              padding: '0 1rem',
+              background: '#10b981',
+              color: '#ffffff',
+              border: 'none',
+              borderRadius: '6px',
+              fontWeight: 600,
+              cursor: 'pointer',
+              fontSize: '0.85rem'
+            }}
+          >
+            <CheckCheck size={16} />
+            <span>{procesandoAccion === 'todas' ? 'Aprobando...' : `Aprobar Todas (${notasFiltradas.length})`}</span>
+          </button>
+        )}
       </div>
 
       {/* Contenido Principal */}
@@ -250,13 +353,13 @@ const NotasAutomaticas: React.FC = () => {
       {cargando ? (
         <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '40vh', flexDirection: 'column', gap: '1rem' }}>
           <RefreshCw size={32} className="spin" style={{ color: 'var(--primary)' }} />
-          <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Cargando notas automáticas pendientes...</p>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Cargando notas automáticas en borrador...</p>
         </div>
       ) : notasFiltradas.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '4rem 2rem', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: '8px', color: 'var(--text-secondary)' }}>
           <FileText size={48} style={{ opacity: 0.3, marginBottom: '1rem' }} />
-          <p style={{ fontSize: '1.05rem', fontWeight: 500 }}>No hay notas automáticas pendientes</p>
-          <p style={{ fontSize: '0.85rem', marginTop: '0.25rem', opacity: 0.8 }}>Todas las facturas automáticas han sido cobradas, editadas o no coinciden con los filtros.</p>
+          <p style={{ fontSize: '1.05rem', fontWeight: 500 }}>No hay notas automáticas pendientes de aprobación</p>
+          <p style={{ fontSize: '0.85rem', marginTop: '0.25rem', opacity: 0.8 }}>Todas las mensualidades generadas han sido aprobadas o no coinciden con los filtros.</p>
         </div>
       ) : (
         <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: '8px', overflow: 'hidden', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
@@ -270,15 +373,15 @@ const NotasAutomaticas: React.FC = () => {
                   <th style={{ padding: '1rem', color: 'var(--text-secondary)', fontWeight: 600 }}>Ciclo Facturado</th>
                   <th style={{ padding: '1rem', color: 'var(--text-secondary)', fontWeight: 600 }}>F. Emisión</th>
                   <th style={{ padding: '1rem', color: 'var(--text-secondary)', fontWeight: 600 }}>F. Venc.</th>
-                  <th style={{ padding: '1rem', textAlign: 'right', color: 'var(--text-secondary)', fontWeight: 600 }}>Monto</th>
-                  <th style={{ padding: '1rem', textAlign: 'right', color: 'var(--text-secondary)', fontWeight: 600 }}>Saldo Pendiente</th>
+                  <th style={{ padding: '1rem', textAlign: 'right', color: 'var(--text-secondary)', fontWeight: 600 }}>Modalidad / Monto</th>
                   <th style={{ padding: '1rem', textAlign: 'center', color: 'var(--text-secondary)', fontWeight: 600 }}>Acciones</th>
                 </tr>
               </thead>
               <tbody>
                 {notasFiltradas.map((nota) => {
-                  const totalCobrado = nota.cobros_aplicados?.reduce((s, c) => s + Number(c.monto_aplicado), 0) || 0;
-                  const saldoPendiente = nota.monto_total - totalCobrado;
+                  const mensualidadBase = Number(nota.alumnos?.mensualidad || 0);
+                  const esParcial = mensualidadBase > 0 && nota.monto_total < mensualidadBase;
+                  const estaCargando = procesandoAccion === nota.id;
 
                   return (
                     <tr key={nota.id} className="table-row-hover" style={{ borderBottom: '1px solid var(--border)' }}>
@@ -305,21 +408,82 @@ const NotasAutomaticas: React.FC = () => {
                       <td style={{ padding: '1rem', color: 'var(--text-secondary)' }}>
                         {formatFechaBonita(nota.fecha_vencimiento)}
                       </td>
-                      <td style={{ padding: '1rem', textAlign: 'right', fontWeight: 600, color: 'var(--text-primary)' }}>
-                        Bs {formatMonto(nota.monto_total)}
-                      </td>
-                      <td style={{ padding: '1rem', textAlign: 'right', fontWeight: 700, color: saldoPendiente > 0 ? 'var(--warning)' : 'var(--text-primary)' }}>
-                        Bs {formatMonto(saldoPendiente)}
+                      <td style={{ padding: '1rem', textAlign: 'right' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.25rem' }}>
+                          <span style={{ fontWeight: 700, fontSize: '0.95rem', color: 'var(--text-primary)' }}>
+                            Bs {formatMonto(nota.monto_total)}
+                          </span>
+                          <div style={{ display: 'flex', gap: '0.25rem' }}>
+                            <button
+                              type="button"
+                              onClick={() => cambiarModalidadMonto(nota, 'completa')}
+                              disabled={estaCargando}
+                              title="Forzar 100% de Mensualidad"
+                              style={{
+                                padding: '0.15rem 0.4rem',
+                                fontSize: '0.7rem',
+                                borderRadius: '4px',
+                                border: '1px solid var(--border)',
+                                background: !esParcial ? 'var(--primary)' : 'transparent',
+                                color: !esParcial ? '#ffffff' : 'var(--text-secondary)',
+                                cursor: 'pointer'
+                              }}
+                            >
+                              Completa
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => cambiarModalidadMonto(nota, 'parcial')}
+                              disabled={estaCargando}
+                              title="Forzar 50% de Mensualidad (Cobro parcial por asistencia)"
+                              style={{
+                                padding: '0.15rem 0.4rem',
+                                fontSize: '0.7rem',
+                                borderRadius: '4px',
+                                border: '1px solid var(--border)',
+                                background: esParcial ? '#eab308' : 'transparent',
+                                color: esParcial ? '#000000' : 'var(--text-secondary)',
+                                cursor: 'pointer'
+                              }}
+                            >
+                              Parcial
+                            </button>
+                          </div>
+                        </div>
                       </td>
                       <td style={{ padding: '1rem', textAlign: 'center' }}>
-                        <button 
-                          onClick={() => abrirEdicion(nota)}
-                          className="btn-volver"
-                          style={{ height: '30px', padding: '0 0.75rem', fontSize: '0.8rem', display: 'inline-flex', alignItems: 'center', gap: '0.35rem', borderColor: 'var(--border)' }}
-                        >
-                          <Pencil size={12} />
-                          <span>Editar</span>
-                        </button>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
+                          <button 
+                            onClick={() => aprobarNota(nota.id)}
+                            disabled={estaCargando}
+                            style={{ 
+                              height: '30px', 
+                              padding: '0 0.75rem', 
+                              fontSize: '0.8rem', 
+                              display: 'inline-flex', 
+                              alignItems: 'center', 
+                              gap: '0.35rem', 
+                              background: '#10b981',
+                              color: '#ffffff',
+                              border: 'none',
+                              borderRadius: '6px',
+                              fontWeight: 600,
+                              cursor: 'pointer'
+                            }}
+                          >
+                            <Check size={14} />
+                            <span>{estaCargando ? '...' : 'Aprobar'}</span>
+                          </button>
+                          <button 
+                            onClick={() => abrirEdicion(nota)}
+                            disabled={estaCargando}
+                            className="btn-volver"
+                            style={{ height: '30px', padding: '0 0.5rem', fontSize: '0.8rem', display: 'inline-flex', alignItems: 'center', gap: '0.35rem', borderColor: 'var(--border)' }}
+                            title="Editar manualmente antes de aprobar"
+                          >
+                            <Pencil size={12} />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );

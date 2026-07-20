@@ -50,6 +50,27 @@ export const updateUserRole = async (userId: string, newRole: string): Promise<U
     throw new Error('Rol no válido');
   }
 
+  // Regla de negocio: El rol 'Medico' solo está permitido si la escuela tiene habilitada la Ficha Médica
+  if (newRole === 'Medico') {
+    const { data: userProfile } = await supabase
+      .from('usuarios')
+      .select('escuela_id')
+      .eq('id', userId)
+      .single();
+
+    if (userProfile?.escuela_id) {
+      const { data: escuela } = await supabase
+        .from('escuelas')
+        .select('ficha_medica_habilitada')
+        .eq('id', userProfile.escuela_id)
+        .single();
+
+      if (!escuela?.ficha_medica_habilitada) {
+        throw new Error('El rol de Médico no se puede asignar porque la escuela no tiene habilitado el módulo de Ficha Médica.');
+      }
+    }
+  }
+
   // Regla de negocio: El rol 'SuperAdministrador' debe ser único por escuela
   if (newRole === 'SuperAdministrador') {
     const { data: userProfile, error: profileError } = await supabase

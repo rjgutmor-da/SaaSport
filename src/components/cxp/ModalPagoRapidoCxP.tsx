@@ -4,7 +4,6 @@ import type { CajaBanco } from '../../types/finanzas';
 import type { EntidadCxP } from '../../types/cxp';
 import { X, CreditCard, AlertCircle, Check, FileText, Users, RefreshCw, DollarSign, Building2, Hash, Calendar, Clock } from 'lucide-react';
 import { getHoyISO, getHoraLocal } from '../../lib/dateUtils';
-import { logActivity } from '../../lib/auditLogger';
 import type { CatalogoItem } from '../../types/cuentas';
 import { confirmarMovimientoEnPeriodoConciliado } from '../../lib/conciliacion';
 
@@ -209,21 +208,6 @@ const ModalPagoRapidoCxP: React.FC<Props> = ({ entidadInicial, entidades, visibl
 
       // 3. Actualizar Saldo de Caja/Banco (AHORA SE ENCARGA EL TRIGGER)
 
-
-      // 4. Auditoría
-      logActivity({
-        escuela_id: ctx.escuela_id, 
-        usuario_id: ctx.id,
-        usuario_nombre: `${ctx.nombres} ${ctx.apellidos}`,
-        accion: 'pago', 
-        modulo: 'cxp', 
-        entidad_id: objetivoCxpId,
-        detalle: { 
-          proveedor: entidadSel.nombre,
-          monto: montoNum, 
-          descripcion: `Pago de Bs ${montoNum} para ${entidadSel.nombre}.`
-        },
-      });
 
       setExito(`✅ Pago registrado exitosamente.`);
       setGuardando(false);

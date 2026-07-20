@@ -362,25 +362,6 @@ const ModalCobroRapido: React.FC<Props> = ({ alumnoInicial, visible, onCerrar, o
 
       }
 
-      // Auditoría
-      try {
-        const { logActivity } = await import('../../lib/auditLogger');
-        logActivity({
-          escuela_id: ctx.escuela_id,
-          usuario_id: ctx.id,
-          usuario_nombre: `${ctx.nombres} ${ctx.apellidos}`,
-          accion: 'cobro',
-          modulo: 'cxc',
-          entidad_id: objetivoCxcId,
-          detalle: { 
-            cliente: `${alumnoSel.nombres} ${alumnoSel.apellidos}`,
-            monto: montoNum,
-            exceso_anticipo: exceso > 0 ? exceso : undefined,
-            descripcion: `Cobro de Bs ${fmtMonto(montoNum)} para ${alumnoSel.nombres}${exceso > 0 ? ` (Bs ${fmtMonto(exceso)} guardados como anticipo)` : ''}.`
-          },
-        });
-      } catch (e) { console.error(e); }
-
       // Mensaje WhatsApp
       const esPadre = alumnoSel.whatsapp_preferido === 'padre';
       const telefono = esPadre

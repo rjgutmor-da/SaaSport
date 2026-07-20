@@ -64,4 +64,8 @@ export const isRole = (role: unknown): role is Role => typeof role === 'string' 
 export const can = (role: unknown, permission: Permission): boolean => isRole(role) && ROLE_MATRIX[role].permissions[permission] === true;
 export const rolesWithPermission = (permission: Permission): Role[] => ROLES.filter(role => can(role, permission));
 export const getDataScope = (role: unknown): DataScope | null => isRole(role) ? ROLE_MATRIX[role].dataScope : null;
-export const getRoleOptions = () => ROLES.map(value => ({ value, label: ROLE_MATRIX[value].label }));
+export const getRoleOptions = (options?: { fichaMedicaHabilitada?: boolean }) =>
+  ROLES
+    .filter(value => options?.fichaMedicaHabilitada === false ? value !== 'Medico' : true)
+    .map(value => ({ value, label: ROLE_MATRIX[value].label }));
+
