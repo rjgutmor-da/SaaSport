@@ -197,24 +197,43 @@ const NotasAutomaticas: React.FC = () => {
     }
   };
 
-  // Borrar una nota borrador (elimina cxc_detalle + cuentas_cobrar)
+  // Borrar una nota borrador (elimina cxc_detalle + cuentas_cobrar + registra en ciclos_omitidos)
   const borrarNota = async (id: string) => {
-    if (!window.confirm('¿Estás seguro de eliminar esta nota automática? Esta acción no se puede deshacer.')) return;
+    if (!window.confirm('¿Estás seguro de eliminar esta nota automática? Esta acción no se puede deshacer y el sistema no volverá a generarla.')) return;
     setProcesandoAccion(id);
     try {
-      // Primero borrar detalles
+      // Obtener datos de la nota para registrar en ciclos_omitidos
+      const { data: notaData } = await supabase
+        .from('cuentas_cobrar')
+        .select('escuela_id, alumno_id, periodo_estadistico')
+        .eq('id', id)
+        .single();
+
+      // Borrar detalles
       const { error: err1 } = await supabase
         .from('cxc_detalle')
         .delete()
         .eq('cuenta_cobrar_id', id);
       if (err1) throw err1;
 
-      // Luego borrar la nota
+      // Borrar la nota
       const { error: err2 } = await supabase
         .from('cuentas_cobrar')
         .delete()
         .eq('id', id);
       if (err2) throw err2;
+
+      // Registrar en ciclos_omitidos para que el cron no la recree
+      if (notaData?.periodo_estadistico && notaData?.alumno_id) {
+        await supabase
+          .from('ciclos_omitidos')
+          .upsert({
+            escuela_id: notaData.escuela_id,
+            alumno_id: notaData.alumno_id,
+            periodo_estadistico: notaData.periodo_estadistico,
+            motivo: 'borrado_manual'
+          }, { onConflict: 'alumno_id,periodo_estadistico' });
+      }
 
       setNotas(prev => prev.filter(n => n.id !== id));
     } catch (err: any) {

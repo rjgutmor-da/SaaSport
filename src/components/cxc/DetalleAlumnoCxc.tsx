@@ -454,12 +454,31 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Usuario no autenticado.');
 
+      // Obtener datos de la nota antes de anular para registrar en ciclos_omitidos
+      const { data: notaData } = await supabase
+        .from('cuentas_cobrar')
+        .select('escuela_id, alumno_id, periodo_estadistico, descripcion')
+        .eq('id', cxcId)
+        .single();
+
       const { error: err } = await supabase.rpc('rpc_anular_cuenta_cobrar', {
         p_id: cxcId,
         p_usuario_id: user.id
       });
 
       if (err) throw err;
+
+      // Si es una nota de mensualidad, registrar en ciclos_omitidos
+      if (notaData?.periodo_estadistico && notaData?.descripcion?.toLowerCase().includes('mensualidad')) {
+        await supabase
+          .from('ciclos_omitidos')
+          .upsert({
+            escuela_id: notaData.escuela_id,
+            alumno_id: notaData.alumno_id,
+            periodo_estadistico: notaData.periodo_estadistico,
+            motivo: 'anulacion_manual'
+          }, { onConflict: 'alumno_id,periodo_estadistico' });
+      }
 
       onActualizar();
       triggerRefresh();
