@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthSaaSport } from '../../../lib/authHelper';
+import { formatFecha } from '../../../lib/dateUtils';
 
 interface Ejecucion {
   id: string;
@@ -291,7 +292,7 @@ const HistorialFacturacionAutomatica: React.FC = () => {
                             {d.sucursales?.nombre || 'Sin sucursal'}
                           </td>
                           <td style={{ padding: '0.75rem', color: 'var(--text-secondary)' }}>
-                            {d.ciclo_inicio ? `${new Date(d.ciclo_inicio).toLocaleDateString('es-ES')} al ${new Date(d.ciclo_fin).toLocaleDateString('es-ES')}` : 'Ciclo no especificado'}
+                            {d.ciclo_inicio ? `${formatFecha(d.ciclo_inicio)} al ${formatFecha(d.ciclo_fin)}` : 'Ciclo no especificado'}
                           </td>
                           <td style={{ padding: '0.75rem', textAlign: 'right', fontWeight: 600, color: 'var(--text-primary)' }}>
                             Bs. {d.monto_total.toLocaleString('es-BO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
