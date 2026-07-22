@@ -259,9 +259,9 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
         setCicloFin(cxcEditar.ciclo_fin || cxcEditar.fecha_vencimiento || cxcEditar.fecha_emision || getHoyISO());
         setPagarAlCrear(false);
         setCobrosExistentes([]);
-        // Cargar cobros existentes de forma asíncrona siempre que estemos editando
+        // Cargar cobros existentes y detalle de ítems de forma asíncrona siempre que estemos editando
         (async () => {
-          const [{ data: cobros }, { data: periodoNota }] = await Promise.all([
+          const [{ data: cobros }, { data: periodoNota }, { data: detallesBD }] = await Promise.all([
             supabase
               .from('cobros_aplicados')
               .select('id, monto_aplicado, fecha, documento_referencia, caja_id, conciliado')
@@ -272,10 +272,38 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
               .select('ciclo_inicio, ciclo_fin')
               .eq('id', cxcEditar.id)
               .maybeSingle(),
+            supabase
+              .from('cxc_detalle')
+              .select('id, catalogo_item_id, cantidad, precio_unitario, periodo_meses, detalle_extra, subtotal, catalogo_items(id, nombre, tipo)')
+              .eq('cuenta_cobrar_id', cxcEditar.id),
           ]);
 
           if (periodoNota?.ciclo_inicio) setCicloInicio(periodoNota.ciclo_inicio);
           if (periodoNota?.ciclo_fin) setCicloFin(periodoNota.ciclo_fin);
+
+          if (detallesBD && detallesBD.length > 0 && (!cxcEditar.lineas || cxcEditar.lineas.length === 0)) {
+            const lineasCargadas: LineaNotaUI[] = detallesBD.map((d: any) => {
+              const itemNombre = d.catalogo_items?.nombre || '';
+              let pMeses: string[] = [];
+              if (Array.isArray(d.periodo_meses)) {
+                pMeses = d.periodo_meses.map((m: string) => (m.includes('-') ? m.split('-')[0] : m));
+              }
+              const cant = Number(d.cantidad) || 1;
+              const precio = Number(d.precio_unitario) || 0;
+              return {
+                catalogo_item_id: d.catalogo_item_id || '',
+                nombre: itemNombre,
+                tipo: d.catalogo_items?.tipo || 'servicio',
+                cantidad: cant,
+                precio_unitario: precio,
+                periodo_meses: pMeses,
+                detalle_personalizado: d.detalle_extra || '',
+                subtotal: Number(d.subtotal) || (cant * precio),
+                cuenta_ingreso_id: null,
+              };
+            });
+            setLineas(lineasCargadas);
+          }
 
           if (cobros && cobros.length > 0) {
             setCobrosExistentes(cobros.map((c: any) => ({
@@ -296,7 +324,6 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
         setAlumnoId(alumnoPreseleccionado?.id || '');
         setLineas([lineaVacia()]);
         setObservaciones('');
-        setFechaEmision(getHoyISO());
         setCicloInicio(getHoyISO());
         setCicloFin(getHoyISO());
         setVencimiento(getHoyISO());
