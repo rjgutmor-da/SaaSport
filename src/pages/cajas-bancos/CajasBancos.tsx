@@ -29,6 +29,13 @@ import { useIsMobile } from '../../hooks/useIsMobile';
 const fmtMonto = (n: number) =>
   n.toLocaleString('es-BO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+// Los movimientos directos no tienen alumno/proveedor. La API puede devolver
+// un guion como valor de relleno; en pantalla debe tratarse como vacío.
+const obtenerCliente = (cliente?: string | null) => {
+  const valor = cliente?.trim() || '';
+  return /^[—_-]+$/.test(valor) ? '' : valor;
+};
+
 const obtenerRangoFechas = (
   tipo: 'ultimos' | 'hoy' | 'ayer' | 'semana' | 'mes' | 'rango',
   desdeStr?: string,
@@ -228,7 +235,7 @@ const CajasBancos: React.FC = () => {
       }
       
       // Alumno / Proveedor
-      const cliente = mov.cliente && mov.cliente !== '—' ? mov.cliente : '';
+      const cliente = obtenerCliente(mov.cliente);
       let desc = mov.descripcion?.trim() || '';
       desc = desc.replace(/^\[(INGRESO|EGRESO) TRF\]\s*/i, '');
       const cuentaTrim = mov.cuenta_nombre?.trim() || '';
@@ -842,7 +849,7 @@ const CajasBancos: React.FC = () => {
                         movsFiltrados.map(mov => {
                           const esIngreso = mov.debe > 0;
                           const fechaStr = formatFecha(mov.fecha);
-                          const cliente = mov.cliente && mov.cliente !== '—' ? mov.cliente : '';
+                          const cliente = obtenerCliente(mov.cliente);
                           const desc = mov.descripcion?.trim() || '';
                           const descLimpia = desc.replace(/^\[(INGRESO|EGRESO) TRF\]\s*/i, '');
 
@@ -1466,7 +1473,7 @@ const CajasBancos: React.FC = () => {
                                 )}
                                 <td className="cxc-td" style={{ maxWidth: '245px' }}>
                                   {(() => {
-                                    const cliente = mov.cliente && mov.cliente !== '—' ? mov.cliente : '';
+                                    const cliente = obtenerCliente(mov.cliente);
                                     let desc = mov.descripcion?.trim() || '';
                                     
                                     // Limpiar prefijo de transferencia si existe
@@ -1491,11 +1498,11 @@ const CajasBancos: React.FC = () => {
                                         display: 'flex',
                                         alignItems: 'baseline',
                                         gap: '6px'
-                                      }} title={`${cliente}${desc ? ' - ' + desc : ''}`}>
-                                        <span style={{ fontWeight: 600 }}>{cliente || '—'}</span>
+                                      }} title={cliente ? `${cliente}${desc ? ' - ' + desc : ''}` : desc}>
+                                        {cliente && <span style={{ fontWeight: 600 }}>{cliente}</span>}
                                         {desc && (
                                           <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontWeight: 400 }}>
-                                            - {desc}
+                                            {cliente ? '- ' : ''}{desc}
                                           </span>
                                         )}
                                       </div>
