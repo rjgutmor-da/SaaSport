@@ -52,7 +52,7 @@ const CuentasCobrar: React.FC = () => {
 
   // Filtros rápidos y de servidor
   const [soloConDeuda, setSoloConDeuda] = useState(false);
-  const [soloActivos, setSoloActivos] = useState(false);
+  const [filtroEstadoAlumno, setFiltroEstadoAlumno] = useState<'activos' | 'archivados'>('activos');
   const [filtroSucursal, setFiltroSucursal] = useState('');
   const [filtroEntrenador, setFiltroEntrenador] = useState('');
   const [filtroCancha, setFiltroCancha] = useState('');
@@ -69,7 +69,7 @@ const CuentasCobrar: React.FC = () => {
 
   useEffect(() => {
     setPagina(1);
-  }, [debouncedBusqueda, soloConDeuda, soloActivos, sucursalEfectiva, filtroEntrenador, filtroCancha, filtroHorario]);
+  }, [debouncedBusqueda, soloConDeuda, filtroEstadoAlumno, sucursalEfectiva, filtroEntrenador, filtroCancha, filtroHorario]);
 
   const filtros = {
     sucursalId: sucursalEfectiva,
@@ -77,7 +77,7 @@ const CuentasCobrar: React.FC = () => {
     canchaId: filtroCancha,
     horarioId: filtroHorario,
     soloConDeuda: isMobile ? (busqueda.trim() === '') : soloConDeuda,
-    soloActivos,
+    filtroEstadoAlumno,
     busqueda: debouncedBusqueda,
     pagina,
     itemsPorPagina
@@ -370,21 +370,36 @@ const CuentasCobrar: React.FC = () => {
 
             {!isMobile && (
               <div className="cxc-stats-horizontal">
-                <div 
-                  className="cxc-stat-pill" 
-                  onClick={() => setSoloActivos(!soloActivos)} 
-                  style={{ 
-                    borderColor: soloActivos ? '#10b981' : undefined,
-                    background: soloActivos ? 'rgba(16, 185, 129, 0.08)' : undefined,
+                <button
+                  type="button"
+                  className="cxc-stat-pill"
+                  onClick={() => setFiltroEstadoAlumno('activos')}
+                  aria-pressed={filtroEstadoAlumno === 'activos'}
+                  style={{
+                    borderColor: filtroEstadoAlumno === 'activos' ? '#10b981' : undefined,
+                    background: filtroEstadoAlumno === 'activos' ? 'rgba(16, 185, 129, 0.08)' : undefined,
+                    color: 'inherit',
                     cursor: 'pointer'
                   }}
-                  title="Excluir alumnos archivados de la vista y del cálculo"
+                  title="Ver alumnos activos"
                 >
-                  <span className="cxc-pill-label" style={{ color: soloActivos ? '#10b981' : undefined }}>Solo Activos</span>
-                  <span className="cxc-pill-value" style={{ color: soloActivos ? '#10b981' : undefined }}>
-                    {soloActivos ? 'SÍ' : 'NO'}
-                  </span>
-                </div>
+                  <span className="cxc-pill-label" style={{ color: filtroEstadoAlumno === 'activos' ? '#10b981' : undefined }}>Activos</span>
+                </button>
+                <button
+                  type="button"
+                  className="cxc-stat-pill"
+                  onClick={() => setFiltroEstadoAlumno('archivados')}
+                  aria-pressed={filtroEstadoAlumno === 'archivados'}
+                  style={{
+                    borderColor: filtroEstadoAlumno === 'archivados' ? '#f97316' : undefined,
+                    background: filtroEstadoAlumno === 'archivados' ? 'rgba(249, 115, 22, 0.08)' : undefined,
+                    color: 'inherit',
+                    cursor: 'pointer'
+                  }}
+                  title="Ver alumnos archivados"
+                >
+                  <span className="cxc-pill-label" style={{ color: filtroEstadoAlumno === 'archivados' ? '#f97316' : undefined }}>Archivados</span>
+                </button>
 
                 <div className="cxc-stat-pill" onClick={() => setSoloConDeuda(!soloConDeuda)} style={{ cursor: 'pointer' }}>
                   <span className="cxc-pill-label">Deudores</span>

@@ -402,7 +402,8 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, esAnticipo = false, o
                         const it = catalogo.find(c => c.id === e.target.value);
                         if (it) {
                           const nuevas = [...lineas];
-                          nuevas[idx] = { ...nuevas[idx], catalogo_item_id: it.id, nombre: it.nombre, tipo: it.tipo, precio_unitario: Number(it.precio_venta) || 0, subtotal: (Number(it.precio_venta) || 0) * nuevas[idx].cantidad };
+                          const costoUnitario = Number(it.costo_unitario) || 0;
+                          nuevas[idx] = { ...nuevas[idx], catalogo_item_id: it.id, nombre: it.nombre, tipo: it.tipo, precio_unitario: costoUnitario, subtotal: costoUnitario * nuevas[idx].cantidad };
                           setLineas(nuevas);
                         }
                       }} required disabled={guardando}>
@@ -420,7 +421,7 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, esAnticipo = false, o
                         const nuevas = [...lineas];
                         nuevas[idx] = { ...nuevas[idx], precio_unitario: prec, subtotal: prec * nuevas[idx].cantidad };
                         setLineas(nuevas);
-                      }} disabled={guardando} title="Precio Unitario" />
+                      }} disabled={guardando} title="Costo Unitario" />
                       <div style={{ textAlign: 'right', fontWeight: 700, fontSize: '0.9rem' }}>Bs {fmtMonto(linea.subtotal)}</div>
                       <button type="button" onClick={() => setLineas(lineas.filter((_, i) => i !== idx))} disabled={lineas.length === 1} style={{ color: '#f87171' }}><Trash2 size={16} /></button>
                     </div>

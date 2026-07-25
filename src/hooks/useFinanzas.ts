@@ -40,7 +40,7 @@ export interface MovimientoFinanciero {
 
 const fetchCxcResumen = async (escuelaId: string, filtros: any) => {
   // Si no hay filtros relevantes, usamos la vista de resumen pre-calculada para mayor velocidad
-  const tieneFiltros = filtros.sucursalId || filtros.entrenadorId || filtros.canchaId || filtros.horarioId || filtros.busqueda?.trim() || filtros.soloActivos;
+  const tieneFiltros = filtros.sucursalId || filtros.entrenadorId || filtros.canchaId || filtros.horarioId || filtros.busqueda?.trim() || filtros.filtroEstadoAlumno;
   
   if (!tieneFiltros) {
     const { data, error } = await supabase
@@ -62,7 +62,7 @@ const fetchCxcResumen = async (escuelaId: string, filtros: any) => {
   if (filtros.entrenadorId) query = query.eq('entrenador_id', filtros.entrenadorId);
   if (filtros.canchaId) query = query.eq('cancha_id', filtros.canchaId);
   if (filtros.horarioId) query = query.eq('horario_id', filtros.horarioId);
-  if (filtros.soloActivos) query = query.eq('archivado', false);
+  if (filtros.filtroEstadoAlumno) query = query.eq('archivado', filtros.filtroEstadoAlumno === 'archivados');
   
   if (filtros.busqueda?.trim()) {
     const q = `%${normalizar(filtros.busqueda)}%`;
@@ -160,7 +160,7 @@ const fetchCxcAlumnos = async (escuelaId: string, filtros: any) => {
   if (filtros.canchaId) query = query.eq('cancha_id', filtros.canchaId);
   if (filtros.horarioId) query = query.eq('horario_id', filtros.horarioId);
   if (filtros.soloConDeuda) query = query.gt('saldo_pendiente', 0);
-  if (filtros.soloActivos) query = query.eq('archivado', false);
+  if (filtros.filtroEstadoAlumno) query = query.eq('archivado', filtros.filtroEstadoAlumno === 'archivados');
   
   if (filtros.busqueda?.trim()) {
     const q = `%${normalizar(filtros.busqueda)}%`;
