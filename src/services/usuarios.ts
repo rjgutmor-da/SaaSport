@@ -152,6 +152,35 @@ export const toggleUserStatus = async (userId: string, currentStatus: boolean): 
 };
 
 /**
+ * Elimina de forma definitiva un usuario que no tenga historial ni relaciones.
+ * La validación de permisos, relaciones y el borrado de Auth ocurren en la
+ * Edge Function; nunca se expone una service_role key en el navegador.
+ */
+export const deleteUser = async (userId: string): Promise<void> => {
+  if (!userId) throw new Error('El ID del usuario es requerido.');
+
+  const { error } = await supabase.functions.invoke('delete-user', {
+    body: { userId },
+  });
+
+  if (!error) return;
+
+  const context = (error as { context?: { json?: () => Promise<any> } }).context;
+  if (context?.json) {
+    try {
+      const body = await context.json();
+      if (body?.error) throw new Error(body.error);
+    } catch (contextError) {
+      if (contextError instanceof Error && contextError.message !== 'Unexpected end of JSON input') {
+        throw contextError;
+      }
+    }
+  }
+
+  throw new Error(error.message || 'No se pudo eliminar el usuario.');
+};
+
+/**
  * Actualiza la sucursal de un usuario.
  */
 export const updateUserSucursal = async (userId: string, sucursalId: string | null): Promise<Usuario> => {

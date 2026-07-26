@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronLeft, UserCog, CheckCircle, XCircle, UserPlus, X, AlertTriangle, ShieldAlert } from 'lucide-react';
+import { ChevronLeft, UserCog, CheckCircle, XCircle, UserPlus, X, AlertTriangle, ShieldAlert, Trash2 } from 'lucide-react';
 import { useAuthSaaSport } from '../../lib/authHelper';
-import { getUsuarios, updateUserRole, toggleUserStatus, updateUserSucursal, createUserDirectly } from '../../services/usuarios';
+import { getUsuarios, updateUserRole, toggleUserStatus, updateUserSucursal, createUserDirectly, deleteUser } from '../../services/usuarios';
 import type { Usuario } from '../../services/usuarios';
 import { getSucursales } from '../../services/sucursales';
 import type { Sucursal } from '../../services/sucursales';
@@ -24,6 +24,8 @@ const AdminUsuarios: React.FC = () => {
   // Estado para Crear Usuario
   const [isCreating, setIsCreating] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<Usuario | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [formData, setFormData] = useState({
     nombres: '',
     apellidos: '',
@@ -37,6 +39,8 @@ const AdminUsuarios: React.FC = () => {
   const [alerta, setAlerta] = useState<{ tipo: 'success' | 'error'; mensaje: string } | null>(null);
 
   const rolesOptions = getRoleOptions({ fichaMedicaHabilitada });
+  const activeSuperAdminCount = usuarios.filter(u => u.rol === 'SuperAdministrador' && u.activo).length;
+  const canDeleteUsers = currentUser?.rol === 'SuperAdministrador';
 
   useEffect(() => {
     if (escuelaId && currentUser) {
@@ -126,6 +130,23 @@ const AdminUsuarios: React.FC = () => {
     } catch (error: any) {
       console.error(error);
       setAlerta({ tipo: 'error', mensaje: error.message || 'Error al cambiar el estado del usuario.' });
+    }
+  };
+
+  const handleDeleteUser = async () => {
+    if (!deleteTarget) return;
+    setIsDeleting(true);
+    setAlerta(null);
+
+    try {
+      await deleteUser(deleteTarget.id);
+      setDeleteTarget(null);
+      setAlerta({ tipo: 'success', mensaje: `El usuario ${deleteTarget.email} fue eliminado correctamente.` });
+      await loadData();
+    } catch (error: any) {
+      setAlerta({ tipo: 'error', mensaje: error.message || 'No se pudo eliminar el usuario.' });
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -426,20 +447,46 @@ const AdminUsuarios: React.FC = () => {
                         </td>
                         <td style={{ padding: '1rem', textAlign: 'right' }}>
                           {!esMismoUsuario ? (
-                            <button
-                              onClick={() => handleToggleStatus(u.id, u.activo)}
-                              style={{
-                                fontSize: '0.75rem',
-                                padding: '0.4rem 0.75rem',
-                                borderRadius: '4px',
-                                border: `1px solid ${u.activo ? 'rgba(255, 59, 48, 0.3)' : 'rgba(0, 210, 106, 0.3)'}`,
-                                background: u.activo ? 'var(--danger-bg)' : 'var(--success-bg)',
-                                color: u.activo ? 'var(--danger)' : 'var(--success)',
-                                fontWeight: 600
-                              }}
-                            >
-                              {u.activo ? 'Desactivar' : 'Activar'}
-                            </button>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.5rem' }}>
+                              <button
+                                onClick={() => handleToggleStatus(u.id, u.activo)}
+                                style={{
+                                  fontSize: '0.75rem',
+                                  padding: '0.4rem 0.75rem',
+                                  borderRadius: '4px',
+                                  border: `1px solid ${u.activo ? 'rgba(255, 59, 48, 0.3)' : 'rgba(0, 210, 106, 0.3)'}`,
+                                  background: u.activo ? 'var(--danger-bg)' : 'var(--success-bg)',
+                                  color: u.activo ? 'var(--danger)' : 'var(--success)',
+                                  fontWeight: 600
+                                }}
+                              >
+                                {u.activo ? 'Desactivar' : 'Activar'}
+                              </button>
+                              {canDeleteUsers && (
+                                <button
+                                  onClick={() => setDeleteTarget(u)}
+                                  disabled={u.rol === 'SuperAdministrador' && activeSuperAdminCount <= 1}
+                                  title={u.rol === 'SuperAdministrador' && activeSuperAdminCount <= 1 ? 'No se puede eliminar el último SuperAdministrador.' : 'Eliminar usuario definitivamente'}
+                                  style={{
+                                    fontSize: '0.75rem',
+                                    padding: '0.4rem 0.65rem',
+                                    borderRadius: '4px',
+                                    border: '1px solid rgba(255, 59, 48, 0.3)',
+                                    background: 'var(--danger-bg)',
+                                    color: 'var(--danger)',
+                                    fontWeight: 600,
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '0.3rem',
+                                    opacity: u.rol === 'SuperAdministrador' && activeSuperAdminCount <= 1 ? 0.45 : 1,
+                                    cursor: u.rol === 'SuperAdministrador' && activeSuperAdminCount <= 1 ? 'not-allowed' : 'pointer'
+                                  }}
+                                >
+                                  <Trash2 size={14} />
+                                  Eliminar
+                                </button>
+                              )}
+                            </div>
                           ) : (
                             <span style={{ fontSize: '0.8rem', color: 'var(--text-tertiary)', fontStyle: 'italic', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.25rem' }}>
                               <ShieldAlert size={14} /> Sin acciones
@@ -455,6 +502,44 @@ const AdminUsuarios: React.FC = () => {
           )}
         </div>
       </div>
+
+      {deleteTarget && (
+        <div
+          role="presentation"
+          onClick={() => !isDeleting && setDeleteTarget(null)}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: '1rem', background: 'rgba(0, 0, 0, 0.65)'
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delete-user-title"
+            onClick={event => event.stopPropagation()}
+            style={{ width: '100%', maxWidth: '480px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '1.5rem', boxShadow: '0 20px 60px rgba(0,0,0,0.35)' }}
+          >
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem' }}>
+              <ShieldAlert size={24} style={{ color: 'var(--danger)', flexShrink: 0 }} />
+              <div>
+                <h2 id="delete-user-title" style={{ margin: 0, fontSize: '1.15rem', color: 'var(--text-primary)' }}>Eliminar usuario definitivamente</h2>
+                <p style={{ margin: '0.75rem 0 0', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                  Esta acción es irreversible. Se eliminará la cuenta de acceso de <strong>{deleteTarget.nombres} {deleteTarget.apellidos}</strong> ({deleteTarget.email}).
+                </p>
+                <p style={{ margin: '0.75rem 0 0', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                  Solo se completará si el usuario no tiene historial, alumnos, asignaciones ni archivos asociados.
+                </p>
+              </div>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1.5rem' }}>
+              <button type="button" onClick={() => setDeleteTarget(null)} disabled={isDeleting} className="btn-volver" style={{ padding: '0.55rem 1rem' }}>Cancelar</button>
+              <button type="button" onClick={handleDeleteUser} disabled={isDeleting} style={{ padding: '0.55rem 1rem', borderRadius: '4px', border: '1px solid rgba(255, 59, 48, 0.45)', background: 'var(--danger)', color: '#fff', fontWeight: 700 }}>
+                {isDeleting ? 'Eliminando...' : 'Sí, eliminar usuario'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 };
