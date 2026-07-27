@@ -99,6 +99,12 @@ const lineaVacia = (): LineaNota => ({
   cuenta_ingreso_id: null,
 });
 
+// Una mensualidad en Bs 0 registra el ciclo como atendido (p. ej. baja médica),
+// pero no convierte otros conceptos sin importe en notas válidas.
+const esLineaRegistrable = (linea: LineaNota): boolean => Boolean(linea.catalogo_item_id)
+  && (linea.precio_unitario > 0
+    || (linea.nombre === 'Mensualidad' && linea.precio_unitario === 0));
+
 interface LineaNotaUI extends LineaNota {
   torneo_select_value?: string;
 }
@@ -417,7 +423,7 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
       if (!montoAnticipo || parseFloat(montoAnticipo) <= 0) { setError('Ingresa un monto válido.'); return; }
       if (!cuentaCobroId) { setError('Selecciona la caja de ingreso.'); return; }
     } else {
-      const lineasValidas = lineas.filter(l => l.catalogo_item_id && l.precio_unitario > 0);
+      const lineasValidas = lineas.filter(esLineaRegistrable);
       if (lineasValidas.length === 0) { setError('Agrega ítems válidos.'); return; }
 
       // Validación para Mensualidad: obligatorio seleccionar al menos un mes
@@ -476,8 +482,8 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
       // 1. Guardar/Actualizar Nota
       let notaId = '';
       let detalleGuardadoEnRpc = false;
-      const descripcionFinal = esAnticipo ? 'Anticipo' : lineas.filter(l => l.catalogo_item_id && l.precio_unitario > 0).map(l => l.nombre).join(', ');
-      const lineasValidasGuardar = lineas.filter(l => l.catalogo_item_id && l.precio_unitario > 0);
+      const descripcionFinal = esAnticipo ? 'Anticipo' : lineas.filter(esLineaRegistrable).map(l => l.nombre).join(', ');
+      const lineasValidasGuardar = lineas.filter(esLineaRegistrable);
 
       if (cxcEditar?.id) {
         notaId = cxcEditar.id;
