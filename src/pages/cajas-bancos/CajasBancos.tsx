@@ -1543,7 +1543,7 @@ const CajasBancos: React.FC = () => {
                                   <td className="cxc-td cxc-td-center">
                                     <div style={{ display: 'flex', gap: '0.6rem', justifyContent: 'center', alignItems: 'center' }}>
                                       {/* Editar (Solo si no está conciliado) */}
-                                      {!mov.conciliado && (
+                                      {!mov.conciliado && !(mov as any).is_grouped && (
                                         <button
                                           onClick={(e) => { 
                                             e.stopPropagation(); 

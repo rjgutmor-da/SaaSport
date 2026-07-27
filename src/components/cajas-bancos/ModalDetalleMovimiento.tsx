@@ -76,6 +76,20 @@ const ModalDetalleMovimiento: React.FC<ModalDetalleMovimientoProps> = ({ visible
             </div>
           </div>
 
+            {movimiento?.movimientos_agrupados && (
+              <div className="form-campo full-width">
+                <label>Cuotas incluidas en esta transacciÃ³n</label>
+                <div style={{ border: '1px solid var(--border)', borderRadius: '12px', overflow: 'hidden' }}>
+                  {movimiento.movimientos_agrupados.map((detalle, indice) => (
+                    <div key={detalle.id} style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', padding: '0.7rem 1rem', borderBottom: indice < movimiento.movimientos_agrupados!.length - 1 ? '1px solid var(--border)' : 'none' }}>
+                      <span>{detalle.descripcion}{detalle.ciclo_inicio ? ` · ${formatFecha(detalle.ciclo_inicio)}` : ''}</span>
+                      <strong>Bs {fmtMonto(detalle.monto)}</strong>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
           {/* Resumen del Monto */}
           <div style={{ 
             background: esIngreso ? 'rgba(16, 185, 129, 0.05)' : 'rgba(239, 68, 68, 0.05)', 

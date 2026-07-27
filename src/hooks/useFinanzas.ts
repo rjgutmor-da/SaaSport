@@ -30,6 +30,15 @@ export interface MovimientoFinanciero {
   saldo_historico?: number;
   cuenta_maestra_id?: string;
   grupo_transaccion_id?: string | null;
+  is_grouped?: boolean;
+  original_ids?: string[];
+  movimientos_agrupados?: Array<{
+    id: string;
+    descripcion: string;
+    monto: number;
+    ciclo_inicio?: string | null;
+    ciclo_fin?: string | null;
+  }>;
   alumno_raw?: any;
   detalles_cxc?: any[];
   ciclo_inicio?: string | null;
@@ -37,6 +46,60 @@ export interface MovimientoFinanciero {
 }
 
 // --- Resúmenes (Fase 1: Cálculos en DB) ---
+
+const esReferenciaAgrupable = (referencia: string) => {
+  const valor = referencia.trim();
+  return !!valor && !/^(efectivo|transferencia|qr|transferencia bancaria|pago qr)$/i.test(valor);
+};
+
+// CxC conserva un cobro por cada nota cancelada. En Bancos, las cuotas que
+// comparten transferencia se presentan como un único ingreso.
+const agruparCobrosDeUnaTransaccion = (movimientos: MovimientoFinanciero[]) => {
+  const grupos = new Map<string, MovimientoFinanciero[]>();
+
+  movimientos.forEach(mov => {
+    if (mov.tipo_origen !== 'cobro' || !esReferenciaAgrupable(mov.nro_transaccion)) return;
+    const clave = [mov.cuenta_id, mov.cliente || '', mov.nro_transaccion.trim().toLowerCase(), mov.fecha, mov.created_at || ''].join('|');
+    const grupo = grupos.get(clave) || [];
+    grupo.push(mov);
+    grupos.set(clave, grupo);
+  });
+
+  const idsAgrupados = new Set<string>();
+  const resultado: MovimientoFinanciero[] = [];
+
+  grupos.forEach(grupo => {
+    if (grupo.length < 2) return;
+    grupo.forEach(mov => idsAgrupados.add(mov.id));
+    const principal = grupo[0];
+    const conceptos = Array.from(new Set(grupo.map(mov => mov.cuenta_nombre).filter(Boolean)));
+
+    resultado.push({
+      ...principal,
+      id: `grupo-${grupo.map(mov => mov.id).join('-')}`,
+      debe: grupo.reduce((total, mov) => total + mov.debe, 0),
+      haber: grupo.reduce((total, mov) => total + mov.haber, 0),
+      cuenta_nombre: conceptos.join(', ') || principal.cuenta_nombre,
+      descripcion: `${principal.descripcion} (${grupo.length} cuotas)`,
+      conciliado: grupo.every(mov => mov.conciliado),
+      is_grouped: true,
+      original_ids: grupo.map(mov => mov.id),
+      movimientos_agrupados: grupo.map(mov => ({
+        id: mov.id,
+        descripcion: mov.descripcion,
+        monto: mov.debe - mov.haber,
+        ciclo_inicio: mov.ciclo_inicio,
+        ciclo_fin: mov.ciclo_fin
+      }))
+    });
+  });
+
+  movimientos.forEach(mov => {
+    if (!idsAgrupados.has(mov.id)) resultado.push(mov);
+  });
+
+  return resultado;
+};
 
 const fetchCxcResumen = async (escuelaId: string, filtros: any) => {
   // Si no hay filtros relevantes, usamos la vista de resumen pre-calculada para mayor velocidad
@@ -506,12 +569,19 @@ const fetchMovimientos = async (
         return new Date(b.created_at || b.fecha).getTime() - new Date(a.created_at || a.fecha).getTime();
       });
 
+      const movimientosAgrupados = agruparCobrosDeUnaTransaccion(movsCaja);
+      movimientosAgrupados.sort((a, b) => {
+        const fechaB = new Date(b.created_at || b.fecha).getTime();
+        const fechaA = new Date(a.created_at || a.fecha).getTime();
+        return fechaB - fechaA;
+      });
+
       // Evaluar si se excede el límite usando fila centinela
       const masDe200 = movsCaja.length > 200 || cobrosRes.data.length > 200 || pagosRes.data.length > 200;
       limiteAlcanzadoPorCaja[caja.id] = masDe200;
 
       // Mantener solo los 200 movimientos más recientes de esta caja
-      const sliceMovs = movsCaja.slice(0, 200);
+      const sliceMovs = movimientosAgrupados.slice(0, 200);
 
       // Calcular saldo histórico hacia atrás:
       // saldoAnterior = saldoActual - debe + haber
