@@ -162,6 +162,8 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
   // Ref para detectar si el modal ya fue inicializado en esta apertura.
   // Evita que al navegar hacia otra pantalla y volver se reseteen los campos.
   const yaInicializado = useRef(false);
+  // Bloquea reenvíos antes de que React alcance a deshabilitar el botón.
+  const guardandoRef = useRef(false);
 
   useEffect(() => {
     if (!visible) {
@@ -409,6 +411,7 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
 
   const guardarNota = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (guardandoRef.current) return;
     setError(null); setExito(null);
     if (esAnticipo) {
       if (!montoAnticipo || parseFloat(montoAnticipo) <= 0) { setError('Ingresa un monto válido.'); return; }
@@ -461,6 +464,10 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
       }
     }
 
+    // El estado de React se actualiza de forma asíncrona; el ref evita que dos
+    // clics rápidos ejecuten simultáneamente el reemplazo de los detalles.
+    if (guardandoRef.current) return;
+    guardandoRef.current = true;
     setGuardando(true);
     try {
       if (!perfil) throw new Error('Sesión expirada.');
@@ -514,8 +521,16 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
         }).eq('id', notaId);
         if (errU) throw errU;
 
-        // Borrar detalle previo para re-insertar
-        await supabase.from('cxc_detalle').delete().eq('cuenta_cobrar_id', notaId);
+        // Reemplazar detalle previo. Nunca continuar si el borrado no fue
+        // autorizado o falló: insertar después de un fallo genera duplicados.
+        const { error: errEliminarDetalle } = await supabase
+          .from('cxc_detalle')
+          .delete()
+          .eq('cuenta_cobrar_id', notaId)
+          .eq('escuela_id', ctx.escuela_id);
+        if (errEliminarDetalle) {
+          throw new Error(`No se pudieron reemplazar los detalles de la nota: ${errEliminarDetalle.message}`);
+        }
       } else if (tieneMensualidad) {
         const { data: nuevaId, error: errRpc } = await supabase.rpc('rpc_crear_nota_mensualidad', {
           p_alumno_id: alumnoId,
@@ -584,7 +599,7 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
           itemAnticipoId = itemAnticipo.id;
         }
 
-        await supabase.from('cxc_detalle').insert({
+        const { error: errDetalleAnticipo } = await supabase.from('cxc_detalle').insert({
           escuela_id: ctx.escuela_id,
           cuenta_cobrar_id: notaId,
           catalogo_item_id: itemAnticipoId,
@@ -592,8 +607,9 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
           precio_unitario: total,
           detalle_extra: 'Anticipo'
         });
+        if (errDetalleAnticipo) throw errDetalleAnticipo;
       } else if (!detalleGuardadoEnRpc) {
-        await supabase.from('cxc_detalle').insert(lineasValidasGuardar.map(l => ({
+        const { error: errInsertarDetalles } = await supabase.from('cxc_detalle').insert(lineasValidasGuardar.map(l => ({
           escuela_id: ctx.escuela_id,
           cuenta_cobrar_id: notaId,
           catalogo_item_id: l.catalogo_item_id,
@@ -602,6 +618,7 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
           periodo_meses: l.periodo_meses.length > 0 ? l.periodo_meses : null,
           detalle_extra: l.detalle_personalizado
         })));
+        if (errInsertarDetalles) throw errInsertarDetalles;
       }
 
       // 3. Actualizar cobros existentes modificados (solo en edición)
@@ -673,6 +690,7 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
         ? 'Ya existe una mensualidad activa para este alumno y periodo estadístico.'
         : `Error: ${err.message}`);
     } finally {
+      guardandoRef.current = false;
       setGuardando(false);
     }
   };
