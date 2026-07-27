@@ -15,23 +15,6 @@ import { calcularRango, type IntervaloPredefinido } from '../utils/estadisticasU
 export interface AlumnoPorItem {
   alumno_id: string;
   nombre_completo: string;
-/**
- * useAlumnosPorItem.ts
- * Hook que obtiene la lista de alumnos que tienen notas de servicio (cxc_detalle)
- * para un ítem específico del catálogo, con soporte a subfiltros:
- *   - Mensualidad → filtro por mes(es) (campo periodo_meses JSONB)
- *   - Inscripción a Torneos → filtro por texto en detalle_extra
- *
- * También permite filtrar por rango de fechas de la nota de servicio.
- */
-import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '../../../../lib/supabaseClient';
-import { ordenarMesesCalendario, obtenerOrdenMes } from '../../../../lib/dateUtils';
-import { calcularRango, type IntervaloPredefinido } from '../utils/estadisticasUtils';
-
-export interface AlumnoPorItem {
-  alumno_id: string;
-  nombre_completo: string;
   monto: number;
   fecha: string;         // fecha_emision de la nota
   detalle: string;       // periodo_meses o detalle_extra
