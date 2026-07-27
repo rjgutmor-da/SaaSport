@@ -15,6 +15,23 @@ import { calcularRango, type IntervaloPredefinido } from '../utils/estadisticasU
 export interface AlumnoPorItem {
   alumno_id: string;
   nombre_completo: string;
+/**
+ * useAlumnosPorItem.ts
+ * Hook que obtiene la lista de alumnos que tienen notas de servicio (cxc_detalle)
+ * para un ítem específico del catálogo, con soporte a subfiltros:
+ *   - Mensualidad → filtro por mes(es) (campo periodo_meses JSONB)
+ *   - Inscripción a Torneos → filtro por texto en detalle_extra
+ *
+ * También permite filtrar por rango de fechas de la nota de servicio.
+ */
+import { useState, useEffect, useCallback } from 'react';
+import { supabase } from '../../../../lib/supabaseClient';
+import { ordenarMesesCalendario, obtenerOrdenMes } from '../../../../lib/dateUtils';
+import { calcularRango, type IntervaloPredefinido } from '../utils/estadisticasUtils';
+
+export interface AlumnoPorItem {
+  alumno_id: string;
+  nombre_completo: string;
   monto: number;
   fecha: string;         // fecha_emision de la nota
   detalle: string;       // periodo_meses o detalle_extra
@@ -32,6 +49,7 @@ export interface UseAlumnosPorItemResult {
   cargando: boolean;
   error: string | null;
   recargar: () => void;
+  montosUnicos: number[];
 }
 
 export function useAlumnosPorItem(
@@ -48,8 +66,11 @@ export function useAlumnosPorItem(
   conceptoNombre?: string, // Para setear el concepto en el resultado
   pagadoFiltro?: string,
   anioMensualidad?: number,
+  montosExactos?: number[],
+  montoRango?: { desde?: number; hasta?: number },
 ): UseAlumnosPorItemResult {
   const [alumnos, setAlumnos] = useState<AlumnoPorItem[]>([]);
+  const [montosUnicos, setMontosUnicos] = useState<number[]>([]);
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [tick, setTick] = useState(0);
@@ -59,6 +80,7 @@ export function useAlumnosPorItem(
   useEffect(() => {
     if (!escuelaId || !catalogoItemId) {
       setAlumnos([]);
+      setMontosUnicos([]);
       return;
     }
     const rangoIntervalo = calcularRango(intervalo);
@@ -71,6 +93,7 @@ export function useAlumnosPorItem(
 
     if (rango.desde > rango.hasta) {
       setAlumnos([]);
+      setMontosUnicos([]);
       return;
     }
     cargarAlumnos(escuelaId, catalogoItemId, rango.desde, rango.hasta);
@@ -78,7 +101,7 @@ export function useAlumnosPorItem(
   }, [escuelaId, catalogoItemId, intervalo, desdePersonalizado, hastaPersonalizado, tick,
     // serializar filtros para evitar re-renders infinitos
     JSON.stringify(filtroSubItems), sucursalId, entrenadorId, horarioId, canchaId, conceptoNombre, pagadoFiltro,
-    anioMensualidad]);
+    anioMensualidad, JSON.stringify(montosExactos), JSON.stringify(montoRango)]);
 
   async function cargarAlumnos(
     eid: string,
@@ -199,7 +222,7 @@ export function useAlumnosPorItem(
         // Filtro de sub-ítems (Meses o Torneos)
         if (filtroSubItems && filtroSubItems.length > 0) {
           let cumpleSub = false;
-          const mesPeriodoEstadistico = /^\d{4}-(\d{2})-\d{2}$/.exec(cxc.periodo_estadistico || '')?.[1];
+          const mesPeriodoEstadistico = /^\d{4}-(\d{2})-(\d{2})$/.exec(cxc.periodo_estadistico || '')?.[1];
           if (mesPeriodoEstadistico) {
             const ordenesFiltro = filtroSubItems.map(f => obtenerOrdenMes(f)).filter(o => o > 0);
             cumpleSub = ordenesFiltro.includes(Number(mesPeriodoEstadistico));
@@ -258,6 +281,25 @@ export function useAlumnosPorItem(
         finalResultado = finalResultado.filter(a => a.pagado === pagadoFiltro);
       }
 
+      // Obtener los montos únicos disponibles antes de filtrar por monto
+      const mUnicos = Array.from(new Set(finalResultado.map(a => a.monto))).sort((a, b) => a - b);
+      setMontosUnicos(mUnicos);
+
+      // Filtro de montos exactos (chips)
+      if (montosExactos && montosExactos.length > 0) {
+        finalResultado = finalResultado.filter(a => montosExactos.includes(a.monto));
+      }
+
+      // Filtro de rango de montos
+      if (montoRango) {
+        if (montoRango.desde !== undefined && !isNaN(montoRango.desde)) {
+          finalResultado = finalResultado.filter(a => a.monto >= montoRango.desde!);
+        }
+        if (montoRango.hasta !== undefined && !isNaN(montoRango.hasta)) {
+          finalResultado = finalResultado.filter(a => a.monto <= montoRango.hasta!);
+        }
+      }
+
       finalResultado.sort((a, b) => a.nombre_completo.localeCompare(b.nombre_completo));
       setAlumnos(finalResultado);
     } catch (e: any) {
@@ -267,5 +309,5 @@ export function useAlumnosPorItem(
     }
   }
 
-  return { alumnos, cargando, error, recargar };
+  return { alumnos, montosUnicos, cargando, error, recargar };
 }

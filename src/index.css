@@ -2688,6 +2688,226 @@ input[type=number] {
   .est-filtro-pagado { flex-basis: auto; }
 }
 
+/* Fila Secundaria de Filtros (Pagado, Año, Monto) */
+.est-filtros-secundarios-bar {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.75rem;
+  width: 100%;
+  padding-top: 0.5rem;
+}
+
+.est-filtro-anio-inline {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  width: 110px;
+}
+
+/* Filtro Dropdown de Monto */
+.est-filtro-monto-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  position: relative;
+}
+
+.est-filtro-monto-trigger-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  position: relative;
+}
+
+.est-monto-trigger {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 130px;
+  justify-content: space-between;
+  user-select: none;
+}
+
+.est-monto-trigger--activo {
+  border-color: var(--primary);
+  background-color: var(--primary-glow, rgba(255, 107, 0, 0.08));
+  color: var(--primary);
+}
+
+.est-monto-icon {
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.est-monto-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.est-monto-arrow {
+  transition: transform 0.2s ease;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.est-monto-arrow--open {
+  transform: rotate(180deg);
+}
+
+.est-monto-limpiar-btn {
+  background: var(--bg-hover, rgba(0,0,0,0.05));
+  border: none;
+  border-radius: 50%;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--text-secondary);
+  transition: all 0.15s ease;
+}
+
+.est-monto-limpiar-btn:hover {
+  background: #fee2e2;
+  color: #ef4444;
+}
+
+/* Panel Desplegable de Monto */
+.est-filtro-monto-panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 100;
+  width: 260px;
+  background: var(--bg-card, #ffffff);
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: var(--radius-md, 8px);
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.15), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+  padding: 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  animation: estFadeIn 0.15s ease-out;
+}
+
+@keyframes estFadeIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.est-monto-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.est-monto-panel-limpiar {
+  background: none;
+  border: none;
+  color: var(--primary, #f97316);
+  font-size: 0.75rem;
+  cursor: pointer;
+  font-weight: 600;
+  padding: 0;
+}
+
+.est-monto-panel-limpiar:hover {
+  text-decoration: underline;
+}
+
+.est-monto-chips-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  max-height: 140px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.est-monto-chip {
+  padding: 0.35rem 0.6rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border-radius: var(--radius-sm, 6px);
+  border: 1px solid var(--border, #e5e7eb);
+  background: var(--bg-hover, #f9fafb);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.est-monto-chip:hover {
+  border-color: var(--primary);
+  background: var(--primary-glow);
+}
+
+.est-monto-chip--activo {
+  background: var(--primary, #f97316) !important;
+  color: #ffffff !important;
+  border-color: var(--primary, #f97316) !important;
+}
+
+.est-monto-vacio {
+  font-size: 0.75rem;
+  color: var(--text-tertiary);
+  font-style: italic;
+  margin: 0;
+}
+
+.est-monto-panel-divider {
+  height: 1px;
+  background: var(--border, #e5e7eb);
+  margin: 0.2rem 0;
+}
+
+.est-monto-rango-seccion {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.est-monto-rango-titulo {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.est-monto-rango-inputs {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.est-input-monto-rango {
+  width: 100%;
+  padding: 0.4rem 0.5rem;
+  font-size: 0.8rem;
+  font-weight: 500;
+  border: 1px solid var(--border, #d1d5db);
+  border-radius: var(--radius-sm, 6px);
+  background: var(--bg-input, #ffffff);
+  color: var(--text-primary);
+  outline: none;
+}
+
+.est-input-monto-rango:focus {
+  border-color: var(--primary, #f97316);
+  box-shadow: 0 0 0 2px rgba(249, 115, 22, 0.15);
+}
+
+.est-monto-rango-separador {
+  color: var(--text-tertiary);
+  font-weight: 600;
+}
+
+
 .est-select-premium {
   flex: 1;
   background: var(--bg-input);

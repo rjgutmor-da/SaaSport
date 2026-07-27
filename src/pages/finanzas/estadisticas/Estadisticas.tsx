@@ -9,6 +9,17 @@
  *
  * Todas las pestañas comparten el SelectorFechas omnipresente.
  */
+/**
+ * Estadisticas.tsx
+ * Módulo principal de Estadísticas dentro de Contabilidad.
+ *
+ * Tiene 3 pestañas:
+ *   1. Ingresos — Torta + lista por ítem
+ *   2. Egresos  — Torta + lista por ítem
+ *   3. Alumnos por Ítem — Tabla tipo Excel con subfiltros de meses/torneos
+ *
+ * Todas las pestañas comparten el SelectorFechas omnipresente.
+ */
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -23,6 +34,7 @@ import GraficoDistribucion from './components/GraficoDistribucion';
 import TablaAlumnos from './components/TablaAlumnos';
 import TablaCuentasPorCobrar from './components/TablaCuentasPorCobrar';
 import FiltrosCxc from '../../../components/cxc/FiltrosCxc';
+import FiltroMonto from './components/FiltroMonto';
 
 // Hooks
 import { useEscuelaId } from './hooks/useEscuelaId';
@@ -73,6 +85,24 @@ const Estadisticas: React.FC = () => {
   const [horarioId, setHorarioId] = useState('');
   const [canchaId, setCanchaId] = useState('');
   const [pagadoFiltro, setPagadoFiltro] = useState('');
+
+  // Filtro de monto (chips exactos y rango)
+  const [montosExactos, setMontosExactos] = useState<number[]>([]);
+  const [montoRangoDesde, setMontoRangoDesde] = useState('');
+  const [montoRangoHasta, setMontoRangoHasta] = useState('');
+
+  const montoRangoObj = useMemo(() => {
+    const d = montoRangoDesde !== '' ? Number(montoRangoDesde) : undefined;
+    const h = montoRangoHasta !== '' ? Number(montoRangoHasta) : undefined;
+    if (d === undefined && h === undefined) return undefined;
+    return { desde: d, hasta: h };
+  }, [montoRangoDesde, montoRangoHasta]);
+
+  const limpiarMonto = () => {
+    setMontosExactos([]);
+    setMontoRangoDesde('');
+    setMontoRangoHasta('');
+  };
 
   // Subfiltros: meses (para Mensualidad) o torneo seleccionado (para Torneos)
   const [mesesSeleccionados, setMesesSeleccionados] = useState<string[]>([]);
@@ -129,6 +159,8 @@ const Estadisticas: React.FC = () => {
     itemSeleccionado?.nombre,
     pagadoFiltro,
     esMensualidad ? anioMensualidad : undefined,
+    montosExactos,
+    montoRangoObj,
   );
 
   const cxcResult = useCuentasPorCobrar(
@@ -314,6 +346,7 @@ const Estadisticas: React.FC = () => {
                               setMesesSeleccionados([]);
                               setTorneoSeleccionado('');
                               setTorneoPersonalizado('');
+                              limpiarMonto();
                             }}
                           >
                             <span>{item.nombre}</span>
@@ -330,7 +363,7 @@ const Estadisticas: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Filtros laterales (Entrenador y Categoría) */}
+                {/* Filtros laterales (Sucursal, Entrenador, Grupo, Horario) */}
                 <div className="est-filtros-laterales-wrap">
                   <div className="est-filtros-cxc-wrap">
                     <FiltrosCxc
@@ -351,31 +384,29 @@ const Estadisticas: React.FC = () => {
                       compact
                     />
                   </div>
-                  <div className="est-filtro-item-label est-filtro-pagado">
-                    <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 500, paddingLeft: '2px' }}>Pagado</span>
-                    <select 
-                      className="est-select-premium"
-                      value={pagadoFiltro}
-                      onChange={e => setPagadoFiltro(e.target.value)}
-                    >
-                      <option value="">Todos</option>
-                      <option value="Si">Sí</option>
-                      <option value="Parcial">Parcial</option>
-                      <option value="No">No</option>
-                    </select>
-                  </div>
                 </div>
               </div>
 
-              {/* Subfiltro para Mensualidad: selector de meses */}
-              {esMensualidad && (
-                <div className="est-filtro-grupo est-filtro-meses">
-                  <div className="est-filtro-meses-cabecera">
-                    <label className="est-filtro-label">
-                      Meses <span className="est-filtro-hint">(opcional — deja vacío para ver todos)</span>
-                    </label>
-                    <label className="est-filtro-anio">
-                      <span>Año</span>
+              {/* Fila secundaria de Filtros: Pagado, Año y Monto (debajo de Sucursal / Entrenador) */}
+              <div className="est-filtros-secundarios-bar">
+                <div className="est-filtro-item-label est-filtro-pagado">
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 500, paddingLeft: '2px' }}>Pagado</span>
+                  <select 
+                    className="est-select-premium"
+                    value={pagadoFiltro}
+                    onChange={e => setPagadoFiltro(e.target.value)}
+                  >
+                    <option value="">Todos</option>
+                    <option value="Si">Sí</option>
+                    <option value="Parcial">Parcial</option>
+                    <option value="No">No</option>
+                  </select>
+                </div>
+
+                {esMensualidad && (
+                  <>
+                    <div className="est-filtro-item-label est-filtro-anio-inline">
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 500, paddingLeft: '2px' }}>Año</span>
                       <select
                         className="est-select-premium"
                         value={anioMensualidad}
@@ -388,6 +419,30 @@ const Estadisticas: React.FC = () => {
                           <option key={anio} value={anio}>{anio}</option>
                         ))}
                       </select>
+                    </div>
+
+                    <FiltroMonto
+                      montosUnicos={alumnosResult.montosUnicos}
+                      montosExactos={montosExactos}
+                      onChangeMontosExactos={setMontosExactos}
+                      montoRangoDesde={montoRangoDesde}
+                      montoRangoHasta={montoRangoHasta}
+                      onChangeMontoRango={(desde, hasta) => {
+                        setMontoRangoDesde(desde);
+                        setMontoRangoHasta(hasta);
+                      }}
+                      onLimpiarMonto={limpiarMonto}
+                    />
+                  </>
+                )}
+              </div>
+
+              {/* Subfiltro para Mensualidad: selector de meses */}
+              {esMensualidad && (
+                <div className="est-filtro-grupo est-filtro-meses">
+                  <div className="est-filtro-meses-cabecera">
+                    <label className="est-filtro-label">
+                      Meses <span className="est-filtro-hint">(opcional — deja vacío para ver todos)</span>
                     </label>
                   </div>
                   <div className="est-meses-grid">
