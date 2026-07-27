@@ -194,6 +194,9 @@ const Cuentas: React.FC = () => {
     });
   };
 
+  const esItemMensualidad = (item: { nombre: string; esNuevo: boolean }) =>
+    !item.esNuevo && item.nombre.trim().toLocaleLowerCase('es') === 'mensualidad';
+
   const guardarCatalogo = async () => {
     const validos = itemsEditables.filter(i => i.nombre.trim());
     if (validos.length === 0) { alert('Agrega al menos un ítem.'); return; }
@@ -210,7 +213,7 @@ const Cuentas: React.FC = () => {
       }
 
       // 1. Actualizar ítems existentes
-      for (const item of validos.filter(i => !i.esNuevo && i.id)) {
+      for (const item of validos.filter(i => !i.esNuevo && i.id && !esItemMensualidad(i))) {
         const { error } = await supabase.from('catalogo_items').update({
           nombre: item.nombre,
           categoria: item.categoria,
@@ -615,7 +618,9 @@ const Cuentas: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {itemsEditables.map((item, idx) => (
+              {itemsEditables.map((item, idx) => {
+                const itemProtegido = esItemMensualidad(item);
+                return (
                 <tr key={idx} className="cxc-tr">
                   <td className="cxc-td" style={{ padding: 0 }}>
                     <input
@@ -632,7 +637,7 @@ const Cuentas: React.FC = () => {
                         color: 'var(--text-primary)',
                         fontSize: 'inherit'
                       }}
-                      disabled={guardandoItems}
+                      disabled={guardandoItems || itemProtegido}
                     />
                   </td>
                   <td className="cxc-td" style={{ padding: 0 }}>
@@ -650,7 +655,7 @@ const Cuentas: React.FC = () => {
                         cursor: 'pointer',
                         textAlign: 'center'
                       }}
-                      disabled={guardandoItems}
+                      disabled={guardandoItems || itemProtegido}
                     >
                       <option value="producto">Producto</option>
                       <option value="servicio">Servicio</option>
@@ -673,7 +678,7 @@ const Cuentas: React.FC = () => {
                         cursor: 'pointer',
                         textAlign: 'center'
                       }}
-                      disabled={guardandoItems}
+                      disabled={guardandoItems || itemProtegido}
                     >
                       <option value="ingreso">Ingreso</option>
                       <option value="egreso">Egreso</option>
@@ -698,7 +703,7 @@ const Cuentas: React.FC = () => {
                         fontSize: 'inherit',
                         textAlign: 'center'
                       }}
-                      disabled={guardandoItems}
+                      disabled={guardandoItems || itemProtegido}
                     />
                   </td>
                   <td className="cxc-td" style={{ padding: 0 }}>
@@ -719,13 +724,13 @@ const Cuentas: React.FC = () => {
                         fontSize: 'inherit',
                         textAlign: 'center'
                       }}
-                      disabled={guardandoItems}
+                      disabled={guardandoItems || itemProtegido}
                     />
                   </td>
                   <td className="cxc-td cxc-td-center" style={{ padding: 0 }}>
                     <button
                       onClick={() => eliminarItemEditable(idx)}
-                      disabled={guardandoItems}
+                      disabled={guardandoItems || itemProtegido}
                       style={{ 
                         background: 'none', 
                         border: 'none', 
@@ -737,13 +742,14 @@ const Cuentas: React.FC = () => {
                         justifyContent: 'center',
                         width: '100%'
                       }}
-                      title="Eliminar ítem"
+                      title={itemProtegido ? 'El ítem Mensualidad está protegido' : 'Eliminar ítem'}
                     >
                       <Trash2 size={16} />
                     </button>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
               <tr>
                 <td colSpan={6} className="cxc-td" style={{ padding: '0.5rem' }}>
                   <button
