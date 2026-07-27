@@ -384,67 +384,78 @@ const Estadisticas: React.FC = () => {
                       compact
                     />
                   </div>
-                </div>
-              </div>
-
-              {/* Fila secundaria de Filtros: Pagado, Año y Monto (debajo de Sucursal / Entrenador) */}
-              <div className="est-filtros-secundarios-bar">
-                <div className="est-filtro-item-label est-filtro-pagado">
-                  <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 500, paddingLeft: '2px' }}>Pagado</span>
-                  <select 
-                    className="est-select-premium"
-                    value={pagadoFiltro}
-                    onChange={e => setPagadoFiltro(e.target.value)}
-                  >
-                    <option value="">Todos</option>
-                    <option value="Si">Sí</option>
-                    <option value="Parcial">Parcial</option>
-                    <option value="No">No</option>
-                  </select>
-                </div>
-
-                {esMensualidad && (
-                  <>
-                    <div className="est-filtro-item-label est-filtro-anio-inline">
-                      <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 500, paddingLeft: '2px' }}>Año</span>
-                      <select
+                  {!esMensualidad && (
+                    <div className="est-filtro-item-label est-filtro-pagado">
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 500, paddingLeft: '2px' }}>Pagado</span>
+                      <select 
                         className="est-select-premium"
-                        value={anioMensualidad}
-                        onChange={e => {
-                          setAnioMensualidad(Number(e.target.value));
-                          setIntervalo('total');
-                        }}
+                        value={pagadoFiltro}
+                        onChange={e => setPagadoFiltro(e.target.value)}
                       >
-                        {aniosMensualidad.map(anio => (
-                          <option key={anio} value={anio}>{anio}</option>
-                        ))}
+                        <option value="">Todos</option>
+                        <option value="Si">Sí</option>
+                        <option value="Parcial">Parcial</option>
+                        <option value="No">No</option>
                       </select>
                     </div>
-
-                    <FiltroMonto
-                      montosUnicos={alumnosResult.montosUnicos}
-                      montosExactos={montosExactos}
-                      onChangeMontosExactos={setMontosExactos}
-                      montoRangoDesde={montoRangoDesde}
-                      montoRangoHasta={montoRangoHasta}
-                      onChangeMontoRango={(desde, hasta) => {
-                        setMontoRangoDesde(desde);
-                        setMontoRangoHasta(hasta);
-                      }}
-                      onLimpiarMonto={limpiarMonto}
-                    />
-                  </>
-                )}
+                  )}
+                </div>
               </div>
 
-              {/* Subfiltro para Mensualidad: selector de meses */}
+              {/* Subfiltro para Mensualidad: selector de meses con Pagado, Año y Monto inline */}
               {esMensualidad && (
                 <div className="est-filtro-grupo est-filtro-meses">
                   <div className="est-filtro-meses-cabecera">
                     <label className="est-filtro-label">
                       Meses <span className="est-filtro-hint">(opcional — deja vacío para ver todos)</span>
                     </label>
+
+                    <div className="est-filtros-meses-inline">
+                      <div className="est-filtro-item-label est-filtro-pagado">
+                        <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 500, paddingLeft: '2px' }}>Pagado</span>
+                        <select 
+                          className="est-select-premium"
+                          value={pagadoFiltro}
+                          onChange={e => setPagadoFiltro(e.target.value)}
+                        >
+                          <option value="">Todos</option>
+                          <option value="Si">Sí</option>
+                          <option value="Parcial">Parcial</option>
+                          <option value="No">No</option>
+                        </select>
+                      </div>
+
+                      <div className="est-filtro-item-label est-filtro-anio-inline">
+                        <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 500, paddingLeft: '2px' }}>Año</span>
+                        <select
+                          className="est-select-premium"
+                          value={anioMensualidad}
+                          onChange={e => {
+                            setAnioMensualidad(Number(e.target.value));
+                            setIntervalo('total');
+                          }}
+                        >
+                          {aniosMensualidad.map(anio => (
+                            <option key={anio} value={anio}>{anio}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <FiltroMonto
+                        montosUnicos={alumnosResult.montosUnicos}
+                        montosExactos={montosExactos}
+                        onChangeMontosExactos={setMontosExactos}
+                        montoRangoDesde={montoRangoDesde}
+                        montoRangoHasta={montoRangoHasta}
+                        onChangeMontoRango={(desde, hasta) => {
+                          setMontoRangoDesde(desde);
+                          setMontoRangoHasta(hasta);
+                        }}
+                        onLimpiarMonto={limpiarMonto}
+                      />
+                    </div>
                   </div>
+
                   <div className="est-meses-grid">
                     {NOMBRES_MESES.map(mes => (
                       <button
