@@ -404,77 +404,76 @@ const Estadisticas: React.FC = () => {
 
               {/* Subfiltro para Mensualidad: selector de meses con Pagado, Año y Monto inline */}
               {esMensualidad && (
-                <div className="est-filtro-grupo est-filtro-meses">
-                  <div className="est-filtro-meses-cabecera">
-                    <label className="est-filtro-label">
+                <div className="est-filtro-meses-row">
+                  <div className="est-filtro-meses-col-meses">
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 500, paddingLeft: '2px', display: 'block', marginBottom: '0.2rem' }}>
                       Meses <span className="est-filtro-hint">(opcional — deja vacío para ver todos)</span>
-                    </label>
-
-                    <div className="est-filtros-meses-inline">
-                      <div className="est-filtro-item-label est-filtro-pagado">
-                        <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 500, paddingLeft: '2px' }}>Pagado</span>
-                        <select 
-                          className="est-select-premium"
-                          value={pagadoFiltro}
-                          onChange={e => setPagadoFiltro(e.target.value)}
+                    </span>
+                    <div className="est-meses-grid">
+                      {NOMBRES_MESES.map(mes => (
+                        <button
+                          key={mes}
+                          className={`est-mes-chip ${mesesSeleccionados.includes(mes) ? 'est-mes-chip--activo' : ''}`}
+                          onClick={() => toggleMes(mes)}
                         >
-                          <option value="">Todos</option>
-                          <option value="Si">Sí</option>
-                          <option value="Parcial">Parcial</option>
-                          <option value="No">No</option>
-                        </select>
-                      </div>
-
-                      <div className="est-filtro-item-label est-filtro-anio-inline">
-                        <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 500, paddingLeft: '2px' }}>Año</span>
-                        <select
-                          className="est-select-premium"
-                          value={anioMensualidad}
-                          onChange={e => {
-                            setAnioMensualidad(Number(e.target.value));
-                            setIntervalo('total');
-                          }}
+                          {mes}
+                        </button>
+                      ))}
+                      {mesesSeleccionados.length > 0 && (
+                        <button
+                          className="est-limpiar-subfiltro-chip"
+                          onClick={() => setMesesSeleccionados([])}
                         >
-                          {aniosMensualidad.map(anio => (
-                            <option key={anio} value={anio}>{anio}</option>
-                          ))}
-                        </select>
-                      </div>
-
-                      <FiltroMonto
-                        montosUnicos={alumnosResult.montosUnicos}
-                        montosExactos={montosExactos}
-                        onChangeMontosExactos={setMontosExactos}
-                        montoRangoDesde={montoRangoDesde}
-                        montoRangoHasta={montoRangoHasta}
-                        onChangeMontoRango={(desde, hasta) => {
-                          setMontoRangoDesde(desde);
-                          setMontoRangoHasta(hasta);
-                        }}
-                        onLimpiarMonto={limpiarMonto}
-                      />
+                          <X size={12} /> Limpiar
+                        </button>
+                      )}
                     </div>
                   </div>
 
-                  <div className="est-meses-grid">
-                    {NOMBRES_MESES.map(mes => (
-                      <button
-                        key={mes}
-                        className={`est-mes-chip ${mesesSeleccionados.includes(mes) ? 'est-mes-chip--activo' : ''}`}
-                        onClick={() => toggleMes(mes)}
+                  <div className="est-filtros-meses-inline">
+                    <div className="est-filtro-item-label est-filtro-pagado">
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 500, paddingLeft: '2px' }}>Pagado</span>
+                      <select 
+                        className="est-select-premium"
+                        value={pagadoFiltro}
+                        onChange={e => setPagadoFiltro(e.target.value)}
                       >
-                        {mes}
-                      </button>
-                    ))}
+                        <option value="">Todos</option>
+                        <option value="Si">Sí</option>
+                        <option value="Parcial">Parcial</option>
+                        <option value="No">No</option>
+                      </select>
+                    </div>
+
+                    <div className="est-filtro-item-label est-filtro-anio-inline">
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 500, paddingLeft: '2px' }}>Año</span>
+                      <select
+                        className="est-select-premium"
+                        value={anioMensualidad}
+                        onChange={e => {
+                          setAnioMensualidad(Number(e.target.value));
+                          setIntervalo('total');
+                        }}
+                      >
+                        {aniosMensualidad.map(anio => (
+                          <option key={anio} value={anio}>{anio}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <FiltroMonto
+                      montosUnicos={alumnosResult.montosUnicos}
+                      montosExactos={montosExactos}
+                      onChangeMontosExactos={setMontosExactos}
+                      montoRangoDesde={montoRangoDesde}
+                      montoRangoHasta={montoRangoHasta}
+                      onChangeMontoRango={(desde, hasta) => {
+                        setMontoRangoDesde(desde);
+                        setMontoRangoHasta(hasta);
+                      }}
+                      onLimpiarMonto={limpiarMonto}
+                    />
                   </div>
-                  {mesesSeleccionados.length > 0 && (
-                    <button
-                      className="est-limpiar-subfiltro"
-                      onClick={() => setMesesSeleccionados([])}
-                    >
-                      <X size={12} /> Limpiar selección
-                    </button>
-                  )}
                 </div>
               )}
 
