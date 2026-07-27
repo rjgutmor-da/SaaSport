@@ -212,7 +212,31 @@ const Cuentas: React.FC = () => {
         return;
       }
 
-      // 1. Actualizar ítems existentes
+      // 1. Eliminar los ítems quitados en la tabla. Antes solo se los ocultaba
+      // del estado local, por lo que reaparecían al volver a cargar el catálogo.
+      // El trigger de la base de datos impide borrar cualquiera con movimientos.
+      const idsEditables = new Set(
+        itemsEditables
+          .filter(i => !i.esNuevo && i.id)
+          .map(i => i.id!)
+      );
+      const eliminados = items.filter(i => !idsEditables.has(i.id));
+
+      for (const item of eliminados) {
+        const { error } = await supabase
+          .from('catalogo_items')
+          .delete()
+          .eq('id', item.id)
+          .eq('escuela_id', ctx.escuela_id);
+
+        if (error) {
+          console.error('Error eliminando ítem:', error);
+          alert(`No se pudo eliminar "${item.nombre}": ${error.message}`);
+          errorOcurrido = true;
+        }
+      }
+
+      // 2. Actualizar ítems existentes
       for (const item of validos.filter(i => !i.esNuevo && i.id && !esItemMensualidad(i))) {
         const { error } = await supabase.from('catalogo_items').update({
           nombre: item.nombre,
@@ -233,7 +257,7 @@ const Cuentas: React.FC = () => {
         }
       }
 
-      // 2. Insertar ítems nuevos
+      // 3. Insertar ítems nuevos
       const nuevos = validos.filter(i => i.esNuevo);
       if (nuevos.length > 0) {
         const inserts = nuevos.map(i => ({
