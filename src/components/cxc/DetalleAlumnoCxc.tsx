@@ -89,6 +89,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
 
   const [refreshKey, setRefreshKey] = useState(0);
   const [montoMensualidad, setMontoMensualidad] = useState<number | null>(null);
+  const [observacionesAlumno, setObservacionesAlumno] = useState<string | null>(null);
   const triggerRefresh = () => setRefreshKey(prev => prev + 1);
 
   useEffect(() => {
@@ -119,7 +120,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
           .eq('alumno_id', alumno.alumno_id)
           .order('fecha_emision', { ascending: false }),
         qCuentas.order('nombre'),
-        supabase.from('alumnos').select('mensualidad').eq('id', alumno.alumno_id).single(),
+        supabase.from('alumnos').select('mensualidad, observaciones').eq('id', alumno.alumno_id).single(),
         supabase.from('catalogo_items')
           .select('*')
           .eq('activo', true)
@@ -131,6 +132,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
       setCxcs((resCxc.data as unknown as CuentaCobrar[]) ?? []);
       setCuentasCobro(resCuentas.data ?? []);
       setMontoMensualidad(resAlumno.data?.mensualidad !== null && resAlumno.data?.mensualidad !== undefined ? resAlumno.data.mensualidad : null);
+      setObservacionesAlumno(resAlumno.data?.observaciones || null);
       setCatalogo(resCat.data ?? []);
 
       
@@ -532,6 +534,11 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                     <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
                       <Trophy size={12} style={{ color: '#fbbf24' }} /> {alumno.sub ? `Sub-${alumno.sub}` : 'Categoría'}
                     </span>
+                    {observacionesAlumno && (
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', background: 'rgba(245, 158, 11, 0.15)', color: '#f59e0b', padding: '0.15rem 0.5rem', borderRadius: '4px', fontWeight: 700, border: '1px solid rgba(245, 158, 11, 0.3)' }}>
+                        ★ {observacionesAlumno}
+                      </span>
+                    )}
                   </div>
                 </div>
                 <button 
@@ -675,6 +682,21 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                         {telefonoPrincipal && (
                           <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#10b981' }}>
                             <Phone size={14} /> {telefonoPrincipal}
+                          </span>
+                        )}
+                        {observacionesAlumno && (
+                          <span style={{ 
+                            display: 'flex', 
+                            alignItems: 'center', 
+                            gap: '0.4rem', 
+                            background: 'rgba(245, 158, 11, 0.15)', 
+                            color: '#f59e0b', 
+                            padding: '0.2rem 0.6rem', 
+                            borderRadius: '6px', 
+                            fontWeight: 700,
+                            border: '1px solid rgba(245, 158, 11, 0.3)'
+                          }}>
+                            ★ {observacionesAlumno}
                           </span>
                         )}
                       </>
