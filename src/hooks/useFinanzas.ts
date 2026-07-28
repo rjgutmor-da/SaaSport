@@ -397,6 +397,26 @@ export interface MovimientosResult {
   limiteAlcanzadoPorCaja: Record<string, boolean>;
 }
 
+// El saldo historico debe calcularse en el mismo orden que se muestra la tabla.
+// Priorizamos el dia contable y, dentro del mismo dia, el momento de registro.
+const compararMovimientosDesc = (a: MovimientoFinanciero, b: MovimientoFinanciero) => {
+  const obtenerDia = (fecha: string) => {
+    const match = fecha?.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (!match) return 0;
+    return Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  };
+
+  const diferenciaDia = obtenerDia(b.fecha) - obtenerDia(a.fecha);
+  if (diferenciaDia !== 0) return diferenciaDia;
+
+  const diferenciaCreacion =
+    new Date(b.created_at || b.fecha).getTime() -
+    new Date(a.created_at || a.fecha).getTime();
+  if (diferenciaCreacion !== 0) return diferenciaCreacion;
+
+  return b.id.localeCompare(a.id);
+};
+
 const fetchMovimientos = async (
   escuelaId: string,
   cajas: CajaConSaldo[],
@@ -552,29 +572,10 @@ const fetchMovimientos = async (
       });
 
       // Ordenar descendente: primero por fecha (día), luego por timestamp de creación
-      movsCaja.sort((a, b) => {
-        const getJustDate = (f: string) => {
-          if (!f) return 0;
-          const match = f.match(/^(\d{4})-(\d{2})-(\d{2})/);
-          if (match) {
-            return new Date(parseInt(match[1], 10), parseInt(match[2], 10) - 1, parseInt(match[3], 10)).getTime();
-          }
-          return 0;
-        };
-
-        const dateB = getJustDate(b.fecha);
-        const dateA = getJustDate(a.fecha);
-
-        if (dateB !== dateA) return dateB - dateA;
-        return new Date(b.created_at || b.fecha).getTime() - new Date(a.created_at || a.fecha).getTime();
-      });
+      movsCaja.sort(compararMovimientosDesc);
 
       const movimientosAgrupados = agruparCobrosDeUnaTransaccion(movsCaja);
-      movimientosAgrupados.sort((a, b) => {
-        const fechaB = new Date(b.created_at || b.fecha).getTime();
-        const fechaA = new Date(a.created_at || a.fecha).getTime();
-        return fechaB - fechaA;
-      });
+      movimientosAgrupados.sort(compararMovimientosDesc);
 
       // Evaluar si se excede el límite usando fila centinela
       const masDe200 = movsCaja.length > 200 || cobrosRes.data.length > 200 || pagosRes.data.length > 200;
@@ -597,22 +598,7 @@ const fetchMovimientos = async (
   );
 
   // Ordenar la lista combinada global de forma descendente por fecha
-  todosLosMovimientos.sort((a, b) => {
-    const getJustDate = (f: string) => {
-      if (!f) return 0;
-      const match = f.match(/^(\d{4})-(\d{2})-(\d{2})/);
-      if (match) {
-        return new Date(parseInt(match[1], 10), parseInt(match[2], 10) - 1, parseInt(match[3], 10)).getTime();
-      }
-      return 0;
-    };
-
-    const dateB = getJustDate(b.fecha);
-    const dateA = getJustDate(a.fecha);
-    
-    if (dateB !== dateA) return dateB - dateA;
-    return new Date(b.created_at || b.fecha).getTime() - new Date(a.created_at || a.fecha).getTime();
-  });
+  todosLosMovimientos.sort(compararMovimientosDesc);
 
   return {
     movimientos: todosLosMovimientos,
