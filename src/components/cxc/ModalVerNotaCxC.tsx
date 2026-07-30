@@ -35,6 +35,9 @@ interface DetalleItem {
   subtotal: number;
   periodo_meses: string[] | null;
   detalle_extra: string | null;
+  ciclo_inicio: string | null;
+  ciclo_fin: string | null;
+  periodo_estadistico: string | null;
 }
 
 interface CobroAplicado {
@@ -87,6 +90,7 @@ const ModalVerNotaCxC: React.FC<Props> = ({ visible, cxcId, onCerrar, onEditar, 
       .from('cxc_detalle')
       .select(`
         id, cantidad, precio_unitario, subtotal, periodo_meses, detalle_extra,
+        ciclo_inicio, ciclo_fin, periodo_estadistico,
         catalogo_items!inner(nombre, tipo)
       `)
       .eq('cuenta_cobrar_id', cxcId)
@@ -102,6 +106,9 @@ const ModalVerNotaCxC: React.FC<Props> = ({ visible, cxcId, onCerrar, onEditar, 
         subtotal: Number(d.subtotal),
         periodo_meses: d.periodo_meses,
         detalle_extra: d.detalle_extra,
+        ciclo_inicio: d.ciclo_inicio,
+        ciclo_fin: d.ciclo_fin,
+        periodo_estadistico: d.periodo_estadistico,
       })) ?? []
     );
 
@@ -310,7 +317,10 @@ const ModalVerNotaCxC: React.FC<Props> = ({ visible, cxcId, onCerrar, onEditar, 
                           {(() => {
                             const esMensualidad = item.nombre?.toLowerCase().includes('mensualidad');
                             if (esMensualidad) {
-                              const cicloFormateado = formatCiclo(nota?.ciclo_inicio, nota?.ciclo_fin);
+                              const cicloFormateado = formatCiclo(
+                                item.ciclo_inicio || nota?.ciclo_inicio,
+                                item.ciclo_fin || nota?.ciclo_fin,
+                              );
                               if (cicloFormateado) {
                                 return (
                                   <span style={{

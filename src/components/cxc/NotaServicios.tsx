@@ -87,6 +87,13 @@ const cicloCompletoDelMes = (fecha: string): { inicio: string; fin: string } | n
   };
 };
 
+const diaSiguiente = (fecha: string): string => {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(fecha);
+  if (!match) return '';
+  const siguiente = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]) + 1);
+  return `${siguiente.getFullYear()}-${String(siguiente.getMonth() + 1).padStart(2, '0')}-${String(siguiente.getDate()).padStart(2, '0')}`;
+};
+
 const lineaVacia = (): LineaNota => ({
   catalogo_item_id: '',
   nombre: '',
@@ -107,6 +114,7 @@ const esLineaRegistrable = (linea: LineaNota): boolean => Boolean(linea.catalogo
 
 interface LineaNotaUI extends LineaNota {
   torneo_select_value?: string;
+  resumen_asistencia?: string | null;
 }
 
 interface CalculoAsistenciaResult {
@@ -133,10 +141,7 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
   const [observaciones, setObservaciones] = useState('');
   const [vencimiento, setVencimiento] = useState(getHoyISO());
   const [fechaEmision, setFechaEmision] = useState(getHoyISO());
-  const [cicloInicio, setCicloInicio] = useState(getHoyISO());
-  const [cicloFin, setCicloFin] = useState(getHoyISO());
-  const [calculandoAsistencia, setCalculandoAsistencia] = useState(false);
-  const [resumenAsistencia, setResumenAsistencia] = useState<string | null>(null);
+  const [calculandoAsistenciaIdx, setCalculandoAsistenciaIdx] = useState<number | null>(null);
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [exito, setExito] = useState<string | null>(null);
@@ -248,9 +253,13 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
         // Normalizar periodo_meses de mensualidades para eliminar sufijos como "-2026"
         const lineasNormalizadas = (cxcEditar.lineas || []).map((l: any) => {
           if (l.nombre === 'Mensualidad' && Array.isArray(l.periodo_meses)) {
+            const inicio = l.ciclo_inicio || cxcEditar.ciclo_inicio || cxcEditar.fecha_emision || getHoyISO();
             return {
               ...l,
-              periodo_meses: l.periodo_meses.map((m: string) => m.includes('-') ? m.split('-')[0] : m)
+              periodo_meses: l.periodo_meses,
+              ciclo_inicio: inicio,
+              ciclo_fin: l.ciclo_fin || cxcEditar.ciclo_fin || finDeCicloMensual(inicio),
+              periodo_estadistico: l.periodo_estadistico || calcularPeriodoEstadistico(inicio),
             };
           }
           return l;
@@ -263,8 +272,6 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
         );
         setVencimiento(cxcEditar.fecha_vencimiento || cxcEditar.vencimiento || getHoyISO());
         setFechaEmision(cxcEditar.fecha_emision || getHoyISO());
-        setCicloInicio(cxcEditar.ciclo_inicio || cxcEditar.fecha_emision || getHoyISO());
-        setCicloFin(cxcEditar.ciclo_fin || cxcEditar.fecha_vencimiento || cxcEditar.fecha_emision || getHoyISO());
         setPagarAlCrear(false);
         setCobrosExistentes([]);
         // Cargar cobros existentes y detalle de ítems de forma asíncrona siempre que estemos editando
@@ -282,14 +289,11 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
               .maybeSingle(),
             supabase
               .from('cxc_detalle')
-              .select('id, catalogo_item_id, cantidad, precio_unitario, periodo_meses, detalle_extra, subtotal, catalogo_items(id, nombre, tipo)')
+              .select('id, catalogo_item_id, cantidad, precio_unitario, periodo_meses, detalle_extra, subtotal, ciclo_inicio, ciclo_fin, periodo_estadistico, catalogo_items(id, nombre, tipo)')
               .eq('cuenta_cobrar_id', cxcEditar.id),
           ]);
 
-          if (periodoNota?.ciclo_inicio) setCicloInicio(periodoNota.ciclo_inicio);
-          if (periodoNota?.ciclo_fin) setCicloFin(periodoNota.ciclo_fin);
-
-          if (detallesBD && detallesBD.length > 0 && (!cxcEditar.lineas || cxcEditar.lineas.length === 0)) {
+          if (detallesBD && detallesBD.length > 0) {
             const lineasCargadas: LineaNotaUI[] = detallesBD.map((d: any) => {
               const itemNombre = d.catalogo_items?.nombre || '';
               let pMeses: string[] = [];
@@ -305,6 +309,15 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
                 cantidad: cant,
                 precio_unitario: precio,
                 periodo_meses: pMeses,
+                ciclo_inicio: itemNombre === 'Mensualidad'
+                  ? (d.ciclo_inicio || periodoNota?.ciclo_inicio || cxcEditar.fecha_emision || getHoyISO())
+                  : undefined,
+                ciclo_fin: itemNombre === 'Mensualidad'
+                  ? (d.ciclo_fin || periodoNota?.ciclo_fin || finDeCicloMensual(d.ciclo_inicio || periodoNota?.ciclo_inicio || cxcEditar.fecha_emision || getHoyISO()))
+                  : undefined,
+                periodo_estadistico: itemNombre === 'Mensualidad'
+                  ? (d.periodo_estadistico || calcularPeriodoEstadistico(d.ciclo_inicio || periodoNota?.ciclo_inicio || cxcEditar.fecha_emision || getHoyISO()))
+                  : undefined,
                 detalle_personalizado: d.detalle_extra || '',
                 subtotal: Number(d.subtotal) || (cant * precio),
                 cuenta_ingreso_id: null,
@@ -332,8 +345,6 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
         setAlumnoId(alumnoPreseleccionado?.id || '');
         setLineas([lineaVacia()]);
         setObservaciones('');
-        setCicloInicio(getHoyISO());
-        setCicloFin(getHoyISO());
         setVencimiento(getHoyISO());
         setFechaPago(getHoyISO());
         setPagarAlCrear(esAnticipo);
@@ -349,23 +360,6 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
     () => !esAnticipo && lineas.some(l => l.nombre === 'Mensualidad' && !!l.catalogo_item_id),
     [lineas, esAnticipo],
   );
-  const periodoEstadistico = useMemo(
-    () => calcularPeriodoEstadistico(cicloInicio),
-    [cicloInicio],
-  );
-
-  useEffect(() => {
-    if (!tieneMensualidad || !periodoEstadistico) return;
-    const mes = periodoMesLegacy(periodoEstadistico);
-    setLineas(actuales => actuales.map(linea => linea.nombre === 'Mensualidad'
-      ? { ...linea, periodo_meses: mes ? [mes] : [], cantidad: 1, subtotal: linea.precio_unitario }
-      : linea));
-  }, [tieneMensualidad, periodoEstadistico]);
-
-  useEffect(() => {
-    setResumenAsistencia(null);
-  }, [alumnoId, cicloInicio, cicloFin]);
-
   const total = useMemo(() => {
     if (esAnticipo) return parseFloat(montoAnticipo) || 0;
     return lineas.reduce((s, l) => s + l.subtotal, 0);
@@ -380,14 +374,17 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
     }
   }, [pagarAlCrear, total, esAnticipo]);
 
-  const calcularMontoPorAsistencia = async () => {
+  const calcularMontoPorAsistencia = async (idx: number) => {
+    const linea = lineas[idx];
+    const cicloInicio = linea?.ciclo_inicio || '';
+    const cicloFin = linea?.ciclo_fin || '';
     if (!alumnoId || !cicloInicio || !cicloFin || cicloFin < cicloInicio) {
       setError('Selecciona un alumno y un ciclo válido antes de calcular.');
       return;
     }
 
     try {
-      setCalculandoAsistencia(true);
+      setCalculandoAsistenciaIdx(idx);
       setError(null);
       const { data, error: rpcError } = await supabase.rpc('rpc_calcular_mensualidad_alumno', {
         p_alumno_id: alumnoId,
@@ -398,20 +395,26 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
 
       const calculo = data as CalculoAsistenciaResult;
       if (calculo.estado === 'sin_asistencia' || calculo.monto === null) {
-        setResumenAsistencia('Sin registros de asistencia: el alumno debe revisarse manualmente.');
+        setLineas(actuales => actuales.map((actual, actualIdx) => actualIdx === idx
+          ? { ...actual, resumen_asistencia: 'Sin registros de asistencia: el alumno debe revisarse manualmente.' }
+          : actual));
         return;
       }
 
-      setLineas(actuales => actuales.map(linea => linea.nombre === 'Mensualidad'
-        ? { ...linea, precio_unitario: Number(calculo.monto), cantidad: 1, subtotal: Number(calculo.monto) }
-        : linea));
-      setResumenAsistencia(
-        `${calculo.presentes} presentes de ${calculo.registros} registros · ${calculo.estado === 'completo' ? '100%' : calculo.estado === 'parcial' ? `${calculo.porcentaje_parcial}%` : '0%'} · Bs ${fmtMonto(Number(calculo.monto))}`,
-      );
+      const resumen = `${calculo.presentes} presentes de ${calculo.registros} registros · ${calculo.estado === 'completo' ? '100%' : calculo.estado === 'parcial' ? `${calculo.porcentaje_parcial}%` : '0%'} · Bs ${fmtMonto(Number(calculo.monto))}`;
+      setLineas(actuales => actuales.map((actual, actualIdx) => actualIdx === idx
+        ? {
+            ...actual,
+            precio_unitario: Number(calculo.monto),
+            cantidad: 1,
+            subtotal: Number(calculo.monto),
+            resumen_asistencia: resumen,
+          }
+        : actual));
     } catch (err: any) {
       setError(err.message || 'No se pudo calcular la mensualidad por asistencia.');
     } finally {
-      setCalculandoAsistencia(false);
+      setCalculandoAsistenciaIdx(null);
     }
   };
 
@@ -426,16 +429,20 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
       const lineasValidas = lineas.filter(esLineaRegistrable);
       if (lineasValidas.length === 0) { setError('Agrega ítems válidos.'); return; }
 
-      // Validación para Mensualidad: obligatorio seleccionar al menos un mes
+      const periodosMensualidad = new Set<string>();
       for (const l of lineasValidas) {
-        if (l.nombre === 'Mensualidad' && l.periodo_meses.length === 0) {
-          setError('Debe seleccionar al menos un mes para el ítem Mensualidad.');
-          return;
+        if (l.nombre === 'Mensualidad') {
+          const periodo = calcularPeriodoEstadistico(l.ciclo_inicio || '');
+          if (!l.ciclo_inicio || !l.ciclo_fin || l.ciclo_fin < l.ciclo_inicio || !periodo) {
+            setError('Cada mensualidad debe tener un rango de ciclo válido.');
+            return;
+          }
+          if (periodosMensualidad.has(periodo)) {
+            setError(`Las mensualidades deben corresponder a ciclos distintos. El período ${formatPeriodoEstadistico(periodo)} está repetido.`);
+            return;
+          }
+          periodosMensualidad.add(periodo);
         }
-      }
-      if (tieneMensualidad && (!cicloInicio || !cicloFin || cicloFin < cicloInicio || !periodoEstadistico)) {
-        setError('Ingresa un rango válido para el ciclo de la mensualidad.');
-        return;
       }
     }
 
@@ -484,6 +491,11 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
       let detalleGuardadoEnRpc = false;
       const descripcionFinal = esAnticipo ? 'Anticipo' : lineas.filter(esLineaRegistrable).map(l => l.nombre).join(', ');
       const lineasValidasGuardar = lineas.filter(esLineaRegistrable);
+      const mensualidadesGuardar = lineasValidasGuardar.filter(l => l.nombre === 'Mensualidad');
+      const mensualidadUnica = mensualidadesGuardar.length === 1 ? mensualidadesGuardar[0] : null;
+      const periodoMensualidadUnica = mensualidadUnica
+        ? calcularPeriodoEstadistico(mensualidadUnica.ciclo_inicio || '')
+        : '';
 
       if (cxcEditar?.id) {
         notaId = cxcEditar.id;
@@ -518,10 +530,10 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
           editado: true,
           editado_por: ctx.id,
           updated_at: new Date().toISOString(),
-          periodo: tieneMensualidad ? periodoEstadistico.slice(0, 7) : null,
-          periodo_estadistico: tieneMensualidad ? periodoEstadistico : null,
-          ciclo_inicio: tieneMensualidad ? cicloInicio : null,
-          ciclo_fin: tieneMensualidad ? cicloFin : null,
+          periodo: periodoMensualidadUnica ? periodoMensualidadUnica.slice(0, 7) : null,
+          periodo_estadistico: periodoMensualidadUnica || null,
+          ciclo_inicio: mensualidadUnica?.ciclo_inicio || null,
+          ciclo_fin: mensualidadUnica?.ciclo_fin || null,
           origen_facturacion: 'manual',
           ejecucion_facturacion_id: null,
         }).eq('id', notaId);
@@ -546,14 +558,16 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
           p_observaciones: observaciones || null,
           p_fecha_emision: fechaEmision,
           p_fecha_vencimiento: vencimiento || null,
-          p_ciclo_inicio: cicloInicio,
-          p_ciclo_fin: cicloFin,
+          p_ciclo_inicio: mensualidadesGuardar[0]?.ciclo_inicio,
+          p_ciclo_fin: mensualidadesGuardar[0]?.ciclo_fin,
           p_lineas: lineasValidasGuardar.map(l => ({
             catalogo_item_id: l.catalogo_item_id,
             cantidad: l.cantidad,
             precio_unitario: l.precio_unitario,
             periodo_meses: l.periodo_meses.length > 0 ? l.periodo_meses : null,
             detalle_extra: l.detalle_personalizado || null,
+            ciclo_inicio: l.nombre === 'Mensualidad' ? l.ciclo_inicio : null,
+            ciclo_fin: l.nombre === 'Mensualidad' ? l.ciclo_fin : null,
           })),
           p_nro_recibo: cobroNroDoc || null,
         });
@@ -573,10 +587,10 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
           es_anticipo: esAnticipo,
           estado: 'pendiente',
           nro_recibo: cobroNroDoc || null,
-          periodo: tieneMensualidad ? periodoEstadistico.slice(0, 7) : null,
-          periodo_estadistico: tieneMensualidad ? periodoEstadistico : null,
-          ciclo_inicio: tieneMensualidad ? cicloInicio : null,
-          ciclo_fin: tieneMensualidad ? cicloFin : null,
+          periodo: periodoMensualidadUnica ? periodoMensualidadUnica.slice(0, 7) : null,
+          periodo_estadistico: periodoMensualidadUnica || null,
+          ciclo_inicio: mensualidadUnica?.ciclo_inicio || null,
+          ciclo_fin: mensualidadUnica?.ciclo_fin || null,
           origen_facturacion: 'manual',
         }).select('id').single();
         if (errN) throw errN;
@@ -622,7 +636,12 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
           cantidad: l.cantidad,
           precio_unitario: l.precio_unitario,
           periodo_meses: l.periodo_meses.length > 0 ? l.periodo_meses : null,
-          detalle_extra: l.detalle_personalizado
+          detalle_extra: l.detalle_personalizado,
+          ciclo_inicio: l.nombre === 'Mensualidad' ? l.ciclo_inicio : null,
+          ciclo_fin: l.nombre === 'Mensualidad' ? l.ciclo_fin : null,
+          periodo_estadistico: l.nombre === 'Mensualidad'
+            ? calcularPeriodoEstadistico(l.ciclo_inicio || '')
+            : null,
         })));
         if (errInsertarDetalles) throw errInsertarDetalles;
       }
@@ -760,8 +779,23 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
                     if (tieneMensualidad) {
                       const ciclo = cicloCompletoDelMes(f);
                       if (ciclo) {
-                        setCicloInicio(ciclo.inicio);
-                        setCicloFin(ciclo.fin);
+                        let siguienteInicio = ciclo.inicio;
+                        setLineas(actuales => actuales.map(lineaActual => {
+                          if (lineaActual.nombre !== 'Mensualidad') return lineaActual;
+                          const siguienteFin = finDeCicloMensual(siguienteInicio);
+                          const siguientePeriodo = calcularPeriodoEstadistico(siguienteInicio);
+                          const siguienteMes = periodoMesLegacy(siguientePeriodo);
+                          const actualizada = {
+                            ...lineaActual,
+                            ciclo_inicio: siguienteInicio,
+                            ciclo_fin: siguienteFin,
+                            periodo_estadistico: siguientePeriodo,
+                            periodo_meses: siguienteMes ? [siguienteMes] : [],
+                            resumen_asistencia: null,
+                          };
+                          siguienteInicio = diaSiguiente(siguienteFin);
+                          return actualizada;
+                        }));
                       }
                     }
                   }}
@@ -790,9 +824,20 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
                           if (it) {
                             const nuevas = [...lineas];
                             const esMensualidad = it.nombre === 'Mensualidad';
-                            const monthIdx = parseInt(fechaEmision.split('-')[1]) - 1;
-                            const mesesIniciales = esMensualidad ? [MESES_ANIO[monthIdx]] : [];
                             const cantidadInicial = esMensualidad ? 1 : nuevas[idx].cantidad;
+                            const ciclosExistentes = nuevas
+                              .filter((lineaExistente, lineaIdx) => lineaIdx !== idx
+                                && lineaExistente.nombre === 'Mensualidad'
+                                && lineaExistente.ciclo_inicio)
+                              .sort((a, b) => String(a.ciclo_inicio).localeCompare(String(b.ciclo_inicio)));
+                            const ultimoCiclo = ciclosExistentes.at(-1);
+                            const cicloMesEmision = cicloCompletoDelMes(fechaEmision);
+                            const inicioPredeterminado = ultimoCiclo?.ciclo_fin
+                              ? diaSiguiente(ultimoCiclo.ciclo_fin)
+                              : (cicloMesEmision?.inicio || fechaEmision);
+                            const finPredeterminado = finDeCicloMensual(inicioPredeterminado);
+                            const periodoPredeterminado = calcularPeriodoEstadistico(inicioPredeterminado);
+                            const mesPredeterminado = periodoMesLegacy(periodoPredeterminado);
 
                             // Precargar mensualidad del alumno si el concepto es 'Mensualidad'
                             let precioUnitario = Number(it.precio_venta) || 0;
@@ -810,17 +855,14 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
                               precio_unitario: precioUnitario, 
                               cantidad: cantidadInicial,
                               subtotal: precioUnitario * cantidadInicial,
-                              periodo_meses: mesesIniciales,
+                              periodo_meses: esMensualidad && mesPredeterminado ? [mesPredeterminado] : [],
+                              ciclo_inicio: esMensualidad ? inicioPredeterminado : undefined,
+                              ciclo_fin: esMensualidad ? finPredeterminado : undefined,
+                              periodo_estadistico: esMensualidad ? periodoPredeterminado : undefined,
+                              resumen_asistencia: null,
                               detalle_personalizado: ''
                             };
                             setLineas(nuevas);
-                            if (esMensualidad) {
-                              const ciclo = cicloCompletoDelMes(fechaEmision);
-                              if (ciclo) {
-                                setCicloInicio(ciclo.inicio);
-                                setCicloFin(ciclo.fin);
-                              }
-                            }
                           }
                         }} required disabled={guardando}>
                           <option value="">— Seleccionar Ítem —</option>
@@ -850,12 +892,22 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
                               <label>Inicio del ciclo</label>
                               <input
                                  type="date"
-                                 value={cicloInicio}
+                                 value={linea.ciclo_inicio || ''}
                                  onChange={e => {
                                    const nuevoInicio = e.target.value;
-                                   setCicloInicio(nuevoInicio);
                                    const nuevoFin = finDeCicloMensual(nuevoInicio);
-                                   if (nuevoFin) setCicloFin(nuevoFin);
+                                   const nuevoPeriodo = calcularPeriodoEstadistico(nuevoInicio);
+                                   const nuevoMes = periodoMesLegacy(nuevoPeriodo);
+                                   const nuevas = [...lineas];
+                                   nuevas[idx] = {
+                                     ...nuevas[idx],
+                                     ciclo_inicio: nuevoInicio,
+                                     ciclo_fin: nuevoFin || nuevas[idx].ciclo_fin,
+                                     periodo_estadistico: nuevoPeriodo,
+                                     periodo_meses: nuevoMes ? [nuevoMes] : [],
+                                     resumen_asistencia: null,
+                                   };
+                                   setLineas(nuevas);
                                  }}
                                 disabled={guardando}
                                 required
@@ -865,12 +917,14 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
                               <label>Fin del ciclo</label>
                               <input
                                 type="date"
-                                 value={cicloFin}
-                                 min={cicloInicio}
+                                 value={linea.ciclo_fin || ''}
+                                 min={linea.ciclo_inicio}
                                  onChange={e => {
                                    const nuevoFin = e.target.value;
-                                   if (!nuevoFin || !cicloInicio || nuevoFin >= cicloInicio) {
-                                     setCicloFin(nuevoFin);
+                                   if (!nuevoFin || !linea.ciclo_inicio || nuevoFin >= linea.ciclo_inicio) {
+                                     const nuevas = [...lineas];
+                                     nuevas[idx] = { ...nuevas[idx], ciclo_fin: nuevoFin, resumen_asistencia: null };
+                                     setLineas(nuevas);
                                    }
                                  }}
                                 disabled={guardando}
@@ -881,7 +935,7 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
                               <label>Mes estadístico</label>
                               <input
                                 type="text"
-                                value={formatPeriodoEstadistico(periodoEstadistico)}
+                                value={formatPeriodoEstadistico(calcularPeriodoEstadistico(linea.ciclo_inicio || ''))}
                                 readOnly
                                 aria-readonly="true"
                                 style={{ cursor: 'not-allowed', opacity: 0.85 }}
@@ -898,15 +952,15 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
                               <button
                                 type="button"
                                 className="btn-volver"
-                                onClick={calcularMontoPorAsistencia}
-                                disabled={guardando || calculandoAsistencia || !alumnoId}
+                                onClick={() => calcularMontoPorAsistencia(idx)}
+                                disabled={guardando || calculandoAsistenciaIdx !== null || !alumnoId}
                                 style={{ height: '34px', padding: '0 0.85rem', fontSize: '0.75rem' }}
                               >
-                                {calculandoAsistencia ? 'Calculando...' : 'Calcular por asistencia'}
+                                {calculandoAsistenciaIdx === idx ? 'Calculando...' : 'Calcular por asistencia'}
                               </button>
-                              {resumenAsistencia && (
+                              {linea.resumen_asistencia && (
                                 <span style={{ color: 'var(--text-secondary)', fontSize: '0.75rem' }}>
-                                  {resumenAsistencia}
+                                  {linea.resumen_asistencia}
                                 </span>
                               )}
                             </div>

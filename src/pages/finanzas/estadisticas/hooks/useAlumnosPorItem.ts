@@ -117,7 +117,10 @@ export function useAlumnosPorItem(
             subtotal,
             periodo_meses,
             detalle_extra,
-            catalogo_item_id
+            catalogo_item_id,
+            ciclo_inicio,
+            ciclo_fin,
+            periodo_estadistico
           ),
           alumnos!cuentas_cobrar_alumno_id_fkey (
             nombres,
@@ -136,30 +139,90 @@ export function useAlumnosPorItem(
         .or(`and(periodo_estadistico.gte.${desde},periodo_estadistico.lte.${hasta}),and(periodo_estadistico.is.null,fecha_emision.gte.${desde},fecha_emision.lte.${hasta})`)
         .limit(5000);
 
+      // Una nota puede contener mensualidades de varios ciclos. Esta segunda
+      // consulta recupera las notas por el periodo de cada linea, aunque la
+      // cabecera no tenga un unico periodo representativo.
+      let queryPorPeriodoDetalle = supabase
+        .from('cuentas_cobrar')
+        .select(`
+          id,
+          monto_total,
+          fecha_emision,
+          periodo_estadistico,
+          anulada,
+          alumno_id,
+          descripcion,
+          estado,
+          cobros_aplicados (
+            monto_aplicado
+          ),
+          cxc_detalle!inner (
+            id,
+            subtotal,
+            periodo_meses,
+            detalle_extra,
+            catalogo_item_id,
+            ciclo_inicio,
+            ciclo_fin,
+            periodo_estadistico
+          ),
+          alumnos!cuentas_cobrar_alumno_id_fkey (
+            nombres,
+            apellidos,
+            fecha_nacimiento,
+            profesor_asignado_id,
+            sucursal_id,
+            horario_id,
+            cancha_id,
+            sucursales ( nombre ),
+            usuarios!alumnos_profesor_asignado_id_fkey ( nombres, apellidos )
+          )
+        `)
+        .eq('escuela_id', eid)
+        .eq('anulada', false)
+        .eq('cxc_detalle.catalogo_item_id', itemId)
+        .gte('cxc_detalle.periodo_estadistico', desde)
+        .lte('cxc_detalle.periodo_estadistico', hasta)
+        .limit(5000);
+
       // Filtros adicionales condicionales
       if (entrenadorId) {
         query = query.eq('alumnos.profesor_asignado_id', entrenadorId);
+        queryPorPeriodoDetalle = queryPorPeriodoDetalle.eq('alumnos.profesor_asignado_id', entrenadorId);
       }
       if (sucursalId) {
         query = query.eq('alumnos.sucursal_id', sucursalId);
+        queryPorPeriodoDetalle = queryPorPeriodoDetalle.eq('alumnos.sucursal_id', sucursalId);
       }
       if (horarioId) {
         query = query.eq('alumnos.horario_id', horarioId);
+        queryPorPeriodoDetalle = queryPorPeriodoDetalle.eq('alumnos.horario_id', horarioId);
       }
       if (canchaId) {
         query = query.eq('alumnos.cancha_id', canchaId);
+        queryPorPeriodoDetalle = queryPorPeriodoDetalle.eq('alumnos.cancha_id', canchaId);
       }
 
-      const { data, error: err } = await query;
+      const [
+        { data: dataCabecera, error: errorCabecera },
+        { data: dataDetalle, error: errorDetalle },
+      ] = await Promise.all([query, queryPorPeriodoDetalle]);
 
-      if (err) throw new Error(err.message);
+      if (errorCabecera) throw new Error(errorCabecera.message);
+      if (errorDetalle) throw new Error(errorDetalle.message);
+
+      const notasPorId = new Map<string, any>();
+      for (const nota of [...(dataCabecera || []), ...(dataDetalle || [])] as any[]) {
+        const existente = notasPorId.get(nota.id);
+        if (!existente || (nota.cxc_detalle?.length || 0) > (existente.cxc_detalle?.length || 0)) {
+          notasPorId.set(nota.id, nota);
+        }
+      }
 
       const resultado: AlumnoPorItem[] = [];
 
-      for (const cxc of (data || []) as any[]) {
+      for (const cxc of notasPorId.values()) {
         const fechaEmision = cxc.fecha_emision?.split('T')[0] ?? cxc.fecha_emision;
-        const fechaEstadistica = cxc.periodo_estadistico || fechaEmision;
-        if (!fechaEstadistica || fechaEstadistica < desde || fechaEstadistica > hasta) continue;
         if (cxc.anulada) continue;
         if (String(cxc.descripcion || '').toLowerCase().includes('saldo inicial')) continue;
 
@@ -198,65 +261,66 @@ export function useAlumnosPorItem(
 
         if (montoTotalNota <= 0) continue;
 
-        // Buscamos si esta nota tiene el ítem que nos interesa
-        const detInteres = detalles.find((d: any) => d.catalogo_item_id === itemId);
-        if (!detInteres) continue;
-
-        // Filtro de sub-ítems (Meses o Torneos)
-        if (filtroSubItems && filtroSubItems.length > 0) {
-          let cumpleSub = false;
-          const mesPeriodoEstadistico = /^\d{4}-(\d{2})-(\d{2})$/.exec(cxc.periodo_estadistico || '')?.[1];
-          if (mesPeriodoEstadistico) {
-            const ordenesFiltro = filtroSubItems.map(f => obtenerOrdenMes(f)).filter(o => o > 0);
-            cumpleSub = ordenesFiltro.includes(Number(mesPeriodoEstadistico));
-          } else if (Array.isArray(detInteres.periodo_meses)) {
-            // Comparación robusta de meses (coincidir "Abr" con "Abril" usando el orden del mes)
-            const ordenesFiltro = filtroSubItems.map(f => obtenerOrdenMes(f)).filter(o => o > 0);
-            cumpleSub = (detInteres.periodo_meses as string[]).some(m => {
-              const ordenM = obtenerOrdenMes(m);
-              return filtroSubItems.includes(m) || (ordenM > 0 && ordenesFiltro.includes(ordenM));
-            });
-          } else if (detInteres.detalle_extra) {
-            cumpleSub = filtroSubItems.some(f => detInteres.detalle_extra.toLowerCase().includes(f.toLowerCase()));
-          }
-          if (!cumpleSub) continue;
-        }
-
         const nombres = alu.nombres ?? '';
         const apellidos = alu.apellidos ?? '';
+        const detallesInteres = detalles.filter((d: any) => d.catalogo_item_id === itemId);
 
-        // Construir descripción del detalle
-        let detalleStr = '';
-        if (Array.isArray(detInteres.periodo_meses) && detInteres.periodo_meses.length > 0) {
-          detalleStr = ordenarMesesCalendario(detInteres.periodo_meses as string[]).join(', ');
-        } else if (detInteres.detalle_extra) {
-          detalleStr = String(detInteres.detalle_extra);
+        for (const detInteres of detallesInteres) {
+          const fechaEstadistica = detInteres.periodo_estadistico || cxc.periodo_estadistico || fechaEmision;
+          if (!fechaEstadistica || fechaEstadistica < desde || fechaEstadistica > hasta) continue;
+
+          // Filtro de sub-ítems (Meses o Torneos)
+          if (filtroSubItems && filtroSubItems.length > 0) {
+            let cumpleSub = false;
+            const mesPeriodoEstadistico = /^\d{4}-(\d{2})-(\d{2})$/.exec(
+              detInteres.periodo_estadistico || cxc.periodo_estadistico || '',
+            )?.[1];
+            if (mesPeriodoEstadistico) {
+              const ordenesFiltro = filtroSubItems.map(f => obtenerOrdenMes(f)).filter(o => o > 0);
+              cumpleSub = ordenesFiltro.includes(Number(mesPeriodoEstadistico));
+            } else if (Array.isArray(detInteres.periodo_meses)) {
+              const ordenesFiltro = filtroSubItems.map(f => obtenerOrdenMes(f)).filter(o => o > 0);
+              cumpleSub = (detInteres.periodo_meses as string[]).some(m => {
+                const ordenM = obtenerOrdenMes(m);
+                return filtroSubItems.includes(m) || (ordenM > 0 && ordenesFiltro.includes(ordenM));
+              });
+            } else if (detInteres.detalle_extra) {
+              cumpleSub = filtroSubItems.some(f => detInteres.detalle_extra.toLowerCase().includes(f.toLowerCase()));
+            }
+            if (!cumpleSub) continue;
+          }
+
+          let detalleStr = '';
+          if (Array.isArray(detInteres.periodo_meses) && detInteres.periodo_meses.length > 0) {
+            detalleStr = ordenarMesesCalendario(detInteres.periodo_meses as string[]).join(', ');
+          } else if (detInteres.detalle_extra) {
+            detalleStr = String(detInteres.detalle_extra);
+          }
+
+          const proporcion = Number(detInteres.subtotal || 0) / montoTotalNota;
+          const montoItem = Number(detInteres.subtotal || 0);
+          const saldoItem = Math.max(0, saldoNota * proporcion);
+          const pagadoItem: AlumnoPorItem['pagado'] = saldoItem <= 0.005
+            ? 'Si'
+            : saldoItem >= montoItem - 0.005
+              ? 'No'
+              : 'Parcial';
+
+          resultado.push({
+            alumno_id: cxc.alumno_id ?? '',
+            nombre_completo: `${nombres} ${apellidos}`.trim() || 'Sin nombre',
+            monto: montoItem,
+            fecha: fechaEmision,
+            detalle: detalleStr,
+            nota_id: detInteres.id,
+            cxc_id: cxc.id,
+            concepto: conceptoNombre ?? 'Desconocido',
+            sub: subCalculado,
+            entrenador: alu.usuarios ? `${alu.usuarios.nombres} ${alu.usuarios.apellidos}`.trim() : 'Sin Entrenador',
+            saldo_pendiente: saldoItem,
+            pagado: pagadoItem
+          });
         }
-
-        // Proporción del pago para este ítem
-        const proporcion = Number(detInteres.subtotal || 0) / montoTotalNota;
-        const montoItem = Number(detInteres.subtotal || 0);
-        const saldoItem = Math.max(0, saldoNota * proporcion);
-        const pagadoItem: AlumnoPorItem['pagado'] = saldoItem <= 0.005
-          ? 'Si'
-          : saldoItem >= montoItem - 0.005
-            ? 'No'
-            : 'Parcial';
-
-        resultado.push({
-          alumno_id: cxc.alumno_id ?? '',
-          nombre_completo: `${nombres} ${apellidos}`.trim() || 'Sin nombre',
-          monto: montoItem,
-          fecha: fechaEmision,
-          detalle: detalleStr,
-          nota_id: detInteres.id,
-          cxc_id: cxc.id,
-          concepto: conceptoNombre ?? 'Desconocido',
-          sub: subCalculado,
-          entrenador: alu.usuarios ? `${alu.usuarios.nombres} ${alu.usuarios.apellidos}`.trim() : 'Sin Entrenador',
-          saldo_pendiente: saldoItem,
-          pagado: pagadoItem
-        });
       }
 
       let finalResultado = resultado;

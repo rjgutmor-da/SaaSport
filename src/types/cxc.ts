@@ -17,6 +17,9 @@ export interface CxcDetalle {
   precio_unitario: number;
   periodo_meses: string[] | null; // Meses seleccionados (ej: ["Ene-2026","Feb-2026"])
   detalle_extra: string | null;  // Nombre de torneo o periodo custom
+  ciclo_inicio?: string | null;
+  ciclo_fin?: string | null;
+  periodo_estadistico?: string | null;
   subtotal: number;
   created_at: string;
 
@@ -34,6 +37,9 @@ export interface LineaNota {
   precio_unitario: number;
   costo_unitario?: number;
   periodo_meses: string[];
+  ciclo_inicio?: string;
+  ciclo_fin?: string;
+  periodo_estadistico?: string;
   detalle_personalizado?: string; // Para torneos o periodos específicos
   subtotal: number;
   cuenta_ingreso_id?: string | null;
@@ -140,5 +146,4 @@ export const MESES_ANIO = [
   'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun',
   'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'
 ];
-
 

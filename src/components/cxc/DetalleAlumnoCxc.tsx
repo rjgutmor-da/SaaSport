@@ -155,7 +155,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
         // Cargar detalle de ítems por nota (concepto + detalle visible)
         const { data: todosItems } = await supabase
           .from('cxc_detalle')
-          .select('cuenta_cobrar_id, catalogo_item_id, cantidad, precio_unitario, periodo_meses, detalle_extra, catalogo_items!inner(nombre)')
+          .select('cuenta_cobrar_id, catalogo_item_id, cantidad, precio_unitario, periodo_meses, detalle_extra, ciclo_inicio, ciclo_fin, periodo_estadistico, catalogo_items!inner(nombre)')
           .in('cuenta_cobrar_id', cxcIds);
         const itemsMap: Record<string, any[]> = {};
         todosItems?.forEach((item: any) => {
@@ -923,7 +923,10 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                                         ))}
                                         {/* Fechas de ciclo para Mensualidad */}
                                         {item.item_nombre?.toLowerCase().includes('mensualidad') && (() => {
-                                          const cicloFormateado = formatCiclo(cxc.ciclo_inicio, cxc.ciclo_fin);
+                                          const cicloFormateado = formatCiclo(
+                                            item.ciclo_inicio || cxc.ciclo_inicio,
+                                            item.ciclo_fin || cxc.ciclo_fin,
+                                          );
                                           return cicloFormateado ? (
                                             <span style={{ fontSize: '0.6rem', padding: '1px 4px', borderRadius: '4px', background: 'rgba(74,222,128,0.15)', color: '#4ade80', fontWeight: 600 }}>
                                               {cicloFormateado}
@@ -1098,7 +1101,10 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                                         ))}
                                         {/* Fechas de ciclo para Mensualidad */}
                                         {item.item_nombre?.toLowerCase().includes('mensualidad') && (() => {
-                                          const cicloFormateado = formatCiclo(cxc.ciclo_inicio, cxc.ciclo_fin);
+                                          const cicloFormateado = formatCiclo(
+                                            item.ciclo_inicio || cxc.ciclo_inicio,
+                                            item.ciclo_fin || cxc.ciclo_fin,
+                                          );
                                           return cicloFormateado ? (
                                             <span style={{ fontSize: '0.65rem', padding: '1px 6px', borderRadius: '4px', background: 'rgba(74,222,128,0.15)', color: '#4ade80', fontWeight: 600 }}>
                                               {cicloFormateado}
