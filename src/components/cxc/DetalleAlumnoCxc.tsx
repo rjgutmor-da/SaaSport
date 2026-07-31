@@ -33,6 +33,18 @@ interface DetalleAlumnoProps {
 const fmtMonto = (n: number): string =>
   n.toLocaleString('es-BO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+const obtenerMensajeErrorCobro = (error: unknown): string => {
+  const mensaje = typeof error === 'object' && error !== null && 'message' in error
+    ? String((error as { message?: unknown }).message ?? '')
+    : String(error ?? '');
+
+  if (mensaje.toLowerCase().includes('la mensualidad no pertenece a una cuenta valida del alumno')) {
+    return 'No se pudo completar el cobro porque la nota tiene información desactualizada. Recarga la ficha y vuelve a intentarlo.';
+  }
+
+  return `Error: ${mensaje || 'No se pudo registrar el cobro.'}`;
+};
+
 const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
   alumno, visible, onCerrar, onActualizar
 }) => {
@@ -193,6 +205,21 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
     setUsarAnticipo(false); setAnticipoId('');
     setCobroCxcId(null); setDevolucionCxcId(null); setExpandida(null); setMensajePagoWA(null);
   }, [visible, alumno, refreshKey]);
+
+  const abrirCobroMultiple = () => {
+    setCobroError(null);
+    setCobroExito(null);
+    setCobroInfoAnticipo(null);
+    setCobroCxcId('TODO');
+    cobroMultiple.inicializar();
+  };
+
+  const cerrarCobro = () => {
+    setCobroCxcId(null);
+    setCobroError(null);
+    setCobroExito(null);
+    setCobroInfoAnticipo(null);
+  };
 
   const registrarCobro = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -389,8 +416,8 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
         setCobroCuentaAnticipoId('');
       }, 800);
 
-    } catch (err: any) {
-      setCobroError(`Error: ${err.message}`);
+    } catch (err: unknown) {
+      setCobroError(obtenerMensajeErrorCobro(err));
     } finally {
       setGuardandoCobro(false);
     }
@@ -571,10 +598,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                   const totalDeudaNum = cxcs.reduce((s, c) => s + (!(c as any).es_anticipo && Number(c.saldo_pendiente) > 0 && !c.anulada ? Number(c.saldo_pendiente) : 0), 0);
                   return (
                     <button
-                      onClick={() => {
-                        setCobroCxcId('TODO');
-                        cobroMultiple.inicializar();
-                      }}
+                      onClick={abrirCobroMultiple}
                       disabled={totalDeudaNum <= 0}
                       style={{
                         flex: 1,
@@ -726,10 +750,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                   if (totalDeudaNum > 0) {
                     return (
                       <button 
-                        onClick={() => {
-                          setCobroCxcId('TODO');
-                          cobroMultiple.inicializar();
-                        }}
+                        onClick={abrirCobroMultiple}
                         className="btn-premium"
                         style={{ 
                           padding: '0.75rem 1.25rem', display: 'flex', alignItems: 'center', gap: '0.6rem', 
@@ -884,7 +905,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                           <button type="submit" disabled={guardandoCobro || cobroMultiple.obtenerTotalCobrado() <= 0} className="btn-guardar-cuenta" style={{ flex: 1, padding: '0.6rem 1rem', background: '#10b981', fontWeight: 700 }}>
                             {guardandoCobro ? '...' : `Cobrar Bs ${fmtMonto(cobroMultiple.obtenerTotalCobrado())}`}
                           </button>
-                          <button type="button" onClick={() => setCobroCxcId(null)} className="btn-refrescar" style={{ padding: '0.6rem' }}>Cancelar</button>
+                          <button type="button" onClick={cerrarCobro} className="btn-refrescar" style={{ padding: '0.6rem' }}>Cancelar</button>
                         </div>
                         {cobroError && <p style={{ color: '#f87171', fontSize: '0.75rem', margin: 0 }}>{cobroError}</p>}
                       </div>
@@ -1025,7 +1046,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                                 <button type="submit" disabled={guardandoCobro || cobroMultiple.obtenerTotalCobrado() <= 0} className="btn-guardar-cuenta" style={{ width: 'auto', padding: '0.55rem 1.25rem', background: '#10b981', fontWeight: 700 }}>
                                   {guardandoCobro ? '...' : 'Registrar Cobro'}
                                 </button>
-                                <button type="button" onClick={() => setCobroCxcId(null)} className="btn-refrescar" style={{ width: 'auto', padding: '0.55rem 1rem' }}>Cancelar</button>
+                                <button type="button" onClick={cerrarCobro} className="btn-refrescar" style={{ width: 'auto', padding: '0.55rem 1rem' }}>Cancelar</button>
                               </div>
                             </div>
 
@@ -1212,7 +1233,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                                   }} className="btn-compact-action action-blue" title="Editar"><Pencil size={14} /></button>
                                 )}
                                 {!cxc.anulada && Number(cxc.saldo_pendiente) > 0 && !isAnticipo && (
-                                  <button onClick={() => { setCobroCxcId(cxc.id); setCobroMonto(String(cxc.saldo_pendiente)); setDevolucionCxcId(null); }} className="btn-compact-action action-green" title="Cobrar"><DollarSign size={14} /></button>
+                                  <button onClick={() => { setCobroError(null); setCobroExito(null); setCobroInfoAnticipo(null); setCobroCxcId(cxc.id); setCobroMonto(String(cxc.saldo_pendiente)); setDevolucionCxcId(null); }} className="btn-compact-action action-green" title="Cobrar"><DollarSign size={14} /></button>
                                 )}
                                 {!cxc.anulada && cobrado > 0 && !isAnticipo && puedeEditar() && (
                                   <button onClick={() => { 
@@ -1264,7 +1285,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                                   />
                                   <input type="date" value={cobroFecha} onChange={e => setCobroFecha(e.target.value)} className="detalle-cobro-input" style={{ width: '160px' }} />
                                   <button type="submit" disabled={guardandoCobro} className="btn-guardar-cuenta" style={{ width: 'auto', padding: '0.5rem 1rem' }}>{guardandoCobro ? '...' : 'Cobrar'}</button>
-                                  <button type="button" onClick={() => setCobroCxcId(null)} className="btn-refrescar" style={{ width: 'auto', padding: '0.5rem' }}>Cancelar</button>
+                                  <button type="button" onClick={cerrarCobro} className="btn-refrescar" style={{ width: 'auto', padding: '0.5rem' }}>Cancelar</button>
                                 </div>
                                 {(() => {
                                   const saldoNota = Number(cxc.saldo_pendiente);
