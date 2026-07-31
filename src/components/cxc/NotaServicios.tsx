@@ -600,7 +600,7 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
       // 2. Detalle
       if (esAnticipo) {
         let itemAnticipoId = '';
-        const itemAnticipo = catalogo.find(c => c.nombre === 'Anticipo');
+        const itemAnticipo = catalogo.find(c => c.nombre?.trim().toLowerCase() === 'anticipo');
         if (!itemAnticipo) {
           const { data: nuevoItem, error: errC } = await supabase.from('catalogo_items').insert({
             escuela_id: ctx.escuela_id,

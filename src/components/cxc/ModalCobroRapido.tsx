@@ -251,7 +251,7 @@ const ModalCobroRapido: React.FC<Props> = ({ alumnoInicial, visible, onCerrar, o
             objetivoCxcId = nuevaNota.id;
 
             let itemAnticipoId = '';
-            const itemAnticipo = catalogo.find(c => c.nombre === 'Anticipo');
+            const itemAnticipo = catalogo.find(c => c.nombre?.trim().toLowerCase() === 'anticipo');
             if (!itemAnticipo) {
                 const { data: nuevoItem, error: errC } = await supabase.from('catalogo_items').insert({
                     escuela_id: ctx.escuela_id,
@@ -296,7 +296,7 @@ const ModalCobroRapido: React.FC<Props> = ({ alumnoInicial, visible, onCerrar, o
           if (errAnt || !notaAnticipo) throw new Error('Error al registrar el anticipo del exceso.');
 
         let itemAnticipoId = '';
-        const itemAnticipo = catalogo.find(c => c.nombre === 'Anticipo');
+        const itemAnticipo = catalogo.find(c => c.nombre?.trim().toLowerCase() === 'anticipo');
         if (!itemAnticipo) {
             const { data: nuevoItem, error: errC } = await supabase.from('catalogo_items').insert({
                 escuela_id: ctx.escuela_id,

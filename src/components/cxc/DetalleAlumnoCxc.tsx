@@ -286,25 +286,22 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
             montoCobrar = saldoActual;
           }
 
-          // Validación de exceso eliminada para asignación automática de Anticipo
-
-          // Si hay exceso, crear anticipo automáticamente
           if (exceso > 0) {
             const { data: notaAnticipo, error: errAnt } = await supabase.from('cuentas_cobrar').insert({
               escuela_id: ctx.escuela_id,
               sucursal_id: ctx.sucursal_id,
-              alumno_id: alumno.alumno_id,
+              alumno_id: alumno.alumno_id || alumno.id,
               monto_total: exceso,
               descripcion: 'Anticipo — Exceso de pago',
               estado: 'pendiente',
               es_anticipo: true,
-              fecha_emision: cobroFecha, // Especificar la fecha elegida para el pago
+              fecha_emision: cobroFecha,
             }).select('id').single();
 
             if (errAnt || !notaAnticipo) throw new Error('Error al registrar el anticipo del exceso.');
 
             let itemAnticipoId = '';
-            const itemAnticipo = catalogo.find(c => c.nombre === 'Anticipo');
+            const itemAnticipo = catalogo.find(c => c.nombre?.trim().toLowerCase() === 'anticipo');
             if (!itemAnticipo) {
               const { data: nuevoItem, error: errC } = await supabase.from('catalogo_items').insert({
                 escuela_id: ctx.escuela_id,
@@ -333,7 +330,6 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
             });
             if (errDet) throw errDet;
 
-
             const { error: rpcMultipleErr } = await supabase.rpc('rpc_cobrar_multiple_cxc', {
               p_payload: {
                 escuela_id: ctx.escuela_id,
@@ -352,7 +348,6 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
 
             setCobroInfoAnticipo({ monto: exceso });
           } else {
-            // Cobrar el saldo exacto de la nota cuando no hay exceso
             const { error: rpcErr } = await supabase.rpc('rpc_registrar_cobro', {
               p_payload: {
                 cuenta_cobrar_id: cobroCxcId,
@@ -400,17 +395,6 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
       setGuardandoCobro(false);
     }
   };
-
-  const registrarDevolucion = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!devolucionCxcId || !alumno) return;
-    setDevolucionError(null); setDevolucionExito(null);
-
-    const monto = parseFloat(devolucionMonto);
-    if (!monto || monto <= 0) { 
-      setDevolucionError('Monto inválido.'); 
-      return; 
-    }
     if (!devolucionCuentaId) { 
       setDevolucionError('Selecciona la caja/banco de origen.'); 
       return; 
