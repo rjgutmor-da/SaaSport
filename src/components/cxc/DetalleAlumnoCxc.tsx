@@ -290,7 +290,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
             const { data: notaAnticipo, error: errAnt } = await supabase.from('cuentas_cobrar').insert({
               escuela_id: ctx.escuela_id,
               sucursal_id: ctx.sucursal_id,
-              alumno_id: alumno.alumno_id || alumno.id,
+              alumno_id: alumno.alumno_id,
               monto_total: exceso,
               descripcion: 'Anticipo — Exceso de pago',
               estado: 'pendiente',
@@ -395,6 +395,17 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
       setGuardandoCobro(false);
     }
   };
+
+  const registrarDevolucion = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!devolucionCxcId || !alumno) return;
+    setDevolucionError(null); setDevolucionExito(null);
+
+    const monto = parseFloat(devolucionMonto);
+    if (!monto || monto <= 0) { 
+      setDevolucionError('Monto inválido.'); 
+      return; 
+    }
     if (!devolucionCuentaId) { 
       setDevolucionError('Selecciona la caja/banco de origen.'); 
       return; 
@@ -488,6 +499,9 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
       triggerRefresh();
     } catch (err: any) { alert(`Error al anular: ${err.message}`); }
   };
+
+  const puedeAnular = () => can(userRol, 'finance.cxc.void');
+  const puedeEditar = () => can(userRol, 'finance.cxc.edit');
 
   if (!visible || !alumno) return null;
 
@@ -1421,9 +1435,6 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
       />
     </>
   );
-
-  function puedeAnular() { return can(userRol, 'finance.cxc.void'); }
-  function puedeEditar() { return can(userRol, 'finance.cxc.edit'); }
 };
 
 export default DetalleAlumnoCxc;
