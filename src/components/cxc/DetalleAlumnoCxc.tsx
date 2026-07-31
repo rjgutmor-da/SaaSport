@@ -18,7 +18,7 @@ import ModalVerNotaCxC from './ModalVerNotaCxC';
 import ModalEditarMovimiento from '../cajas-bancos/ModalEditarMovimiento';
 import ModalDetalleMovimiento from '../cajas-bancos/ModalDetalleMovimiento';
 import FichaAnticiposCxC from './FichaAnticiposCxC';
-import { getHoraLocal, getHoyISO, formatFecha, formatFechaCorta, ordenarMesesCalendario, formatCiclo, formatearMesCorto } from '../../lib/dateUtils';
+import { getHoraLocal, getHoyISO, formatFecha, formatFechaCorta, ordenarMesesCalendario, formatCicloMensualidad, formatearMesCorto } from '../../lib/dateUtils';
 import { useCobroMultiple } from './useCobroMultiple';
 import { can } from '../../config/roles';
 import { esObservacionAnticipoAutomatica } from '../../lib/cxcUtils';
@@ -153,10 +153,28 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
         setHistorialCobros(historyMap);
 
         // Cargar detalle de ítems por nota (concepto + detalle visible)
-        const { data: todosItems } = await supabase
+        const consultaItems = await supabase
           .from('cxc_detalle')
           .select('cuenta_cobrar_id, catalogo_item_id, cantidad, precio_unitario, periodo_meses, detalle_extra, ciclo_inicio, ciclo_fin, periodo_estadistico, catalogo_items!inner(nombre)')
           .in('cuenta_cobrar_id', cxcIds);
+
+        let todosItems: any[] | null = consultaItems.data as any[] | null;
+        if (consultaItems.error) {
+          // Compatibilidad durante el despliegue escalonado de las columnas de ciclo.
+          // Un campo ausente no debe ocultar también los meses y torneos históricos.
+          const consultaItemsLegacy = await supabase
+            .from('cxc_detalle')
+            .select('cuenta_cobrar_id, catalogo_item_id, cantidad, precio_unitario, periodo_meses, detalle_extra, catalogo_items!inner(nombre)')
+            .in('cuenta_cobrar_id', cxcIds);
+
+          if (consultaItemsLegacy.error) {
+            console.error('No se pudieron cargar los detalles de las notas:', consultaItemsLegacy.error);
+            todosItems = null;
+          } else {
+            todosItems = consultaItemsLegacy.data as any[] | null;
+          }
+        }
+
         const itemsMap: Record<string, any[]> = {};
         todosItems?.forEach((item: any) => {
           if (!itemsMap[item.cuenta_cobrar_id]) itemsMap[item.cuenta_cobrar_id] = [];
@@ -916,22 +934,27 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                                             {item.item_nombre}
                                           </span>
                                         )}
-                                        {item.periodo_meses && ordenarMesesCalendario(item.periodo_meses).map((mes: string, mi: number) => (
-                                          <span key={`${i}-${mi}`} style={{ fontSize: '0.6rem', padding: '1px 4px', borderRadius: '4px', background: 'rgba(74,222,128,0.15)', color: '#4ade80', fontWeight: 600 }}>
-                                            {formatearMesCorto(mes)}
-                                          </span>
-                                        ))}
-                                        {/* Fechas de ciclo para Mensualidad */}
-                                        {item.item_nombre?.toLowerCase().includes('mensualidad') && (() => {
-                                          const cicloFormateado = formatCiclo(
+                                        {(() => {
+                                          const esMensualidad = item.item_nombre?.toLowerCase().includes('mensualidad');
+                                          const cicloFormateado = esMensualidad ? formatCicloMensualidad(
                                             item.ciclo_inicio || cxc.ciclo_inicio,
                                             item.ciclo_fin || cxc.ciclo_fin,
-                                          );
-                                          return cicloFormateado ? (
-                                            <span style={{ fontSize: '0.6rem', padding: '1px 4px', borderRadius: '4px', background: 'rgba(74,222,128,0.15)', color: '#4ade80', fontWeight: 600 }}>
-                                              {cicloFormateado}
-                                            </span>
+                                            item.detalle_extra,
                                           ) : null;
+
+                                          if (cicloFormateado) {
+                                            return (
+                                              <span style={{ fontSize: '0.6rem', padding: '1px 4px', borderRadius: '4px', background: 'rgba(74,222,128,0.15)', color: '#4ade80', fontWeight: 600 }}>
+                                                {cicloFormateado}
+                                              </span>
+                                            );
+                                          }
+
+                                          return ordenarMesesCalendario(item.periodo_meses).map((mes: string, mi: number) => (
+                                            <span key={`${i}-${mi}`} style={{ fontSize: '0.6rem', padding: '1px 4px', borderRadius: '4px', background: 'rgba(74,222,128,0.15)', color: '#4ade80', fontWeight: 600 }}>
+                                              {formatearMesCorto(mes)}
+                                            </span>
+                                          ));
                                         })()}
 
                                         {/* Detalle extra para otros conceptos (como Inscripciones) */}
@@ -1094,22 +1117,27 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                                             {item.item_nombre}
                                           </span>
                                         )}
-                                        {item.periodo_meses && ordenarMesesCalendario(item.periodo_meses).map((mes: string, mi: number) => (
-                                          <span key={`${i}-${mi}`} style={{ fontSize: '0.65rem', padding: '1px 6px', borderRadius: '4px', background: 'rgba(74,222,128,0.15)', color: '#4ade80', fontWeight: 600 }}>
-                                            {formatearMesCorto(mes)}
-                                          </span>
-                                        ))}
-                                        {/* Fechas de ciclo para Mensualidad */}
-                                        {item.item_nombre?.toLowerCase().includes('mensualidad') && (() => {
-                                          const cicloFormateado = formatCiclo(
+                                        {(() => {
+                                          const esMensualidad = item.item_nombre?.toLowerCase().includes('mensualidad');
+                                          const cicloFormateado = esMensualidad ? formatCicloMensualidad(
                                             item.ciclo_inicio || cxc.ciclo_inicio,
                                             item.ciclo_fin || cxc.ciclo_fin,
-                                          );
-                                          return cicloFormateado ? (
-                                            <span style={{ fontSize: '0.65rem', padding: '1px 6px', borderRadius: '4px', background: 'rgba(74,222,128,0.15)', color: '#4ade80', fontWeight: 600 }}>
-                                              {cicloFormateado}
-                                            </span>
+                                            item.detalle_extra,
                                           ) : null;
+
+                                          if (cicloFormateado) {
+                                            return (
+                                              <span style={{ fontSize: '0.65rem', padding: '1px 6px', borderRadius: '4px', background: 'rgba(74,222,128,0.15)', color: '#4ade80', fontWeight: 600 }}>
+                                                {cicloFormateado}
+                                              </span>
+                                            );
+                                          }
+
+                                          return ordenarMesesCalendario(item.periodo_meses).map((mes: string, mi: number) => (
+                                            <span key={`${i}-${mi}`} style={{ fontSize: '0.65rem', padding: '1px 6px', borderRadius: '4px', background: 'rgba(74,222,128,0.15)', color: '#4ade80', fontWeight: 600 }}>
+                                              {formatearMesCorto(mes)}
+                                            </span>
+                                          ));
                                         })()}
 
                                         {/* Detalle extra para otros conceptos (como Inscripciones) */}

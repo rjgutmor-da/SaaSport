@@ -235,6 +235,10 @@ export const formatearMesCorto = (mes: string | null | undefined): string => {
 
 export const ordenarMesesCalendario = (meses: string[] | null | undefined): string[] =>
   [...(meses || [])].sort((a, b) => {
+    const anioA = Number(/-([0-9]{4})$/.exec(a.trim())?.[1] || 0);
+    const anioB = Number(/-([0-9]{4})$/.exec(b.trim())?.[1] || 0);
+    if (anioA && anioB && anioA !== anioB) return anioA - anioB;
+
     const ordenA = obtenerOrdenMes(a) || 99;
     const ordenB = obtenerOrdenMes(b) || 99;
     return ordenA - ordenB;
@@ -242,7 +246,8 @@ export const ordenarMesesCalendario = (meses: string[] | null | undefined): stri
 
 /**
  * Formatea el rango de inicio y fin de ciclo como "Día Mes a Día Mes".
- * Retorna null si el día de inicio es 1 (mes completo) o si las fechas son inválidas.
+ * Retorna null solo si el ciclo abarca un mes calendario completo
+ * (día 1 hasta el último día del mismo mes) o si las fechas son inválidas.
  */
 export const formatCiclo = (inicioStr: string | null | undefined, finStr: string | null | undefined): string | null => {
   if (!inicioStr || !finStr) return null;
@@ -253,10 +258,22 @@ export const formatCiclo = (inicioStr: string | null | undefined, finStr: string
   
   const diaIni = parseInt(inicioParts[2], 10);
   const mesIni = parseInt(inicioParts[1], 10);
+  const anioIni = parseInt(inicioParts[0], 10);
   const diaFin = parseInt(finParts[2], 10);
   const mesFin = parseInt(finParts[1], 10);
-  
-  if (diaIni === 1) return null;
+  const anioFin = parseInt(finParts[0], 10);
+
+  const valoresFecha = [diaIni, mesIni, anioIni, diaFin, mesFin, anioFin];
+  if (valoresFecha.some(valor => !Number.isInteger(valor))) return null;
+
+  const ultimoDiaMes = new Date(Date.UTC(anioIni, mesIni, 0)).getUTCDate();
+  const esMesCalendarioCompleto =
+    diaIni === 1 &&
+    anioIni === anioFin &&
+    mesIni === mesFin &&
+    diaFin === ultimoDiaMes;
+
+  if (esMesCalendarioCompleto) return null;
   
   const meses = [
     'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
@@ -267,6 +284,24 @@ export const formatCiclo = (inicioStr: string | null | undefined, finStr: string
   const nombreMesFin = meses[mesFin - 1] || '';
   
   return `${diaIni} ${nombreMesIni} a ${diaFin} ${nombreMesFin}`;
+};
+
+/**
+ * Conserva la descripción de ciclo usada por notas históricas que todavía
+ * guardan el rango en detalle_extra en vez de las columnas de ciclo.
+ */
+export const formatCicloMensualidad = (
+  inicioStr: string | null | undefined,
+  finStr: string | null | undefined,
+  detalleExtra?: string | null,
+): string | null => {
+  const ciclo = formatCiclo(inicioStr, finStr);
+  if (ciclo) return ciclo;
+
+  const detalleHistorico = detalleExtra?.trim();
+  return detalleHistorico && /\d/.test(detalleHistorico) && /\b(?:a|al)\b/i.test(detalleHistorico)
+    ? detalleHistorico
+    : null;
 };
 
 /**
@@ -294,4 +329,3 @@ export const formatCicloCompleto = (inicioStr: string | null | undefined, finStr
   
   return `${diaIni} ${nombreMesIni} al ${diaFin} ${nombreMesFin}`;
 };
-

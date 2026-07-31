@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import ModalEditarCobroCxC from './ModalEditarCobroCxC';
 import type { CajaBanco } from '../../types/finanzas';
-import { formatFecha, formatFechaHora, ordenarMesesCalendario, formatCiclo } from '../../lib/dateUtils';
+import { formatFecha, formatFechaHora, ordenarMesesCalendario, formatCicloMensualidad, formatearMesCorto } from '../../lib/dateUtils';
 import { can } from '../../config/roles';
 import { esObservacionAnticipoAutomatica } from '../../lib/cxcUtils';
 
@@ -86,7 +86,7 @@ const ModalVerNotaCxC: React.FC<Props> = ({ visible, cxcId, onCerrar, onEditar, 
     setNota(notaData);
 
     // Ítems del detalle con join al catálogo
-    const { data: itemsData } = await supabase
+    const consultaItems = await supabase
       .from('cxc_detalle')
       .select(`
         id, cantidad, precio_unitario, subtotal, periodo_meses, detalle_extra,
@@ -95,6 +95,25 @@ const ModalVerNotaCxC: React.FC<Props> = ({ visible, cxcId, onCerrar, onEditar, 
       `)
       .eq('cuenta_cobrar_id', cxcId)
       .order('created_at');
+
+    let itemsData: any[] | null = consultaItems.data as any[] | null;
+    if (consultaItems.error) {
+      const consultaItemsLegacy = await supabase
+        .from('cxc_detalle')
+        .select(`
+          id, cantidad, precio_unitario, subtotal, periodo_meses, detalle_extra,
+          catalogo_items!inner(nombre, tipo)
+        `)
+        .eq('cuenta_cobrar_id', cxcId)
+        .order('created_at');
+
+      if (consultaItemsLegacy.error) {
+        console.error('No se pudieron cargar los ítems de la nota:', consultaItemsLegacy.error);
+        itemsData = null;
+      } else {
+        itemsData = consultaItemsLegacy.data as any[] | null;
+      }
+    }
 
     setItems(
       (itemsData as any[])?.map((d: any) => ({
@@ -296,8 +315,16 @@ const ModalVerNotaCxC: React.FC<Props> = ({ visible, cxcId, onCerrar, onEditar, 
                               × {item.cantidad} @ Bs {fmtMonto(item.precio_unitario)}
                             </span>
                           </div>
-                          {/* Badges de meses — siempre visibles */}
-                          {item.periodo_meses && item.periodo_meses.length > 0 && (
+                          {/* Para ciclos parciales se muestra el rango real en lugar del mes genérico. */}
+                          {item.periodo_meses && item.periodo_meses.length > 0 &&
+                           !(
+                             item.nombre?.toLowerCase().includes('mensualidad') &&
+                             formatCicloMensualidad(
+                               item.ciclo_inicio || nota?.ciclo_inicio,
+                               item.ciclo_fin || nota?.ciclo_fin,
+                               item.detalle_extra,
+                             )
+                           ) && (
                             <div style={{ display: 'flex', gap: '0.3rem', flexWrap: 'wrap', alignItems: 'center', width: '100%', marginTop: '0.25rem' }}>
                               {ordenarMesesCalendario(item.periodo_meses).map((mes: string) => (
                                 <span key={mes} style={{
@@ -308,7 +335,7 @@ const ModalVerNotaCxC: React.FC<Props> = ({ visible, cxcId, onCerrar, onEditar, 
                                   fontSize: '0.7rem',
                                   fontWeight: 600
                                 }}>
-                                  {mes}
+                                  {formatearMesCorto(mes)}
                                 </span>
                               ))}
                             </div>
@@ -317,9 +344,10 @@ const ModalVerNotaCxC: React.FC<Props> = ({ visible, cxcId, onCerrar, onEditar, 
                           {(() => {
                             const esMensualidad = item.nombre?.toLowerCase().includes('mensualidad');
                             if (esMensualidad) {
-                              const cicloFormateado = formatCiclo(
+                              const cicloFormateado = formatCicloMensualidad(
                                 item.ciclo_inicio || nota?.ciclo_inicio,
                                 item.ciclo_fin || nota?.ciclo_fin,
+                                item.detalle_extra,
                               );
                               if (cicloFormateado) {
                                 return (
