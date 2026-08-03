@@ -6,7 +6,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import { X, DollarSign, Users, AlignLeft, AlertCircle, Check, RefreshCw, BookOpen } from 'lucide-react';
-import { getHoyISO } from '../../lib/dateUtils';
+import { getHoyISO, validarFechaMovimientoFinanciero } from '../../lib/dateUtils';
 
 const fmtMonto = (n: number) =>
   n.toLocaleString('es-BO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -111,6 +111,10 @@ const ModalSaldoInicialCxP: React.FC<Props> = ({ visible, onCerrar, onCreado, ed
       if (!ctx) throw new Error('Error de contexto.');
 
       const esAnticipo = naturalezaSaldo === 'anticipo';
+      if (esAnticipo) {
+        const errorFecha = validarFechaMovimientoFinanciero(fecha);
+        if (errorFecha) { setError(errorFecha); setGuardando(false); return; }
+      }
 
       // 1. Crear registro en cuentas_pagar (sin cuenta_contable_id)
       const { data: nuevaCxp, error: errCxp } = await supabase.from('cuentas_pagar').insert({

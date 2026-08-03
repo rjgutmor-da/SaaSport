@@ -8,7 +8,7 @@ import { supabase } from '../../lib/supabaseClient';
 import type { AlumnoDeuda, CuentaCobrar } from '../../types/cxc';
 import type { CajaBanco } from '../../types/finanzas';
 import { X, CreditCard, AlertCircle, Check, MessageCircle, Users, FileText, RefreshCw, DollarSign, Building2, Info, Calendar, Hash, Clock } from 'lucide-react';
-import { getHoyISO, getHoraLocal } from '../../lib/dateUtils';
+import { getHoyISO, getHoraLocal, FECHA_MINIMA_MOVIMIENTO_FINANCIERO, validarFechaMovimientoFinanciero } from '../../lib/dateUtils';
 import { useCobroMultiple } from './useCobroMultiple';
 import type { CatalogoItem } from '../../types/cuentas';
 import { confirmarMovimientoEnPeriodoConciliado } from '../../lib/conciliacion';
@@ -154,6 +154,8 @@ const ModalCobroRapido: React.FC<Props> = ({ alumnoInicial, visible, onCerrar, o
       return;
     }
     if (!cuentaId) { setError('Selecciona la caja/banco destino.'); return; }
+    const errorFecha = validarFechaMovimientoFinanciero(fecha);
+    if (errorFecha) { setError(errorFecha); return; }
 
     setGuardando(true); setError(null); setInfoAnticipo(null);
 
@@ -602,7 +604,7 @@ const ModalCobroRapido: React.FC<Props> = ({ alumnoInicial, visible, onCerrar, o
 
                     <div className="form-campo">
                       <label><Calendar size={14} /> Fecha *</label>
-                      <input type="date" value={fecha} onChange={e => setFecha(e.target.value)} required disabled={guardando} />
+                      <input type="date" value={fecha} min={FECHA_MINIMA_MOVIMIENTO_FINANCIERO} onChange={e => setFecha(e.target.value)} required disabled={guardando} />
                     </div>
 
 

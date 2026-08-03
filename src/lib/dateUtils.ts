@@ -24,6 +24,22 @@ export const getHoraLocal = (): string => {
   return `${hh}:${mm}`;
 };
 
+/** Fecha mínima permitida para cualquier movimiento financiero. */
+export const FECHA_MINIMA_MOVIMIENTO_FINANCIERO = '2020-01-01';
+
+/**
+ * Valida fechas de cobros, pagos, ingresos, egresos y transferencias.
+ * No debe usarse para fecha_nacimiento ni fecha_inicio del alumno.
+ */
+export const validarFechaMovimientoFinanciero = (fecha: string | null | undefined): string | null => {
+  const fechaSoloDia = String(fecha || '').slice(0, 10);
+  if (!fechaSoloDia) return 'Debe seleccionar una fecha.';
+  if (fechaSoloDia < FECHA_MINIMA_MOVIMIENTO_FINANCIERO) {
+    return 'La fecha del movimiento financiero no puede ser anterior al 01/01/2020.';
+  }
+  return null;
+};
+
 /**
  * Calcula el mes estadistico desde la fecha de inicio de un ciclo.
  * Del dia 1 al 16 usa el mes de inicio; desde el 17 usa el mes siguiente.

@@ -6,7 +6,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import { X, Pencil, DollarSign, Calendar, Hash, AlignLeft, Building2, AlertCircle, Save, RefreshCw, Check, Clock } from 'lucide-react';
-import { getHoyISO, getHoraLocal, buildTimestampLocal } from '../../lib/dateUtils';
+import { getHoyISO, getHoraLocal, buildTimestampLocal, FECHA_MINIMA_MOVIMIENTO_FINANCIERO, validarFechaMovimientoFinanciero } from '../../lib/dateUtils';
 import type { CajaBanco } from '../../types/finanzas';
 import { type MovimientoFinanciero } from '../../hooks/useFinanzas';
 
@@ -73,7 +73,8 @@ const ModalEditarMovimiento: React.FC<Props> = ({ visible, movimiento, cajas, on
 
     const valorMonto = parseFloat(monto);
     if (isNaN(valorMonto) || valorMonto <= 0) { setError('Ingrese un monto válido mayor a 0.'); return; }
-    if (!fecha) { setError('Debe seleccionar una fecha.'); return; }
+    const errorFecha = validarFechaMovimientoFinanciero(fecha);
+    if (errorFecha) { setError(errorFecha); return; }
     if (!descripcion.trim()) { setError('Ingrese una descripción.'); return; }
     setGuardando(true);
 
@@ -159,7 +160,7 @@ const ModalEditarMovimiento: React.FC<Props> = ({ visible, movimiento, cajas, on
             {/* Fecha */}
             <div className="form-campo">
               <label><Calendar size={14} /> Fecha *</label>
-              <input type="date" value={fecha} onChange={e => setFecha(e.target.value)} required disabled={guardando} />
+              <input type="date" value={fecha} min={FECHA_MINIMA_MOVIMIENTO_FINANCIERO} onChange={e => setFecha(e.target.value)} required disabled={guardando} />
             </div>
 
 

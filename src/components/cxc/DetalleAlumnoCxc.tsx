@@ -18,7 +18,7 @@ import ModalVerNotaCxC from './ModalVerNotaCxC';
 import ModalEditarMovimiento from '../cajas-bancos/ModalEditarMovimiento';
 import ModalDetalleMovimiento from '../cajas-bancos/ModalDetalleMovimiento';
 import FichaAnticiposCxC from './FichaAnticiposCxC';
-import { getHoraLocal, getHoyISO, formatFecha, formatFechaCorta, ordenarMesesCalendario, formatCicloMensualidad, formatearMesCorto } from '../../lib/dateUtils';
+import { getHoraLocal, getHoyISO, formatFecha, formatFechaCorta, ordenarMesesCalendario, formatCicloMensualidad, formatearMesCorto, FECHA_MINIMA_MOVIMIENTO_FINANCIERO, validarFechaMovimientoFinanciero } from '../../lib/dateUtils';
 import { useCobroMultiple } from './useCobroMultiple';
 import { can } from '../../config/roles';
 import { esObservacionAnticipoAutomatica } from '../../lib/cxcUtils';
@@ -233,6 +233,8 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
       return; 
     }
     if (!usarAnticipo && !cobroCuentaId) { setCobroError('Selecciona la caja/banco destino.'); return; }
+    const errorFecha = validarFechaMovimientoFinanciero(cobroFecha);
+    if (errorFecha) { setCobroError(errorFecha); return; }
 
     setGuardandoCobro(true);
     try {
@@ -437,6 +439,8 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
       setDevolucionError('Selecciona la caja/banco de origen.'); 
       return; 
     }
+    const errorFecha = validarFechaMovimientoFinanciero(devolucionFecha);
+    if (errorFecha) { setDevolucionError(errorFecha); return; }
 
     const cxcActual = cxcs.find(c => c.id === devolucionCxcId);
     if (!cxcActual) throw new Error('No se encontró la deuda.');
@@ -900,7 +904,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                           {cuentasCobro.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
                         </select>
                         <input type="text" value={cobroNroDoc} onChange={e => setCobroNroDoc(e.target.value)} placeholder="Nro Transacción" style={{ width: '100%' }} className="detalle-cobro-input" />
-                        <input type="date" value={cobroFecha} onChange={e => setCobroFecha(e.target.value)} className="detalle-cobro-input" style={{ width: '100%' }} />
+                        <input type="date" value={cobroFecha} min={FECHA_MINIMA_MOVIMIENTO_FINANCIERO} onChange={e => setCobroFecha(e.target.value)} className="detalle-cobro-input" style={{ width: '100%' }} />
                         <div style={{ display: 'flex', gap: '0.5rem' }}>
                           <button type="submit" disabled={guardandoCobro || cobroMultiple.obtenerTotalCobrado() <= 0} className="btn-guardar-cuenta" style={{ flex: 1, padding: '0.6rem 1rem', background: '#10b981', fontWeight: 700 }}>
                             {guardandoCobro ? '...' : `Cobrar Bs ${fmtMonto(cobroMultiple.obtenerTotalCobrado())}`}
@@ -1042,7 +1046,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                                   {cuentasCobro.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
                                 </select>
                                 <input type="text" value={cobroNroDoc} onChange={e => setCobroNroDoc(e.target.value)} placeholder="Nro Transacción" style={{ width: '130px' }} className="detalle-cobro-input" />
-                                <input type="date" value={cobroFecha} onChange={e => setCobroFecha(e.target.value)} className="detalle-cobro-input" style={{ width: '160px' }} />
+                                <input type="date" value={cobroFecha} min={FECHA_MINIMA_MOVIMIENTO_FINANCIERO} onChange={e => setCobroFecha(e.target.value)} className="detalle-cobro-input" style={{ width: '160px' }} />
                                 <button type="submit" disabled={guardandoCobro || cobroMultiple.obtenerTotalCobrado() <= 0} className="btn-guardar-cuenta" style={{ width: 'auto', padding: '0.55rem 1.25rem', background: '#10b981', fontWeight: 700 }}>
                                   {guardandoCobro ? '...' : 'Registrar Cobro'}
                                 </button>
@@ -1283,7 +1287,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                                     style={{ width: '100px' }}
                                     className="detalle-cobro-input"
                                   />
-                                  <input type="date" value={cobroFecha} onChange={e => setCobroFecha(e.target.value)} className="detalle-cobro-input" style={{ width: '160px' }} />
+                                  <input type="date" value={cobroFecha} min={FECHA_MINIMA_MOVIMIENTO_FINANCIERO} onChange={e => setCobroFecha(e.target.value)} className="detalle-cobro-input" style={{ width: '160px' }} />
                                   <button type="submit" disabled={guardandoCobro} className="btn-guardar-cuenta" style={{ width: 'auto', padding: '0.5rem 1rem' }}>{guardandoCobro ? '...' : 'Cobrar'}</button>
                                   <button type="button" onClick={cerrarCobro} className="btn-refrescar" style={{ width: 'auto', padding: '0.5rem' }}>Cancelar</button>
                                 </div>
@@ -1346,7 +1350,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                                     style={{ width: '100px' }}
                                     className="detalle-cobro-input"
                                   />
-                                  <input type="date" value={devolucionFecha} onChange={e => setDevolucionFecha(e.target.value)} className="detalle-cobro-input" style={{ width: '160px' }} />
+                                  <input type="date" value={devolucionFecha} min={FECHA_MINIMA_MOVIMIENTO_FINANCIERO} onChange={e => setDevolucionFecha(e.target.value)} className="detalle-cobro-input" style={{ width: '160px' }} />
                                   <button type="submit" disabled={guardandoDevolucion} className="btn-guardar-cuenta" style={{ width: 'auto', padding: '0.5rem 1rem', background: '#f97316', borderColor: '#f97316' }}>
                                     {guardandoDevolucion ? '...' : 'Devolver'}
                                   </button>

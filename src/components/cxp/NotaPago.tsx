@@ -10,7 +10,7 @@ import {
   X, Plus, Check, Trash2, AlertCircle, CreditCard, Package,
   Users, FileText, Calendar, RefreshCw, Hash
 } from 'lucide-react';
-import { getHoyISO } from '../../lib/dateUtils';
+import { getHoyISO, FECHA_MINIMA_MOVIMIENTO_FINANCIERO, validarFechaMovimientoFinanciero } from '../../lib/dateUtils';
 import { logActivity } from '../../lib/auditLogger';
 
 interface LineaNotaPago {
@@ -172,6 +172,11 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, esAnticipo = false, o
       const lineasValidas = lineas.filter(l => l.catalogo_item_id && l.precio_unitario >= 0 && l.cantidad > 0);
       if (lineasValidas.length === 0) { setError('Agrega al menos un ítem válido.'); return; }
       if (pagarAlCrear && (!montoPago || !cuentaPagoId)) { setError('Completa los datos del pago.'); return; }
+    }
+
+    if (pagarAlCrear) {
+      const errorFechaPago = validarFechaMovimientoFinanciero(fechaPago);
+      if (errorFechaPago) { setError(errorFechaPago); return; }
     }
 
     if (pagarAlCrear && fechaPago < fechaEmision) {
@@ -460,7 +465,7 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, esAnticipo = false, o
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.75rem' }}>
                   <div className="form-campo">
                     <label>Fecha Pago</label>
-                    <input type="date" value={fechaPago} onChange={e => setFechaPago(e.target.value)} required />
+                    <input type="date" value={fechaPago} min={FECHA_MINIMA_MOVIMIENTO_FINANCIERO} onChange={e => setFechaPago(e.target.value)} required />
                   </div>
                   <div className="form-campo">
                     <label>Monto</label>

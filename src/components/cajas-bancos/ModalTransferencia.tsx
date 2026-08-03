@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import { X, ArrowRightLeft, DollarSign, Calendar, Hash, AlignLeft, Building2, AlertCircle, Save, RefreshCw, Clock } from 'lucide-react';
-import { getHoyISO, getHoraLocal, buildTimestampLocal } from '../../lib/dateUtils';
+import { getHoyISO, getHoraLocal, buildTimestampLocal, FECHA_MINIMA_MOVIMIENTO_FINANCIERO, validarFechaMovimientoFinanciero } from '../../lib/dateUtils';
 import type { CajaBanco } from '../../types/finanzas';
 import { confirmarMovimientoEnPeriodoConciliado } from '../../lib/conciliacion';
 
@@ -52,7 +52,8 @@ const ModalTransferencia: React.FC<Props> = ({ visible, cajas, onCerrar, onCread
     
     const valorMonto = parseFloat(monto);
     if (isNaN(valorMonto) || valorMonto <= 0) return setError('Ingrese un monto válido mayor a 0.');
-    if (!fecha) return setError('Debe seleccionar una fecha.');
+    const errorFecha = validarFechaMovimientoFinanciero(fecha);
+    if (errorFecha) return setError(errorFecha);
 
     setGuardando(true);
 
@@ -222,6 +223,7 @@ const ModalTransferencia: React.FC<Props> = ({ visible, cajas, onCerrar, onCread
               <input 
                 type="date" 
                 value={fecha} 
+                min={FECHA_MINIMA_MOVIMIENTO_FINANCIERO}
                 onChange={e => handleInputChange(setFecha, e.target.value)} 
                 required 
                 disabled={guardando} 

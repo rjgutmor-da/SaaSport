@@ -8,7 +8,7 @@ import React, { useState, useEffect } from 'react';
 import ReactDOM from 'react-dom';
 import { X, Check, AlertCircle, DollarSign, RefreshCw } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
-import { getHoraLocal, buildTimestampLocal } from '../../lib/dateUtils';
+import { getHoraLocal, buildTimestampLocal, FECHA_MINIMA_MOVIMIENTO_FINANCIERO, validarFechaMovimientoFinanciero } from '../../lib/dateUtils';
 import type { CajaBanco } from '../../types/finanzas';
 
 interface Props {
@@ -68,8 +68,9 @@ const ModalEditarCobroCxC: React.FC<Props> = ({ visible, cobro, cajas, fechaEmis
       setError('Ingrese un monto válido mayor a 0.');
       return;
     }
-    if (!fecha) {
-      setError('Seleccione una fecha.');
+    const errorFecha = validarFechaMovimientoFinanciero(fecha);
+    if (errorFecha) {
+      setError(errorFecha);
       return;
     }
     if (fechaEmisionNota) {
@@ -181,6 +182,7 @@ const ModalEditarCobroCxC: React.FC<Props> = ({ visible, cobro, cajas, fechaEmis
               <input
                 type="date"
                 value={fecha}
+                min={FECHA_MINIMA_MOVIMIENTO_FINANCIERO}
                 onChange={e => setFecha(e.target.value)}
                 onClick={e => e.stopPropagation()}
                 disabled={guardando}

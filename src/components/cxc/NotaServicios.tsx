@@ -16,6 +16,8 @@ import {
   formatPeriodoEstadistico,
   getHoyISO,
   getHoraLocal,
+  FECHA_MINIMA_MOVIMIENTO_FINANCIERO,
+  validarFechaMovimientoFinanciero,
 } from '../../lib/dateUtils';
 import { useAuthSaaSport } from '../../lib/authHelper';
 import { useConfiguracionFacturacion } from '../../hooks/useConfiguracionFacturacion';
@@ -457,6 +459,11 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
     }
 
     // Validar que la fecha del pago no sea menor a la de emisión de la nota de servicio
+    if (pagarAlCrear) {
+      const errorFechaPago = validarFechaMovimientoFinanciero(fechaPago);
+      if (errorFechaPago) { setError(errorFechaPago); return; }
+    }
+
     if (pagarAlCrear && fechaPago < fechaEmision) {
       setError('La fecha de pago no puede ser anterior a la fecha de emisión de la Nota de Servicio.');
       return;
@@ -649,6 +656,8 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
       // 3. Actualizar cobros existentes modificados (solo en edición)
       if (cxcEditar?.id && cobrosExistentes.length > 0) {
         for (const cobro of cobrosExistentes.filter(c => c.modificado && !c.conciliado)) {
+          const errorFechaCobro = validarFechaMovimientoFinanciero(cobro.fecha_editada);
+          if (errorFechaCobro) throw new Error(errorFechaCobro);
           const horaOriginal = cobro.fecha.includes('T') ? cobro.fecha.split('T')[1] : '12:00:00';
           const { data: rpcData, error: rpcEditErr } = await supabase.rpc('rpc_editar_movimiento_simple', {
             p_payload: {
@@ -1131,6 +1140,7 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
                               <input
                                 type="date"
                                 value={cobro.fecha_editada}
+                                min={FECHA_MINIMA_MOVIMIENTO_FINANCIERO}
                                 onChange={e => {
                                   const val = e.target.value;
                                   const nuevos = [...cobrosExistentes];
@@ -1224,7 +1234,7 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
                   </div>
                   <div className="form-campo">
                     <label>Fecha de Pago</label>
-                    <input type="date" value={fechaPago} onChange={e => setFechaPago(e.target.value)} required />
+                    <input type="date" value={fechaPago} min={FECHA_MINIMA_MOVIMIENTO_FINANCIERO} onChange={e => setFechaPago(e.target.value)} required />
                   </div>
                 </div>
               )}

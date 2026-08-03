@@ -3,7 +3,7 @@ import { supabase } from '../../lib/supabaseClient';
 import type { CajaBanco } from '../../types/finanzas';
 import type { EntidadCxP } from '../../types/cxp';
 import { X, CreditCard, AlertCircle, Check, FileText, Users, RefreshCw, DollarSign, Building2, Hash, Calendar, Clock } from 'lucide-react';
-import { getHoyISO, getHoraLocal } from '../../lib/dateUtils';
+import { getHoyISO, getHoraLocal, FECHA_MINIMA_MOVIMIENTO_FINANCIERO, validarFechaMovimientoFinanciero } from '../../lib/dateUtils';
 import type { CatalogoItem } from '../../types/cuentas';
 import { confirmarMovimientoEnPeriodoConciliado } from '../../lib/conciliacion';
 
@@ -122,6 +122,8 @@ const ModalPagoRapidoCxP: React.FC<Props> = ({ entidadInicial, entidades, visibl
     const montoNum = parseFloat(monto);
     if (!montoNum || montoNum <= 0) { setError('Monto inválido.'); return; }
     if (!cuentaId) { setError('Selecciona la cuenta de salida (caja/banco).'); return; }
+    const errorFecha = validarFechaMovimientoFinanciero(fechaPago);
+    if (errorFecha) { setError(errorFecha); return; }
 
     if (cxpSelId !== 'anticipo') {
       const cxp = cxpsPendientes.find(c => c.id === cxpSelId);
@@ -326,7 +328,7 @@ const ModalPagoRapidoCxP: React.FC<Props> = ({ entidadInicial, entidades, visibl
 
                 <div className="form-campo">
                   <label><Calendar size={14} /> Fecha de Pago *</label>
-                  <input type="date" value={fechaPago} onChange={e => setFechaPago(e.target.value)} required disabled={guardando} />
+                  <input type="date" value={fechaPago} min={FECHA_MINIMA_MOVIMIENTO_FINANCIERO} onChange={e => setFechaPago(e.target.value)} required disabled={guardando} />
                 </div>
 
 

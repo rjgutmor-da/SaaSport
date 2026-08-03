@@ -11,7 +11,7 @@ import {
   X, DollarSign, Calendar, RefreshCw,
   AlertCircle, Check, CreditCard, CheckCircle2, Hash, Building2, Pencil, Trash2
 } from 'lucide-react';
-import { formatFecha, getHoyISO, getHoraLocal } from '../../lib/dateUtils';
+import { formatFecha, getHoyISO, getHoraLocal, FECHA_MINIMA_MOVIMIENTO_FINANCIERO, validarFechaMovimientoFinanciero } from '../../lib/dateUtils';
 import ModalEditarPagoCxP from './ModalEditarPagoCxP';
 import ModalEditarItemCxP from './ModalEditarItemCxP';
 import ModalEditarCabeceraCxP from './ModalEditarCabeceraCxP';
@@ -192,6 +192,8 @@ const DetalleCxP: React.FC<Props> = ({ nota, visible, onCerrar, onActualizar }) 
     const mp = parseFloat(montoPago);
     if (!mp || mp <= 0) { setErrorPago('Monto inválido.'); return; }
     if (!usarAnticipo && !cuentaPagoId) { setErrorPago('Selecciona la caja/banco de pago.'); return; }
+    const errorFecha = validarFechaMovimientoFinanciero(fechaPago);
+    if (errorFecha) { setErrorPago(errorFecha); return; }
     if (mp > notaActual.deuda_restante) { setErrorPago(`El monto supera la deuda restante de Bs ${fmtMonto(notaActual.deuda_restante)}.`); return; }
 
     const fNotaSoloFecha = notaActual.fecha_emision ? notaActual.fecha_emision.split('T')[0] : '';
@@ -575,6 +577,7 @@ const DetalleCxP: React.FC<Props> = ({ nota, visible, onCerrar, onActualizar }) 
                     <input 
                       type="date" 
                       value={fechaPago} 
+                      min={FECHA_MINIMA_MOVIMIENTO_FINANCIERO}
                       onChange={e => setFechaPago(e.target.value)} 
                       className="nota-pago-input" 
                       disabled={registrandoPago} 

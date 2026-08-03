@@ -14,7 +14,7 @@ import {
   User, Clock, Plus
 } from 'lucide-react';
 import { useIsMobile } from '../../hooks/useIsMobile';
-import { formatFecha, getHoyISO, getHoraLocal } from '../../lib/dateUtils';
+import { formatFecha, getHoyISO, getHoraLocal, FECHA_MINIMA_MOVIMIENTO_FINANCIERO, validarFechaMovimientoFinanciero } from '../../lib/dateUtils';
 import { usePagoMultiple } from './usePagoMultiple';
 import NotaPago from './NotaPago';
 import DetalleCxP from './DetalleCxP';
@@ -200,6 +200,8 @@ const DetalleProveedorCxP: React.FC<Props> = ({ entidad, visible, onCerrar, onAc
 
     const pagosPayload = pagoMultiple.generarPayloadPagos();
     const pFechaStr = pagoFecha || getHoyISO();
+    const errorFecha = validarFechaMovimientoFinanciero(pFechaStr);
+    if (errorFecha) { setPagoError(errorFecha); return; }
     for (const p of pagosPayload) {
       const matchingNota = notas.find(n => n.id === p.cuenta_pagar_id);
       if (matchingNota) {
@@ -503,7 +505,7 @@ const DetalleProveedorCxP: React.FC<Props> = ({ entidad, visible, onCerrar, onAc
                   {cajasBancos.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
                 </select>
                 <input type="text" value={pagoNroDoc} onChange={e => setPagoNroDoc(e.target.value)} placeholder="Nro Transacción" style={{ width: '100%' }} className="detalle-cobro-input" />
-                <input type="date" value={pagoFecha} onChange={e => setPagoFecha(e.target.value)} className="detalle-cobro-input" style={{ width: '100%' }} />
+                <input type="date" value={pagoFecha} min={FECHA_MINIMA_MOVIMIENTO_FINANCIERO} onChange={e => setPagoFecha(e.target.value)} className="detalle-cobro-input" style={{ width: '100%' }} />
                 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', background: 'var(--bg-main)', padding: '0.5rem', borderRadius: '6px', border: '1px solid var(--border)', maxHeight: '150px', overflowY: 'auto' }}>
                   {[...notas].filter(n => !(n as any).anulada && Number(n.deuda_restante) > 0 && !n.es_anticipo).sort((a, b) => new Date(a.fecha_emision || a.created_at).getTime() - new Date(b.fecha_emision || b.created_at).getTime()).map(nota => {
@@ -669,7 +671,7 @@ const DetalleProveedorCxP: React.FC<Props> = ({ entidad, visible, onCerrar, onAc
                                 {cajasBancos.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
                               </select>
                               <input type="text" value={pagoNroDoc} onChange={e => setPagoNroDoc(e.target.value)} placeholder="Nro Transacción" style={{ width: '130px' }} className="detalle-cobro-input" />
-                              <input type="date" value={pagoFecha} onChange={e => setPagoFecha(e.target.value)} className="detalle-cobro-input" style={{ width: '160px' }} />
+                              <input type="date" value={pagoFecha} min={FECHA_MINIMA_MOVIMIENTO_FINANCIERO} onChange={e => setPagoFecha(e.target.value)} className="detalle-cobro-input" style={{ width: '160px' }} />
                               <button type="submit" disabled={guardandoPago || pagoMultiple.obtenerTotalPagado() <= 0} className="btn-guardar-cuenta" style={{ width: 'auto', padding: '0.55rem 1.25rem', background: '#10b981', fontWeight: 700 }}>
                                 {guardandoPago ? '...' : 'Registrar Pago'}
                               </button>
