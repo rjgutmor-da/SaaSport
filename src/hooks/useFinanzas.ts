@@ -455,7 +455,7 @@ const fetchMovimientos = async (
       let queryCobros = supabase.from('cobros_aplicados').select(`
         *,
         cuentas_cobrar (
-          id, descripcion, nro_recibo, es_anticipo, ciclo_inicio, ciclo_fin,
+          id, descripcion, nro_recibo, es_anticipo, es_ingreso_directo, ciclo_inicio, ciclo_fin,
           alumnos ( nombres, apellidos, telefono_padre, telefono_madre, whatsapp_preferido ),
           cxc_detalle (
             cantidad,
@@ -505,9 +505,11 @@ const fetchMovimientos = async (
       cobrosRes.data.forEach((c: any) => {
         const monto = Number(c.monto_aplicado) || 0;
         const items = c.cuentas_cobrar?.cxc_detalle?.map((d: any) => d.catalogo_items?.nombre).filter(Boolean);
-        const esIngresoDirectoSinDetalle = !c.cuentas_cobrar?.alumnos
+        const esIngresoDirecto = c.cuentas_cobrar?.es_ingreso_directo === true
+          || (!c.cuentas_cobrar?.alumnos
           && !c.cuentas_cobrar?.descripcion?.startsWith('[INGRESO TRF]')
-          && (!items || items.length === 0);
+          && (!items || items.length === 0));
+        const esIngresoDirectoSinDetalle = esIngresoDirecto && (!items || items.length === 0);
         movsCaja.push({
           id: c.id,
           tipo_origen: 'cobro',
@@ -521,7 +523,7 @@ const fetchMovimientos = async (
           // su descripción; debe mostrarse como Alumno / Proveedor.
           cliente: c.cuentas_cobrar?.alumnos
             ? `${c.cuentas_cobrar.alumnos.nombres} ${c.cuentas_cobrar.alumnos.apellidos}`
-            : (esIngresoDirectoSinDetalle ? c.cuentas_cobrar?.descripcion || '—' : '—'),
+            : (esIngresoDirecto ? c.cuentas_cobrar?.descripcion || '—' : '—'),
           cuenta_id: c.caja_id,
           cuenta_nombre: (() => {
             if (c.cuentas_cobrar?.descripcion?.startsWith('[INGRESO TRF]')) {
@@ -538,7 +540,7 @@ const fetchMovimientos = async (
             return Array.from(new Set(items)).join(', ');
           })(),
           conciliado: c.conciliado || false,
-          es_movimiento_directo: esIngresoDirectoSinDetalle,
+          es_movimiento_directo: esIngresoDirecto,
            cuenta_maestra_id: c.cuentas_cobrar?.id,
           alumno_raw: c.cuentas_cobrar?.alumnos || null,
           detalles_cxc: c.cuentas_cobrar?.cxc_detalle || [],

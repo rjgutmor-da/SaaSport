@@ -118,6 +118,7 @@ const ModalMovimientoDirecto: React.FC<Props> = ({ visible, tipo, cajas, onCerra
           escuela_id: escuelaId,
           monto_total: valorMonto,
           estado: 'pagada',
+          es_ingreso_directo: true,
           descripcion: descripcion,
           nro_recibo: nroTransaccion.trim() || null,
           fecha_emision: fecha
@@ -126,13 +127,14 @@ const ModalMovimientoDirecto: React.FC<Props> = ({ visible, tipo, cajas, onCerra
         if (errCxC || !cxc) throw new Error('Error al registrar la cuenta por cobrar: ' + errCxC?.message);
 
         // Detalle del ítem
-        await supabase.from('cxc_detalle').insert({
+        const { error: errDetalle } = await supabase.from('cxc_detalle').insert({
           escuela_id: escuelaId,
           cuenta_cobrar_id: cxc.id,
           catalogo_item_id: contraCuentaId,
           cantidad: 1,
           precio_unitario: valorMonto
         });
+        if (errDetalle) throw new Error('Error al registrar el concepto del ingreso: ' + errDetalle.message);
 
         // Aplicar cobro a caja
         await supabase.from('cobros_aplicados').insert({
@@ -158,13 +160,14 @@ const ModalMovimientoDirecto: React.FC<Props> = ({ visible, tipo, cajas, onCerra
         if (errCxP || !cxp) throw new Error('Error al registrar la cuenta por pagar: ' + errCxP?.message);
 
         // Detalle del ítem
-        await supabase.from('cxp_detalle').insert({
+        const { error: errDetalle } = await supabase.from('cxp_detalle').insert({
           escuela_id: escuelaId,
           cuenta_pagar_id: cxp.id,
           catalogo_item_id: contraCuentaId,
           cantidad: 1,
           precio_unitario: valorMonto
         });
+        if (errDetalle) throw new Error('Error al registrar el concepto de la salida: ' + errDetalle.message);
 
         // Aplicar pago de caja
         await supabase.from('pagos_aplicados').insert({
