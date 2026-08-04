@@ -25,6 +25,8 @@ dist-ssr
 
 .vercel
 .env*.local
+.env.admin
+.env*.admin
 .env
 
 # Scripts utilitarios con datos sensibles
