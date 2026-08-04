@@ -43,6 +43,7 @@ export interface MovimientoFinanciero {
   detalles_cxc?: any[];
   ciclo_inicio?: string | null;
   ciclo_fin?: string | null;
+  es_movimiento_directo?: boolean;
 }
 
 // --- Resúmenes (Fase 1: Cálculos en DB) ---
@@ -503,6 +504,10 @@ const fetchMovimientos = async (
       // Mapear cobros
       cobrosRes.data.forEach((c: any) => {
         const monto = Number(c.monto_aplicado) || 0;
+        const items = c.cuentas_cobrar?.cxc_detalle?.map((d: any) => d.catalogo_items?.nombre).filter(Boolean);
+        const esIngresoDirectoSinDetalle = !c.cuentas_cobrar?.alumnos
+          && !c.cuentas_cobrar?.descripcion?.startsWith('[INGRESO TRF]')
+          && (!items || items.length === 0);
         movsCaja.push({
           id: c.id,
           tipo_origen: 'cobro',
@@ -512,7 +517,11 @@ const fetchMovimientos = async (
           created_at: c.created_at,
           descripcion: c.cuentas_cobrar?.descripcion || 'Cobro / Ingreso',
           nro_transaccion: c.documento_referencia || c.cuentas_cobrar?.nro_recibo || '',
-          cliente: c.cuentas_cobrar?.alumnos ? `${c.cuentas_cobrar.alumnos.nombres} ${c.cuentas_cobrar.alumnos.apellidos}` : '—',
+          // Los ingresos directos antiguos sin detalle identifican el origen en
+          // su descripción; debe mostrarse como Alumno / Proveedor.
+          cliente: c.cuentas_cobrar?.alumnos
+            ? `${c.cuentas_cobrar.alumnos.nombres} ${c.cuentas_cobrar.alumnos.apellidos}`
+            : (esIngresoDirectoSinDetalle ? c.cuentas_cobrar?.descripcion || '—' : '—'),
           cuenta_id: c.caja_id,
           cuenta_nombre: (() => {
             if (c.cuentas_cobrar?.descripcion?.startsWith('[INGRESO TRF]')) {
@@ -523,13 +532,13 @@ const fetchMovimientos = async (
               if (items && items.length > 0) return Array.from(new Set(items)).join(', ');
               return c.cuentas_cobrar?.descripcion || 'Anticipo';
             }
-            const items = c.cuentas_cobrar?.cxc_detalle?.map((d: any) => d.catalogo_items?.nombre).filter(Boolean);
             if (!items || items.length === 0) {
-              return c.cuentas_cobrar?.descripcion || 'Concepto no especificado';
+              return esIngresoDirectoSinDetalle ? 'Ingreso directo' : (c.cuentas_cobrar?.descripcion || 'Concepto no especificado');
             }
             return Array.from(new Set(items)).join(', ');
           })(),
           conciliado: c.conciliado || false,
+          es_movimiento_directo: esIngresoDirectoSinDetalle,
            cuenta_maestra_id: c.cuentas_cobrar?.id,
           alumno_raw: c.cuentas_cobrar?.alumnos || null,
           detalles_cxc: c.cuentas_cobrar?.cxc_detalle || [],

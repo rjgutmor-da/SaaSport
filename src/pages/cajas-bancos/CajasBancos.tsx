@@ -236,7 +236,7 @@ const CajasBancos: React.FC = () => {
       
       // Alumno / Proveedor
       const cliente = obtenerCliente(mov.cliente);
-      let desc = mov.descripcion?.trim() || '';
+      let desc = mov.es_movimiento_directo ? '' : (mov.descripcion?.trim() || '');
       desc = desc.replace(/^\[(INGRESO|EGRESO) TRF\]\s*/i, '');
       const cuentaTrim = mov.cuenta_nombre?.trim() || '';
       if (desc === cuentaTrim) desc = '';
@@ -1454,7 +1454,7 @@ const CajasBancos: React.FC = () => {
                                 <td className="cxc-td" style={{ maxWidth: '245px' }}>
                                   {(() => {
                                     const cliente = obtenerCliente(mov.cliente);
-                                    let desc = mov.descripcion?.trim() || '';
+                                    let desc = mov.es_movimiento_directo ? '' : (mov.descripcion?.trim() || '');
                                     
                                     // Limpiar prefijo de transferencia si existe
                                     desc = desc.replace(/^\[(INGRESO|EGRESO) TRF\]\s*/i, '');
