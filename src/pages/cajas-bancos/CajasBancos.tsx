@@ -563,27 +563,6 @@ const CajasBancos: React.FC = () => {
           console.warn('La API Clipboard falló o el navegador tiene restricciones en HTTP/contexto seguro. Copia no disponible.', clipboardErr);
         }
 
-        // 2. Generar JPEG comprimido y liviano para descargar en local
-        const jpegBlob = await toBlob(element, { 
-          type: 'image/jpeg', 
-          quality: 0.85, 
-          cacheBust: true 
-        });
-
-        if (jpegBlob) {
-          const docId = mov.nro_transaccion || mov.id;
-          const fileName = `recibo_${docId.replace(/\s+/g, '_')}.jpg`;
-          
-          // Forzar descarga del JPG ligero
-          const link = document.createElement('a');
-          link.href = URL.createObjectURL(jpegBlob);
-          link.download = fileName;
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-          URL.revokeObjectURL(link.href);
-        }
-
         // 3. Determinar teléfono de contacto de WhatsApp
         let telFinal = '';
         if (mov.alumno_raw) {
@@ -591,15 +570,16 @@ const CajasBancos: React.FC = () => {
           const esPadre = al.whatsapp_preferido === 'padre';
           const telefono = esPadre ? (al.telefono_padre || al.telefono_madre) : (al.telefono_madre || al.telefono_padre);
           if (telefono) {
-            telFinal = telefono.replace(/\D/g, '');
+            const telLimpio = telefono.replace(/\D/g, '');
+            telFinal = telLimpio.length === 8 ? `591${telLimpio}` : telLimpio;
           }
         }
 
         // 4. Mostrar feedback al usuario
         if (copiadoExitoso) {
-          alert('¡Recibo copiado al portapapeles y descargado localmente! Ya puedes ir al chat de WhatsApp y simplemente pegarlo (Ctrl+V) para enviarlo.');
+          alert('¡Recibo copiado al portapapeles! Ya puedes ir al chat de WhatsApp y simplemente pegarlo (Ctrl+V) para enviarlo.');
         } else {
-          alert('¡Recibo descargado localmente! Ve al chat de WhatsApp y arrastra la imagen descargada para enviarla.');
+          alert('No se pudo copiar el recibo al portapapeles automáticamente. Asegúrate de otorgar permisos de portapapeles en tu navegador.');
         }
 
         // 5. Redirigir/abrir WhatsApp Web o App

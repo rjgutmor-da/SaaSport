@@ -401,7 +401,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
       const telefono = esPadre ? (alumno.telefono_padre || alumno.telefono_madre) : (alumno.telefono_madre || alumno.telefono_padre);
       if (telefono) {
           const telLimpio = telefono.replace(/\D/g, '');
-          const telFinal = telLimpio.startsWith('591') ? telLimpio : `591${telLimpio}`;
+          const telFinal = telLimpio.length === 8 ? `591${telLimpio}` : telLimpio;
           setMensajePagoWA({ texto: `Gracias por el pago de Bs ${fmtMonto(monto)}.`, telefono: telFinal });
       }
 
@@ -663,7 +663,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                 }
                 if (!telefono) return null;
                 const telLimpio = telefono.replace(/\D/g, '');
-                const telFinal = telLimpio.startsWith('591') ? telLimpio : `591${telLimpio}`;
+                const telFinal = telLimpio.length === 8 ? `591${telLimpio}` : telLimpio;
                 const url = `https://wa.me/${telFinal}`;
                 return (
                   <a

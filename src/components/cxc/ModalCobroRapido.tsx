@@ -7,7 +7,7 @@ import React, { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import type { AlumnoDeuda, CuentaCobrar } from '../../types/cxc';
 import type { CajaBanco } from '../../types/finanzas';
-import { X, CreditCard, AlertCircle, Check, MessageCircle, Users, FileText, RefreshCw, DollarSign, Building2, Info, Calendar, Hash, Clock } from 'lucide-react';
+import { X, CreditCard, AlertCircle, Check, Users, FileText, RefreshCw, DollarSign, Building2, Info, Calendar, Hash, Clock } from 'lucide-react';
 import { getHoyISO, getHoraLocal, FECHA_MINIMA_MOVIMIENTO_FINANCIERO, validarFechaMovimientoFinanciero } from '../../lib/dateUtils';
 import { useCobroMultiple } from './useCobroMultiple';
 import type { CatalogoItem } from '../../types/cuentas';
@@ -44,14 +44,13 @@ const ModalCobroRapido: React.FC<Props> = ({ alumnoInicial, visible, onCerrar, o
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [exito, setExito] = useState<string | null>(null);
-  const [mensajeWA, setMensajeWA] = useState<{ texto: string; telefono: string } | null>(null);
   // Info sobre exceso convertido en anticipo
   const [infoAnticipo, setInfoAnticipo] = useState<{ monto: number } | null>(null);
 
   // Cargar datos al abrir
   useEffect(() => {
     if (!visible) return;
-    setError(null); setExito(null); setMensajeWA(null);
+    setError(null); setExito(null);
     // Sincronizar el alumno seleccionado con el alumno preseleccionado al abrir el modal
     setAlumnoSel(alumnoInicial);
 
@@ -364,40 +363,16 @@ const ModalCobroRapido: React.FC<Props> = ({ alumnoInicial, visible, onCerrar, o
 
       }
 
-      // Mensaje WhatsApp
-      const esPadre = alumnoSel.whatsapp_preferido === 'padre';
-      const telefono = esPadre
-        ? (alumnoSel.telefono_padre || alumnoSel.telefono_madre)
-        : (alumnoSel.telefono_madre || alumnoSel.telefono_padre);
-      const cxcActual = cxcsPendientes.find(c => c.id === cxcSelId);
-      const conceptoWA = esMultiple ? 'varias notas de servicio' : (cxcActual?.descripcion || 'servicios');
-
-      if (telefono) {
-        const telF = telefono.replace(/\D/g, '');
-        const telFinal = telF.startsWith('591') ? telF : `591${telF}`;
-        let texto = `Gracias por el pago de Bs ${fmtMonto(montoNum)} correspondiente a: ${conceptoWA}.`;
-        if (exceso > 0) texto += ` El exceso de Bs ${fmtMonto(exceso)} fue guardado como anticipo a su favor.`;
-        setMensajeWA({ texto, telefono: telFinal });
-      }
-
       onCobrado();
       setGuardando(false);
 
       setTimeout(() => {
-        if (!mensajeWA) onCerrar();
+        onCerrar();
       }, 800);
 
     } catch (err: any) {
       setError(`Error: ${err.message}`);
       setGuardando(false);
-    }
-  };
-
-  const enviarWA = () => {
-    if (mensajeWA) {
-      window.open(`https://wa.me/${mensajeWA.telefono}?text=${encodeURIComponent(mensajeWA.texto)}`, '_blank');
-      setMensajeWA(null);
-      onCerrar();
     }
   };
 
@@ -427,7 +402,7 @@ const ModalCobroRapido: React.FC<Props> = ({ alumnoInicial, visible, onCerrar, o
             <div>
               <h2 style={{ margin: 0, fontSize: '1.25rem' }}>Registrar Pago</h2>
               <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-tertiary)' }}>
-                {mensajeWA ? 'Recibo automático generado' : 'Registra el ingreso de dinero del alumno'}
+                Registra el ingreso de dinero del alumno
               </p>
             </div>
           </div>
@@ -435,22 +410,6 @@ const ModalCobroRapido: React.FC<Props> = ({ alumnoInicial, visible, onCerrar, o
         </div>
 
         <div className="cxc-modal-form">
-          {mensajeWA ? (
-            <div className="nota-wa-recibo">
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem' }}>
-                <div style={{ padding: '1.5rem', background: 'var(--bg-glass)', borderRadius: '12px', width: '100%', textAlign: 'left', border: '1px solid var(--border)' }}>
-                  <p style={{ margin: 0, fontSize: '0.95rem', lineHeight: '1.6' }}>{mensajeWA.texto}</p>
-                </div>
-                <div style={{ display: 'flex', gap: '1rem', width: '100%', justifyContent: 'center' }}>
-                  <button className="nota-wa-btn-enviar" onClick={enviarWA}>
-                    <MessageCircle size={18} /> Enviar por WhatsApp
-                  </button>
-                  <button className="nota-wa-btn-omitir" onClick={onCerrar}>Omitir y cerrar</button>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <>
               {/* Información del Alumno */}
               {!alumnoInicial ? (
                 <div className="form-campo full-width" style={{ marginBottom: '1rem' }}>
@@ -655,8 +614,6 @@ const ModalCobroRapido: React.FC<Props> = ({ alumnoInicial, visible, onCerrar, o
                   </div>
                 </form>
               )}
-            </>
-          )}
         </div>
       </div>
     </div>
