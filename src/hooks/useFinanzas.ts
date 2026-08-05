@@ -557,6 +557,7 @@ const fetchMovimientos = async (
 
       // Mapear pagos
       pagosRes.data.forEach((p: any) => {
+        const esEgresoDirecto = !p.cuentas_pagar?.proveedores && !p.cuentas_pagar?.personal && !p.cuentas_pagar?.descripcion?.startsWith('[EGRESO TRF]') && !p.cuentas_pagar?.es_anticipo;
         movsCaja.push({
           id: p.id,
           tipo_origen: 'pago',
@@ -566,7 +567,9 @@ const fetchMovimientos = async (
           created_at: p.created_at,
           descripcion: p.cuentas_pagar?.descripcion || 'Pago / Egreso',
           nro_transaccion: p.referencia || '',
-          cliente: p.cuentas_pagar?.proveedores?.nombre || (p.cuentas_pagar?.personal ? `${p.cuentas_pagar.personal.nombres} ${p.cuentas_pagar.personal.apellidos}` : '—'),
+          cliente: p.cuentas_pagar?.proveedores?.nombre
+            || (p.cuentas_pagar?.personal ? `${p.cuentas_pagar.personal.nombres} ${p.cuentas_pagar.personal.apellidos}` : null)
+            || (esEgresoDirecto ? p.cuentas_pagar?.descripcion || '—' : '—'),
           cuenta_id: p.caja_id,
           cuenta_nombre: (() => {
             if (p.cuentas_pagar?.descripcion?.startsWith('[EGRESO TRF]')) {
@@ -585,7 +588,7 @@ const fetchMovimientos = async (
           })(),
           conciliado: p.conciliado || false,
           cuenta_maestra_id: p.cuentas_pagar?.id,
-          es_movimiento_directo: !p.cuentas_pagar?.proveedores && !p.cuentas_pagar?.personal,
+          es_movimiento_directo: esEgresoDirecto,
           concepto_id: p.cuentas_pagar?.cxp_detalle?.[0]?.catalogo_item_id || null
         });
       });
