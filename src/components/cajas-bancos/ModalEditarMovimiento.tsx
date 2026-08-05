@@ -5,10 +5,11 @@
  */
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabaseClient';
-import { X, Pencil, DollarSign, Calendar, Hash, AlignLeft, Building2, AlertCircle, Save, RefreshCw, Check, Clock } from 'lucide-react';
+import { X, Pencil, DollarSign, Calendar, Hash, AlignLeft, Building2, AlertCircle, Save, RefreshCw, Check, Clock, Tag } from 'lucide-react';
 import { getHoyISO, getHoraLocal, buildTimestampLocal, FECHA_MINIMA_MOVIMIENTO_FINANCIERO, validarFechaMovimientoFinanciero } from '../../lib/dateUtils';
 import type { CajaBanco } from '../../types/finanzas';
 import { type MovimientoFinanciero } from '../../hooks/useFinanzas';
+import type { CatalogoItem } from '../../types/cuentas';
 
 interface Props {
   visible: boolean;
@@ -28,6 +29,8 @@ const ModalEditarMovimiento: React.FC<Props> = ({ visible, movimiento, cajas, on
   const [hora, setHora] = useState('');
   const [nroTransaccion, setNroTransaccion] = useState('');
   const [cajaId, setCajaId] = useState('');
+  const [conceptoId, setConceptoId] = useState('');
+  const [todasLasCuentas, setTodasLasCuentas] = useState<CatalogoItem[]>([]);
 
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -35,7 +38,32 @@ const ModalEditarMovimiento: React.FC<Props> = ({ visible, movimiento, cajas, on
 
   // Precargar datos del movimiento al abrir
   useEffect(() => {
+    const cargarCuentas = async () => {
+      if (!movimiento?.es_movimiento_directo) return;
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data: perfil } = await supabase.from('usuarios').select('escuela_id').eq('id', user.id).single();
+      if (!perfil?.escuela_id) return;
+
+      const esIngreso = movimiento.debe > 0;
+      const query = supabase
+        .from('catalogo_items')
+        .select('*')
+        .eq('escuela_id', perfil.escuela_id)
+        .eq('activo', true);
+      
+      if (esIngreso) {
+        query.in('tipo_movimiento', ['ingreso', 'ambos']);
+      } else {
+        query.in('tipo_movimiento', ['egreso', 'ambos']);
+      }
+
+      const { data } = await query.order('nombre');
+      if (data) setTodasLasCuentas(data as CatalogoItem[]);
+    };
+
     if (visible && movimiento) {
+      cargarCuentas();
       setDescripcion(movimiento.descripcion);
       const montoOriginal = movimiento.debe > 0 ? movimiento.debe : movimiento.haber;
       setMonto(String(montoOriginal));
@@ -57,6 +85,7 @@ const ModalEditarMovimiento: React.FC<Props> = ({ visible, movimiento, cajas, on
       }
       setNroTransaccion(movimiento.nro_transaccion || '');
       setCajaId(movimiento.cuenta_id);
+      setConceptoId(movimiento.concepto_id || '');
       setError(null);
       setExito(null);
     }
@@ -98,7 +127,8 @@ const ModalEditarMovimiento: React.FC<Props> = ({ visible, movimiento, cajas, on
           monto: valorMonto,
           fecha: fechaConTZ,
           descripcion: esMovimientoDeNota ? movimiento.descripcion : descripcion.trim(),
-          nro_transaccion: nroTransaccion.trim() || null
+          nro_transaccion: nroTransaccion.trim() || null,
+          concepto_id: movimiento.es_movimiento_directo ? (conceptoId || null) : null
         }
       });
 
@@ -144,6 +174,16 @@ const ModalEditarMovimiento: React.FC<Props> = ({ visible, movimiento, cajas, on
                 {cajas.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
               </select>
             </div>
+
+            {movimiento.es_movimiento_directo && (
+              <div className="form-campo full-width">
+                <label><Tag size={14} /> Concepto *</label>
+                <select value={conceptoId} onChange={e => setConceptoId(e.target.value)} required disabled={guardando}>
+                  <option value="">Seleccione un concepto</option>
+                  {todasLasCuentas.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                </select>
+              </div>
+            )}
 
             {/* Monto */}
             <div className="form-campo">

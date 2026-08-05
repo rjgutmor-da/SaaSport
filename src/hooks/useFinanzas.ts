@@ -44,6 +44,7 @@ export interface MovimientoFinanciero {
   ciclo_inicio?: string | null;
   ciclo_fin?: string | null;
   es_movimiento_directo?: boolean;
+  concepto_id?: string | null;
 }
 
 // --- Resúmenes (Fase 1: Cálculos en DB) ---
@@ -458,6 +459,8 @@ const fetchMovimientos = async (
           id, descripcion, nro_recibo, es_anticipo, es_ingreso_directo, ciclo_inicio, ciclo_fin,
           alumnos ( nombres, apellidos, telefono_padre, telefono_madre, whatsapp_preferido ),
           cxc_detalle (
+            id,
+            catalogo_item_id,
             cantidad,
             precio_unitario,
             periodo_meses,
@@ -478,6 +481,8 @@ const fetchMovimientos = async (
           proveedores ( nombre ),
           personal ( nombres, apellidos ),
           cxp_detalle (
+            id,
+            catalogo_item_id,
             catalogo_items ( nombre )
           )
         )
@@ -545,7 +550,8 @@ const fetchMovimientos = async (
           alumno_raw: c.cuentas_cobrar?.alumnos || null,
           detalles_cxc: c.cuentas_cobrar?.cxc_detalle || [],
           ciclo_inicio: c.cuentas_cobrar?.ciclo_inicio || null,
-          ciclo_fin: c.cuentas_cobrar?.ciclo_fin || null
+          ciclo_fin: c.cuentas_cobrar?.ciclo_fin || null,
+          concepto_id: c.cuentas_cobrar?.cxc_detalle?.[0]?.catalogo_item_id || null
         });
       });
 
@@ -578,7 +584,9 @@ const fetchMovimientos = async (
             return res;
           })(),
           conciliado: p.conciliado || false,
-          cuenta_maestra_id: p.cuentas_pagar?.id
+          cuenta_maestra_id: p.cuentas_pagar?.id,
+          es_movimiento_directo: !p.cuentas_pagar?.proveedores && !p.cuentas_pagar?.personal,
+          concepto_id: p.cuentas_pagar?.cxp_detalle?.[0]?.catalogo_item_id || null
         });
       });
 
