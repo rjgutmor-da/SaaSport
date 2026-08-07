@@ -39,7 +39,8 @@ export const getAllCanchas = async (escuelaId: string): Promise<Cancha[]> => {
   return ((data || []) as any[]).map((item) => {
     const horarios = (item.canchas_horarios || [])
       .map((ch: any) => ch.horarios)
-      .filter((h: any) => h != null);
+      .filter((h: any) => h != null)
+      .sort((a: any, b: any) => (a.hora || '').localeCompare(b.hora || ''));
 
     return {
       id: item.id,
@@ -189,36 +190,9 @@ export const toggleCanchaStatus = async (
   if (!escuelaId) throw new Error('El ID de la escuela es requerido.');
   if (!id) throw new Error('El ID de la cancha es requerido.');
 
-  // Si está activando, permitir directamente
-  if (!currentStatus) {
-    const { data, error } = await supabase
-      .from('canchas')
-      .update({ activo: true })
-      .eq('id', id)
-      .eq('escuela_id', escuelaId)
-      .select()
-      .single();
-
-    if (error) throw error;
-    return data as Cancha;
-  }
-
-  // Si está desactivando, verificar que no tenga alumnos activos
-  const { count, error: countError } = await supabase
-    .from('alumnos')
-    .select('id', { count: 'exact', head: true })
-    .eq('cancha_id', id)
-    .eq('archivado', false);
-
-  if (countError) throw countError;
-
-  if ((count || 0) > 0) {
-    throw new Error(`No se puede desactivar. Hay ${count} alumno(s) activo(s) asignado(s) a esta cancha.`);
-  }
-
   const { data, error } = await supabase
     .from('canchas')
-    .update({ activo: false })
+    .update({ activo: !currentStatus })
     .eq('id', id)
     .eq('escuela_id', escuelaId)
     .select()
@@ -226,6 +200,38 @@ export const toggleCanchaStatus = async (
 
   if (error) throw error;
   return data as Cancha;
+};
+
+export const deleteCancha = async (
+  escuelaId: string,
+  id: string
+): Promise<void> => {
+  if (!escuelaId) throw new Error('El ID de la escuela es requerido.');
+  if (!id) throw new Error('El ID de la cancha es requerido.');
+
+  // Verificar si tiene alumnos asignados
+  const { count, error: countError } = await supabase
+    .from('alumnos')
+    .select('id', { count: 'exact', head: true })
+    .eq('cancha_id', id);
+
+  if (countError) throw countError;
+
+  if ((count || 0) > 0) {
+    throw new Error(`No se puede eliminar el grupo porque tiene ${count} alumno(s) asignado(s). Puedes desactivarlo en su lugar para impedir nuevas asignaciones.`);
+  }
+
+  // Eliminar relaciones en canchas_horarios
+  await supabase.from('canchas_horarios').delete().eq('cancha_id', id);
+
+  // Eliminar la cancha
+  const { error } = await supabase
+    .from('canchas')
+    .delete()
+    .eq('id', id)
+    .eq('escuela_id', escuelaId);
+
+  if (error) throw error;
 };
 
 // ============================================================================

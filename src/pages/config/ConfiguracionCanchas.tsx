@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronLeft, Settings, Plus, CheckCircle, XCircle, Edit2, Save, X, AlertTriangle } from 'lucide-react';
+import { ChevronLeft, Settings, Plus, CheckCircle, XCircle, Edit2, Save, X, AlertTriangle, Trash2 } from 'lucide-react';
 import { useAuthSaaSport } from '../../lib/authHelper';
 import {
   getAllCanchas,
@@ -10,7 +10,8 @@ import {
   updateCancha,
   updateHorario,
   toggleCanchaStatus,
-  toggleHorarioStatus
+  toggleHorarioStatus,
+  deleteCancha
 } from '../../services/maestros';
 import type { Cancha, Horario } from '../../services/maestros';
 import { getSucursales } from '../../services/sucursales';
@@ -147,6 +148,20 @@ const ConfiguracionCanchas: React.FC = () => {
       loadData();
     } catch (error: any) {
       setAlerta({ tipo: 'error', mensaje: error.message || 'Error al cambiar el estado de la cancha.' });
+    }
+  };
+
+  const handleDeleteCancha = async (id: string, nombre: string) => {
+    if (!escuelaId) return;
+    if (!window.confirm(`¿Estás seguro de que deseas eliminar permanentemente el grupo "${nombre}"?`)) return;
+
+    setAlerta(null);
+    try {
+      await deleteCancha(escuelaId, id);
+      setAlerta({ tipo: 'success', mensaje: 'Grupo eliminado correctamente.' });
+      loadData();
+    } catch (error: any) {
+      setAlerta({ tipo: 'error', mensaje: error.message || 'Error al eliminar el grupo.' });
     }
   };
 
@@ -449,7 +464,7 @@ const ConfiguracionCanchas: React.FC = () => {
                               <span style={{ color: 'var(--text-tertiary)', fontSize: '0.8rem', fontStyle: 'italic' }}>Sin horarios</span>
                             ) : (
                               cancha.horarios.map((h) => (
-                                <span key={h.id} style={{ background: 'var(--bg-input)', border: '1px solid var(--border)', borderRadius: '4px', padding: '0.1rem 0.4rem', fontSize: '0.75rem', color: 'var(--primary)', fontWeight: 600 }}>
+                                <span key={h.id} style={{ background: 'var(--success-bg)', border: '1px solid rgba(0, 210, 106, 0.3)', borderRadius: '4px', padding: '0.1rem 0.4rem', fontSize: '0.75rem', color: 'var(--success)', fontWeight: 600 }}>
                                   {h.hora}
                                 </span>
                               ))
@@ -538,6 +553,21 @@ const ConfiguracionCanchas: React.FC = () => {
                                 }}
                               >
                                 {cancha.activo ? 'Desactivar' : 'Activar'}
+                              </button>
+                              <button
+                                onClick={() => handleDeleteCancha(cancha.id, cancha.nombre)}
+                                style={{
+                                  padding: '0.4rem',
+                                  borderRadius: '4px',
+                                  border: '1px solid rgba(255, 59, 48, 0.3)',
+                                  background: 'var(--danger-bg)',
+                                  color: 'var(--danger)',
+                                  display: 'inline-flex',
+                                  alignItems: 'center'
+                                }}
+                                title="Eliminar grupo"
+                              >
+                                <Trash2 size={16} />
                               </button>
                             </>
                           )}
