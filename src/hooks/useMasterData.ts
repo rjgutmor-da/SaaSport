@@ -27,7 +27,7 @@ const fetchEntrenadores = async () => {
 };
 
 const fetchCanchas = async () => {
-  const { data, error } = await supabase.from('canchas').select('*').order('nombre');
+  const { data, error } = await supabase.from('canchas').select('*, canchas_horarios(horario_id)').order('nombre');
   if (error) throw error;
   return data;
 };

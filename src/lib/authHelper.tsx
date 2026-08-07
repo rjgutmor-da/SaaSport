@@ -16,6 +16,7 @@ import { can } from '../config/roles';
 import type { Role } from '../config/roles';
 import { supabase } from './supabaseClient';
 import type { Session } from '@supabase/supabase-js';
+import { registerCurrentSaaSportSession } from './sessionLimit';
 
 export interface PerfilUsuario {
   id: string;
@@ -147,7 +148,17 @@ export const AuthProviderSaaSport = ({ children }: { children: ReactNode }) => {
       
       if (s?.user) {
         procesandoId.current = s.user.id;
-        await cargarPerfil(s.user.id);
+        try {
+          await registerCurrentSaaSportSession(s);
+          await cargarPerfil(s.user.id);
+        } catch (error) {
+          console.error('[Auth] Sesión no autorizada:', error);
+          await supabase.auth.signOut({ scope: 'local' });
+          setSession(null);
+          setPerfil(null);
+          setEscuela(null);
+          procesandoId.current = null;
+        }
       } else {
         setPerfil(null);
         setEscuela(null);
@@ -167,7 +178,7 @@ export const AuthProviderSaaSport = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const cerrarSesion = async (): Promise<void> => {
-    await supabase.auth.signOut();
+    await supabase.auth.signOut({ scope: 'local' });
     setPerfil(null);
     setEscuela(null);
     setSession(null);

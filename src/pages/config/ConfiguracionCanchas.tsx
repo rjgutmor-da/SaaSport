@@ -27,9 +27,11 @@ const ConfiguracionCanchas: React.FC = () => {
   const [canchas, setCanchas] = useState<Cancha[]>([]);
   const [newCanchaName, setNewCanchaName] = useState('');
   const [newCanchaSucursal, setNewCanchaSucursal] = useState('');
+  const [newCanchaHorarios, setNewCanchaHorarios] = useState<string[]>([]);
   const [editingCancha, setEditingCancha] = useState<string | null>(null);
   const [editCanchaName, setEditCanchaName] = useState('');
   const [editCanchaSucursal, setEditCanchaSucursal] = useState('');
+  const [editCanchaHorarios, setEditCanchaHorarios] = useState<string[]>([]);
 
   // Estado de Sucursales
   const [sucursales, setSucursales] = useState<Sucursal[]>([]);
@@ -89,10 +91,11 @@ const ConfiguracionCanchas: React.FC = () => {
 
     setAlerta(null);
     try {
-      await createCancha(escuelaId, newCanchaName.trim(), newCanchaSucursal || null);
+      await createCancha(escuelaId, newCanchaName.trim(), newCanchaSucursal || null, newCanchaHorarios);
       setAlerta({ tipo: 'success', mensaje: 'Grupo creado correctamente.' });
       setNewCanchaName('');
       setNewCanchaSucursal('');
+      setNewCanchaHorarios([]);
       loadData();
     } catch (error: any) {
       setAlerta({ tipo: 'error', mensaje: error.message || 'Error al crear la cancha.' });
@@ -103,6 +106,7 @@ const ConfiguracionCanchas: React.FC = () => {
     setEditingCancha(cancha.id);
     setEditCanchaName(cancha.nombre);
     setEditCanchaSucursal(cancha.sucursal_id || '');
+    setEditCanchaHorarios(cancha.horario_ids || []);
     setAlerta(null);
   };
 
@@ -110,6 +114,7 @@ const ConfiguracionCanchas: React.FC = () => {
     setEditingCancha(null);
     setEditCanchaName('');
     setEditCanchaSucursal('');
+    setEditCanchaHorarios([]);
     setAlerta(null);
   };
 
@@ -118,11 +123,12 @@ const ConfiguracionCanchas: React.FC = () => {
 
     setAlerta(null);
     try {
-      await updateCancha(escuelaId, id, editCanchaName.trim(), editCanchaSucursal || null);
+      await updateCancha(escuelaId, id, editCanchaName.trim(), editCanchaSucursal || null, editCanchaHorarios);
       setAlerta({ tipo: 'success', mensaje: 'Grupo actualizado correctamente.' });
       setEditingCancha(null);
       setEditCanchaName('');
       setEditCanchaSucursal('');
+      setEditCanchaHorarios([]);
       loadData();
     } catch (error: any) {
       setAlerta({ tipo: 'error', mensaje: error.message || 'Error al actualizar la cancha.' });
@@ -321,10 +327,37 @@ const ConfiguracionCanchas: React.FC = () => {
                   ))}
                 </select>
               </div>
+
+              <div style={{ flex: '1 1 100%', marginTop: '0.5rem' }}>
+                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-tertiary)', textTransform: 'uppercase', marginBottom: '0.5rem' }}>Horarios Disponibles para el Grupo</label>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem', background: 'var(--bg-input)', padding: '0.8rem', borderRadius: '4px', border: '1px solid var(--border)' }}>
+                  {horarios.length === 0 ? (
+                    <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>No hay horarios registrados. Crea horarios en la pestaña "Horarios".</span>
+                  ) : (
+                    horarios.filter(h => h.activo).map((h) => (
+                      <label key={h.id} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem', color: 'var(--text-primary)', cursor: 'pointer' }}>
+                        <input
+                          type="checkbox"
+                          checked={newCanchaHorarios.includes(h.id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setNewCanchaHorarios([...newCanchaHorarios, h.id]);
+                            } else {
+                              setNewCanchaHorarios(newCanchaHorarios.filter(id => id !== h.id));
+                            }
+                          }}
+                        />
+                        {h.hora}
+                      </label>
+                    ))
+                  )}
+                </div>
+              </div>
+
               <button
                 type="submit"
                 className="btn-nueva-cuenta"
-                style={{ height: '42px', padding: '0 1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+                style={{ height: '42px', padding: '0 1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.5rem' }}
               >
                 <Plus size={18} />
                 Agregar Grupo
@@ -344,6 +377,7 @@ const ConfiguracionCanchas: React.FC = () => {
                 <tr style={{ background: 'rgba(255,255,255,0.02)', borderBottom: '1px solid var(--border)' }}>
                   <th style={{ padding: '1rem', color: 'var(--text-secondary)', fontWeight: 700, fontSize: '0.85rem' }}>Nombre</th>
                   <th style={{ padding: '1rem', color: 'var(--text-secondary)', fontWeight: 700, fontSize: '0.85rem' }}>Sucursal</th>
+                  <th style={{ padding: '1rem', color: 'var(--text-secondary)', fontWeight: 700, fontSize: '0.85rem' }}>Horarios</th>
                   <th style={{ padding: '1rem', color: 'var(--text-secondary)', fontWeight: 700, fontSize: '0.85rem', textAlign: 'center' }}>Estado</th>
                   <th style={{ padding: '1rem', color: 'var(--text-secondary)', fontWeight: 700, fontSize: '0.85rem', textAlign: 'right' }}>Acciones</th>
                 </tr>
@@ -351,7 +385,7 @@ const ConfiguracionCanchas: React.FC = () => {
               <tbody>
                 {canchas.length === 0 ? (
                   <tr>
-                    <td colSpan={4} style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
+                    <td colSpan={5} style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
                       No hay grupos registrados en el sistema.
                     </td>
                   </tr>
@@ -387,6 +421,40 @@ const ConfiguracionCanchas: React.FC = () => {
                           <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
                             {cancha.sucursal?.nombre || <span style={{ color: 'var(--danger)', fontSize: '0.8rem' }}>Sin sucursal</span>}
                           </span>
+                        )}
+                      </td>
+                      <td style={{ padding: '1rem' }}>
+                        {editingCancha === cancha.id ? (
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', maxWidth: '300px' }}>
+                            {horarios.filter(h => h.activo).map((h) => (
+                              <label key={h.id} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.2rem', fontSize: '0.75rem' }}>
+                                <input
+                                  type="checkbox"
+                                  checked={editCanchaHorarios.includes(h.id)}
+                                  onChange={(e) => {
+                                    if (e.target.checked) {
+                                      setEditCanchaHorarios([...editCanchaHorarios, h.id]);
+                                    } else {
+                                      setEditCanchaHorarios(editCanchaHorarios.filter(id => id !== h.id));
+                                    }
+                                  }}
+                                />
+                                {h.hora}
+                              </label>
+                            ))}
+                          </div>
+                        ) : (
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem' }}>
+                            {(!cancha.horarios || cancha.horarios.length === 0) ? (
+                              <span style={{ color: 'var(--text-tertiary)', fontSize: '0.8rem', italic: 'true' }}>Sin horarios</span>
+                            ) : (
+                              cancha.horarios.map((h) => (
+                                <span key={h.id} style={{ background: 'var(--bg-input)', border: '1px solid var(--border)', borderRadius: '4px', padding: '0.1rem 0.4rem', fontSize: '0.75rem', color: 'var(--primary)', fontWeight: 600 }}>
+                                  {h.hora}
+                                </span>
+                              ))
+                            )}
+                          </div>
                         )}
                       </td>
                       <td style={{ padding: '1rem', textAlign: 'center' }}>

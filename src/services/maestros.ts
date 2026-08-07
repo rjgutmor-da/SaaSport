@@ -10,6 +10,8 @@ export interface Cancha {
     id: string;
     nombre: string;
   } | null;
+  horarios?: Horario[];
+  horario_ids?: string[];
 }
 
 export interface Horario {
@@ -28,18 +30,35 @@ export const getAllCanchas = async (escuelaId: string): Promise<Cancha[]> => {
 
   const { data, error } = await supabase
     .from('canchas')
-    .select('*, sucursal:sucursales(id, nombre)')
+    .select('*, sucursal:sucursales(id, nombre), canchas_horarios(horarios(id, hora, activo))')
     .eq('escuela_id', escuelaId)
     .order('nombre', { ascending: true });
 
   if (error) throw error;
-  return (data as Cancha[]) || [];
+
+  return ((data || []) as any[]).map((item) => {
+    const horarios = (item.canchas_horarios || [])
+      .map((ch: any) => ch.horarios)
+      .filter((h: any) => h != null);
+
+    return {
+      id: item.id,
+      nombre: item.nombre,
+      escuela_id: item.escuela_id,
+      sucursal_id: item.sucursal_id,
+      activo: item.activo,
+      sucursal: item.sucursal,
+      horarios,
+      horario_ids: horarios.map((h: any) => h.id)
+    };
+  }) as Cancha[];
 };
 
 export const createCancha = async (
   escuelaId: string,
   nombre: string,
-  sucursalId: string | null
+  sucursalId: string | null,
+  horarioIds: string[] = []
 ): Promise<Cancha> => {
   if (!escuelaId) throw new Error('El ID de la escuela es requerido.');
   if (!nombre || nombre.trim() === '') {
@@ -79,6 +98,21 @@ export const createCancha = async (
     .single();
 
   if (error) throw error;
+
+  // Insertar relaciones con horarios
+  if (horarioIds && horarioIds.length > 0) {
+    const relaciones = horarioIds.map((hId) => ({
+      cancha_id: data.id,
+      horario_id: hId
+    }));
+
+    const { error: relError } = await supabase
+      .from('canchas_horarios')
+      .insert(relaciones);
+
+    if (relError) console.error('Error insertando horarios de la cancha:', relError);
+  }
+
   return data as Cancha;
 };
 
@@ -86,7 +120,8 @@ export const updateCancha = async (
   escuelaId: string,
   id: string,
   nombre: string,
-  sucursalId: string | null
+  sucursalId: string | null,
+  horarioIds: string[] = []
 ): Promise<Cancha> => {
   if (!escuelaId) throw new Error('El ID de la escuela es requerido.');
   if (!id) throw new Error('El ID de la cancha es requerido.');
@@ -123,6 +158,26 @@ export const updateCancha = async (
     .single();
 
   if (error) throw error;
+
+  // Actualizar relaciones con horarios (eliminar previas e insertar nuevas)
+  await supabase
+    .from('canchas_horarios')
+    .delete()
+    .eq('cancha_id', id);
+
+  if (horarioIds && horarioIds.length > 0) {
+    const relaciones = horarioIds.map((hId) => ({
+      cancha_id: id,
+      horario_id: hId
+    }));
+
+    const { error: relError } = await supabase
+      .from('canchas_horarios')
+      .insert(relaciones);
+
+    if (relError) console.error('Error actualizando horarios de la cancha:', relError);
+  }
+
   return data as Cancha;
 };
 

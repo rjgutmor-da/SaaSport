@@ -11,6 +11,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import { getAsisportUrl } from '../lib/navegacion';
 import { Eye, EyeOff, AlertCircle, ShieldX } from 'lucide-react';
+import { signInSaaSport } from '../lib/sessionLimit';
 
 interface LoginProps {
   onLoginExitoso: () => void;
@@ -47,10 +48,8 @@ const Login: React.FC<LoginProps> = ({ onLoginExitoso }) => {
 
     try {
       // 1. Autenticación con Supabase
-      const { data, error: authError } = await supabase.auth.signInWithPassword({
-        email: emailLimpio,
-        password: passLimpio,
-      });
+      const session = await signInSaaSport(emailLimpio, passLimpio);
+      const { data, error: authError } = await supabase.auth.setSession(session);
 
       if (authError) {
         if (authError.message.includes('Invalid login credentials')) {
