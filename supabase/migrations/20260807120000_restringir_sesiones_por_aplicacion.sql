@@ -119,27 +119,3 @@ BEGIN
 END;
 $$;
 GRANT EXECUTE ON FUNCTION public.rpc_revoke_user_app_session(uuid) TO authenticated;
-
-CREATE OR REPLACE FUNCTION public.fn_guard_active_app_session()
-RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
-DECLARE v_claims jsonb; v_user_id uuid; v_session_id uuid;
-BEGIN
-  v_claims := NULLIF(current_setting('request.jwt.claims', true), '')::jsonb;
-  IF v_claims IS NULL OR COALESCE(v_claims->>'role', 'anon') <> 'authenticated' THEN RETURN; END IF;
-  v_user_id := NULLIF(v_claims->>'sub', '')::uuid;
-  v_session_id := NULLIF(v_claims->>'session_id', '')::uuid;
-  IF v_user_id IS NULL OR v_session_id IS NULL THEN RETURN; END IF;
-  IF EXISTS (SELECT 1 FROM public.user_app_sessions
-      WHERE user_id = v_user_id AND session_id = v_session_id AND revoked_at IS NOT NULL)
-    OR NOT EXISTS (SELECT 1 FROM public.user_app_sessions
-      WHERE user_id = v_user_id AND session_id = v_session_id AND revoked_at IS NULL) THEN
-    RAISE EXCEPTION 'La sesión de este dispositivo ya no está activa.' USING ERRCODE = '42501';
-  END IF;
-  UPDATE public.user_app_sessions SET last_seen_at = now()
-    WHERE user_id = v_user_id AND session_id = v_session_id AND revoked_at IS NULL;
-END;
-$$;
-REVOKE ALL ON FUNCTION public.fn_guard_active_app_session() FROM PUBLIC, anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.fn_guard_active_app_session() TO authenticator;
-ALTER ROLE authenticator SET pgrst.db_pre_request = 'public.fn_guard_active_app_session';
-NOTIFY pgrst, 'reload config';

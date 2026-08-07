@@ -446,7 +446,7 @@ const ConfiguracionCanchas: React.FC = () => {
                         ) : (
                           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem' }}>
                             {(!cancha.horarios || cancha.horarios.length === 0) ? (
-                              <span style={{ color: 'var(--text-tertiary)', fontSize: '0.8rem', italic: 'true' }}>Sin horarios</span>
+                              <span style={{ color: 'var(--text-tertiary)', fontSize: '0.8rem', fontStyle: 'italic' }}>Sin horarios</span>
                             ) : (
                               cancha.horarios.map((h) => (
                                 <span key={h.id} style={{ background: 'var(--bg-input)', border: '1px solid var(--border)', borderRadius: '4px', padding: '0.1rem 0.4rem', fontSize: '0.75rem', color: 'var(--primary)', fontWeight: 600 }}>
