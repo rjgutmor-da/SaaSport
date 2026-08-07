@@ -174,7 +174,27 @@ export const AuthProviderSaaSport = ({ children }: { children: ReactNode }) => {
       procesarSesion(s, event);
     });
 
-    return () => subscription.unsubscribe();
+    const validarSesionActual = async () => {
+      const { data } = await supabase.auth.getSession();
+      if (!data.session) return;
+      try {
+        await registerCurrentSaaSportSession(data.session);
+      } catch (error) {
+        console.warn('[Auth] Sesión SaaSport revocada:', error);
+        await supabase.auth.signOut({ scope: 'local' });
+      }
+    };
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') void validarSesionActual();
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    const heartbeat = window.setInterval(validarSesionActual, 60_000);
+
+    return () => {
+      subscription.unsubscribe();
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+      window.clearInterval(heartbeat);
+    };
   }, []);
 
   const cerrarSesion = async (): Promise<void> => {
