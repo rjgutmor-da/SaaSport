@@ -2,8 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChevronLeft, UserCog, CheckCircle, XCircle, UserPlus, X, AlertTriangle, ShieldAlert, Trash2, Copy } from 'lucide-react';
 import { useAuthSaaSport } from '../../lib/authHelper';
-import { getUsuarios, updateUserRole, toggleUserStatus, updateUserSucursal, createUserDirectly, deleteUser } from '../../services/usuarios';
-import type { Usuario } from '../../services/usuarios';
+import { getUsuarios, updateUserRole, toggleUserStatus, updateUserSucursal, createUserDirectly, deleteUser, getGruposReasignacionEntrenador, reasignarYDesactivarEntrenador } from '../../services/usuarios';
+import type { GrupoReasignacionEntrenador, Usuario } from '../../services/usuarios';
 import { getSucursales } from '../../services/sucursales';
 import type { Sucursal } from '../../services/sucursales';
 import { supabase } from '../../lib/supabaseClient';
@@ -26,6 +26,12 @@ const AdminUsuarios: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Usuario | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [reassignmentTarget, setReassignmentTarget] = useState<Usuario | null>(null);
+  const [reassignmentGroups, setReassignmentGroups] = useState<GrupoReasignacionEntrenador[]>([]);
+  const [reassignmentDestinations, setReassignmentDestinations] = useState<Record<string, string>>({});
+  const [isLoadingReassignment, setIsLoadingReassignment] = useState(false);
+  const [isReassigning, setIsReassigning] = useState(false);
+  const [reassignmentConfirmed, setReassignmentConfirmed] = useState(false);
   const [formData, setFormData] = useState({
     nombres: '',
     apellidos: '',
@@ -57,6 +63,12 @@ const AdminUsuarios: React.FC = () => {
   const rolesOptions = getRoleOptions({ fichaMedicaHabilitada });
   const activeSuperAdminCount = usuarios.filter(u => u.rol === 'SuperAdministrador' && u.activo).length;
   const canDeleteUsers = currentUser?.rol === 'SuperAdministrador';
+  const getEligibleDestinations = (group: GrupoReasignacionEntrenador) => usuarios.filter(user =>
+    user.id !== reassignmentTarget?.id &&
+    user.activo &&
+    user.rol === 'Entrenador' &&
+    (!user.sucursal_id || user.sucursal_id === group.sucursal_id)
+  );
 
   useEffect(() => {
     if (escuelaId && currentUser) {
@@ -163,6 +175,63 @@ const AdminUsuarios: React.FC = () => {
       setAlerta({ tipo: 'error', mensaje: error.message || 'No se pudo eliminar el usuario.' });
     } finally {
       setIsDeleting(false);
+    }
+  };
+
+  const handleOpenReassignment = async (user: Usuario) => {
+    if (!escuelaId || currentUser?.rol !== 'SuperAdministrador') return;
+    setAlerta(null);
+    setIsLoadingReassignment(true);
+    setReassignmentTarget(user);
+    setReassignmentGroups([]);
+    setReassignmentDestinations({});
+    setReassignmentConfirmed(false);
+
+    try {
+      const groups = await getGruposReasignacionEntrenador(escuelaId, user.id);
+      setReassignmentGroups(groups);
+    } catch (error: any) {
+      setReassignmentTarget(null);
+      setAlerta({ tipo: 'error', mensaje: error.message || 'No se pudo cargar la reasignación del entrenador.' });
+    } finally {
+      setIsLoadingReassignment(false);
+    }
+  };
+
+  const handleReassignmentDestination = (groupKey: string, trainerId: string) => {
+    setReassignmentDestinations(previous => ({ ...previous, [groupKey]: trainerId }));
+  };
+
+  const handleReassignAndDeactivate = async () => {
+    if (!reassignmentTarget) return;
+
+    const groupsWithDestinations = reassignmentGroups.map(group => ({
+      ...group,
+      entrenador_destino_id: reassignmentDestinations[group.clave],
+    }));
+
+    if (groupsWithDestinations.some(group => !group.entrenador_destino_id)) {
+      setAlerta({ tipo: 'error', mensaje: 'Selecciona un entrenador destino para cada grupo antes de continuar.' });
+      return;
+    }
+
+    setIsReassigning(true);
+    setAlerta(null);
+    try {
+      const result = await reasignarYDesactivarEntrenador(reassignmentTarget.id, groupsWithDestinations);
+      setReassignmentTarget(null);
+      setReassignmentGroups([]);
+      setReassignmentDestinations({});
+      setReassignmentConfirmed(false);
+      setAlerta({
+        tipo: 'success',
+        mensaje: `${reassignmentTarget.nombres} ${reassignmentTarget.apellidos} fue dado de baja. Se reasignaron ${result.alumnos_reasignados} alumno(s) en ${result.grupos_reasignados} grupo(s) y se revocaron ${result.sesiones_revocadas} sesión(es).`,
+      });
+      await loadData();
+    } catch (error: any) {
+      setAlerta({ tipo: 'error', mensaje: error.message || 'No se pudo completar la reasignación y baja del entrenador.' });
+    } finally {
+      setIsReassigning(false);
     }
   };
 
@@ -493,20 +562,41 @@ const AdminUsuarios: React.FC = () => {
                         <td style={{ padding: '1rem', textAlign: 'right' }}>
                           {!esMismoUsuario ? (
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.5rem' }}>
-                              <button
-                                onClick={() => handleToggleStatus(u.id, u.activo)}
-                                style={{
-                                  fontSize: '0.75rem',
-                                  padding: '0.4rem 0.75rem',
-                                  borderRadius: '4px',
-                                  border: `1px solid ${u.activo ? 'rgba(255, 59, 48, 0.3)' : 'rgba(0, 210, 106, 0.3)'}`,
-                                  background: u.activo ? 'var(--danger-bg)' : 'var(--success-bg)',
-                                  color: u.activo ? 'var(--danger)' : 'var(--success)',
-                                  fontWeight: 600
-                                }}
-                              >
-                                {u.activo ? 'Desactivar' : 'Activar'}
-                              </button>
+                              {u.activo && u.rol === 'Entrenador' ? (
+                                canDeleteUsers ? (
+                                  <button
+                                    onClick={() => handleOpenReassignment(u)}
+                                    style={{
+                                      fontSize: '0.75rem',
+                                      padding: '0.4rem 0.75rem',
+                                      borderRadius: '4px',
+                                      border: '1px solid rgba(255, 159, 10, 0.45)',
+                                      background: 'rgba(255, 159, 10, 0.12)',
+                                      color: 'var(--warning, #f59e0b)',
+                                      fontWeight: 700,
+                                    }}
+                                  >
+                                    Dar de baja y reasignar
+                                  </button>
+                                ) : (
+                                  <span style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>Solo SuperAdministrador</span>
+                                )
+                              ) : (
+                                <button
+                                  onClick={() => handleToggleStatus(u.id, u.activo)}
+                                  style={{
+                                    fontSize: '0.75rem',
+                                    padding: '0.4rem 0.75rem',
+                                    borderRadius: '4px',
+                                    border: `1px solid ${u.activo ? 'rgba(255, 59, 48, 0.3)' : 'rgba(0, 210, 106, 0.3)'}`,
+                                    background: u.activo ? 'var(--danger-bg)' : 'var(--success-bg)',
+                                    color: u.activo ? 'var(--danger)' : 'var(--success)',
+                                    fontWeight: 600
+                                  }}
+                                >
+                                  {u.activo ? 'Desactivar' : 'Activar'}
+                                </button>
+                              )}
                               {canDeleteUsers && (
                                 <button
                                   onClick={() => setDeleteTarget(u)}
@@ -547,6 +637,90 @@ const AdminUsuarios: React.FC = () => {
           )}
         </div>
       </div>
+
+      {reassignmentTarget && (
+        <div
+          role="presentation"
+          onClick={() => !isReassigning && setReassignmentTarget(null)}
+          style={{ position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem', background: 'rgba(0, 0, 0, 0.65)' }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="reassignment-title"
+            onClick={event => event.stopPropagation()}
+            style={{ width: '100%', maxWidth: '820px', maxHeight: 'calc(100vh - 2rem)', overflow: 'auto', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '1.5rem', boxShadow: '0 20px 60px rgba(0,0,0,0.35)' }}
+          >
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem' }}>
+              <AlertTriangle size={24} style={{ color: 'var(--warning, #f59e0b)', flexShrink: 0 }} />
+              <div>
+                <h2 id="reassignment-title" style={{ margin: 0, fontSize: '1.15rem', color: 'var(--text-primary)' }}>Dar de baja y reasignar grupos</h2>
+                <p style={{ margin: '0.6rem 0 0', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                  Selecciona el nuevo entrenador principal para todos los grupos de <strong>{reassignmentTarget.nombres} {reassignmentTarget.apellidos}</strong>. El historial de asistencias se conserva y su cuenta quedará inactiva al finalizar.
+                </p>
+              </div>
+            </div>
+
+            {isLoadingReassignment ? (
+              <div style={{ padding: '2.5rem', textAlign: 'center', color: 'var(--text-secondary)' }}>Cargando grupos asignados...</div>
+            ) : reassignmentGroups.length === 0 ? (
+              <div style={{ marginTop: '1.25rem', padding: '1rem', borderRadius: 'var(--radius-md)', background: 'rgba(255,255,255,0.03)', color: 'var(--text-secondary)' }}>
+                Este entrenador no tiene alumnos asignados. Puedes confirmar la baja; no habrá reasignaciones.
+              </div>
+            ) : (
+              <div style={{ marginTop: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                {reassignmentGroups.map(group => {
+                  const destinations = getEligibleDestinations(group);
+                  return (
+                    <div key={group.clave} style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(220px, 0.8fr)', gap: '1rem', alignItems: 'center', padding: '1rem', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)' }}>
+                      <div>
+                        <strong style={{ color: 'var(--text-primary)' }}>{group.sucursal_nombre} · {group.cancha_nombre} · {group.horario_nombre}</strong>
+                        <div style={{ marginTop: '0.3rem', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                          {group.alumnos_activos} activo(s){group.alumnos_archivados ? ` · ${group.alumnos_archivados} archivado(s)` : ''}
+                        </div>
+                      </div>
+                      <select
+                        value={reassignmentDestinations[group.clave] || ''}
+                        onChange={event => handleReassignmentDestination(group.clave, event.target.value)}
+                        style={{ width: '100%', padding: '0.55rem 0.7rem', background: 'var(--bg-input)', border: '1px solid var(--border)', color: 'var(--text-primary)', borderRadius: '4px' }}
+                      >
+                        <option value="">Selecciona entrenador destino</option>
+                        {destinations.map(destination => (
+                          <option key={destination.id} value={destination.id}>
+                            {destination.nombres} {destination.apellidos}{destination.sucursal_id ? ' (misma sucursal)' : ' (todas las sucursales)'}
+                          </option>
+                        ))}
+                      </select>
+                      {destinations.length === 0 && (
+                        <div style={{ gridColumn: '1 / -1', fontSize: '0.8rem', color: 'var(--danger)' }}>No hay un entrenador activo elegible para este grupo.</div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {!isLoadingReassignment && (
+              <label style={{ marginTop: '1.25rem', display: 'flex', alignItems: 'flex-start', gap: '0.6rem', color: 'var(--text-secondary)', cursor: 'pointer', lineHeight: 1.4 }}>
+                <input type="checkbox" checked={reassignmentConfirmed} onChange={event => setReassignmentConfirmed(event.target.checked)} />
+                Confirmo que se reasignarán {reassignmentGroups.reduce((total, group) => total + group.alumnos_activos + group.alumnos_archivados, 0)} alumno(s) y que el entrenador quedará inactivo.
+              </label>
+            )}
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1.5rem' }}>
+              <button type="button" onClick={() => setReassignmentTarget(null)} disabled={isReassigning} className="btn-volver" style={{ padding: '0.55rem 1rem' }}>Cancelar</button>
+              <button
+                type="button"
+                onClick={handleReassignAndDeactivate}
+                disabled={isLoadingReassignment || isReassigning || !reassignmentConfirmed || reassignmentGroups.some(group => !reassignmentDestinations[group.clave])}
+                style={{ padding: '0.55rem 1rem', borderRadius: '4px', border: '1px solid rgba(255, 159, 10, 0.45)', background: 'var(--warning, #f59e0b)', color: '#1a1a1a', fontWeight: 700, opacity: isLoadingReassignment || isReassigning || !reassignmentConfirmed || reassignmentGroups.some(group => !reassignmentDestinations[group.clave]) ? 0.55 : 1 }}
+              >
+                {isReassigning ? 'Reasignando...' : 'Confirmar baja y reasignación'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {deleteTarget && (
         <div
