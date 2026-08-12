@@ -391,7 +391,11 @@ function AppInterna() {
 
   // Sin sesión → login
   if (!session) {
-    const loginUrl = import.meta.env.VITE_URL_LOGIN || '';
+    const isLocal = window.location.hostname === 'localhost'
+      || window.location.hostname === '127.0.0.1'
+      || /^\d{1,3}(\.\d{1,3}){3}$/.test(window.location.hostname);
+    const loginUrl = import.meta.env.VITE_URL_LOGIN
+      || (isLocal ? `https://${window.location.hostname}:5174` : 'https://login.saasport.pro');
     let resolvedLoginUrl = loginUrl;
     if (window.location.hostname !== 'finanzas.saasport.pro' && window.location.hostname !== 'saasport.pro') {
       if (loginUrl.includes('localhost') || loginUrl.includes('127.0.0.1') || /https?:\/\/\d+\.\d+\.\d+\.\d+/.test(loginUrl)) {
@@ -399,7 +403,9 @@ function AppInterna() {
         resolvedLoginUrl = loginUrl.replace(/(https?:\/\/)([^:/]+)(:\d+)?/, `$1${currentHostname}$3`);
       }
     }
-    window.location.href = `${resolvedLoginUrl}?redirect=finanzas`;
+    const params = new URLSearchParams({ redirect: 'finanzas' });
+    if (isLocal) params.set('returnTo', window.location.origin);
+    window.location.href = `${resolvedLoginUrl}?${params.toString()}`;
     return null;
   }
 

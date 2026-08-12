@@ -4,12 +4,12 @@
 
 /** URL base de AsisPort en producción */
 export const ASISPORT_PROD_URL = 'https://asisport.saasport.pro';
-export const ASISPORT_DEV_URL = 'http://localhost:5173';
+export const ASISPORT_DEV_URL = 'https://localhost:3000';
 
 /** Retorna la URL base según el entorno */
 export const getAsisportUrl = (): string => {
   const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-  return isLocal ? ASISPORT_DEV_URL : ASISPORT_PROD_URL;
+  return isLocal ? ASISPORT_DEV_URL.replace('localhost', window.location.hostname) : ASISPORT_PROD_URL;
 };
 
 /**
