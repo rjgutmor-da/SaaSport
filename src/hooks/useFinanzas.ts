@@ -76,6 +76,10 @@ const agruparCobrosDeUnaTransaccion = (movimientos: MovimientoFinanciero[]) => {
     const principal = grupo[0];
     const conceptos = Array.from(new Set(grupo.map(mov => mov.cuenta_nombre).filter(Boolean)));
 
+    // Combinar los detalles de todas las notas del grupo para que el recibo
+    // muestre cada mensualidad (julio, agosto, etc.) correctamente.
+    const detallesCombinados = grupo.flatMap(mov => mov.detalles_cxc || []);
+
     resultado.push({
       ...principal,
       id: `grupo-${grupo.map(mov => mov.id).join('-')}`,
@@ -86,6 +90,7 @@ const agruparCobrosDeUnaTransaccion = (movimientos: MovimientoFinanciero[]) => {
       conciliado: grupo.every(mov => mov.conciliado),
       is_grouped: true,
       original_ids: grupo.map(mov => mov.id),
+      detalles_cxc: detallesCombinados,
       movimientos_agrupados: grupo.map(mov => ({
         id: mov.id,
         descripcion: mov.descripcion,
@@ -465,6 +470,8 @@ const fetchMovimientos = async (
             precio_unitario,
             periodo_meses,
             detalle_extra,
+            ciclo_inicio,
+            ciclo_fin,
             catalogo_items ( nombre )
           )
         )

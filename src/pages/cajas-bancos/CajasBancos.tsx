@@ -1921,8 +1921,8 @@ const CajasBancos: React.FC = () => {
                         }
 
                         const totalLinea = (det.cantidad || 1) * (det.precio_unitario || 0);
-                        const tieneCiclo = nombreLower.includes('mensualidad') && movimientoParaRecibo.ciclo_inicio && movimientoParaRecibo.ciclo_fin;
-                        const cicloFormateado = tieneCiclo ? formatCicloCompleto(movimientoParaRecibo.ciclo_inicio, movimientoParaRecibo.ciclo_fin) : null;
+                        const tieneCiclo = nombreLower.includes('mensualidad') && (det.ciclo_inicio || movimientoParaRecibo.ciclo_inicio) && (det.ciclo_fin || movimientoParaRecibo.ciclo_fin);
+                        const cicloFormateado = tieneCiclo ? formatCicloCompleto(det.ciclo_inicio || movimientoParaRecibo.ciclo_inicio, det.ciclo_fin || movimientoParaRecibo.ciclo_fin) : null;
 
                         return (
                           <li key={idx} style={{ display: 'flex', flexDirection: 'column', gap: '2px', width: '100%' }}>
