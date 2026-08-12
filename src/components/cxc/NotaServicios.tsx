@@ -18,6 +18,7 @@ import {
   getHoraLocal,
   FECHA_MINIMA_MOVIMIENTO_FINANCIERO,
   validarFechaMovimientoFinanciero,
+  diferenciaEnMeses,
 } from '../../lib/dateUtils';
 import { useAuthSaaSport } from '../../lib/authHelper';
 import { useConfiguracionFacturacion } from '../../hooks/useConfiguracionFacturacion';
@@ -828,8 +829,9 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
                   return (
                     <div key={idx} style={{ marginBottom: '1rem', paddingBottom: '1rem', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 60px 100px 100px 30px', gap: '0.5rem', alignItems: 'center' }}>
-                        <select value={linea.catalogo_item_id} onChange={e => {
-                          const it = catalogo.find(c => c.id === e.target.value);
+                        <select value={linea.catalogo_item_id} onChange={async e => {
+                          const itemId = e.target.value;
+                          const it = catalogo.find(c => c.id === itemId);
                           if (it) {
                             const nuevas = [...lineas];
                             const esMensualidad = it.nombre === 'Mensualidad';
@@ -839,11 +841,57 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
                                 && lineaExistente.nombre === 'Mensualidad'
                                 && lineaExistente.ciclo_inicio)
                               .sort((a, b) => String(a.ciclo_inicio).localeCompare(String(b.ciclo_inicio)));
-                            const ultimoCiclo = ciclosExistentes.at(-1);
-                            const cicloMesEmision = cicloCompletoDelMes(fechaEmision);
-                            const inicioPredeterminado = ultimoCiclo?.ciclo_fin
-                              ? diaSiguiente(ultimoCiclo.ciclo_fin)
-                              : (cicloMesEmision?.inicio || fechaEmision);
+                            const ultimoCicloEnNota = ciclosExistentes.at(-1);
+
+                            let inicioPredeterminado: string;
+
+                            if (ultimoCicloEnNota?.ciclo_fin) {
+                              inicioPredeterminado = diaSiguiente(ultimoCicloEnNota.ciclo_fin);
+                            } else if (esMensualidad && alumnoId) {
+                              const hoy = getHoyISO();
+                              
+                              const [resDetalle, resCuenta] = await Promise.all([
+                                supabase
+                                  .from('cxc_detalle')
+                                  .select('ciclo_fin, cuentas_cobrar!inner(alumno_id, anulada)')
+                                  .eq('cuentas_cobrar.alumno_id', alumnoId)
+                                  .eq('cuentas_cobrar.anulada', false)
+                                  .not('ciclo_fin', 'is', null)
+                                  .order('ciclo_fin', { ascending: false })
+                                  .limit(1)
+                                  .maybeSingle(),
+                                supabase
+                                  .from('cuentas_cobrar')
+                                  .select('ciclo_fin')
+                                  .eq('alumno_id', alumnoId)
+                                  .eq('anulada', false)
+                                  .not('ciclo_fin', 'is', null)
+                                  .order('ciclo_fin', { ascending: false })
+                                  .limit(1)
+                                  .maybeSingle(),
+                              ]);
+
+                              const ultimoDetalle = resDetalle.data;
+                              const ultimaCuenta = resCuenta.data;
+
+                              let ultimoFinBD: string | null = null;
+                              if (ultimoDetalle?.ciclo_fin && ultimaCuenta?.ciclo_fin) {
+                                ultimoFinBD = ultimoDetalle.ciclo_fin > ultimaCuenta.ciclo_fin ? ultimoDetalle.ciclo_fin : ultimaCuenta.ciclo_fin;
+                              } else {
+                                ultimoFinBD = ultimoDetalle?.ciclo_fin || ultimaCuenta?.ciclo_fin || null;
+                              }
+
+                              if (ultimoFinBD && diferenciaEnMeses(ultimoFinBD, hoy) <= 3) {
+                                inicioPredeterminado = diaSiguiente(ultimoFinBD);
+                              } else {
+                                const cicloMesActual = cicloCompletoDelMes(hoy);
+                                inicioPredeterminado = cicloMesActual?.inicio || hoy;
+                              }
+                            } else {
+                              const cicloMesActual = cicloCompletoDelMes(getHoyISO());
+                              inicioPredeterminado = cicloMesActual?.inicio || getHoyISO();
+                            }
+
                             const finPredeterminado = finDeCicloMensual(inicioPredeterminado);
                             const periodoPredeterminado = calcularPeriodoEstadistico(inicioPredeterminado);
                             const mesPredeterminado = periodoMesLegacy(periodoPredeterminado);

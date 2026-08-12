@@ -345,3 +345,19 @@ export const formatCicloCompleto = (inicioStr: string | null | undefined, finStr
   
   return `${diaIni} ${nombreMesIni} al ${diaFin} ${nombreMesFin}`;
 };
+
+/**
+ * Calcula la diferencia en meses transcurridos entre dos fechas YYYY-MM-DD.
+ * Retorna (fechaB.año - fechaA.año) * 12 + (fechaB.mes - fechaA.mes).
+ */
+export const diferenciaEnMeses = (fechaA: string, fechaB: string): number => {
+  const matchA = /^(\d{4})-(\d{2})/.exec(fechaA);
+  const matchB = /^(\d{4})-(\d{2})/.exec(fechaB);
+  if (!matchA || !matchB) return 0;
+  const aY = Number(matchA[1]);
+  const aM = Number(matchA[2]);
+  const bY = Number(matchB[1]);
+  const bM = Number(matchB[2]);
+  return (bY - aY) * 12 + (bM - aM);
+};
+
