@@ -51,7 +51,8 @@ const CuentasCobrar: React.FC = () => {
   const debouncedBusqueda = useDebounce(busqueda, 500);
 
   // Filtros rápidos y de servidor
-  const [soloConDeuda, setSoloConDeuda] = useState(false);
+  // CxC abre enfocada en los alumnos deudores; el indicador permite quitar el filtro.
+  const [soloConDeuda, setSoloConDeuda] = useState(true);
   const [filtroEstadoAlumno, setFiltroEstadoAlumno] = useState<'activos' | 'archivados'>('activos');
   const [filtroSucursal, setFiltroSucursal] = useState('');
   const [filtroEntrenador, setFiltroEntrenador] = useState('');
