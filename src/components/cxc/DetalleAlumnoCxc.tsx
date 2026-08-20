@@ -661,10 +661,26 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                   // Sin preseleccionado: papá primero, luego mamá
                   telefono = alumno.telefono_padre || alumno.telefono_madre;
                 }
-                if (!telefono) return null;
+
+                const deudasCobrables = cxcs.filter(cxc =>
+                  !cxc.anulada &&
+                  !(cxc as any).es_anticipo &&
+                  Number(cxc.saldo_pendiente) > 0
+                );
+
+                if (!telefono || deudasCobrables.length === 0) return null;
+
                 const telLimpio = telefono.replace(/\D/g, '');
                 const telFinal = telLimpio.length === 8 ? `591${telLimpio}` : telLimpio;
-                const url = `https://wa.me/${telFinal}`;
+                const listadoDeudas = deudasCobrables
+                  .map(cxc => `• ${cxc.descripcion?.trim() || 'Deuda pendiente'}: Bs ${fmtMonto(Number(cxc.saldo_pendiente))}`)
+                  .join('\n');
+                const mensaje = [
+                  `*Estimado/a padre/madre, le informamos que actualmente registra los siguientes pagos pendientes correspondientes a ${alumno.nombres} ${alumno.apellidos}:*`,
+                  listadoDeudas,
+                  '*Si ya realizó alguno de estos pagos, por favor envíenos el comprobante por este medio para actualizar su estado. Muchas gracias.*'
+                ].join('\n\n');
+                const url = `https://wa.me/${telFinal}?text=${encodeURIComponent(mensaje)}`;
                 return (
                   <a
                     href={url}
