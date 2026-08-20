@@ -652,14 +652,24 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
               {(() => {
                 // Lógica de selección: preseleccionado → papá → mamá
                 const preferido = alumno.whatsapp_preferido;
-                let telefono: string | null = null;
+                const contactoPadre = {
+                  telefono: alumno.telefono_padre,
+                  nombre: alumno.nombre_padre,
+                  tratamiento: 'Estimado Señor'
+                };
+                const contactoMadre = {
+                  telefono: alumno.telefono_madre,
+                  nombre: alumno.nombre_madre,
+                  tratamiento: 'Estimada Señora'
+                };
+                let contacto: typeof contactoPadre | typeof contactoMadre | null = null;
                 if (preferido === 'padre') {
-                  telefono = alumno.telefono_padre || alumno.telefono_madre;
+                  contacto = contactoPadre.telefono ? contactoPadre : contactoMadre;
                 } else if (preferido === 'madre') {
-                  telefono = alumno.telefono_madre || alumno.telefono_padre;
+                  contacto = contactoMadre.telefono ? contactoMadre : contactoPadre;
                 } else {
                   // Sin preseleccionado: papá primero, luego mamá
-                  telefono = alumno.telefono_padre || alumno.telefono_madre;
+                  contacto = contactoPadre.telefono ? contactoPadre : contactoMadre;
                 }
 
                 const deudasCobrables = cxcs.filter(cxc =>
@@ -668,17 +678,21 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                   Number(cxc.saldo_pendiente) > 0
                 );
 
-                if (!telefono || deudasCobrables.length === 0) return null;
+                if (!contacto.telefono || deudasCobrables.length === 0) return null;
 
-                const telLimpio = telefono.replace(/\D/g, '');
+                const telLimpio = contacto.telefono.replace(/\D/g, '');
                 const telFinal = telLimpio.length === 8 ? `591${telLimpio}` : telLimpio;
+                const nombreContacto = contacto.nombre?.trim();
+                const saludo = nombreContacto
+                  ? `${contacto.tratamiento} ${nombreContacto}`
+                  : 'Estimado/a padre/madre';
                 const listadoDeudas = deudasCobrables
                   .map(cxc => `• ${cxc.descripcion?.trim() || 'Deuda pendiente'}: Bs ${fmtMonto(Number(cxc.saldo_pendiente))}`)
                   .join('\n');
                 const mensaje = [
-                  `*Estimado/a padre/madre, le informamos que actualmente registra los siguientes pagos pendientes correspondientes a ${alumno.nombres} ${alumno.apellidos}:*`,
+                  `${saludo}, le informamos que actualmente registra los siguientes pagos pendientes correspondientes a *${alumno.nombres.trim()}*:`,
                   listadoDeudas,
-                  '*Si ya realizó alguno de estos pagos, por favor envíenos el comprobante por este medio para actualizar su estado. Muchas gracias.*'
+                  'Si ya realizó alguno de estos pagos, por favor envíenos el comprobante por este medio para actualizar su estado. Muchas gracias. 🩶'
                 ].join('\n\n');
                 const url = `https://wa.me/${telFinal}?text=${encodeURIComponent(mensaje)}`;
                 return (
