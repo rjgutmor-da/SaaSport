@@ -20,10 +20,7 @@ interface Props {
 }
 
 const CATEGORIAS_PROVEEDOR = [
-  { value: 'uniforme',          label: 'Proveedor de Uniformes' },
-  { value: 'trabajador',        label: 'Personal Externo' },
-  { value: 'servicios_basicos', label: 'Servicios Básicos' },
-  { value: 'alquiler',          label: 'Alquileres' },
+  { value: 'uniforme',          label: 'Uniformes' },
   { value: 'otro',              label: 'Otros' },
 ];
 
@@ -31,7 +28,7 @@ const ModalEntidadCxP: React.FC<Props> = ({
   visible, tipo, itemAEditar, escuelaId, onCerrar, onGuardado 
 }) => {
   const [formProv, setFormProv] = useState<any>({
-    nombre: '', categoria: 'otro', nit_ci: '', telefono: '', direccion: '', contacto: '', activo: true, salario_base: '', cargo: ''
+    nombre: '', categoria: 'otro', nit_ci: '', telefono: '', direccion: '', contacto: '', activo: true, cargo: ''
   });
   const [formPers, setFormPers] = useState<any>({
     nombres: '', apellidos: '', cargo: '', telefono: '', direccion: '', contacto_emergencia: '', salario_base: '', activo: true
@@ -46,11 +43,11 @@ const ModalEntidadCxP: React.FC<Props> = ({
       setError(null);
       setExito(false);
       if (itemAEditar) {
-        if (tipo === 'proveedor') setFormProv({ ...itemAEditar, salario_base: itemAEditar.salario_base || '', cargo: itemAEditar.cargo || '' });
+        if (tipo === 'proveedor') setFormProv({ ...itemAEditar, cargo: itemAEditar.cargo || '' });
         else setFormPers({ ...itemAEditar });
       } else {
         // Reset
-        setFormProv({ nombre: '', categoria: 'otro', nit_ci: '', telefono: '', direccion: '', contacto: '', activo: true, salario_base: '', cargo: '' });
+        setFormProv({ nombre: '', categoria: 'otro', nit_ci: '', telefono: '', direccion: '', contacto: '', activo: true, cargo: '' });
         setFormPers({ nombres: '', apellidos: '', cargo: '', telefono: '', direccion: '', contacto_emergencia: '', salario_base: '', activo: true });
       }
     }
@@ -68,9 +65,6 @@ const ModalEntidadCxP: React.FC<Props> = ({
       if (tipo === 'proveedor') {
         if (!formProv.nombre?.trim()) throw new Error('El nombre es obligatorio.');
         
-        // Limpiamos el salario si no es categoría personal
-        const salario = formProv.categoria === 'trabajador' ? (Number(formProv.salario_base) || 0) : 0;
-        
         // MAPEADO EXPLÍCITO: Solo enviamos las columnas que existen en la tabla 'proveedores'
         // Esto soluciona definitivamente los errores de "column not found"
         const payload = { 
@@ -81,7 +75,6 @@ const ModalEntidadCxP: React.FC<Props> = ({
           direccion:    formProv.direccion || null,
           contacto:     formProv.contacto || null,
           cargo:        formProv.cargo || null,
-          salario_base: salario,
           activo:       formProv.activo ?? true,
           escuela_id:   escuelaId
         };
@@ -178,27 +171,15 @@ const ModalEntidadCxP: React.FC<Props> = ({
                   </select>
                 </div>
                 
-                {formProv.categoria === 'trabajador' ? (
-                  <div className="form-campo">
-                    <label><CreditCard size={14} /> Sueldo / Salario (Bs)</label>
-                    <input 
-                      type="number" step="0.01"
-                      value={formProv.salario_base || ''} 
-                      onChange={e => setFormProv({...formProv, salario_base: e.target.value})}
-                      placeholder="Monto acordado"
-                    />
-                  </div>
-                ) : (
-                  <div className="form-campo">
-                    <label><Hash size={14} /> NIT / CI</label>
-                    <input 
-                      type="text" 
-                      value={formProv.nit_ci || ''} 
-                      onChange={e => setFormProv({...formProv, nit_ci: e.target.value})}
-                      placeholder="Identificación tributaria"
-                    />
-                  </div>
-                )}
+                <div className="form-campo">
+                  <label><Hash size={14} /> NIT / CI</label>
+                  <input
+                    type="text"
+                    value={formProv.nit_ci || ''}
+                    onChange={e => setFormProv({...formProv, nit_ci: e.target.value})}
+                    placeholder="Identificación tributaria"
+                  />
+                </div>
 
                 <div className="form-campo">
                   <label><Briefcase size={14} /> Cargo / Función</label>

@@ -84,7 +84,7 @@ const DetalleProveedorCxP: React.FC<Props> = ({ entidad, visible, onCerrar, onAc
       .select(`
         id, fecha_emision, fecha_vencimiento, estado,
         monto_total, monto_pagado, deuda_restante,
-        descripcion, tipo_gasto, proveedor_id, personal_id, es_anticipo,
+        descripcion, tipo_gasto, proveedor_id, personal_id, es_anticipo, periodo,
         observaciones
       `)
       .order('fecha_emision', { ascending: false });
@@ -522,7 +522,7 @@ const DetalleProveedorCxP: React.FC<Props> = ({ entidad, visible, onCerrar, onAc
                           />
                           <div style={{ display: 'flex', flexDirection: 'column' }}>
                             <span style={{ fontWeight: 700, fontSize: '0.7rem', color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '120px' }}>
-                              {nota.descripcion || 'Nota'}
+                              {nota.descripcion || 'Nota'}{nota.periodo ? ` — ${new Intl.DateTimeFormat('es-BO', { month: 'long', year: 'numeric' }).format(new Date(`${nota.periodo}-01T12:00:00`))}` : ''}
                             </span>
                             <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)' }}>
                               Saldo: <strong style={{ color: '#38bdf8' }}>Bs {fmtMonto(nota.deuda_restante)}</strong>
@@ -610,7 +610,7 @@ const DetalleProveedorCxP: React.FC<Props> = ({ entidad, visible, onCerrar, onAc
                   <div key={nota.id} style={{ background: 'var(--bg-card)', padding: '0.85rem', borderRadius: '8px', border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <span style={{ fontWeight: 800, color: 'var(--text-primary)', fontSize: '0.85rem' }}>
-                        {nota.descripcion || 'Sin descripción'}
+                        {nota.descripcion || 'Sin descripción'}{nota.periodo ? ` — ${new Intl.DateTimeFormat('es-BO', { month: 'long', year: 'numeric' }).format(new Date(`${nota.periodo}-01T12:00:00`))}` : ''}
                         {esNotaVencida(nota.fecha_vencimiento, nota.estado) && (
                           <span style={{
                             background: 'rgba(248,113,113,0.15)', color: '#f87171',
@@ -694,7 +694,7 @@ const DetalleProveedorCxP: React.FC<Props> = ({ entidad, visible, onCerrar, onAc
                                     />
                                     <div style={{ display: 'flex', flexDirection: 'column' }}>
                                       <span style={{ fontWeight: 700, fontSize: '0.75rem', color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '150px' }}>
-                                        {nota.descripcion || 'Nota'}
+                                        {nota.descripcion || 'Nota'}{nota.periodo ? ` — ${new Intl.DateTimeFormat('es-BO', { month: 'long', year: 'numeric' }).format(new Date(`${nota.periodo}-01T12:00:00`))}` : ''}
                                       </span>
                                       <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>
                                         Saldo: <strong style={{ color: '#38bdf8' }}>Bs {fmtMonto(nota.deuda_restante)}</strong>
@@ -751,7 +751,7 @@ const DetalleProveedorCxP: React.FC<Props> = ({ entidad, visible, onCerrar, onAc
                     <tr key={nota.id} className="hover-row">
                       <td style={{ padding: '0.5rem 0.75rem', border: '1px solid var(--border)' }}>
                         <div style={{ display: 'flex', flexDirection: 'column' }}>
-                          <span style={{ fontWeight: 700 }}>{nota.descripcion || 'Sin descripción'}</span>
+                          <span style={{ fontWeight: 700 }}>{nota.descripcion || 'Sin descripción'}{nota.periodo ? ` — ${new Intl.DateTimeFormat('es-BO', { month: 'long', year: 'numeric' }).format(new Date(`${nota.periodo}-01T12:00:00`))}` : ''}</span>
                           {esNotaVencida(nota.fecha_vencimiento, nota.estado) && (
                             <span style={{
                               display: 'inline-block', marginTop: '2px',

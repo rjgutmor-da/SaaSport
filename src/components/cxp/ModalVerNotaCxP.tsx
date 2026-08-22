@@ -46,6 +46,9 @@ interface PagoAplicado {
 
 const fmtMonto = (n: number): string =>
   n.toLocaleString('es-BO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const fmtPeriodo = (periodo?: string | null) => periodo
+  ? new Intl.DateTimeFormat('es-BO', { month: 'long', year: 'numeric' }).format(new Date(`${periodo}-01T12:00:00`))
+  : null;
 
 const ModalVerNotaCxP: React.FC<Props> = ({ visible, cxpId, onCerrar, onEditar, onActualizar }) => {
   const [cargando, setCargando] = useState(true);
@@ -79,7 +82,7 @@ const ModalVerNotaCxP: React.FC<Props> = ({ visible, cxpId, onCerrar, onEditar, 
     // También obtener observaciones de la tabla base
     const { data: notaBase } = await supabase
       .from('cuentas_pagar')
-      .select('observaciones, editado, editado_por, editado_at, anulada, anulada_por, anulada_at, nro_recibo:comprobante_id')
+        .select('observaciones, editado, editado_por, editado_at, anulada, anulada_por, anulada_at, nro_recibo:comprobante_id, periodo')
       .eq('id', cxpId)
       .single();
 
@@ -250,6 +253,7 @@ const ModalVerNotaCxP: React.FC<Props> = ({ visible, cxpId, onCerrar, onEditar, 
                     <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
                       <Calendar size={13} /> Emitida: {formatFecha(nota.fecha_emision)}
                     </span>
+                    {fmtPeriodo(nota.periodo) && <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}><Calendar size={13} /> Ciclo: {fmtPeriodo(nota.periodo)}</span>}
                     {nota.fecha_vencimiento && (
                       <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
                         <AlertCircle size={13} /> Vence: {formatFecha(nota.fecha_vencimiento)}

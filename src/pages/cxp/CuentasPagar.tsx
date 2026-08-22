@@ -20,7 +20,7 @@ import { useContext, useEffect } from 'react';
 import { useIsMobile } from '../../hooks/useIsMobile';
 
 // Componentes del módulo
-import FiltrosCxP, { CATEGORIAS_PROVEEDOR } from '../../components/cxp/FiltrosCxP';
+import FiltrosCxP from '../../components/cxp/FiltrosCxP';
 import NotaPago from '../../components/cxp/NotaPago';
 import DetalleProveedorCxP from '../../components/cxp/DetalleProveedorCxP';
 import AdminEntidadesCxP from '../../components/cxp/AdminEntidadesCxP';
@@ -47,12 +47,10 @@ const CuentasPagar: React.FC = () => {
   // ── Búsqueda y filtros ──
   const [busqueda, setBusqueda]         = useState('');
   const [filtroCategoria, setFiltroCategoria] = useState('');
-  const [filtroAntiguedad, setFiltroAntiguedad] = useState('');
 
   // ── Hooks de datos (Fase 1: Cálculos en DB + Fase 2: Caché) ──
   const filtros = {
     categoria: filtroCategoria,
-    antiguedad: filtroAntiguedad,
     busqueda
   };
 
@@ -172,6 +170,7 @@ const CuentasPagar: React.FC = () => {
               />
             </div>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
+              <FiltrosCxP categoria={filtroCategoria} onChangeCategoria={setFiltroCategoria} compact />
               {/* Casilla de Deudas */}
               <div style={{
                 display: 'flex',
@@ -250,10 +249,7 @@ const CuentasPagar: React.FC = () => {
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
                 <FiltrosCxP
                   categoria={filtroCategoria}
-                  antiguedad={filtroAntiguedad}
                   onChangeCategoria={setFiltroCategoria}
-                  onChangeAntiguedad={setFiltroAntiguedad}
-                  onLimpiar={() => { setFiltroCategoria(''); setFiltroAntiguedad(''); }}
                   compact
                 />
               </div>
@@ -351,18 +347,18 @@ const CuentasPagar: React.FC = () => {
             <div className="arbol-vacio">
               <Truck size={40} style={{ marginBottom: '0.75rem', opacity: 0.4 }} />
               <p>
-                {busqueda || filtroCategoria || filtroAntiguedad
-                  ? 'No se encontraron proveedores con los filtros actuales.'
-                  : 'No hay proveedores registrados. Agrega el primero.'
+                {busqueda || filtroCategoria
+                  ? 'No se encontraron cuentas por pagar con los filtros actuales.'
+                  : 'No hay entidades registradas. Agrega la primera.'
                 }
               </p>
-              {!busqueda && !filtroCategoria && !filtroAntiguedad && (
+              {!busqueda && !filtroCategoria && (
                 <button
                   className="btn-nueva-cuenta"
                   style={{ marginTop: '0.75rem' }}
                   onClick={() => setMostrarAdmin(true)}
                 >
-                  <UserPlus size={16} /> Agregar Proveedor
+                    <UserPlus size={16} /> Agregar Entidad
                 </button>
               )}
             </div>
@@ -383,7 +379,6 @@ const CuentasPagar: React.FC = () => {
                   {entidadesFiltradas.map(entidad => {
                     const tieneDeuda  = entidad.saldo_pendiente > 0;
                     const dias        = calcularDias(entidad.fecha_mas_antigua);
-                    const labelCat    = CATEGORIAS_PROVEEDOR.find(c => c.value === entidad.categoria)?.label ?? 'Otro';
                     const colorDias   = dias > 45 ? 'var(--danger)' : dias > 30 ? 'var(--primary)' : 'var(--text-tertiary)';
 
                     return (
@@ -480,6 +475,8 @@ const CuentasPagar: React.FC = () => {
       <NotaPago
         visible={mostrarNota}
         tipoInicial={tipoNotaInicial}
+        proveedorIdInicial={entidadParaNota?.tipo === 'proveedor' ? entidadParaNota.id : undefined}
+        personalIdInicial={entidadParaNota?.tipo === 'personal' ? entidadParaNota.id : undefined}
         onCerrar={() => { setMostrarNota(false); setEntidadParaNota(null); }}
         onCreada={() => { setMostrarNota(false); setEntidadParaNota(null); manejarActualizacion(); }}
       />

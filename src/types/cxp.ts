@@ -19,6 +19,7 @@ export interface NotaResumenCxP {
   id: string;
   fecha_emision: string;
   fecha_vencimiento: string | null;
+  periodo?: string | null;
   estado: string;
   monto_total: number;
   monto_pagado: number;

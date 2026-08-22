@@ -30,6 +30,7 @@ interface CxPItem {
   deuda_restante: number;
   fecha_emision: string;
   fecha_vencimiento: string | null;
+  periodo?: string | null;
   descripcion: string | null;
   observaciones: string | null;
   proveedor_nombre?: string;
@@ -67,6 +68,9 @@ interface Props {
 
 const fmtMonto = (n: number) =>
   n.toLocaleString('es-BO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const fmtPeriodo = (periodo?: string | null) => periodo
+  ? new Intl.DateTimeFormat('es-BO', { month: 'long', year: 'numeric' }).format(new Date(`${periodo}-01T12:00:00`))
+  : null;
 
 const BADGE_ESTADOS: Record<string, { label: string; color: string; bg: string }> = {
   pendiente: { label: 'Pendiente', color: '#facc15', bg: 'rgba(250,204,21,0.15)' },
@@ -324,6 +328,11 @@ const DetalleCxP: React.FC<Props> = ({ nota, visible, onCerrar, onActualizar }) 
                     <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
                       <Calendar size={13} /> Emitida: {formatFecha(notaActual.fecha_emision)}
                     </span>
+                    {fmtPeriodo(notaActual.periodo) && (
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                        <Calendar size={13} /> Ciclo: {fmtPeriodo(notaActual.periodo)}
+                      </span>
+                    )}
                     {notaActual.fecha_vencimiento && (
                       <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
                         <AlertCircle size={13} /> Vence: {formatFecha(notaActual.fecha_vencimiento)}

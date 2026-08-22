@@ -98,7 +98,7 @@ const Sidebar: React.FC<SidebarProps> = ({ onLogout, theme, onCycleTheme, extra 
         {can(perfil?.rol, 'finance.cxp.view') && <div className="sidebar-item-group">
           <NavLink to="/cxp" className={({ isActive }) => (isActive ? 'sidebar-link active' : 'sidebar-link')}>
             <PieChart size={20} strokeWidth={1.5} />
-            <span>Proveedores (CxP)</span>
+            <span>Cuentas por Pagar</span>
           </NavLink>
         </div>}
 

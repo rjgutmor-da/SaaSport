@@ -49,12 +49,16 @@ const lineaVacia = (): LineaNotaPago => ({
 const fmtMonto = (n: number) =>
   n.toLocaleString('es-BO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+const esConceptoSueldos = (nombre: string) =>
+  nombre.trim().toLocaleLowerCase('es-BO') === 'sueldos y salarios';
+
 const NotaPago: React.FC<Props> = ({ visible, tipoInicial, esAnticipo = false, onCerrar, onCreada, cxpEditar, proveedorIdInicial, personalIdInicial }) => {
   const [tipoGasto, setTipoGasto] = useState(tipoInicial);
   const [proveedorId, setProveedorId] = useState('');
   const [personalId, setPersonalId] = useState('');
   const [fechaEmision, setFechaEmision] = useState(getHoyISO());
   const [vencimiento, setVencimiento] = useState('');
+  const [periodo, setPeriodo] = useState('');
   const [observaciones, setObservaciones] = useState('');
   const [lineas, setLineas] = useState<LineaNotaPago[]>([lineaVacia()]);
 
@@ -68,7 +72,7 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, esAnticipo = false, o
   const [cuentaAnticipoId, setCuentaAnticipoId] = useState('');
 
   const [proveedores, setProveedores] = useState<{ id: string; nombre: string }[]>([]);
-  const [personal, setPersonal] = useState<{ id: string; nombres: string; apellidos: string }[]>([]);
+  const [personal, setPersonal] = useState<{ id: string; nombres: string; apellidos: string; salario_base: number | null }[]>([]);
   const [catalogo, setCatalogo] = useState<CatalogoItem[]>([]);
   const [cajasBancos, setCajasBancos] = useState<{ id: string; nombre: string; saldo_actual: number }[]>([]);
 
@@ -90,7 +94,7 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, esAnticipo = false, o
 
       const [resProv, persProv, resCat, resCajas] = await Promise.all([
         supabase.from('proveedores').select('id, nombre').eq('escuela_id', usr.escuela_id).eq('activo', true).order('nombre'),
-        supabase.from('personal').select('id, nombres, apellidos').eq('escuela_id', usr.escuela_id).eq('activo', true).order('nombres'),
+        supabase.from('personal').select('id, nombres, apellidos, salario_base').eq('escuela_id', usr.escuela_id).eq('activo', true).order('nombres'),
         supabase.from('catalogo_items').select('*').eq('activo', true).or('tipo_movimiento.eq.egreso,tipo_movimiento.eq.ambos').order('nombre'),
         supabase.from('cajas_bancos').select('id, nombre, saldo_actual, es_predeterminada').eq('activo', true).eq('escuela_id', usr.escuela_id).order('orden'),
       ]);
@@ -115,6 +119,7 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, esAnticipo = false, o
         setFechaEmision(cxpEditar.fecha_emision ? cxpEditar.fecha_emision.split('T')[0] : getHoyISO());
         setVencimiento(cxpEditar.fecha_vencimiento ? cxpEditar.fecha_vencimiento.split('T')[0] : '');
         setObservaciones(cxpEditar.observaciones || '');
+        setPeriodo(cxpEditar.periodo || '');
         
         const { data: detItems } = await supabase.from('cxp_detalle').select('*').eq('cuenta_pagar_id', cxpEditar.id);
         if (detItems && detItems.length > 0) {
@@ -137,7 +142,7 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, esAnticipo = false, o
         // Precargar proveedor/personal si viene de la tarjeta de detalle
         setProveedorId(proveedorIdInicial || '');
         setPersonalId(personalIdInicial || '');
-        setFechaEmision(getHoyISO()); setVencimiento(getHoyISO()); setObservaciones('');
+        setFechaEmision(getHoyISO()); setVencimiento(getHoyISO()); setObservaciones(''); setPeriodo('');
         setLineas([lineaVacia()]); setPagarAlCrear(esAnticipo);
         setFechaPago(getHoyISO()); setMontoPago(''); setNroComprobante('');
         setCuentaAnticipoId('');
@@ -151,6 +156,19 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, esAnticipo = false, o
     if (esAnticipo) return parseFloat(montoAnticipo) || 0;
     return lineas.reduce((s, l) => s + l.subtotal, 0);
   }, [lineas, esAnticipo, montoAnticipo]);
+
+  const esNotaSueldo = !esAnticipo && lineas.some(linea => esConceptoSueldos(linea.nombre));
+
+  const actualizarMontoSueldo = (idPersonal: string, lineasActuales = lineas) => {
+    const persona = personal.find(p => p.id === idPersonal);
+    if (!persona) return;
+    const nuevas = lineasActuales.map(linea => {
+      if (!esConceptoSueldos(linea.nombre)) return linea;
+      const monto = Number(persona.salario_base) || 0;
+      return { ...linea, cantidad: 1, precio_unitario: monto, subtotal: monto };
+    });
+    setLineas(nuevas);
+  };
 
   useEffect(() => {
     if (esAnticipo) {
@@ -171,6 +189,12 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, esAnticipo = false, o
     } else {
       const lineasValidas = lineas.filter(l => l.catalogo_item_id && l.precio_unitario >= 0 && l.cantidad > 0);
       if (lineasValidas.length === 0) { setError('Agrega al menos un ítem válido.'); return; }
+      const lineaSueldo = lineasValidas.find(l => esConceptoSueldos(l.nombre));
+      if (lineaSueldo) {
+        if (tipoGasto !== 'personal' || !personalId) { setError('Selecciona al personal para registrar Sueldos y Salarios.'); return; }
+        if (!/^\d{4}-\d{2}$/.test(periodo)) { setError('Selecciona el mes completo del sueldo.'); return; }
+        if (lineasValidas.length !== 1 || lineaSueldo.precio_unitario <= 0) { setError('La nota de Sueldos y Salarios debe tener un único concepto con monto mayor a cero.'); return; }
+      }
       if (pagarAlCrear && (!montoPago || !cuentaPagoId)) { setError('Completa los datos del pago.'); return; }
     }
 
@@ -200,6 +224,7 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, esAnticipo = false, o
         tipo_gasto: tipoGasto,
         descripcion: esAnticipo ? 'Anticipo' : lineas.filter(l => l.catalogo_item_id && l.precio_unitario >= 0 && l.cantidad > 0).map(l => l.nombre).join(', '),
         observaciones,
+        periodo: esNotaSueldo ? periodo : null,
         fecha_emision: fechaEmision,
         fecha_vencimiento: vencimiento || null,
       };
@@ -327,7 +352,11 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, esAnticipo = false, o
 
       setTimeout(() => { onCreada(); onCerrar(); }, 1200);
     } catch (err: any) {
-      setError(`Error: ${err.message}`);
+      if (err?.code === '23505' && esNotaSueldo) {
+        setError('Ya existe una nota activa de Sueldos y Salarios para esta persona y mes. Edita o anula la nota existente.');
+      } else {
+        setError(`Error: ${err.message}`);
+      }
     } finally {
       setGuardando(false);
     }
@@ -360,12 +389,19 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, esAnticipo = false, o
                     {proveedores.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
                   </select>
                 ) : (
-                  <select value={personalId} onChange={e => setPersonalId(e.target.value)} required disabled={!!personalIdInicial}>
+                  <select value={personalId} onChange={e => { setPersonalId(e.target.value); if (esNotaSueldo) actualizarMontoSueldo(e.target.value); }} required disabled={!!personalIdInicial}>
                     <option value="">— Seleccionar —</option>
                     {personal.map(p => <option key={p.id} value={p.id}>{p.nombres} {p.apellidos}</option>)}
                   </select>
                 )}
               </div>
+              {esNotaSueldo && (
+                <div className="form-campo full-width">
+                  <label>Mes del sueldo *</label>
+                  <input type="month" value={periodo} onChange={e => setPeriodo(e.target.value)} required />
+                  <small style={{ color: 'var(--text-tertiary)' }}>Se registrará el ciclo completo del mes seleccionado.</small>
+                </div>
+              )}
               <div className="form-campo">
                 <label>Fecha Emisión</label>
                 <input type="date" value={fechaEmision} onChange={e => setFechaEmision(e.target.value)} required />
@@ -407,9 +443,17 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, esAnticipo = false, o
                         const it = catalogo.find(c => c.id === e.target.value);
                         if (it) {
                           const nuevas = [...lineas];
-                          const costoUnitario = Number(it.costo_unitario) || 0;
-                          nuevas[idx] = { ...nuevas[idx], catalogo_item_id: it.id, nombre: it.nombre, tipo: it.tipo, precio_unitario: costoUnitario, subtotal: costoUnitario * nuevas[idx].cantidad };
+                          const esSueldo = esConceptoSueldos(it.nombre);
+                          const sueldoBase = Number(personal.find(p => p.id === personalId)?.salario_base) || 0;
+                          const costoUnitario = esSueldo && personalId ? sueldoBase : (Number(it.costo_unitario) || 0);
+                          nuevas[idx] = { ...nuevas[idx], catalogo_item_id: it.id, nombre: it.nombre, tipo: it.tipo, cantidad: esSueldo ? 1 : nuevas[idx].cantidad, precio_unitario: costoUnitario, subtotal: costoUnitario * (esSueldo ? 1 : nuevas[idx].cantidad) };
                           setLineas(nuevas);
+                          if (esSueldo) {
+                            setTipoGasto('personal');
+                            setProveedorId('');
+                          } else if (lineas.some(l => esConceptoSueldos(l.nombre))) {
+                            setPeriodo('');
+                          }
                         }
                       }} required disabled={guardando}>
                         <option value="">— Seleccionar Ítem —</option>
@@ -420,7 +464,7 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, esAnticipo = false, o
                         const nuevas = [...lineas];
                         nuevas[idx] = { ...nuevas[idx], cantidad: cant, subtotal: cant * nuevas[idx].precio_unitario };
                         setLineas(nuevas);
-                      }} min="1" disabled={guardando} title="Cantidad" />
+                      }} min="1" disabled={guardando || esConceptoSueldos(linea.nombre)} title="Cantidad" />
                       <input type="number" step="0.01" value={linea.precio_unitario} onChange={e => {
                         const prec = parseFloat(e.target.value) || 0;
                         const nuevas = [...lineas];
@@ -428,11 +472,11 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, esAnticipo = false, o
                         setLineas(nuevas);
                       }} disabled={guardando} title="Costo Unitario" />
                       <div style={{ textAlign: 'right', fontWeight: 700, fontSize: '0.9rem' }}>Bs {fmtMonto(linea.subtotal)}</div>
-                      <button type="button" onClick={() => setLineas(lineas.filter((_, i) => i !== idx))} disabled={lineas.length === 1} style={{ color: '#f87171' }}><Trash2 size={16} /></button>
+                      <button type="button" onClick={() => setLineas(lineas.filter((_, i) => i !== idx))} disabled={lineas.length === 1 || esConceptoSueldos(linea.nombre)} style={{ color: '#f87171' }}><Trash2 size={16} /></button>
                     </div>
                   </div>
                 ))}
-                <button type="button" onClick={() => setLineas([...lineas, lineaVacia()])} style={{ fontSize: '0.8rem', color: '#f59e0b', display: 'flex', alignItems: 'center', gap: '0.3rem' }}><Plus size={14} /> Agregar ítem</button>
+                {!esNotaSueldo && <button type="button" onClick={() => setLineas([...lineas, lineaVacia()])} style={{ fontSize: '0.8rem', color: '#f59e0b', display: 'flex', alignItems: 'center', gap: '0.3rem' }}><Plus size={14} /> Agregar ítem</button>}
               </div>
             ) : null}
 

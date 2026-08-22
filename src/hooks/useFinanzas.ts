@@ -159,7 +159,7 @@ const fetchCxcResumen = async (escuelaId: string, filtros: any) => {
 };
 
 const fetchCxpResumen = async (escuelaId: string, filtros?: any) => {
-  const tieneFiltros = filtros && (filtros.categoria || filtros.antiguedad || filtros.busqueda?.trim());
+  const tieneFiltros = filtros && (filtros.categoria || filtros.busqueda?.trim());
 
   if (!tieneFiltros) {
     const { data, error } = await supabase
@@ -189,19 +189,6 @@ const fetchCxpResumen = async (escuelaId: string, filtros?: any) => {
   if (error) throw error;
 
   let lista = data || [];
-
-  // Filtrado de antigüedad en memoria
-  if (filtros.antiguedad) {
-    const hoy = new Date();
-    const limite = filtros.antiguedad === 'mas' ? 45 : parseInt(filtros.antiguedad);
-    lista = lista.filter(e => {
-      if (!e.fecha_mas_antigua) return false;
-      const fecha = new Date(e.fecha_mas_antigua);
-      const dias = Math.floor((hoy.getTime() - fecha.getTime()) / (1000 * 60 * 60 * 24));
-      if (filtros.antiguedad === 'mas') return dias > 45;
-      return dias <= limite && dias > 0;
-    });
-  }
 
   const totalEntidades = lista.length;
   const conDeuda = lista.filter(e => Number(e.saldo_pendiente) > 0).length;
@@ -323,19 +310,6 @@ const fetchCxpEntidades = async (escuelaId: string, filtros: any) => {
   if (error) throw error;
 
   let lista = data || [];
-
-  // Filtrado de antigüedad en memoria (ya que calcularDias es complejo para SQL puro sin extensiones)
-  if (filtros.antiguedad) {
-    const hoy = new Date();
-    const limite = filtros.antiguedad === 'mas' ? 45 : parseInt(filtros.antiguedad);
-    lista = lista.filter(e => {
-      if (!e.fecha_mas_antigua) return false;
-      const fecha = new Date(e.fecha_mas_antigua);
-      const dias = Math.floor((hoy.getTime() - fecha.getTime()) / (1000 * 60 * 60 * 24));
-      if (filtros.antiguedad === 'mas') return dias > 45;
-      return dias <= limite && dias > 0;
-    });
-  }
 
   // Ordenar: primero con saldo, después por nombre
   lista.sort((a: any, b: any) => {

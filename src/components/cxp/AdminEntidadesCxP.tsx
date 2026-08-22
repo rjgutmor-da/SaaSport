@@ -31,10 +31,7 @@ interface Proveedor {
 
 /** Etiquetas de categorías de proveedor */
 const CATEGORIAS_PROVEEDOR = [
-  { value: 'uniforme',          label: 'Proveedor de Uniformes' },
-  { value: 'trabajador',        label: 'Personal Externo' },
-  { value: 'servicios_basicos', label: 'Servicios Básicos' },
-  { value: 'alquiler',          label: 'Alquileres' },
+  { value: 'uniforme',          label: 'Uniformes' },
   { value: 'otro',              label: 'Otros' },
 ];
 
@@ -95,31 +92,16 @@ const AdminEntidadesCxP: React.FC<Props> = ({ onVolver }) => {
       const { data } = await supabase.from('proveedores')
         .select('id, nombre, nit_ci, telefono, direccion, contacto, categoria, activo, salario_base')
         .eq('escuela_id', escuelaId)
-        .neq('categoria', 'trabajador')
         .order('nombre');
       setProveedores((data ?? []).map(p => ({ ...p, tipo_origen: 'proveedor' as const })));
     } else {
-      // Personal unificado: Tabla Personal + Tabla Proveedores(categoria=trabajador)
+      // Personal se administra únicamente desde la tabla personal.
       const { data: dataPers } = await supabase.from('personal')
         .select('id, nombres, apellidos, cargo, telefono, direccion, contacto_emergencia, salario_base, activo')
         .eq('escuela_id', escuelaId).order('nombres');
-      
-      const { data: dataProvPers } = await supabase.from('proveedores')
-        .select('id, nombre, telefono, direccion, contacto, categoria, activo, salario_base')
-        .eq('escuela_id', escuelaId)
-        .eq('categoria', 'trabajador')
-        .order('nombre');
 
       const listaUnificada: Personal[] = [
         ...(dataPers ?? []).map(p => ({ ...p, tipo_origen: 'personal' as const })),
-        ...(dataProvPers ?? []).map(p => ({ 
-          ...p, 
-          nombres: p.nombre, 
-          apellidos: '', 
-          cargo: 'Personal Externo', 
-          contacto_emergencia: p.contacto,
-          tipo_origen: 'proveedor' as const 
-        }))
       ];
       setPersonal(listaUnificada);
     }
@@ -259,9 +241,7 @@ const AdminEntidadesCxP: React.FC<Props> = ({ onVolver }) => {
                   <Users size={13} /> {p.nombres} {p.apellidos}
                 </span>
                 <span className="cxc-alumno-meta">
-                  {p.tipo_origen === 'personal' 
-                    ? 'Personal Interno' 
-                    : (CATEGORIAS_PROVEEDOR.find(c => c.value === 'trabajador')?.label || 'Personal')}
+                    Personal
                 </span>
                 <span className="cxc-alumno-meta" style={{ fontWeight: 700, color: 'var(--success)' }}>
                   {p.salario_base ? `Bs ${p.salario_base.toLocaleString()}` : '—'}
