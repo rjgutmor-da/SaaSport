@@ -1075,6 +1075,25 @@ input[type=number] {
   background: rgba(245, 158, 11, 0.02);
 }
 
+.cxc-tr--archivado {
+  background: rgba(249, 115, 22, 0.05);
+}
+
+.cxc-badge-archivado {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  padding: 0.15rem 0.42rem;
+  border: 1px solid rgba(249, 115, 22, 0.45);
+  border-radius: 999px;
+  background: rgba(249, 115, 22, 0.12);
+  color: #ea580c;
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
 .cxc-td {
   padding: 0.4rem 0.75rem;
   vertical-align: middle;

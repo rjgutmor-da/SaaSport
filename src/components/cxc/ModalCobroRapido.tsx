@@ -69,7 +69,8 @@ const ModalCobroRapido: React.FC<Props> = ({ alumnoInicial, visible, onCerrar, o
       const { data: listaAlumnos } = await supabase
         .from('v_alumnos_deuda')
         .select('*')
-        .eq('escuela_id', usr.escuela_id);
+        .eq('escuela_id', usr.escuela_id)
+        .eq('archivado', false);
       setAlumnos((listaAlumnos as unknown as AlumnoDeuda[]) ?? []);
 
       // Cargar cuentas (Cajas y Bancos) disponibles

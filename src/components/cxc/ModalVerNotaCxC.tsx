@@ -24,6 +24,7 @@ interface Props {
   onCerrar: () => void;
   onEditar?: () => void; 
   onActualizar?: () => void;
+  soloLectura?: boolean;
 }
 
 interface DetalleItem {
@@ -53,7 +54,7 @@ interface CobroAplicado {
 const fmtMonto = (n: number): string =>
   n.toLocaleString('es-BO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-const ModalVerNotaCxC: React.FC<Props> = ({ visible, cxcId, onCerrar, onEditar, onActualizar }) => {
+const ModalVerNotaCxC: React.FC<Props> = ({ visible, cxcId, onCerrar, onEditar, onActualizar, soloLectura = false }) => {
   const [cargando, setCargando] = useState(true);
   const [nota, setNota] = useState<any>(null);
   const [items, setItems] = useState<DetalleItem[]>([]);
@@ -156,6 +157,7 @@ const ModalVerNotaCxC: React.FC<Props> = ({ visible, cxcId, onCerrar, onEditar, 
   }, [visible, cxcId]);
 
   const handleEliminarCobro = async (cobroId: string) => {
+    if (soloLectura) return;
     if (!confirm('¿Estás seguro de eliminar este cobro? El saldo se restará de la caja/banco.')) return;
     setEliminandoId(cobroId);
     try {
@@ -209,7 +211,7 @@ const ModalVerNotaCxC: React.FC<Props> = ({ visible, cxcId, onCerrar, onEditar, 
             Nota de Servicio — Detalle Completo
           </h2>
           <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-            {puedeEditar && onEditar && !nota?.anulada && (
+            {!soloLectura && puedeEditar && onEditar && !nota?.anulada && (
               <button
                 onClick={onEditar}
                 className="btn-premium btn-blue"
@@ -490,7 +492,7 @@ const ModalVerNotaCxC: React.FC<Props> = ({ visible, cxcId, onCerrar, onEditar, 
                             Bs {fmtMonto(Number(cobro.monto_aplicado))}
                           </span>
 
-                          {!nota.anulada && (puedeEditar || puedeEliminar) && (
+                          {!soloLectura && !nota.anulada && (puedeEditar || puedeEliminar) && (
                             <div style={{ display: 'flex', gap: '0.4rem' }}>
                               {puedeEditar && <button
                                 onClick={() => setMovEditar({
@@ -540,7 +542,7 @@ const ModalVerNotaCxC: React.FC<Props> = ({ visible, cxcId, onCerrar, onEditar, 
             </div>
 
             {/* Modal de edición de cobro */}
-            <ModalEditarCobroCxC
+            {!soloLectura && <ModalEditarCobroCxC
               visible={!!movEditar}
               cobro={movEditar}
               cajas={cajas}
@@ -552,7 +554,7 @@ const ModalVerNotaCxC: React.FC<Props> = ({ visible, cxcId, onCerrar, onEditar, 
                 await cargarDatos();
                 onActualizar?.();
               }}
-            />
+            />}
 
             {/* ── Datos de Auditoría ── */}
             {(nota.editado || nota.anulada) && (

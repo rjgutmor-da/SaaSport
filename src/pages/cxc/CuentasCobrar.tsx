@@ -8,12 +8,12 @@
  * 3. Barra de búsqueda
  * 4. Tabla tipo hoja de cálculo con acciones por alumno
  */
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import type { AlumnoDeuda } from '../../types/cxc';
 import {
   RefreshCw, Plus, Search,
-  Users, CreditCard, FileText, BookOpen
+  Users, CreditCard, FileText, BookOpen, Eye
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
@@ -39,6 +39,8 @@ import { getDataScope } from '../../config/roles';
 const fmtMonto = (n: number): string =>
   n.toLocaleString('es-BO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+type FiltroEstadoAlumno = 'activos' | 'archivados' | 'todos';
+
 const CuentasCobrar: React.FC = () => {
   const navigate = useNavigate();
   const { setExtra } = useContext(SidebarContext);
@@ -53,7 +55,8 @@ const CuentasCobrar: React.FC = () => {
   // Filtros rápidos y de servidor
   // CxC abre enfocada en los alumnos deudores; el indicador permite quitar el filtro.
   const [soloConDeuda, setSoloConDeuda] = useState(true);
-  const [filtroEstadoAlumno, setFiltroEstadoAlumno] = useState<'activos' | 'archivados'>('activos');
+  const [filtroEstadoAlumno, setFiltroEstadoAlumno] = useState<FiltroEstadoAlumno>('activos');
+  const filtrosAntesBusqueda = useRef<{ soloConDeuda: boolean; estado: FiltroEstadoAlumno } | null>(null);
   const [filtroSucursal, setFiltroSucursal] = useState('');
   const [filtroEntrenador, setFiltroEntrenador] = useState('');
   const [filtroCancha, setFiltroCancha] = useState('');
@@ -68,6 +71,25 @@ const CuentasCobrar: React.FC = () => {
   const [pagina, setPagina] = useState(1);
   const itemsPorPagina = 30;
 
+  const manejarBusqueda = (valor: string) => {
+    const teniaBusqueda = busqueda.trim().length > 0;
+    const tieneBusqueda = valor.trim().length > 0;
+
+    if (!teniaBusqueda && tieneBusqueda) {
+      filtrosAntesBusqueda.current = { soloConDeuda, estado: filtroEstadoAlumno };
+      setSoloConDeuda(false);
+      setFiltroEstadoAlumno('todos');
+    }
+
+    if (teniaBusqueda && !tieneBusqueda && filtrosAntesBusqueda.current) {
+      setSoloConDeuda(filtrosAntesBusqueda.current.soloConDeuda);
+      setFiltroEstadoAlumno(filtrosAntesBusqueda.current.estado);
+      filtrosAntesBusqueda.current = null;
+    }
+
+    setBusqueda(valor);
+  };
+
   useEffect(() => {
     setPagina(1);
   }, [debouncedBusqueda, soloConDeuda, filtroEstadoAlumno, sucursalEfectiva, filtroEntrenador, filtroCancha, filtroHorario]);
@@ -77,7 +99,7 @@ const CuentasCobrar: React.FC = () => {
     entrenadorId: filtroEntrenador,
     canchaId: filtroCancha,
     horarioId: filtroHorario,
-    soloConDeuda: isMobile ? (busqueda.trim() === '') : soloConDeuda,
+    soloConDeuda,
     filtroEstadoAlumno,
     busqueda: debouncedBusqueda,
     pagina,
@@ -111,6 +133,7 @@ const CuentasCobrar: React.FC = () => {
   const [mostrarNotaMasiva, setMostrarNotaMasiva] = useState(false);
 
   const toggleMarcarAlumno = (alumno: AlumnoDeuda) => {
+    if (alumno.archivado) return;
     setAlumnosMarcados(prev => {
       const yaMarcado = prev.some(a => a.alumno_id === alumno.alumno_id);
       if (yaMarcado) {
@@ -125,12 +148,13 @@ const CuentasCobrar: React.FC = () => {
   };
 
   const toggleMarcarTodos = (actuales: AlumnoDeuda[]) => {
-    if (alumnosMarcados.length === actuales.length && actuales.length > 0) {
+    const seleccionables = actuales.filter(alumno => !alumno.archivado);
+    if (alumnosMarcados.length === seleccionables.length && seleccionables.length > 0) {
       setAlumnosMarcados([]);
     } else {
-      const nuevos = actuales.slice(0, 30);
+      const nuevos = seleccionables.slice(0, 30);
       setAlumnosMarcados(nuevos);
-      if (actuales.length > 30) {
+      if (seleccionables.length > 30) {
         alert('Se han marcado los primeros 30 alumnos de la lista (límite por seguridad).');
       }
     }
@@ -155,6 +179,7 @@ const CuentasCobrar: React.FC = () => {
   // Abrir nota para un alumno específico
   const abrirNotaParaAlumno = (e: React.MouseEvent, alumno: AlumnoDeuda) => {
     e.stopPropagation();
+    if (alumno.archivado) return;
     setAlumnoParaNota({ id: alumno.alumno_id, nombre: `${alumno.nombres} ${alumno.apellidos}` });
     setMostrarNota(true);
   };
@@ -162,6 +187,7 @@ const CuentasCobrar: React.FC = () => {
   // Abrir cobro rápido para un alumno
   const abrirCobroRapido = (e: React.MouseEvent, alumno: AlumnoDeuda) => {
     e.stopPropagation();
+    if (alumno.archivado) return;
     setAlumnoParaCobro(alumno);
     setMostrarCobroRapido(true);
   };
@@ -194,7 +220,7 @@ const CuentasCobrar: React.FC = () => {
                 type="text"
                 placeholder="Buscador de Alumno"
                 value={busqueda}
-                onChange={e => setBusqueda(e.target.value)}
+                onChange={e => manejarBusqueda(e.target.value)}
                 style={{
                   width: '100%',
                   padding: '0.6rem 0.75rem 0.6rem 2.2rem',
@@ -361,11 +387,11 @@ const CuentasCobrar: React.FC = () => {
                 type="text"
                 placeholder="Filtrar por nombre del alumno..."
                 value={busqueda}
-                onChange={e => setBusqueda(e.target.value)}
+                onChange={e => manejarBusqueda(e.target.value)}
                 className="cxc-search-input"
               />
               {busqueda && (
-                <button className="cxc-search-clear" onClick={() => setBusqueda('')}>✕</button>
+                <button className="cxc-search-clear" onClick={() => manejarBusqueda('')}>✕</button>
               )}
             </div>
 
@@ -402,7 +428,25 @@ const CuentasCobrar: React.FC = () => {
                   <span className="cxc-pill-label" style={{ color: filtroEstadoAlumno === 'archivados' ? '#f97316' : undefined }}>Archivados</span>
                 </button>
 
-                <div className="cxc-stat-pill" onClick={() => setSoloConDeuda(!soloConDeuda)} style={{ cursor: 'pointer' }}>
+                {busqueda.trim() && (
+                  <button
+                    type="button"
+                    className="cxc-stat-pill"
+                    onClick={() => setFiltroEstadoAlumno('todos')}
+                    aria-pressed={filtroEstadoAlumno === 'todos'}
+                    style={{
+                      borderColor: filtroEstadoAlumno === 'todos' ? '#3b82f6' : undefined,
+                      background: filtroEstadoAlumno === 'todos' ? 'rgba(59, 130, 246, 0.08)' : undefined,
+                      color: 'inherit',
+                      cursor: 'pointer'
+                    }}
+                    title="Buscar alumnos activos y archivados"
+                  >
+                    <span className="cxc-pill-label" style={{ color: filtroEstadoAlumno === 'todos' ? '#3b82f6' : undefined }}>Todos</span>
+                  </button>
+                )}
+
+                <div className="cxc-stat-pill" onClick={() => setSoloConDeuda(!soloConDeuda)} style={{ cursor: 'pointer' }} aria-pressed={soloConDeuda}>
                   <span className="cxc-pill-label">Deudores</span>
                   <span className={`cxc-pill-value ${soloConDeuda ? 'text-warn' : ''}`}>
                     {stats.conDeuda}
@@ -430,7 +474,7 @@ const CuentasCobrar: React.FC = () => {
                     <input 
                       type="checkbox" 
                       onChange={() => toggleMarcarTodos(alumnosDeuda)}
-                      checked={alumnosMarcados.length > 0 && alumnosMarcados.length === Math.min(alumnosDeuda.length, 30)}
+                      checked={alumnosMarcados.length > 0 && alumnosMarcados.length === Math.min(alumnosDeuda.filter(alumno => !alumno.archivado).length, 30)}
                       style={{ cursor: 'pointer' }}
                       title="Marcar todos (Max 30)"
                     />
@@ -449,27 +493,31 @@ const CuentasCobrar: React.FC = () => {
             <tbody>
               {alumnosDeuda.map(alumno => {
                 const tieneDeuda = Number(alumno.saldo_pendiente) > 0;
+                const esArchivado = !!alumno.archivado;
                 return (
                   <tr
                     key={alumno.alumno_id}
-                    className={`cxc-tr cxc-tr-clickable ${tieneDeuda ? 'cxc-tr--deuda' : ''} ${alumnosMarcados.some(a => a.alumno_id === alumno.alumno_id) ? 'cxc-tr--seleccionado' : ''}`}
+                    className={`cxc-tr cxc-tr-clickable ${tieneDeuda ? 'cxc-tr--deuda' : ''} ${esArchivado ? 'cxc-tr--archivado' : ''} ${alumnosMarcados.some(a => a.alumno_id === alumno.alumno_id) ? 'cxc-tr--seleccionado' : ''}`}
                     onClick={() => setAlumnoSeleccionado(alumno)}
                     title="Clic para ver detalle de movimientos"
                     style={{ background: alumnosMarcados.some(a => a.alumno_id === alumno.alumno_id) ? 'rgba(59,130,246,0.1)' : undefined }}
                   >
                     {!isMobile && (
                       <td className="cxc-td cxc-td-center" onClick={e => e.stopPropagation()}>
-                        <input 
-                          type="checkbox" 
-                          checked={alumnosMarcados.some(a => a.alumno_id === alumno.alumno_id)}
-                          onChange={() => toggleMarcarAlumno(alumno)}
-                          style={{ cursor: 'pointer', transform: 'scale(1.2)' }}
-                        />
+                        {esArchivado ? <span className="cxc-td-dash" title="Los alumnos archivados son solo de consulta">—</span> : (
+                          <input
+                            type="checkbox"
+                            checked={alumnosMarcados.some(a => a.alumno_id === alumno.alumno_id)}
+                            onChange={() => toggleMarcarAlumno(alumno)}
+                            style={{ cursor: 'pointer', transform: 'scale(1.2)' }}
+                          />
+                        )}
                       </td>
                     )}
                     <td className="cxc-td cxc-td-alumno">
                       <div className="cxc-alumno-info">
                         <span className="cxc-alumno-nombre">{alumno.nombres} {alumno.apellidos}</span>
+                        {esArchivado && <span className="cxc-badge-archivado">Archivado</span>}
                       </div>
                     </td>
                     {!isMobile && <td className="cxc-td cxc-td-meta">{alumno.ultima_mensualidad || '—'}</td>}
@@ -495,22 +543,33 @@ const CuentasCobrar: React.FC = () => {
                     {!isMobile && (
                       <td className="cxc-td cxc-td-acciones" onClick={e => e.stopPropagation()}>
                         <div className="cxc-acciones-wrap">
-                          <button
-                            className="cxc-accion-btn cxc-accion-btn--nota"
-                            onClick={e => abrirNotaParaAlumno(e, alumno)}
-                            title="Crear Nota de Servicio"
-                          >
-                            <FileText size={13} />
-                            <span>Nota</span>
-                          </button>
-                          <button
-                            className="cxc-accion-btn cxc-accion-btn--cobro"
-                            onClick={e => abrirCobroRapido(e, alumno)}
-                            title="Registrar Pago"
-                          >
-                            <CreditCard size={13} />
-                            <span>Cobrar</span>
-                          </button>
+                          {esArchivado ? (
+                            <button
+                              className="cxc-accion-btn cxc-accion-btn--historial"
+                              onClick={() => setAlumnoSeleccionado(alumno)}
+                              title="Ver movimientos históricos"
+                            >
+                              <Eye size={13} />
+                              <span>Movimientos</span>
+                            </button>
+                          ) : <>
+                            <button
+                              className="cxc-accion-btn cxc-accion-btn--nota"
+                              onClick={e => abrirNotaParaAlumno(e, alumno)}
+                              title="Crear Nota de Servicio"
+                            >
+                              <FileText size={13} />
+                              <span>Nota</span>
+                            </button>
+                            <button
+                              className="cxc-accion-btn cxc-accion-btn--cobro"
+                              onClick={e => abrirCobroRapido(e, alumno)}
+                              title="Registrar Pago"
+                            >
+                              <CreditCard size={13} />
+                              <span>Cobrar</span>
+                            </button>
+                          </>}
                         </div>
                       </td>
                     )}

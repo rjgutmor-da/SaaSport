@@ -5,6 +5,12 @@ import { formatearMesCorto, obtenerOrdenMes } from '../lib/dateUtils';
 const normalizar = (str: string) =>
   str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
 
+const aplicarBusquedaAlumnos = (query: any, busqueda?: string) => {
+  const terminos = normalizar(busqueda || '').split(/\s+/).filter(Boolean);
+  return terminos.reduce((consulta, termino) =>
+    consulta.ilike('terminos_busqueda', `%${termino}%`), query);
+};
+
 // Legacy key eliminada
 
 export const queryKeys = {
@@ -111,7 +117,7 @@ const agruparCobrosDeUnaTransaccion = (movimientos: MovimientoFinanciero[]) => {
 const fetchCxcResumen = async (escuelaId: string, filtros: any) => {
   // Si no hay filtros relevantes, usamos la vista de resumen pre-calculada para mayor velocidad
   const tieneFiltros = filtros.sucursalId || filtros.entrenadorId || filtros.canchaId || filtros.horarioId || filtros.busqueda?.trim() || filtros.filtroEstadoAlumno;
-  
+
   if (!tieneFiltros) {
     const { data, error } = await supabase
       .from('v_cxc_resumen')
@@ -132,12 +138,11 @@ const fetchCxcResumen = async (escuelaId: string, filtros: any) => {
   if (filtros.entrenadorId) query = query.eq('entrenador_id', filtros.entrenadorId);
   if (filtros.canchaId) query = query.eq('cancha_id', filtros.canchaId);
   if (filtros.horarioId) query = query.eq('horario_id', filtros.horarioId);
-  if (filtros.filtroEstadoAlumno) query = query.eq('archivado', filtros.filtroEstadoAlumno === 'archivados');
-  
-  if (filtros.busqueda?.trim()) {
-    const q = `%${normalizar(filtros.busqueda)}%`;
-    query = query.ilike('terminos_busqueda', q);
+  if (filtros.filtroEstadoAlumno && filtros.filtroEstadoAlumno !== 'todos') {
+    query = query.eq('archivado', filtros.filtroEstadoAlumno === 'archivados');
   }
+
+  query = aplicarBusquedaAlumnos(query, filtros.busqueda);
 
   const { data, error } = await query;
   if (error) throw error;
@@ -174,7 +179,7 @@ const fetchCxpResumen = async (escuelaId: string, filtros?: any) => {
     .eq('activo', true);
 
   if (filtros.categoria) query = query.eq('categoria', filtros.categoria);
-  
+
   if (filtros.busqueda?.trim()) {
     const q = `%${filtros.busqueda.trim()}%`;
     query = query.ilike('nombre', q);
@@ -230,12 +235,11 @@ const fetchCxcAlumnos = async (escuelaId: string, filtros: any) => {
   if (filtros.canchaId) query = query.eq('cancha_id', filtros.canchaId);
   if (filtros.horarioId) query = query.eq('horario_id', filtros.horarioId);
   if (filtros.soloConDeuda) query = query.gt('saldo_pendiente', 0);
-  if (filtros.filtroEstadoAlumno) query = query.eq('archivado', filtros.filtroEstadoAlumno === 'archivados');
-  
-  if (filtros.busqueda?.trim()) {
-    const q = `%${normalizar(filtros.busqueda)}%`;
-    query = query.ilike('terminos_busqueda', q);
+  if (filtros.filtroEstadoAlumno && filtros.filtroEstadoAlumno !== 'todos') {
+    query = query.eq('archivado', filtros.filtroEstadoAlumno === 'archivados');
   }
+
+  query = aplicarBusquedaAlumnos(query, filtros.busqueda);
 
   const desde = (filtros.pagina - 1) * filtros.itemsPorPagina;
   const hasta = desde + filtros.itemsPorPagina - 1;
