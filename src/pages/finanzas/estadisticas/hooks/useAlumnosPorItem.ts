@@ -136,6 +136,9 @@ export function useAlumnosPorItem(
         `)
         .eq('escuela_id', eid)
         .eq('anulada', false)
+        // Los anticipos pueden reclasificarse con el concepto final al aplicarse,
+        // pero no representan una compra adicional en esta estadística.
+        .eq('es_anticipo', false)
         .or(`and(periodo_estadistico.gte.${desde},periodo_estadistico.lte.${hasta}),and(periodo_estadistico.is.null,fecha_emision.gte.${desde},fecha_emision.lte.${hasta})`)
         .limit(5000);
 
@@ -180,6 +183,7 @@ export function useAlumnosPorItem(
         `)
         .eq('escuela_id', eid)
         .eq('anulada', false)
+        .eq('es_anticipo', false)
         .eq('cxc_detalle.catalogo_item_id', itemId)
         .gte('cxc_detalle.periodo_estadistico', desde)
         .lte('cxc_detalle.periodo_estadistico', hasta)
