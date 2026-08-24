@@ -329,7 +329,9 @@ export function useAlumnosPorItem(
 
       let finalResultado = resultado;
       if (pagadoFiltro) {
-        finalResultado = finalResultado.filter(a => a.pagado === pagadoFiltro);
+        finalResultado = finalResultado.filter(a =>
+          pagadoFiltro === 'No' ? a.pagado !== 'Si' : a.pagado === 'Si'
+        );
       }
 
       // Obtener los montos únicos disponibles antes de filtrar por monto

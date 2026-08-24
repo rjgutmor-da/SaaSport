@@ -385,19 +385,16 @@ const Estadisticas: React.FC = () => {
                     />
                   </div>
                   {!esMensualidad && (
-                    <div className="est-filtro-item-label est-filtro-pagado">
-                      <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 500, paddingLeft: '2px' }}>Pagado</span>
-                      <select 
-                        className="est-select-premium"
-                        value={pagadoFiltro}
-                        onChange={e => setPagadoFiltro(e.target.value)}
-                      >
-                        <option value="">Todos</option>
-                        <option value="Si">Sí</option>
-                        <option value="Parcial">Parcial</option>
-                        <option value="No">No</option>
-                      </select>
-                    </div>
+                    <select
+                      className="cxc-filtro-select est-filtro-pagado"
+                      value={pagadoFiltro}
+                      onChange={e => setPagadoFiltro(e.target.value)}
+                      aria-label="Filtrar por estado de pago"
+                    >
+                      <option value="">Pagado</option>
+                      <option value="Si">Sí</option>
+                      <option value="No">No</option>
+                    </select>
                   )}
                 </div>
               </div>
@@ -440,7 +437,6 @@ const Estadisticas: React.FC = () => {
                       >
                         <option value="">Todos</option>
                         <option value="Si">Sí</option>
-                        <option value="Parcial">Parcial</option>
                         <option value="No">No</option>
                       </select>
                     </div>

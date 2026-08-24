@@ -2699,7 +2699,7 @@ input[type=number] {
 }
 
 .est-filtro-concepto,
-.est-filtro-pagado {
+.est-filtros-meses-inline .est-filtro-pagado {
   display: flex;
   flex-direction: column;
   gap: 0.2rem;
@@ -2725,7 +2725,7 @@ input[type=number] {
   min-width: 0;
 }
 
-.est-filtro-pagado {
+.est-filtros-meses-inline .est-filtro-pagado {
   flex: 0 0 100px;
 }
 
@@ -2738,7 +2738,7 @@ input[type=number] {
   .est-filtros-laterales-wrap { flex-direction: column; }
   .est-filtros-cxc-wrap .cxc-filtros-compact { flex-wrap: wrap; }
   .est-filtros-cxc-wrap .cxc-filtro-select { min-width: 120px; }
-  .est-filtro-pagado { flex-basis: auto; }
+  .est-filtros-meses-inline .est-filtro-pagado { flex-basis: auto; }
 }
 
 /* Filtros inline junto a la cabecera de Meses */
