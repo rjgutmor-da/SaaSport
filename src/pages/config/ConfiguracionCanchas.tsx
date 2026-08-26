@@ -274,22 +274,6 @@ const ConfiguracionCanchas: React.FC = () => {
       <div style={{ display: 'flex', gap: '1rem', borderBottom: '1px solid var(--border)', marginBottom: '1.5rem' }}>
         <button
           onClick={() => {
-            setActiveTab('canchas');
-            setAlerta(null);
-          }}
-          style={{
-            padding: '0.75rem 1.5rem',
-            fontWeight: 600,
-            fontSize: '1rem',
-            color: activeTab === 'canchas' ? 'var(--primary)' : 'var(--text-secondary)',
-            borderBottom: activeTab === 'canchas' ? '2px solid var(--primary)' : '2px solid transparent',
-            marginBottom: '-1px'
-          }}
-        >
-          Grupos
-        </button>
-        <button
-          onClick={() => {
             setActiveTab('horarios');
             setAlerta(null);
           }}
@@ -303,6 +287,22 @@ const ConfiguracionCanchas: React.FC = () => {
           }}
         >
           Horarios
+        </button>
+        <button
+          onClick={() => {
+            setActiveTab('canchas');
+            setAlerta(null);
+          }}
+          style={{
+            padding: '0.75rem 1.5rem',
+            fontWeight: 600,
+            fontSize: '1rem',
+            color: activeTab === 'canchas' ? 'var(--primary)' : 'var(--text-secondary)',
+            borderBottom: activeTab === 'canchas' ? '2px solid var(--primary)' : '2px solid transparent',
+            marginBottom: '-1px'
+          }}
+        >
+          Grupos
         </button>
       </div>
 

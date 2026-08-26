@@ -444,15 +444,6 @@ const PanelEscuela: React.FC = () => {
             <p className="pe-acceso-desc">Gestionar sedes</p>
           </button>
 
-          {/* Usuarios → ruta interna */}
-          <button className="pe-acceso-card pe-acceso-blue" onClick={() => navigate('/panel-escuela/usuarios')}>
-            <div className="pe-acceso-icon">
-              <UserCog size={32} />
-            </div>
-            <h3 className="pe-acceso-titulo">Usuarios</h3>
-            <p className="pe-acceso-desc">Roles y permisos</p>
-          </button>
-
           {/* Grupos y Horarios → ruta interna */}
           <button className="pe-acceso-card pe-acceso-green" onClick={() => navigate('/panel-escuela/canchas-horarios')}>
             <div className="pe-acceso-icon">
@@ -460,6 +451,15 @@ const PanelEscuela: React.FC = () => {
             </div>
             <h3 className="pe-acceso-titulo">Grupos y Horarios</h3>
             <p className="pe-acceso-desc">Configuración general</p>
+          </button>
+
+          {/* Usuarios → ruta interna */}
+          <button className="pe-acceso-card pe-acceso-blue" onClick={() => navigate('/panel-escuela/usuarios')}>
+            <div className="pe-acceso-icon">
+              <UserCog size={32} />
+            </div>
+            <h3 className="pe-acceso-titulo">Usuarios</h3>
+            <p className="pe-acceso-desc">Roles y permisos</p>
           </button>
 
           {/* Registro de Actividad → ruta interna */}
