@@ -36,6 +36,19 @@ const obtenerCliente = (cliente?: string | null) => {
   return /^[—_-]+$/.test(valor) ? '' : valor;
 };
 
+const obtenerTelefonoWhatsApp = (alumno?: MovimientoFinanciero['alumno_raw']) => {
+  if (!alumno) return '';
+
+  const telefonoPreferido = alumno.whatsapp_preferido === 'madre'
+    ? (alumno.telefono_madre || alumno.telefono_padre)
+    : (alumno.telefono_padre || alumno.telefono_madre);
+
+  if (!telefonoPreferido) return '';
+
+  const telefonoLimpio = String(telefonoPreferido).replace(/\D/g, '');
+  return telefonoLimpio.length === 8 ? `591${telefonoLimpio}` : telefonoLimpio;
+};
+
 const obtenerRangoFechas = (
   tipo: 'ultimos' | 'hoy' | 'ayer' | 'semana' | 'mes' | 'rango',
   desdeStr?: string,
@@ -527,6 +540,13 @@ const CajasBancos: React.FC = () => {
 
   const generarReciboWhatsApp = async (mov: MovimientoFinanciero) => {
     if (generandoReciboId) return;
+
+    const telFinal = obtenerTelefonoWhatsApp(mov.alumno_raw);
+    if (!telFinal) {
+      alert('El alumno no tiene un teléfono de WhatsApp registrado para su papá o mamá.');
+      return;
+    }
+
     setGenerandoReciboId(mov.id);
     setMovimientoParaRecibo(mov);
 
@@ -563,32 +583,23 @@ const CajasBancos: React.FC = () => {
           console.warn('La API Clipboard falló o el navegador tiene restricciones en HTTP/contexto seguro. Copia no disponible.', clipboardErr);
         }
 
-        // 3. Determinar teléfono de contacto de WhatsApp
-        let telFinal = '';
-        if (mov.alumno_raw) {
-          const al = mov.alumno_raw;
-          const esPadre = al.whatsapp_preferido === 'padre';
-          const telefono = esPadre ? (al.telefono_padre || al.telefono_madre) : (al.telefono_madre || al.telefono_padre);
-          if (telefono) {
-            const telLimpio = telefono.replace(/\D/g, '');
-            telFinal = telLimpio.length === 8 ? `591${telLimpio}` : telLimpio;
-          }
-        }
-
-        // 4. Mostrar feedback al usuario
-        if (copiadoExitoso) {
-          alert('¡Recibo copiado al portapapeles! Ya puedes ir al chat de WhatsApp y simplemente pegarlo (Ctrl+V) para enviarlo.');
-        } else {
+        // 3. Mostrar feedback solo si el navegador no permitió copiar la imagen.
+        if (!copiadoExitoso) {
           alert('No se pudo copiar el recibo al portapapeles automáticamente. Asegúrate de otorgar permisos de portapapeles en tu navegador.');
         }
 
-        // 5. Redirigir/abrir WhatsApp Web o App
+        // 4. Abrir el chat del contacto. En móvil navegamos en la misma pestaña
+        // para evitar que el navegador bloquee WhatsApp como ventana emergente,
+        // ya que la imagen se genera de forma asíncrona.
         const textoSaludo = `¡Hola! Aquí tienes el recibo digital de tu pago correspondiente a ${mov.cliente || 'SaaSport'}.`;
-        const urlWa = telFinal 
-          ? `https://wa.me/${telFinal}?text=${encodeURIComponent(textoSaludo)}`
-          : `https://web.whatsapp.com/send?text=${encodeURIComponent(textoSaludo)}`;
-        
-        window.open(urlWa, '_blank');
+        const urlWa = `https://wa.me/${telFinal}?text=${encodeURIComponent(textoSaludo)}`;
+
+        if (isMobile) {
+          window.location.assign(urlWa);
+        } else {
+          const ventanaWhatsApp = window.open(urlWa, '_blank', 'noopener,noreferrer');
+          if (!ventanaWhatsApp) window.location.assign(urlWa);
+        }
 
       } catch (err: any) {
         console.error('Error al generar el recibo de WhatsApp:', err);
