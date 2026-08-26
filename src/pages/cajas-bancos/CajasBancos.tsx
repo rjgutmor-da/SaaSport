@@ -591,7 +591,8 @@ const CajasBancos: React.FC = () => {
         // 4. Abrir el chat del contacto. En móvil navegamos en la misma pestaña
         // para evitar que el navegador bloquee WhatsApp como ventana emergente,
         // ya que la imagen se genera de forma asíncrona.
-        const textoSaludo = `¡Hola! Aquí tienes el recibo digital de tu pago correspondiente a ${mov.cliente || 'SaaSport'}.`;
+        const nombresAlumno = String(mov.alumno_raw?.nombres || '').trim() || 'su alumno';
+        const textoSaludo = `Anexamos el recibo digital del pago de ${nombresAlumno}`;
         const urlWa = `https://wa.me/${telFinal}?text=${encodeURIComponent(textoSaludo)}`;
 
         if (isMobile) {
