@@ -5,7 +5,7 @@
  * Muestra:
  *   - Hero card: nombre, logo/slogan dinámico e ID de la escuela
  *   - Estadísticas: alumnos activos, entrenadores, usuarios totales
- *   - Accesos rápidos: Sucursales, Usuarios, Canchas/Horarios (→ AsiSport)
+ *   - Accesos rápidos: Sucursales, Usuarios, Grupos/Horarios (→ AsiSport)
  *                       Estadísticas Financieras (→ /estadisticas)
  *                       Auditoría (→ /configuraciones/auditoria)
  *   - Modal de Edición de Escuela (Nombre, Eslogan y Logotipo subido a Storage)
@@ -14,7 +14,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   School, Users, UserCheck, GraduationCap,
-  Building2, UserCog, MapPin, Activity, RefreshCw, Camera, Lock, Settings, Eye
+  Building2, UserCog, MapPin, Activity, RefreshCw, Camera, Lock, Settings, Eye, CalendarRange
 } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../../lib/supabaseClient';
@@ -445,13 +445,24 @@ const PanelEscuela: React.FC = () => {
           </button>
 
           {/* Grupos y Horarios → ruta interna */}
-          <button className="pe-acceso-card pe-acceso-green" onClick={() => navigate('/panel-escuela/canchas-horarios')}>
+          <button className="pe-acceso-card pe-acceso-green" onClick={() => navigate('/panel-escuela/grupos-horarios')}>
             <div className="pe-acceso-icon">
               <Building2 size={32} />
             </div>
             <h3 className="pe-acceso-titulo">Grupos y Horarios</h3>
             <p className="pe-acceso-desc">Configuración general</p>
           </button>
+
+          {/* Gestión anual → planificación histórica (solo SuperAdmin) */}
+          {perfil?.rol === 'SuperAdministrador' && (
+            <button className="pe-acceso-card pe-acceso-orange" onClick={() => navigate('/panel-escuela/gestion-anual')}>
+              <div className="pe-acceso-icon">
+                <CalendarRange size={32} />
+              </div>
+              <h3 className="pe-acceso-titulo">Gestión Anual</h3>
+              <p className="pe-acceso-desc">Planificar grupos y profesores</p>
+            </button>
+          )}
 
           {/* Usuarios → ruta interna */}
           <button className="pe-acceso-card pe-acceso-blue" onClick={() => navigate('/panel-escuela/usuarios')}>

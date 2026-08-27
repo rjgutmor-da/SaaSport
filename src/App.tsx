@@ -39,7 +39,8 @@ const Estadisticas      = React.lazy(() => import('./pages/finanzas/estadisticas
 const RegistroActividad = React.lazy(() => import('./pages/finanzas/RegistroActividad'));
 const GestorSucursales  = React.lazy(() => import('./pages/config/GestorSucursales'));
 const AdminUsuarios     = React.lazy(() => import('./pages/config/AdminUsuarios'));
-const ConfiguracionCanchas = React.lazy(() => import('./pages/config/ConfiguracionCanchas'));
+const ConfiguracionGrupos = React.lazy(() => import('./pages/config/ConfiguracionGrupos'));
+const GestionAnual = React.lazy(() => import('./pages/config/GestionAnual'));
 const FotosAsistencia      = React.lazy(() => import('./pages/config/FotosAsistencia'));
 const HistorialFacturacionAutomatica = React.lazy(() => import('./pages/finanzas/historial-facturacion/HistorialFacturacionAutomatica'));
 const NotasAutomaticas = React.lazy(() => import('./pages/finanzas/NotasAutomaticas'));
@@ -338,7 +339,9 @@ const AppRouter: React.FC<AppRouterProps> = ({ onLogout, theme, onCycleTheme }) 
                 <Route path="/configuraciones/panel-escuela" element={<PanelEscuela />} />
                 <Route path="/panel-escuela/sucursales" element={<GestorSucursales />} />
                 <Route path="/panel-escuela/usuarios" element={<AdminUsuarios />} />
-                <Route path="/panel-escuela/canchas-horarios" element={<ConfiguracionCanchas />} />
+                <Route path="/panel-escuela/grupos-horarios" element={<ConfiguracionGrupos />} />
+                <Route path="/panel-escuela/gestion-anual" element={<GestionAnual />} />
+                <Route path="/configuraciones/panel-escuela/gestion-anual" element={<GestionAnual />} />
                 <Route path="/panel-escuela/fotos-asistencia" element={<RequirePermission permission="attendancePhotos.view"><FotosAsistencia /></RequirePermission>} />
                 <Route path="/finanzas/historial-facturacion" element={<HistorialFacturacionAutomatica />} />
                 <Route path="/finanzas/notas-automaticas" element={<RequirePermission permission="finance.cxc.view"><NotasAutomaticas /></RequirePermission>} />

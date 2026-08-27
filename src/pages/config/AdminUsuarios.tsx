@@ -674,7 +674,7 @@ const AdminUsuarios: React.FC = () => {
                   return (
                     <div key={group.clave} style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(220px, 0.8fr)', gap: '1rem', alignItems: 'center', padding: '1rem', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)' }}>
                       <div>
-                        <strong style={{ color: 'var(--text-primary)' }}>{group.sucursal_nombre} · {group.cancha_nombre} · {group.horario_nombre}</strong>
+                        <strong style={{ color: 'var(--text-primary)' }}>{group.sucursal_nombre} · {group.grupo_nombre} · {group.horario_nombre}</strong>
                         <div style={{ marginTop: '0.3rem', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
                           {group.alumnos_activos} activo(s){group.alumnos_archivados ? ` · ${group.alumnos_archivados} archivado(s)` : ''}
                         </div>

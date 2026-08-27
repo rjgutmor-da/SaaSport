@@ -14,7 +14,7 @@ BEGIN
     (escuela_id, nombre, tipo, categoria, tipo_movimiento, precio_venta, activo, es_ingreso, es_gasto)
   VALUES
     (p_escuela_id, 'ACF',                     'servicio', 'servicio', 'ambos',     0.00, true, true,  true),
-    (p_escuela_id, 'Alquiler de Cancha',      'servicio', 'servicio', 'ambos',     0.00, true, true,  true),
+    (p_escuela_id, 'Alquiler de Grupo',      'servicio', 'servicio', 'ambos',     0.00, true, true,  true),
     (p_escuela_id, 'Ayuda Social',            'servicio', 'servicio', 'egreso',    null, true, false, true),
     (p_escuela_id, 'Gastos de Oficinas',      'servicio', 'gasto',    'egreso',    null, true, false, true),
     (p_escuela_id, 'Gastos de Transporte',    'servicio', 'servicio', 'egreso',    null, true, false, true),
@@ -22,7 +22,7 @@ BEGIN
     (p_escuela_id, 'Intereses Bancarios',     'servicio', 'servicio', 'ambos',     null, true, true,  true),
     (p_escuela_id, 'Licencias Software',      'servicio', 'gasto',    'egreso',    null, true, false, true),
     (p_escuela_id, 'Limpieza',                'servicio', 'gasto',    'egreso',    null, true, false, true),
-    (p_escuela_id, 'Mantenimiento Canchas',   'servicio', 'gasto',    'egreso',    null, true, false, true),
+    (p_escuela_id, 'Mantenimiento Grupos',   'servicio', 'gasto',    'egreso',    null, true, false, true),
     (p_escuela_id, 'Material Deportivo',      'servicio', 'gasto',    'egreso',    null, true, false, true),
     (p_escuela_id, 'Material Medico',         'servicio', 'gasto',    'egreso',    null, true, false, true),
     (p_escuela_id, 'Medias',                  'producto', 'producto', 'ambos',    55.00, true, true,  true),

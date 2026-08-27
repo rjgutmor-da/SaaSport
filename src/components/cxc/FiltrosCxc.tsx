@@ -1,12 +1,12 @@
 /**
  * FiltrosCxc.tsx
  * Filtros bidireccionales para el módulo Cuentas por Cobrar.
- * Permite filtrar por Sucursal, Entrenador, Cancha y Horario.
+ * Permite filtrar por Sucursal, Entrenador, Grupo y Horario.
  * Al seleccionar uno, los demás se ajustan automáticamente.
  */
 import React, { useMemo } from 'react';
 import { Filter, X } from 'lucide-react';
-import { useSucursales, useEntrenadores, useCanchas, useHorarios, useAlumnosRelaciones } from '../../hooks/useMasterData';
+import { useSucursales, useEntrenadores, useGrupos, useHorarios, useAlumnosRelaciones } from '../../hooks/useMasterData';
 
 /** Estructura de opciones de filtro */
 interface OpcionFiltro {
@@ -18,11 +18,11 @@ interface OpcionFiltro {
 interface FiltrosProps {
   sucursalId: string;
   entrenadorId: string;
-  canchaId: string;
+  grupoId: string;
   horarioId: string;
   onChangeSucursal: (id: string) => void;
   onChangeEntrenador: (id: string) => void;
-  onChangeCancha: (id: string) => void;
+  onChangeGrupo: (id: string) => void;
   onChangeHorario: (id: string) => void;
   onLimpiar: () => void;
   sucursalBloqueada?: boolean;
@@ -31,21 +31,21 @@ interface FiltrosProps {
 }
 
 const FiltrosCxc: React.FC<FiltrosProps> = ({
-  sucursalId, entrenadorId, canchaId, horarioId,
-  onChangeSucursal, onChangeEntrenador, onChangeCancha, onChangeHorario,
+  sucursalId, entrenadorId, grupoId, horarioId,
+  onChangeSucursal, onChangeEntrenador, onChangeGrupo, onChangeHorario,
   onLimpiar, sucursalBloqueada = false, compact = false, sidebar = false,
 }) => {
   // Hooks de datos maestros con TanStack Query
   const { data: sucursalesRaw } = useSucursales();
   const { data: entrenadoresRaw } = useEntrenadores();
-  const { data: canchasRaw } = useCanchas();
+  const { data: gruposRaw } = useGrupos();
   const { data: horariosRaw } = useHorarios();
   const { data: relaciones } = useAlumnosRelaciones();
 
   // Mapear a formato OpcionFiltro
   const sucursales = useMemo(() => (sucursalesRaw ?? []).map(s => ({ id: s.id, nombre: s.nombre })), [sucursalesRaw]);
   const entrenadores = useMemo(() => (entrenadoresRaw ?? []).map(e => ({ id: e.id, nombre: `${e.nombres} ${e.apellidos}` })), [entrenadoresRaw]);
-  const canchas = useMemo(() => (canchasRaw ?? []).map(c => ({ id: c.id, nombre: c.nombre })), [canchasRaw]);
+  const grupos = useMemo(() => (gruposRaw ?? []).map(c => ({ id: c.id, nombre: c.nombre })), [gruposRaw]);
   const horarios = useMemo(() => (horariosRaw ?? []).map(h => ({ id: h.id, nombre: h.hora })), [horariosRaw]);
 
   // Filtrar opciones disponibles bidireccionalmente
@@ -55,7 +55,7 @@ const FiltrosCxc: React.FC<FiltrosProps> = ({
     // Aplicar filtros actuales para reducir el conjunto
     if (sucursalId) rels = rels.filter(r => r.sucursal_id === sucursalId);
     if (entrenadorId) rels = rels.filter(r => r.profesor_asignado_id === entrenadorId);
-    if (canchaId) rels = rels.filter(r => r.cancha_id === canchaId);
+    if (grupoId) rels = rels.filter(r => r.cancha_id === grupoId);
     if (horarioId) rels = rels.filter(r => r.horario_id === horarioId);
 
     // IDs únicos disponibles según los filtros activos
@@ -67,13 +67,13 @@ const FiltrosCxc: React.FC<FiltrosProps> = ({
     return {
       sucursalesFilt: sucursalId ? sucursales : sucursales.filter(s => sucIds.has(s.id)),
       entrenadoresFilt: entrenadorId ? entrenadores : entrenadores.filter(e => entIds.has(e.id)),
-      canchasFilt: canchaId ? canchas : canchas.filter(c => canIds.has(c.id)),
+      gruposFilt: grupoId ? grupos : grupos.filter(c => canIds.has(c.id)),
       horariosFilt: horarioId ? horarios : horarios.filter(h => horIds.has(h.id)),
     };
-  }, [relaciones, sucursalId, entrenadorId, canchaId, horarioId, sucursales, entrenadores, canchas, horarios]);
+  }, [relaciones, sucursalId, entrenadorId, grupoId, horarioId, sucursales, entrenadores, grupos, horarios]);
 
 
-  const hayFiltros = sucursalId || entrenadorId || canchaId || horarioId;
+  const hayFiltros = sucursalId || entrenadorId || grupoId || horarioId;
 
   // Render para Sidebar
   if (sidebar) {
@@ -97,9 +97,9 @@ const FiltrosCxc: React.FC<FiltrosProps> = ({
 
         <div className="sidebar-filter-item">
           <label className="sidebar-filter-label">Grupo</label>
-          <select value={canchaId} onChange={e => onChangeCancha(e.target.value)} className="sidebar-select">
+          <select value={grupoId} onChange={e => onChangeGrupo(e.target.value)} className="sidebar-select">
             <option value="">Todas</option>
-            {filtrarOpciones.canchasFilt.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+            {filtrarOpciones.gruposFilt.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
           </select>
         </div>
 
@@ -148,12 +148,12 @@ const FiltrosCxc: React.FC<FiltrosProps> = ({
       </select>
 
       <select
-        value={canchaId}
-        onChange={e => onChangeCancha(e.target.value)}
+        value={grupoId}
+        onChange={e => onChangeGrupo(e.target.value)}
         className="cxc-filtro-select"
       >
         <option value="">Grupo</option>
-        {filtrarOpciones.canchasFilt.map(c => (
+        {filtrarOpciones.gruposFilt.map(c => (
           <option key={c.id} value={c.id}>{c.nombre}</option>
         ))}
       </select>

@@ -1,6 +1,6 @@
 import { supabase } from '../lib/supabaseClient';
 
-export interface Cancha {
+export interface Grupo {
   id: string;
   nombre: string;
   escuela_id: string;
@@ -22,10 +22,10 @@ export interface Horario {
 }
 
 // ============================================================================
-// CRUD de Canchas
+// CRUD de Grupos
 // ============================================================================
 
-export const getAllCanchas = async (escuelaId: string): Promise<Cancha[]> => {
+export const getAllGrupos = async (escuelaId: string): Promise<Grupo[]> => {
   if (!escuelaId) throw new Error('El ID de la escuela es requerido.');
 
   const { data, error } = await supabase
@@ -52,18 +52,18 @@ export const getAllCanchas = async (escuelaId: string): Promise<Cancha[]> => {
       horarios,
       horario_ids: horarios.map((h: any) => h.id)
     };
-  }) as Cancha[];
+  }) as Grupo[];
 };
 
-export const createCancha = async (
+export const createGrupo = async (
   escuelaId: string,
   nombre: string,
   sucursalId: string | null,
   horarioIds: string[] = []
-): Promise<Cancha> => {
+): Promise<Grupo> => {
   if (!escuelaId) throw new Error('El ID de la escuela es requerido.');
   if (!nombre || nombre.trim() === '') {
-    throw new Error('El nombre de la cancha es obligatorio.');
+    throw new Error('El nombre de la grupo es obligatorio.');
   }
 
   // Validar duplicados dentro de la misma sucursal
@@ -82,7 +82,7 @@ export const createCancha = async (
   const { data: existing } = await query.maybeSingle();
 
   if (existing) {
-    throw new Error('Ya existe una cancha con este nombre en esa configuración.');
+    throw new Error('Ya existe una grupo con este nombre en esa configuración.');
   }
 
   const { data, error } = await supabase
@@ -111,26 +111,26 @@ export const createCancha = async (
       .from('canchas_horarios')
       .insert(relaciones);
 
-    if (relError) console.error('Error insertando horarios de la cancha:', relError);
+    if (relError) console.error('Error insertando horarios de la grupo:', relError);
   }
 
-  return data as Cancha;
+  return data as Grupo;
 };
 
-export const updateCancha = async (
+export const updateGrupo = async (
   escuelaId: string,
   id: string,
   nombre: string,
   sucursalId: string | null,
   horarioIds: string[] = []
-): Promise<Cancha> => {
+): Promise<Grupo> => {
   if (!escuelaId) throw new Error('El ID de la escuela es requerido.');
-  if (!id) throw new Error('El ID de la cancha es requerido.');
+  if (!id) throw new Error('El ID de la grupo es requerido.');
   if (!nombre || nombre.trim() === '') {
-    throw new Error('El nombre de la cancha es obligatorio.');
+    throw new Error('El nombre de la grupo es obligatorio.');
   }
 
-  // Validar duplicados (excepto la misma cancha, dentro de la misma sucursal)
+  // Validar duplicados (excepto la misma grupo, dentro de la misma sucursal)
   let query = supabase
     .from('canchas')
     .select('id')
@@ -147,7 +147,7 @@ export const updateCancha = async (
   const { data: existing } = await query.maybeSingle();
 
   if (existing) {
-    throw new Error('Ya existe una cancha con este nombre en esa configuración.');
+    throw new Error('Ya existe una grupo con este nombre en esa configuración.');
   }
 
   const { data, error } = await supabase
@@ -176,19 +176,19 @@ export const updateCancha = async (
       .from('canchas_horarios')
       .insert(relaciones);
 
-    if (relError) console.error('Error actualizando horarios de la cancha:', relError);
+    if (relError) console.error('Error actualizando horarios de la grupo:', relError);
   }
 
-  return data as Cancha;
+  return data as Grupo;
 };
 
-export const toggleCanchaStatus = async (
+export const toggleGrupoStatus = async (
   escuelaId: string,
   id: string,
   currentStatus: boolean
-): Promise<Cancha> => {
+): Promise<Grupo> => {
   if (!escuelaId) throw new Error('El ID de la escuela es requerido.');
-  if (!id) throw new Error('El ID de la cancha es requerido.');
+  if (!id) throw new Error('El ID de la grupo es requerido.');
 
   const { data, error } = await supabase
     .from('canchas')
@@ -199,15 +199,15 @@ export const toggleCanchaStatus = async (
     .single();
 
   if (error) throw error;
-  return data as Cancha;
+  return data as Grupo;
 };
 
-export const deleteCancha = async (
+export const deleteGrupo = async (
   escuelaId: string,
   id: string
 ): Promise<void> => {
   if (!escuelaId) throw new Error('El ID de la escuela es requerido.');
-  if (!id) throw new Error('El ID de la cancha es requerido.');
+  if (!id) throw new Error('El ID de la grupo es requerido.');
 
   // Verificar si tiene alumnos asignados
   const { count, error: countError } = await supabase
@@ -224,7 +224,7 @@ export const deleteCancha = async (
   // Eliminar relaciones en canchas_horarios
   await supabase.from('canchas_horarios').delete().eq('cancha_id', id);
 
-  // Eliminar la cancha
+  // Eliminar la grupo
   const { error } = await supabase
     .from('canchas')
     .delete()

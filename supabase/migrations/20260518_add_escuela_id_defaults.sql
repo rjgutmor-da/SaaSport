@@ -2,7 +2,7 @@
 -- utilizando la función de contexto del usuario autenticado.
 
 ALTER TABLE public.sucursales ALTER COLUMN escuela_id SET DEFAULT current_user_escuela_id();
-ALTER TABLE public.canchas ALTER COLUMN escuela_id SET DEFAULT current_user_escuela_id();
+ALTER TABLE public.grupos ALTER COLUMN escuela_id SET DEFAULT current_user_escuela_id();
 ALTER TABLE public.horarios ALTER COLUMN escuela_id SET DEFAULT current_user_escuela_id();
 ALTER TABLE public.alumnos ALTER COLUMN escuela_id SET DEFAULT current_user_escuela_id();
 ALTER TABLE public.convocatorias ALTER COLUMN escuela_id SET DEFAULT current_user_escuela_id();

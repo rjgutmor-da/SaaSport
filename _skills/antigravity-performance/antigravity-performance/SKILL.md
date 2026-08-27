@@ -63,7 +63,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
 )
 ```
 
-> **Por qué `staleTime: 10min`?** Los datos maestros (alumnos, profesores, canchas, horarios)
+> **Por qué `staleTime: 10min`?** Los datos maestros (alumnos, profesores, grupos, horarios)
 > no cambian cada segundo. Sin `staleTime`, TanStack Query re-fetchea en cada mount aunque
 > los datos sean idénticos.
 
@@ -81,7 +81,7 @@ import { supabase } from '@/lib/supabase'
 export const queryKeys = {
   alumnos: ['alumnos'] as const,
   profesores: ['profesores'] as const,
-  canchas: ['canchas'] as const,
+  grupos: ['grupos'] as const,
   horarios: ['horarios'] as const,
   estadisticas: (filtros?: object) => ['estadisticas', filtros] as const,
 }
@@ -99,8 +99,8 @@ const fetchProfesores = async () => {
   return data
 }
 
-const fetchCanchas = async () => {
-  const { data, error } = await supabase.from('canchas').select('*')
+const fetchGrupos = async () => {
+  const { data, error } = await supabase.from('grupos').select('*')
   if (error) throw error
   return data
 }
@@ -118,8 +118,8 @@ export const useAlumnos = () =>
 export const useProfesores = () =>
   useQuery({ queryKey: queryKeys.profesores, queryFn: fetchProfesores })
 
-export const useCanchas = () =>
-  useQuery({ queryKey: queryKeys.canchas, queryFn: fetchCanchas })
+export const useGrupos = () =>
+  useQuery({ queryKey: queryKeys.grupos, queryFn: fetchGrupos })
 
 export const useHorarios = () =>
   useQuery({ queryKey: queryKeys.horarios, queryFn: fetchHorarios })
@@ -131,17 +131,17 @@ export const useMasterData = () => {
     queries: [
       { queryKey: queryKeys.alumnos, queryFn: fetchAlumnos },
       { queryKey: queryKeys.profesores, queryFn: fetchProfesores },
-      { queryKey: queryKeys.canchas, queryFn: fetchCanchas },
+      { queryKey: queryKeys.grupos, queryFn: fetchGrupos },
       { queryKey: queryKeys.horarios, queryFn: fetchHorarios },
     ],
   })
 
-  const [alumnos, profesores, canchas, horarios] = results
+  const [alumnos, profesores, grupos, horarios] = results
 
   return {
     alumnos: alumnos.data,
     profesores: profesores.data,
-    canchas: canchas.data,
+    grupos: grupos.data,
     horarios: horarios.data,
     isLoading: results.some(r => r.isLoading),
     isError: results.some(r => r.isError),
@@ -175,8 +175,8 @@ export function AuthProvider({ children }) {
         queryFn: () => supabase.from('profesores').select('*').then(r => r.data),
       }),
       queryClient.prefetchQuery({
-        queryKey: queryKeys.canchas,
-        queryFn: () => supabase.from('canchas').select('*').then(r => r.data),
+        queryKey: queryKeys.grupos,
+        queryFn: () => supabase.from('grupos').select('*').then(r => r.data),
       }),
       queryClient.prefetchQuery({
         queryKey: queryKeys.horarios,
@@ -259,7 +259,7 @@ const registrarAlumno = async (nuevoAlumno) => {
 | Tipo de dato | `staleTime` recomendado | `gcTime` recomendado |
 |---|---|---|
 | Datos maestros (alumnos, profesores) | 10 minutos | 30 minutos |
-| Horarios / canchas | 5 minutos | 15 minutos |
+| Horarios / grupos | 5 minutos | 15 minutos |
 | Estadísticas del día | 2 minutos | 10 minutos |
 | Datos en tiempo real | 0 (+ Supabase Realtime) | 5 minutos |
 

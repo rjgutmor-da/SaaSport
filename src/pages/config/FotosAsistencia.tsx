@@ -21,12 +21,12 @@ interface FotoAsistencia {
   fecha: string;
   foto_url: string;
   created_at: string;
-  cancha: { id: string; nombre: string } | null;
+  grupo: { id: string; nombre: string } | null;
   horario: { id: string; hora: string } | null;
   entrenador: { nombres: string; apellidos: string; email: string } | null;
 }
 
-interface Cancha {
+interface Grupo {
   id: string;
   nombre: string;
 }
@@ -56,13 +56,13 @@ const FotosAsistencia: React.FC = () => {
     return d.toISOString().split('T')[0];
   });
   const [fechaHasta, setFechaHasta] = useState<string>(() => new Date().toISOString().split('T')[0]);
-  const [filtroCancha, setFiltroCancha] = useState('');
+  const [filtroGrupo, setFiltroGrupo] = useState('');
   const [filtroHorario, setFiltroHorario] = useState('');
   const [filtroEntrenador, setFiltroEntrenador] = useState('');
 
   // Datos
   const [fotos, setFotos] = useState<FotoAsistencia[]>([]);
-  const [canchas, setCanchas] = useState<Cancha[]>([]);
+  const [grupos, setGrupos] = useState<Grupo[]>([]);
   const [horarios, setHorarios] = useState<Horario[]>([]);
   const [entrenadores, setEntrenadores] = useState<Entrenador[]>([]);
   const [loading, setLoading] = useState(true);
@@ -72,7 +72,7 @@ const FotosAsistencia: React.FC = () => {
   // Lightbox
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
 
-  // Cargar datos maestros (canchas, horarios, entrenadores) + verificar acceso
+  // Cargar datos maestros (grupos, horarios, entrenadores) + verificar acceso
   useEffect(() => {
     const cargarMaestros = async () => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -100,25 +100,25 @@ const FotosAsistencia: React.FC = () => {
 
       if (!acceso) return; // No cargar más datos si no tiene acceso
 
-      let canchasQuery = supabase.from('canchas').select('id, nombre').eq('escuela_id', escuelaId).order('nombre');
+      let gruposQuery = supabase.from('grupos').select('id, nombre').eq('escuela_id', escuelaId).order('nombre');
       let entrenadoresQuery = supabase.from('usuarios').select('id, nombres, apellidos')
         .eq('escuela_id', escuelaId).in('rol', ['Entrenador', 'Entrenarqueros']).eq('activo', true).order('apellidos');
       if (perfil.rol !== 'SuperAdministrador' && perfil.sucursal_id) {
-        canchasQuery = canchasQuery.eq('sucursal_id', perfil.sucursal_id);
+        gruposQuery = gruposQuery.eq('sucursal_id', perfil.sucursal_id);
         entrenadoresQuery = entrenadoresQuery.eq('sucursal_id', perfil.sucursal_id);
       }
 
       const [
-        { data: canchasData },
+        { data: gruposData },
         { data: horariosData },
         { data: entrenadoresData },
       ] = await Promise.all([
-        canchasQuery,
+        gruposQuery,
         supabase.from('horarios').select('id, hora').eq('escuela_id', escuelaId).order('hora'),
         entrenadoresQuery,
       ]);
 
-      setCanchas(canchasData || []);
+      setGrupos(gruposData || []);
       setHorarios(horariosData || []);
       setEntrenadores(entrenadoresData || []);
     };
@@ -149,7 +149,7 @@ const FotosAsistencia: React.FC = () => {
           fecha,
           foto_url,
           created_at,
-          cancha:canchas!inner(id, nombre, sucursal_id),
+          grupo:grupos!inner(id, nombre, sucursal_id),
           horario:horarios(id, hora),
           entrenador:usuarios!fotos_asistencia_grupal_entrenador_id_fkey(nombres, apellidos, email)
         `)
@@ -159,8 +159,8 @@ const FotosAsistencia: React.FC = () => {
         .order('fecha', { ascending: false })
         .order('created_at', { ascending: false });
 
-      if (filtroCancha) query = query.eq('cancha_id', filtroCancha);
-      if (perfil.rol !== 'SuperAdministrador' && perfil.sucursal_id) query = query.eq('cancha.sucursal_id', perfil.sucursal_id);
+      if (filtroGrupo) query = query.eq('grupo_id', filtroGrupo);
+      if (perfil.rol !== 'SuperAdministrador' && perfil.sucursal_id) query = query.eq('grupo.sucursal_id', perfil.sucursal_id);
       if (filtroHorario) query = query.eq('horario_id', filtroHorario);
       if (filtroEntrenador) query = query.eq('entrenador_id', filtroEntrenador);
 
@@ -171,7 +171,7 @@ const FotosAsistencia: React.FC = () => {
       // Normalizar: Supabase devuelve array para FK joins
       const fotosNormalizadas = (data || []).map((f: any) => ({
         ...f,
-        cancha: Array.isArray(f.cancha) ? f.cancha[0] || null : f.cancha,
+        grupo: Array.isArray(f.grupo) ? f.grupo[0] || null : f.grupo,
         horario: Array.isArray(f.horario) ? f.horario[0] || null : f.horario,
         entrenador: Array.isArray(f.entrenador) ? f.entrenador[0] || null : f.entrenador,
       }));
@@ -183,7 +183,7 @@ const FotosAsistencia: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [fechaDesde, fechaHasta, filtroCancha, filtroHorario, filtroEntrenador]);
+  }, [fechaDesde, fechaHasta, filtroGrupo, filtroHorario, filtroEntrenador]);
 
   // Cargar fotos solo si tiene acceso
   useEffect(() => {
@@ -224,12 +224,12 @@ const FotosAsistencia: React.FC = () => {
     d.setDate(d.getDate() - 30);
     setFechaDesde(d.toISOString().split('T')[0]);
     setFechaHasta(new Date().toISOString().split('T')[0]);
-    setFiltroCancha('');
+    setFiltroGrupo('');
     setFiltroHorario('');
     setFiltroEntrenador('');
   };
 
-  const hayFiltrosActivos = filtroCancha || filtroHorario || filtroEntrenador;
+  const hayFiltrosActivos = filtroGrupo || filtroHorario || filtroEntrenador;
 
   return (
     <main className="main-content">
@@ -409,8 +409,8 @@ const FotosAsistencia: React.FC = () => {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', minWidth: '160px' }}>
           <label style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 600 }}>Grupo</label>
           <select
-            value={filtroCancha}
-            onChange={e => setFiltroCancha(e.target.value)}
+            value={filtroGrupo}
+            onChange={e => setFiltroGrupo(e.target.value)}
             style={{
               background: 'var(--bg)',
               border: '1px solid var(--border)',
@@ -421,7 +421,7 @@ const FotosAsistencia: React.FC = () => {
             }}
           >
             <option value="">Todos los grupos</option>
-            {canchas.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+            {grupos.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
           </select>
         </div>
 
@@ -621,10 +621,10 @@ const FotosAsistencia: React.FC = () => {
                   {formatFecha(foto.fecha)}
                 </p>
                 <div style={{ marginTop: '0.6rem', display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-                  {foto.cancha && (
+                  {foto.grupo && (
                     <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                       <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--primary)', display: 'inline-block', flexShrink: 0 }} />
-                      {foto.cancha.nombre}
+                      {foto.grupo.nombre}
                     </span>
                   )}
                   {foto.horario && (
@@ -777,9 +777,9 @@ const FotosAsistencia: React.FC = () => {
               <span style={{ color: 'white', fontWeight: 700, fontSize: '0.9rem', textTransform: 'capitalize' }}>
                 {formatFecha(fotos[lightboxIndex].fecha)}
               </span>
-              {fotos[lightboxIndex].cancha && (
+              {fotos[lightboxIndex].grupo && (
                 <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: '0.85rem' }}>
-                  📍 {fotos[lightboxIndex].cancha!.nombre}
+                  📍 {fotos[lightboxIndex].grupo!.nombre}
                 </span>
               )}
               {fotos[lightboxIndex].horario && (

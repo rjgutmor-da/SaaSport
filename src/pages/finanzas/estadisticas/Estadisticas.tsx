@@ -83,7 +83,7 @@ const Estadisticas: React.FC = () => {
   const [entrenadorId, setEntrenadorId] = useState('');
   const [sucursalId, setSucursalId] = useState('');
   const [horarioId, setHorarioId] = useState('');
-  const [canchaId, setCanchaId] = useState('');
+  const [grupoId, setGrupoId] = useState('');
   const [pagadoFiltro, setPagadoFiltro] = useState('');
 
   // Filtro de monto (chips exactos y rango)
@@ -155,7 +155,7 @@ const Estadisticas: React.FC = () => {
     sucursalId,
     entrenadorId,
     horarioId,
-    canchaId,
+    grupoId,
     itemSeleccionado?.nombre,
     pagadoFiltro,
     esMensualidad ? anioMensualidad : undefined,
@@ -171,7 +171,7 @@ const Estadisticas: React.FC = () => {
     sucursalId,
     entrenadorId,
     horarioId,
-    canchaId
+    grupoId
   );
 
   // ─── Cargar catálogo ───
@@ -369,16 +369,16 @@ const Estadisticas: React.FC = () => {
                     <FiltrosCxc
                       sucursalId={sucursalId}
                       entrenadorId={entrenadorId}
-                      canchaId={canchaId}
+                      grupoId={grupoId}
                       horarioId={horarioId}
                       onChangeSucursal={setSucursalId}
                       onChangeEntrenador={setEntrenadorId}
-                      onChangeCancha={setCanchaId}
+                      onChangeGrupo={setGrupoId}
                       onChangeHorario={setHorarioId}
                       onLimpiar={() => {
                         setSucursalId('');
                         setEntrenadorId('');
-                        setCanchaId('');
+                        setGrupoId('');
                         setHorarioId('');
                       }}
                       compact
@@ -557,16 +557,16 @@ const Estadisticas: React.FC = () => {
               <FiltrosCxc
                 sucursalId={sucursalId}
                 entrenadorId={entrenadorId}
-                canchaId={canchaId}
+                grupoId={grupoId}
                 horarioId={horarioId}
                 onChangeSucursal={setSucursalId}
                 onChangeEntrenador={setEntrenadorId}
-                onChangeCancha={setCanchaId}
+                onChangeGrupo={setGrupoId}
                 onChangeHorario={setHorarioId}
                 onLimpiar={() => {
                   setSucursalId('');
                   setEntrenadorId('');
-                  setCanchaId('');
+                  setGrupoId('');
                   setHorarioId('');
                 }}
                 compact

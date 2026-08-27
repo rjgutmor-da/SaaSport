@@ -39,7 +39,7 @@ export function useCuentasPorCobrar(
   sucursalId?: string,
   entrenadorId?: string,
   horarioId?: string,
-  canchaId?: string
+  grupoId?: string
 ): UseCuentasPorCobrarResult {
   const [datos, setDatos] = useState<CuentaPorCobrarRow[]>([]);
   const [cargando, setCargando] = useState(false);
@@ -52,7 +52,7 @@ export function useCuentasPorCobrar(
     if (!escuelaId) return;
     const rango = calcularRango(intervalo);
     cargarDatos(escuelaId, rango.desde, rango.hasta);
-  }, [escuelaId, intervalo, desdePersonalizado, hastaPersonalizado, tick, sucursalId, entrenadorId, horarioId, canchaId]);
+  }, [escuelaId, intervalo, desdePersonalizado, hastaPersonalizado, tick, sucursalId, entrenadorId, horarioId, grupoId]);
 
   async function cargarDatos(eid: string, desde: string, hasta: string) {
     setCargando(true);
@@ -83,7 +83,7 @@ export function useCuentasPorCobrar(
       if (sucursalId) query = query.eq('alumno_sucursal_id', sucursalId);
       if (entrenadorId) query = query.eq('alumno_entrenador_id', entrenadorId);
       if (horarioId) query = query.eq('alumno_horario_id', horarioId);
-      if (canchaId) query = query.eq('alumno_cancha_id', canchaId);
+      if (grupoId) query = query.eq('alumno_grupo_id', grupoId);
 
       const { data, error: err } = await query;
 
@@ -173,7 +173,7 @@ export function useCuentasPorCobrar(
               sucursal_id: cxc.alumno_sucursal_id,
               entrenador_id: cxc.alumno_entrenador_id,
               horario_id: cxc.alumno_horario_id,
-              cancha_id: cxc.alumno_cancha_id,
+              cancha_id: cxc.alumno_grupo_id,
               mesesMensualidad: itemMeses,
               otrosDetallesMensualidad: itemOtrosDetalles,
               otrosConceptos: itemOtrosConceptos

@@ -37,7 +37,7 @@ CREATE OR REPLACE VIEW public.v_alumnos_deuda AS
     a.apellidos,
     a.fecha_nacimiento,
     a.sucursal_id,
-    a.cancha_id,
+    a.grupo_id,
     a.horario_id,
     a.profesor_asignado_id AS entrenador_id,
     a.nombre_padre,
@@ -48,7 +48,7 @@ CREATE OR REPLACE VIEW public.v_alumnos_deuda AS
     a.meses_permanencia_inicial,
     a.ingresos_iniciales,
     s.nombre AS sucursal_nombre,
-    c.nombre AS cancha_nombre,
+    c.nombre AS grupo_nombre,
     h.hora AS horario_hora,
     (((u.nombres)::text || ' '::text) || (u.apellidos)::text) AS entrenador_nombre,
     COALESCE(sum(cc.monto_total) FILTER (WHERE (cc.anulada = false)), (0)::numeric) AS total_deuda,
@@ -67,11 +67,11 @@ CREATE OR REPLACE VIEW public.v_alumnos_deuda AS
     unaccent(lower(a.apellidos)) AS apellidos_search
    FROM (((((((alumnos a
      LEFT JOIN sucursales s ON ((a.sucursal_id = s.id)))
-     LEFT JOIN canchas c ON ((a.cancha_id = c.id)))
+     LEFT JOIN grupos c ON ((a.grupo_id = c.id)))
      LEFT JOIN horarios h ON ((a.horario_id = h.id)))
      LEFT JOIN usuarios u ON ((a.profesor_asignado_id = u.id)))
      LEFT JOIN v_cuentas_cobrar cc ON ((a.id = cc.alumno_id)))
      LEFT JOIN asistencias_mes am ON ((a.id = am.alumno_id)))
      LEFT JOIN meses_stats ms ON ((a.id = ms.alumno_id)))
   WHERE (a.archivado = false)
-  GROUP BY a.id, a.escuela_id, a.nombres, a.apellidos, a.fecha_nacimiento, a.sucursal_id, a.cancha_id, a.horario_id, a.profesor_asignado_id, a.nombre_padre, a.telefono_padre, a.nombre_madre, a.telefono_madre, a.whatsapp_preferido, a.meses_permanencia_inicial, a.ingresos_iniciales, s.nombre, c.nombre, h.hora, u.nombres, u.apellidos, am.asistencias_actual, am.asistencias_anterior, ms.meses_saasport, ms.primera_fecha_saasport, a.fecha_inicio, a.created_at;
+  GROUP BY a.id, a.escuela_id, a.nombres, a.apellidos, a.fecha_nacimiento, a.sucursal_id, a.grupo_id, a.horario_id, a.profesor_asignado_id, a.nombre_padre, a.telefono_padre, a.nombre_madre, a.telefono_madre, a.whatsapp_preferido, a.meses_permanencia_inicial, a.ingresos_iniciales, s.nombre, c.nombre, h.hora, u.nombres, u.apellidos, am.asistencias_actual, am.asistencias_anterior, ms.meses_saasport, ms.primera_fecha_saasport, a.fecha_inicio, a.created_at;

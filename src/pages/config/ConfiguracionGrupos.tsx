@@ -3,36 +3,36 @@ import { useNavigate } from 'react-router-dom';
 import { ChevronLeft, Settings, Plus, CheckCircle, XCircle, Edit2, Save, X, AlertTriangle, Trash2 } from 'lucide-react';
 import { useAuthSaaSport } from '../../lib/authHelper';
 import {
-  getAllCanchas,
+  getAllGrupos,
   getAllHorarios,
-  createCancha,
+  createGrupo,
   createHorario,
-  updateCancha,
+  updateGrupo,
   updateHorario,
-  toggleCanchaStatus,
+  toggleGrupoStatus,
   toggleHorarioStatus,
-  deleteCancha
+  deleteGrupo
 } from '../../services/maestros';
-import type { Cancha, Horario } from '../../services/maestros';
+import type { Grupo, Horario } from '../../services/maestros';
 import { getSucursales } from '../../services/sucursales';
 import type { Sucursal } from '../../services/sucursales';
 
-const ConfiguracionCanchas: React.FC = () => {
+const ConfiguracionGrupos: React.FC = () => {
   const navigate = useNavigate();
   const { escuelaId } = useAuthSaaSport();
 
-  const [activeTab, setActiveTab] = useState<'canchas' | 'horarios'>('canchas');
+  const [activeTab, setActiveTab] = useState<'grupos' | 'horarios'>('grupos');
   const [loading, setLoading] = useState(true);
 
-  // Estado de Canchas
-  const [canchas, setCanchas] = useState<Cancha[]>([]);
-  const [newCanchaName, setNewCanchaName] = useState('');
-  const [newCanchaSucursal, setNewCanchaSucursal] = useState('');
-  const [newCanchaHorarios, setNewCanchaHorarios] = useState<string[]>([]);
-  const [editingCancha, setEditingCancha] = useState<string | null>(null);
-  const [editCanchaName, setEditCanchaName] = useState('');
-  const [editCanchaSucursal, setEditCanchaSucursal] = useState('');
-  const [editCanchaHorarios, setEditCanchaHorarios] = useState<string[]>([]);
+  // Estado de Grupos
+  const [grupos, setGrupos] = useState<Grupo[]>([]);
+  const [newGrupoName, setNewGrupoName] = useState('');
+  const [newGrupoSucursal, setNewGrupoSucursal] = useState('');
+  const [newGrupoHorarios, setNewGrupoHorarios] = useState<string[]>([]);
+  const [editingGrupo, setEditingGrupo] = useState<string | null>(null);
+  const [editGrupoName, setEditGrupoName] = useState('');
+  const [editGrupoSucursal, setEditGrupoSucursal] = useState('');
+  const [editGrupoHorarios, setEditGrupoHorarios] = useState<string[]>([]);
 
   // Estado de Sucursales
   const [sucursales, setSucursales] = useState<Sucursal[]>([]);
@@ -67,11 +67,11 @@ const ConfiguracionCanchas: React.FC = () => {
     try {
       setLoading(true);
       const [chs, hrs, sucs] = await Promise.all([
-        getAllCanchas(escuelaId),
+        getAllGrupos(escuelaId),
         getAllHorarios(escuelaId),
         getSucursales(escuelaId)
       ]);
-      setCanchas(chs || []);
+      setGrupos(chs || []);
       setHorarios(hrs || []);
       setSucursales(sucs || []);
     } catch (error: any) {
@@ -83,81 +83,81 @@ const ConfiguracionCanchas: React.FC = () => {
   };
 
   // ========================================================================
-  // Funciones de Canchas
+  // Funciones de Grupos
   // ========================================================================
 
-  const handleCreateCancha = async (e: React.FormEvent) => {
+  const handleCreateGrupo = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!escuelaId || !newCanchaName.trim()) return;
+    if (!escuelaId || !newGrupoName.trim()) return;
 
     setAlerta(null);
     try {
-      await createCancha(escuelaId, newCanchaName.trim(), newCanchaSucursal || null, newCanchaHorarios);
+      await createGrupo(escuelaId, newGrupoName.trim(), newGrupoSucursal || null, newGrupoHorarios);
       setAlerta({ tipo: 'success', mensaje: 'Grupo creado correctamente.' });
-      setNewCanchaName('');
-      setNewCanchaSucursal('');
-      setNewCanchaHorarios([]);
+      setNewGrupoName('');
+      setNewGrupoSucursal('');
+      setNewGrupoHorarios([]);
       loadData();
     } catch (error: any) {
-      setAlerta({ tipo: 'error', mensaje: error.message || 'Error al crear la cancha.' });
+      setAlerta({ tipo: 'error', mensaje: error.message || 'Error al crear la grupo.' });
     }
   };
 
-  const startEditCancha = (cancha: Cancha) => {
-    setEditingCancha(cancha.id);
-    setEditCanchaName(cancha.nombre);
-    setEditCanchaSucursal(cancha.sucursal_id || '');
-    setEditCanchaHorarios(cancha.horario_ids || []);
+  const startEditGrupo = (grupo: Grupo) => {
+    setEditingGrupo(grupo.id);
+    setEditGrupoName(grupo.nombre);
+    setEditGrupoSucursal(grupo.sucursal_id || '');
+    setEditGrupoHorarios(grupo.horario_ids || []);
     setAlerta(null);
   };
 
-  const cancelEditCancha = () => {
-    setEditingCancha(null);
-    setEditCanchaName('');
-    setEditCanchaSucursal('');
-    setEditCanchaHorarios([]);
+  const cancelEditGrupo = () => {
+    setEditingGrupo(null);
+    setEditGrupoName('');
+    setEditGrupoSucursal('');
+    setEditGrupoHorarios([]);
     setAlerta(null);
   };
 
-  const handleUpdateCancha = async (id: string) => {
-    if (!escuelaId || !editCanchaName.trim()) return;
+  const handleUpdateGrupo = async (id: string) => {
+    if (!escuelaId || !editGrupoName.trim()) return;
 
     setAlerta(null);
     try {
-      await updateCancha(escuelaId, id, editCanchaName.trim(), editCanchaSucursal || null, editCanchaHorarios);
+      await updateGrupo(escuelaId, id, editGrupoName.trim(), editGrupoSucursal || null, editGrupoHorarios);
       setAlerta({ tipo: 'success', mensaje: 'Grupo actualizado correctamente.' });
-      setEditingCancha(null);
-      setEditCanchaName('');
-      setEditCanchaSucursal('');
-      setEditCanchaHorarios([]);
+      setEditingGrupo(null);
+      setEditGrupoName('');
+      setEditGrupoSucursal('');
+      setEditGrupoHorarios([]);
       loadData();
     } catch (error: any) {
-      setAlerta({ tipo: 'error', mensaje: error.message || 'Error al actualizar la cancha.' });
+      setAlerta({ tipo: 'error', mensaje: error.message || 'Error al actualizar la grupo.' });
     }
   };
 
-  const handleToggleCanchaStatus = async (id: string, currentStatus: boolean) => {
+  const handleToggleGrupoStatus = async (id: string, currentStatus: boolean) => {
     if (!escuelaId) return;
     setAlerta(null);
     try {
-      await toggleCanchaStatus(escuelaId, id, currentStatus);
+      await toggleGrupoStatus(escuelaId, id, currentStatus);
       setAlerta({
         tipo: 'success',
         mensaje: `Grupo ${currentStatus ? 'desactivado' : 'activado'} correctamente.`
       });
       loadData();
     } catch (error: any) {
-      setAlerta({ tipo: 'error', mensaje: error.message || 'Error al cambiar el estado de la cancha.' });
+      setAlerta({ tipo: 'error', mensaje: error.message || 'Error al cambiar el estado de la grupo.' });
     }
   };
 
-  const handleDeleteCancha = async (id: string, nombre: string) => {
+  const handleDeleteGrupo = async (id: string, nombre: string) => {
     if (!escuelaId) return;
     if (!window.confirm(`¿Estás seguro de que deseas eliminar permanentemente el grupo "${nombre}"?`)) return;
 
     setAlerta(null);
     try {
-      await deleteCancha(escuelaId, id);
+      await deleteGrupo(escuelaId, id);
       setAlerta({ tipo: 'success', mensaje: 'Grupo eliminado correctamente.' });
       loadData();
     } catch (error: any) {
@@ -290,15 +290,15 @@ const ConfiguracionCanchas: React.FC = () => {
         </button>
         <button
           onClick={() => {
-            setActiveTab('canchas');
+            setActiveTab('grupos');
             setAlerta(null);
           }}
           style={{
             padding: '0.75rem 1.5rem',
             fontWeight: 600,
             fontSize: '1rem',
-            color: activeTab === 'canchas' ? 'var(--primary)' : 'var(--text-secondary)',
-            borderBottom: activeTab === 'canchas' ? '2px solid var(--primary)' : '2px solid transparent',
+            color: activeTab === 'grupos' ? 'var(--primary)' : 'var(--text-secondary)',
+            borderBottom: activeTab === 'grupos' ? '2px solid var(--primary)' : '2px solid transparent',
             marginBottom: '-1px'
           }}
         >
@@ -310,21 +310,21 @@ const ConfiguracionCanchas: React.FC = () => {
         <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
           Cargando configuraciones...
         </div>
-      ) : activeTab === 'canchas' ? (
+      ) : activeTab === 'grupos' ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-          {/* Formulario de Canchas */}
+          {/* Formulario de Grupos */}
           <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '1.5rem' }}>
             <h2 style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '1.25rem' }}>
               Agregar Nuevo Grupo
             </h2>
-            <form onSubmit={handleCreateCancha} style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', alignItems: 'flex-end' }}>
+            <form onSubmit={handleCreateGrupo} style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', alignItems: 'flex-end' }}>
               <div style={{ flex: '1 1 200px' }}>
                 <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-tertiary)', textTransform: 'uppercase', marginBottom: '0.5rem' }}>Nombre del grupo</label>
                 <input
                   type="text"
                   placeholder="Ej: Grupo Formativo 1"
-                  value={newCanchaName}
-                  onChange={(e) => setNewCanchaName(e.target.value)}
+                  value={newGrupoName}
+                  onChange={(e) => setNewGrupoName(e.target.value)}
                   style={{ width: '100%', padding: '0.6rem 0.8rem', background: 'var(--bg-input)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}
                   required
                 />
@@ -332,8 +332,8 @@ const ConfiguracionCanchas: React.FC = () => {
               <div style={{ flex: '1 1 200px' }}>
                 <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-tertiary)', textTransform: 'uppercase', marginBottom: '0.5rem' }}>Sucursal Asignada</label>
                 <select
-                  value={newCanchaSucursal}
-                  onChange={(e) => setNewCanchaSucursal(e.target.value)}
+                  value={newGrupoSucursal}
+                  onChange={(e) => setNewGrupoSucursal(e.target.value)}
                   style={{ width: '100%', padding: '0.6rem 0.8rem', background: 'var(--bg-input)', border: '1px solid var(--border)', color: 'var(--text-primary)', height: '42px' }}
                 >
                   <option value="">-- Selecciona sucursal (Opcional) --</option>
@@ -353,12 +353,12 @@ const ConfiguracionCanchas: React.FC = () => {
                       <label key={h.id} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem', color: 'var(--text-primary)', cursor: 'pointer' }}>
                         <input
                           type="checkbox"
-                          checked={newCanchaHorarios.includes(h.id)}
+                          checked={newGrupoHorarios.includes(h.id)}
                           onChange={(e) => {
                             if (e.target.checked) {
-                              setNewCanchaHorarios([...newCanchaHorarios, h.id]);
+                              setNewGrupoHorarios([...newGrupoHorarios, h.id]);
                             } else {
-                              setNewCanchaHorarios(newCanchaHorarios.filter(id => id !== h.id));
+                              setNewGrupoHorarios(newGrupoHorarios.filter(id => id !== h.id));
                             }
                           }}
                         />
@@ -385,7 +385,7 @@ const ConfiguracionCanchas: React.FC = () => {
             )}
           </div>
 
-          {/* Tabla de Canchas */}
+          {/* Tabla de Grupos */}
           <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
               <thead>
@@ -398,33 +398,33 @@ const ConfiguracionCanchas: React.FC = () => {
                 </tr>
               </thead>
               <tbody>
-                {canchas.length === 0 ? (
+                {grupos.length === 0 ? (
                   <tr>
                     <td colSpan={5} style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
                       No hay grupos registrados en el sistema.
                     </td>
                   </tr>
                 ) : (
-                  canchas.map((cancha) => (
-                    <tr key={cancha.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)', transition: 'var(--transition)' }} className="hover-row">
+                  grupos.map((grupo) => (
+                    <tr key={grupo.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)', transition: 'var(--transition)' }} className="hover-row">
                       <td style={{ padding: '1rem' }}>
-                        {editingCancha === cancha.id ? (
+                        {editingGrupo === grupo.id ? (
                           <input
                             type="text"
-                            value={editCanchaName}
-                            onChange={(e) => setEditCanchaName(e.target.value)}
+                            value={editGrupoName}
+                            onChange={(e) => setEditGrupoName(e.target.value)}
                             style={{ padding: '0.4rem 0.6rem', background: 'var(--bg-input)', border: '1px solid var(--border)', color: 'var(--text-primary)', borderRadius: '4px', width: '200px' }}
                             autoFocus
                           />
                         ) : (
-                          <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{cancha.nombre}</span>
+                          <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{grupo.nombre}</span>
                         )}
                       </td>
                       <td style={{ padding: '1rem' }}>
-                        {editingCancha === cancha.id ? (
+                        {editingGrupo === grupo.id ? (
                           <select
-                            value={editCanchaSucursal}
-                            onChange={(e) => setEditCanchaSucursal(e.target.value)}
+                            value={editGrupoSucursal}
+                            onChange={(e) => setEditGrupoSucursal(e.target.value)}
                             style={{ padding: '0.4rem 0.6rem', background: 'var(--bg-input)', border: '1px solid var(--border)', color: 'var(--text-primary)', borderRadius: '4px', height: '34px' }}
                           >
                             <option value="">-- Selecciona sucursal (Opcional) --</option>
@@ -434,23 +434,23 @@ const ConfiguracionCanchas: React.FC = () => {
                           </select>
                         ) : (
                           <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
-                            {cancha.sucursal?.nombre || <span style={{ color: 'var(--danger)', fontSize: '0.8rem' }}>Sin sucursal</span>}
+                            {grupo.sucursal?.nombre || <span style={{ color: 'var(--danger)', fontSize: '0.8rem' }}>Sin sucursal</span>}
                           </span>
                         )}
                       </td>
                       <td style={{ padding: '1rem' }}>
-                        {editingCancha === cancha.id ? (
+                        {editingGrupo === grupo.id ? (
                           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', maxWidth: '300px' }}>
                             {horarios.filter(h => h.activo).map((h) => (
                               <label key={h.id} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.2rem', fontSize: '0.75rem' }}>
                                 <input
                                   type="checkbox"
-                                  checked={editCanchaHorarios.includes(h.id)}
+                                  checked={editGrupoHorarios.includes(h.id)}
                                   onChange={(e) => {
                                     if (e.target.checked) {
-                                      setEditCanchaHorarios([...editCanchaHorarios, h.id]);
+                                      setEditGrupoHorarios([...editGrupoHorarios, h.id]);
                                     } else {
-                                      setEditCanchaHorarios(editCanchaHorarios.filter(id => id !== h.id));
+                                      setEditGrupoHorarios(editGrupoHorarios.filter(id => id !== h.id));
                                     }
                                   }}
                                 />
@@ -460,10 +460,10 @@ const ConfiguracionCanchas: React.FC = () => {
                           </div>
                         ) : (
                           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem' }}>
-                            {(!cancha.horarios || cancha.horarios.length === 0) ? (
+                            {(!grupo.horarios || grupo.horarios.length === 0) ? (
                               <span style={{ color: 'var(--text-tertiary)', fontSize: '0.8rem', fontStyle: 'italic' }}>Sin horarios</span>
                             ) : (
-                              cancha.horarios.map((h) => (
+                              grupo.horarios.map((h) => (
                                 <span key={h.id} style={{ background: 'var(--success-bg)', border: '1px solid rgba(0, 210, 106, 0.3)', borderRadius: '4px', padding: '0.1rem 0.4rem', fontSize: '0.75rem', color: 'var(--success)', fontWeight: 600 }}>
                                   {h.hora}
                                 </span>
@@ -473,7 +473,7 @@ const ConfiguracionCanchas: React.FC = () => {
                         )}
                       </td>
                       <td style={{ padding: '1rem', textAlign: 'center' }}>
-                        {cancha.activo ? (
+                        {grupo.activo ? (
                           <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', color: 'var(--success)', fontSize: '0.85rem', fontWeight: 600 }}>
                             <CheckCircle size={15} /> Activa
                           </span>
@@ -485,10 +485,10 @@ const ConfiguracionCanchas: React.FC = () => {
                       </td>
                       <td style={{ padding: '1rem', textAlign: 'right' }}>
                         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
-                          {editingCancha === cancha.id ? (
+                          {editingGrupo === grupo.id ? (
                             <>
                               <button
-                                onClick={() => handleUpdateCancha(cancha.id)}
+                                onClick={() => handleUpdateGrupo(grupo.id)}
                                 style={{
                                   fontSize: '0.75rem',
                                   padding: '0.4rem 0.75rem',
@@ -505,7 +505,7 @@ const ConfiguracionCanchas: React.FC = () => {
                                 <Save size={14} /> Guardar
                               </button>
                               <button
-                                onClick={cancelEditCancha}
+                                onClick={cancelEditGrupo}
                                 style={{
                                   fontSize: '0.75rem',
                                   padding: '0.4rem 0.75rem',
@@ -525,7 +525,7 @@ const ConfiguracionCanchas: React.FC = () => {
                           ) : (
                             <>
                               <button
-                                onClick={() => startEditCancha(cancha)}
+                                onClick={() => startEditGrupo(grupo)}
                                 style={{
                                   padding: '0.4rem',
                                   borderRadius: '4px',
@@ -541,21 +541,21 @@ const ConfiguracionCanchas: React.FC = () => {
                                 <Edit2 size={16} />
                               </button>
                               <button
-                                onClick={() => handleToggleCanchaStatus(cancha.id, cancha.activo)}
+                                onClick={() => handleToggleGrupoStatus(grupo.id, grupo.activo)}
                                 style={{
                                   fontSize: '0.75rem',
                                   padding: '0.4rem 0.75rem',
                                   borderRadius: '4px',
-                                  border: `1px solid ${cancha.activo ? 'rgba(255, 59, 48, 0.3)' : 'rgba(0, 210, 106, 0.3)'}`,
-                                  background: cancha.activo ? 'var(--danger-bg)' : 'var(--success-bg)',
-                                  color: cancha.activo ? 'var(--danger)' : 'var(--success)',
+                                  border: `1px solid ${grupo.activo ? 'rgba(255, 59, 48, 0.3)' : 'rgba(0, 210, 106, 0.3)'}`,
+                                  background: grupo.activo ? 'var(--danger-bg)' : 'var(--success-bg)',
+                                  color: grupo.activo ? 'var(--danger)' : 'var(--success)',
                                   fontWeight: 600
                                 }}
                               >
-                                {cancha.activo ? 'Desactivar' : 'Activar'}
+                                {grupo.activo ? 'Desactivar' : 'Activar'}
                               </button>
                               <button
-                                onClick={() => handleDeleteCancha(cancha.id, cancha.nombre)}
+                                onClick={() => handleDeleteGrupo(grupo.id, grupo.nombre)}
                                 style={{
                                   padding: '0.4rem',
                                   borderRadius: '4px',
@@ -744,4 +744,4 @@ const ConfiguracionCanchas: React.FC = () => {
   );
 };
 
-export default ConfiguracionCanchas;
+export default ConfiguracionGrupos;

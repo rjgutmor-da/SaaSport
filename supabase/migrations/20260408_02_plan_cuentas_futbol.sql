@@ -40,7 +40,7 @@ INSERT INTO public.plan_cuentas (codigo, nombre, tipo, es_transaccional) VALUES
 ('5.1.2', 'Bonos e Incentivos al Personal', 'gasto', true),
 ('5.1.3', 'Cargas Sociales y Beneficios (Finiquitos, liquidaciones)', 'gasto', true),
 ('5.2', 'Gastos Operativos y de Mantenimiento', 'gasto', false),
-('5.2.1', 'Alquiler de Canchas e Instalaciones', 'gasto', true),
+('5.2.1', 'Alquiler de Grupos e Instalaciones', 'gasto', true),
 ('5.2.2', 'Mantenimiento de Campos Deportivos (Arena, abonos, riego)', 'gasto', true),
 ('5.2.3', 'Servicios Básicos (Energía eléctrica, Agua potable, Internet)', 'gasto', true),
 ('5.2.4', 'Materiales y Suministros de Limpieza', 'gasto', true),

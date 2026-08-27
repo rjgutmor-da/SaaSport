@@ -45,7 +45,7 @@ export function useAlumnosPorItem(
   sucursalId?: string,
   entrenadorId?: string,
   horarioId?: string,
-  canchaId?: string,
+  grupoId?: string,
   conceptoNombre?: string, // Para setear el concepto en el resultado
   pagadoFiltro?: string,
   anioMensualidad?: number,
@@ -83,7 +83,7 @@ export function useAlumnosPorItem(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [escuelaId, catalogoItemId, intervalo, desdePersonalizado, hastaPersonalizado, tick,
     // serializar filtros para evitar re-renders infinitos
-    JSON.stringify(filtroSubItems), sucursalId, entrenadorId, horarioId, canchaId, conceptoNombre, pagadoFiltro,
+    JSON.stringify(filtroSubItems), sucursalId, entrenadorId, horarioId, grupoId, conceptoNombre, pagadoFiltro,
     anioMensualidad, JSON.stringify(montosExactos), JSON.stringify(montoRango)]);
 
   async function cargarAlumnos(
@@ -202,9 +202,9 @@ export function useAlumnosPorItem(
         query = query.eq('alumnos.horario_id', horarioId);
         queryPorPeriodoDetalle = queryPorPeriodoDetalle.eq('alumnos.horario_id', horarioId);
       }
-      if (canchaId) {
-        query = query.eq('alumnos.cancha_id', canchaId);
-        queryPorPeriodoDetalle = queryPorPeriodoDetalle.eq('alumnos.cancha_id', canchaId);
+      if (grupoId) {
+        query = query.eq('alumnos.cancha_id', grupoId);
+        queryPorPeriodoDetalle = queryPorPeriodoDetalle.eq('alumnos.cancha_id', grupoId);
       }
 
       const [
@@ -237,7 +237,7 @@ export function useAlumnosPorItem(
         if (entrenadorId && alu.profesor_asignado_id !== entrenadorId) continue;
         if (sucursalId && alu.sucursal_id !== sucursalId) continue;
         if (horarioId && alu.horario_id !== horarioId) continue;
-        if (canchaId && alu.cancha_id !== canchaId) continue;
+        if (grupoId && alu.cancha_id !== grupoId) continue;
 
 
         // Calcular SUB (Categoría por edad)

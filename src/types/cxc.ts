@@ -80,11 +80,11 @@ export interface CuentaCobrar {
   telefono_madre: string | null;
   whatsapp_preferido: string | null;
   alumno_sucursal_id: string | null;
-  alumno_cancha_id: string | null;
+  alumno_grupo_id: string | null;
   alumno_horario_id: string | null;
   alumno_entrenador_id: string | null;
   sucursal_nombre: string | null;
-  cancha_nombre: string | null;
+  grupo_nombre: string | null;
   horario_hora: string | null;
   entrenador_nombre: string | null;
   ciclo_inicio?: string | null;
@@ -108,7 +108,7 @@ export interface AlumnoDeuda {
   telefono_madre: string | null;
   whatsapp_preferido: string | null;
   sucursal_nombre: string | null;
-  cancha_nombre: string | null;
+  grupo_nombre: string | null;
   horario_hora: string | null;
   entrenador_nombre: string | null;
   total_deuda: number;
@@ -146,4 +146,3 @@ export const MESES_ANIO = [
   'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun',
   'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'
 ];
-

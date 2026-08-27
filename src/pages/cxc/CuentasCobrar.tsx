@@ -59,7 +59,7 @@ const CuentasCobrar: React.FC = () => {
   const filtrosAntesBusqueda = useRef<{ soloConDeuda: boolean; estado: FiltroEstadoAlumno } | null>(null);
   const [filtroSucursal, setFiltroSucursal] = useState('');
   const [filtroEntrenador, setFiltroEntrenador] = useState('');
-  const [filtroCancha, setFiltroCancha] = useState('');
+  const [filtroGrupo, setFiltroGrupo] = useState('');
   const [filtroHorario, setFiltroHorario] = useState('');
 
   // Los roles con alcance de sucursal nunca deben poder ampliar CxC a toda la escuela.
@@ -92,12 +92,12 @@ const CuentasCobrar: React.FC = () => {
 
   useEffect(() => {
     setPagina(1);
-  }, [debouncedBusqueda, soloConDeuda, filtroEstadoAlumno, sucursalEfectiva, filtroEntrenador, filtroCancha, filtroHorario]);
+  }, [debouncedBusqueda, soloConDeuda, filtroEstadoAlumno, sucursalEfectiva, filtroEntrenador, filtroGrupo, filtroHorario]);
 
   const filtros = {
     sucursalId: sucursalEfectiva,
     entrenadorId: filtroEntrenador,
-    canchaId: filtroCancha,
+    grupoId: filtroGrupo,
     horarioId: filtroHorario,
     soloConDeuda,
     filtroEstadoAlumno,
@@ -327,15 +327,15 @@ const CuentasCobrar: React.FC = () => {
                     sucursalId={sucursalEfectiva}
                     sucursalBloqueada={sucursalBloqueada}
                     entrenadorId={filtroEntrenador}
-                    canchaId={filtroCancha}
+                    grupoId={filtroGrupo}
                     horarioId={filtroHorario}
                     onChangeSucursal={sucursalBloqueada ? () => undefined : setFiltroSucursal}
                     onChangeEntrenador={setFiltroEntrenador}
-                    onChangeCancha={setFiltroCancha}
+                    onChangeGrupo={setFiltroGrupo}
                     onChangeHorario={setFiltroHorario}
                     onLimpiar={() => {
                       setFiltroSucursal(''); setFiltroEntrenador('');
-                      setFiltroCancha(''); setFiltroHorario('');
+                      setFiltroGrupo(''); setFiltroHorario('');
                     }}
                     compact
                   />

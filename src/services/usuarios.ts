@@ -20,7 +20,7 @@ export interface GrupoReasignacionEntrenador {
   cancha_id: string | null;
   horario_id: string | null;
   sucursal_nombre: string;
-  cancha_nombre: string;
+  grupo_nombre: string;
   horario_nombre: string;
   alumnos_activos: number;
   alumnos_archivados: number;
@@ -211,7 +211,7 @@ export const getGruposReasignacionEntrenador = async (
       horario_id,
       archivado,
       sucursal:sucursales(nombre),
-      cancha:canchas(nombre),
+      grupo:grupos(nombre),
       horario:horarios(hora)
     `)
     .eq('escuela_id', escuelaId)
@@ -222,14 +222,14 @@ export const getGruposReasignacionEntrenador = async (
   const grupos = new Map<string, GrupoReasignacionEntrenador>();
   for (const alumno of data || []) {
     const row = alumno as any;
-    const clave = [row.sucursal_id ?? 'sin-sucursal', row.cancha_id ?? 'sin-cancha', row.horario_id ?? 'sin-horario'].join('|');
+    const clave = [row.sucursal_id ?? 'sin-sucursal', row.cancha_id ?? 'sin-grupo', row.horario_id ?? 'sin-horario'].join('|');
     const grupo = grupos.get(clave) || {
       clave,
       sucursal_id: row.sucursal_id ?? null,
       cancha_id: row.cancha_id ?? null,
       horario_id: row.horario_id ?? null,
       sucursal_nombre: row.sucursal?.nombre || 'Sin sucursal',
-      cancha_nombre: row.cancha?.nombre || 'Sin grupo',
+      grupo_nombre: row.grupo?.nombre || 'Sin grupo',
       horario_nombre: row.horario?.hora || 'Sin horario',
       alumnos_activos: 0,
       alumnos_archivados: 0,
@@ -241,8 +241,8 @@ export const getGruposReasignacionEntrenador = async (
   }
 
   return Array.from(grupos.values()).sort((a, b) =>
-    `${a.sucursal_nombre}-${a.cancha_nombre}-${a.horario_nombre}`.localeCompare(
-      `${b.sucursal_nombre}-${b.cancha_nombre}-${b.horario_nombre}`,
+    `${a.sucursal_nombre}-${a.grupo_nombre}-${a.horario_nombre}`.localeCompare(
+      `${b.sucursal_nombre}-${b.grupo_nombre}-${b.horario_nombre}`,
       'es'
     )
   );

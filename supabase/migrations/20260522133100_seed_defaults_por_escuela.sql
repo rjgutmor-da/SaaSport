@@ -63,7 +63,7 @@ BEGIN
     (p_escuela_id, 'Saldo Inicial',          'servicio', 'servicio', 'ingreso',   0.00, true, true,  false),
     -- Gastos principales
     (p_escuela_id, 'Sueldo Entrenador',      'servicio', 'gasto',   'egreso',    0.00, true, false, true),
-    (p_escuela_id, 'Alquiler Cancha',        'servicio', 'gasto',   'egreso',    0.00, true, false, true),
+    (p_escuela_id, 'Alquiler Grupo',        'servicio', 'gasto',   'egreso',    0.00, true, false, true),
     (p_escuela_id, 'Materiales Deportivos',  'servicio', 'gasto',   'egreso',    0.00, true, false, true),
     (p_escuela_id, 'Gastos Administrativos', 'servicio', 'gasto',   'egreso',    0.00, true, false, true),
     (p_escuela_id, 'Servicios Básicos',      'servicio', 'gasto',   'egreso',    0.00, true, false, true)

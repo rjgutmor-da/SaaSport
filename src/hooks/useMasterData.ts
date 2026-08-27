@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabaseClient';
 export const queryKeys = {
   sucursales: ['sucursales'] as const,
   entrenadores: ['entrenadores'] as const,
-  canchas: ['canchas'] as const,
+  grupos: ['grupos'] as const,
   horarios: ['horarios'] as const,
   cuentas: ['cuentas'] as const,
 };
@@ -26,7 +26,7 @@ const fetchEntrenadores = async () => {
   return data;
 };
 
-const fetchCanchas = async () => {
+const fetchGrupos = async () => {
   const { data, error } = await supabase.from('canchas').select('*, canchas_horarios(horario_id)').order('nombre');
   if (error) throw error;
   return data;
@@ -69,7 +69,7 @@ const fetchCatalogo = async (escuelaId: string | null) => {
 
 export const useSucursales = () => useQuery({ queryKey: queryKeys.sucursales, queryFn: fetchSucursales });
 export const useEntrenadores = () => useQuery({ queryKey: queryKeys.entrenadores, queryFn: fetchEntrenadores });
-export const useCanchas = () => useQuery({ queryKey: queryKeys.canchas, queryFn: fetchCanchas });
+export const useGrupos = () => useQuery({ queryKey: queryKeys.grupos, queryFn: fetchGrupos });
 export const useHorarios = () => useQuery({ queryKey: queryKeys.horarios, queryFn: fetchHorarios });
 export const useCuentasContables = () => useQuery({ queryKey: queryKeys.cuentas, queryFn: fetchCuentasContables });
 export const useAlumnosRelaciones = () => useQuery({ queryKey: ['alumnos-relaciones'], queryFn: fetchAlumnosRelaciones });
