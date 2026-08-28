@@ -11,7 +11,7 @@ import React, { useEffect, useState, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, NavLink, Navigate } from 'react-router-dom';
 import {
   Settings, Sun, Moon, Monitor, LogOut,
-  HandCoins, PieChart, Landmark, BookOpen,
+  HandCoins, PieChart, Landmark,
   School, Activity, BarChart2, Users, Camera, FileText
 } from 'lucide-react';
 import { supabase } from './lib/supabaseClient';
@@ -118,13 +118,6 @@ const Sidebar: React.FC<SidebarProps> = ({ onLogout, theme, onCycleTheme, extra 
             </NavLink>
           </div>
         )}
-
-        {can(perfil?.rol, 'finance.manageAccounts') && <div className="sidebar-item-group">
-          <NavLink to="/cuentas" className={({ isActive }) => (isActive ? 'sidebar-link active' : 'sidebar-link')}>
-            <BookOpen size={20} strokeWidth={1.5} />
-            <span>Cuentas</span>
-          </NavLink>
-        </div>}
 
         {esSuperAdmin && (
           <div className="sidebar-item-group">
