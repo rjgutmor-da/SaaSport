@@ -14,7 +14,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   School, Users, UserCheck, GraduationCap,
-  Building2, UserCog, MapPin, Activity, RefreshCw, Camera, Lock, Settings, Eye, CalendarRange, BookOpen
+  Building2, UserCog, MapPin, Activity, RefreshCw, Camera, Lock, Settings, Eye, CalendarRange
 } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../../lib/supabaseClient';
@@ -453,13 +453,6 @@ const PanelEscuela: React.FC = () => {
             <p className="pe-acceso-desc">Configuración general</p>
           </button>
 
-          <button className="pe-acceso-card pe-acceso-blue" onClick={() => navigate('/cuentas')}>
-            <div className="pe-acceso-icon">
-              <BookOpen size={32} />
-            </div>
-            <h3 className="pe-acceso-titulo">Cuentas</h3>
-            <p className="pe-acceso-desc">Plan de cuentas</p>
-          </button>
           {/* Gestión anual → planificación histórica (solo SuperAdmin) */}
           {perfil?.rol === 'SuperAdministrador' && (
             <button className="pe-acceso-card pe-acceso-orange" onClick={() => navigate('/panel-escuela/gestion-anual')}>
