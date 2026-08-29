@@ -99,7 +99,7 @@ export interface AlumnoDeuda {
   nombres: string;
   apellidos: string;
   sucursal_id: string | null;
-  cancha_id: string | null;
+  grupo_id: string | null;
   horario_id: string | null;
   entrenador_id: string | null;
   nombre_padre: string | null;

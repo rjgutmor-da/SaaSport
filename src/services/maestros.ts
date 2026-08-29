@@ -29,16 +29,16 @@ export const getAllGrupos = async (escuelaId: string): Promise<Grupo[]> => {
   if (!escuelaId) throw new Error('El ID de la escuela es requerido.');
 
   const { data, error } = await supabase
-    .from('canchas')
-    .select('*, sucursal:sucursales(id, nombre), canchas_horarios(horarios(id, hora, activo))')
+    .from('grupos')
+    .select('*, sucursal:sucursales(id, nombre), grupos_horarios(horarios(id, hora, activo))')
     .eq('escuela_id', escuelaId)
     .order('nombre', { ascending: true });
 
   if (error) throw error;
 
   return ((data || []) as any[]).map((item) => {
-    const horarios = (item.canchas_horarios || [])
-      .map((ch: any) => ch.horarios)
+    const horarios = (item.grupos_horarios || [])
+      .map((gh: any) => gh.horarios)
       .filter((h: any) => h != null)
       .sort((a: any, b: any) => (a.hora || '').localeCompare(b.hora || ''));
 
@@ -63,12 +63,12 @@ export const createGrupo = async (
 ): Promise<Grupo> => {
   if (!escuelaId) throw new Error('El ID de la escuela es requerido.');
   if (!nombre || nombre.trim() === '') {
-    throw new Error('El nombre de la grupo es obligatorio.');
+    throw new Error('El nombre del grupo es obligatorio.');
   }
 
   // Validar duplicados dentro de la misma sucursal
   let query = supabase
-    .from('canchas')
+    .from('grupos')
     .select('id')
     .eq('escuela_id', escuelaId)
     .eq('nombre', nombre.trim());
@@ -82,11 +82,11 @@ export const createGrupo = async (
   const { data: existing } = await query.maybeSingle();
 
   if (existing) {
-    throw new Error('Ya existe una grupo con este nombre en esa configuración.');
+    throw new Error('Ya existe un grupo con este nombre en esa configuración.');
   }
 
   const { data, error } = await supabase
-    .from('canchas')
+    .from('grupos')
     .insert([
       {
         nombre: nombre.trim(),
@@ -103,15 +103,15 @@ export const createGrupo = async (
   // Insertar relaciones con horarios
   if (horarioIds && horarioIds.length > 0) {
     const relaciones = horarioIds.map((hId) => ({
-      cancha_id: data.id,
+      grupo_id: data.id,
       horario_id: hId
     }));
 
     const { error: relError } = await supabase
-      .from('canchas_horarios')
+      .from('grupos_horarios')
       .insert(relaciones);
 
-    if (relError) console.error('Error insertando horarios de la grupo:', relError);
+    if (relError) console.error('Error insertando horarios del grupo:', relError);
   }
 
   return data as Grupo;
@@ -125,14 +125,14 @@ export const updateGrupo = async (
   horarioIds: string[] = []
 ): Promise<Grupo> => {
   if (!escuelaId) throw new Error('El ID de la escuela es requerido.');
-  if (!id) throw new Error('El ID de la grupo es requerido.');
+  if (!id) throw new Error('El ID del grupo es requerido.');
   if (!nombre || nombre.trim() === '') {
-    throw new Error('El nombre de la grupo es obligatorio.');
+    throw new Error('El nombre del grupo es obligatorio.');
   }
 
-  // Validar duplicados (excepto la misma grupo, dentro de la misma sucursal)
+  // Validar duplicados (excepto el mismo grupo, dentro de la misma sucursal)
   let query = supabase
-    .from('canchas')
+    .from('grupos')
     .select('id')
     .eq('escuela_id', escuelaId)
     .eq('nombre', nombre.trim())
@@ -147,11 +147,11 @@ export const updateGrupo = async (
   const { data: existing } = await query.maybeSingle();
 
   if (existing) {
-    throw new Error('Ya existe una grupo con este nombre en esa configuración.');
+    throw new Error('Ya existe un grupo con este nombre en esa configuración.');
   }
 
   const { data, error } = await supabase
-    .from('canchas')
+    .from('grupos')
     .update({ nombre: nombre.trim(), sucursal_id: sucursalId || null })
     .eq('id', id)
     .eq('escuela_id', escuelaId)
@@ -162,21 +162,21 @@ export const updateGrupo = async (
 
   // Actualizar relaciones con horarios (eliminar previas e insertar nuevas)
   await supabase
-    .from('canchas_horarios')
+    .from('grupos_horarios')
     .delete()
-    .eq('cancha_id', id);
+    .eq('grupo_id', id);
 
   if (horarioIds && horarioIds.length > 0) {
     const relaciones = horarioIds.map((hId) => ({
-      cancha_id: id,
+      grupo_id: id,
       horario_id: hId
     }));
 
     const { error: relError } = await supabase
-      .from('canchas_horarios')
+      .from('grupos_horarios')
       .insert(relaciones);
 
-    if (relError) console.error('Error actualizando horarios de la grupo:', relError);
+    if (relError) console.error('Error actualizando horarios del grupo:', relError);
   }
 
   return data as Grupo;
@@ -188,10 +188,10 @@ export const toggleGrupoStatus = async (
   currentStatus: boolean
 ): Promise<Grupo> => {
   if (!escuelaId) throw new Error('El ID de la escuela es requerido.');
-  if (!id) throw new Error('El ID de la grupo es requerido.');
+  if (!id) throw new Error('El ID del grupo es requerido.');
 
   const { data, error } = await supabase
-    .from('canchas')
+    .from('grupos')
     .update({ activo: !currentStatus })
     .eq('id', id)
     .eq('escuela_id', escuelaId)
@@ -207,13 +207,13 @@ export const deleteGrupo = async (
   id: string
 ): Promise<void> => {
   if (!escuelaId) throw new Error('El ID de la escuela es requerido.');
-  if (!id) throw new Error('El ID de la grupo es requerido.');
+  if (!id) throw new Error('El ID del grupo es requerido.');
 
   // Verificar si tiene alumnos asignados
   const { count, error: countError } = await supabase
     .from('alumnos')
     .select('id', { count: 'exact', head: true })
-    .eq('cancha_id', id);
+    .eq('grupo_id', id);
 
   if (countError) throw countError;
 
@@ -221,12 +221,12 @@ export const deleteGrupo = async (
     throw new Error(`No se puede eliminar el grupo porque tiene ${count} alumno(s) asignado(s). Puedes desactivarlo en su lugar para impedir nuevas asignaciones.`);
   }
 
-  // Eliminar relaciones en canchas_horarios
-  await supabase.from('canchas_horarios').delete().eq('cancha_id', id);
+  // Eliminar relaciones en grupos_horarios
+  await supabase.from('grupos_horarios').delete().eq('grupo_id', id);
 
-  // Eliminar la grupo
+  // Eliminar el grupo
   const { error } = await supabase
-    .from('canchas')
+    .from('grupos')
     .delete()
     .eq('id', id)
     .eq('escuela_id', escuelaId);

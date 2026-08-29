@@ -55,13 +55,13 @@ const FiltrosCxc: React.FC<FiltrosProps> = ({
     // Aplicar filtros actuales para reducir el conjunto
     if (sucursalId) rels = rels.filter(r => r.sucursal_id === sucursalId);
     if (entrenadorId) rels = rels.filter(r => r.profesor_asignado_id === entrenadorId);
-    if (grupoId) rels = rels.filter(r => r.cancha_id === grupoId);
+    if (grupoId) rels = rels.filter(r => r.grupo_id === grupoId);
     if (horarioId) rels = rels.filter(r => r.horario_id === horarioId);
 
     // IDs únicos disponibles según los filtros activos
     const sucIds = new Set(rels.map(r => r.sucursal_id).filter(Boolean));
     const entIds = new Set(rels.map(r => r.profesor_asignado_id).filter(Boolean));
-    const canIds = new Set(rels.map(r => r.cancha_id).filter(Boolean));
+    const canIds = new Set(rels.map(r => r.grupo_id).filter(Boolean));
     const horIds = new Set(rels.map(r => r.horario_id).filter(Boolean));
 
     return {

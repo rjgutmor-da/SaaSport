@@ -17,7 +17,7 @@ export interface Usuario {
 export interface GrupoReasignacionEntrenador {
   clave: string;
   sucursal_id: string | null;
-  cancha_id: string | null;
+  grupo_id: string | null;
   horario_id: string | null;
   sucursal_nombre: string;
   grupo_nombre: string;
@@ -207,7 +207,7 @@ export const getGruposReasignacionEntrenador = async (
     .from('alumnos')
     .select(`
       sucursal_id,
-      cancha_id,
+      grupo_id,
       horario_id,
       archivado,
       sucursal:sucursales(nombre),
@@ -222,11 +222,11 @@ export const getGruposReasignacionEntrenador = async (
   const grupos = new Map<string, GrupoReasignacionEntrenador>();
   for (const alumno of data || []) {
     const row = alumno as any;
-    const clave = [row.sucursal_id ?? 'sin-sucursal', row.cancha_id ?? 'sin-grupo', row.horario_id ?? 'sin-horario'].join('|');
+    const clave = [row.sucursal_id ?? 'sin-sucursal', row.grupo_id ?? 'sin-grupo', row.horario_id ?? 'sin-horario'].join('|');
     const grupo = grupos.get(clave) || {
       clave,
       sucursal_id: row.sucursal_id ?? null,
-      cancha_id: row.cancha_id ?? null,
+      grupo_id: row.grupo_id ?? null,
       horario_id: row.horario_id ?? null,
       sucursal_nombre: row.sucursal?.nombre || 'Sin sucursal',
       grupo_nombre: row.grupo?.nombre || 'Sin grupo',
@@ -253,9 +253,9 @@ export const reasignarYDesactivarEntrenador = async (
   entrenadorSalienteId: string,
   grupos: Array<GrupoReasignacionEntrenador & { entrenador_destino_id: string }>
 ): Promise<ResultadoReasignacionEntrenador> => {
-  const asignaciones = grupos.map(({ sucursal_id, cancha_id, horario_id, entrenador_destino_id }) => ({
+  const asignaciones = grupos.map(({ sucursal_id, grupo_id, horario_id, entrenador_destino_id }) => ({
     sucursal_id,
-    cancha_id,
+    grupo_id,
     horario_id,
     entrenador_destino_id,
   }));

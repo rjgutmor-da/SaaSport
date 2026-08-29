@@ -92,7 +92,7 @@ BEGIN
      AND OLD.activo IS TRUE
      AND NEW.activo IS FALSE
      AND current_setting('app.reasignacion_entrenador', true) IS DISTINCT FROM 'true' THEN
-    RAISE EXCEPTION 'La baja de un entrenador debe realizarse con la reasignación de sus grupos.'
+    RAISE EXCEPTION 'La baja de un entrenador debe realizarse con la reasignación de sus canchas.'
       USING ERRCODE = '22023';
   END IF;
 
@@ -163,10 +163,10 @@ BEGIN
   END IF;
 
   IF p_asignaciones IS NULL OR jsonb_typeof(p_asignaciones) <> 'array' THEN
-    RAISE EXCEPTION 'Las asignaciones deben enviarse como una lista de grupos.' USING ERRCODE = '22023';
+    RAISE EXCEPTION 'Las asignaciones deben enviarse como una lista de canchas.' USING ERRCODE = '22023';
   END IF;
 
-  -- Bloquea los alumnos actuales antes de validar los grupos y ejecutar el cambio.
+  -- Bloquea los alumnos actuales antes de validar los canchas y ejecutar el cambio.
   PERFORM 1
   FROM public.alumnos
   WHERE escuela_id = v_actor.escuela_id
@@ -178,14 +178,14 @@ BEGIN
       SELECT *
       FROM jsonb_to_recordset(p_asignaciones) AS x(
         sucursal_id uuid,
-        grupo_id uuid,
+        cancha_id uuid,
         horario_id uuid,
         entrenador_destino_id uuid
       )
     )
     SELECT 1
     FROM asignaciones
-    GROUP BY sucursal_id, grupo_id, horario_id
+    GROUP BY sucursal_id, cancha_id, horario_id
     HAVING count(*) > 1
   ) THEN
     RAISE EXCEPTION 'Cada grupo solo puede tener un entrenador destino.' USING ERRCODE = '22023';
@@ -196,7 +196,7 @@ BEGIN
       SELECT *
       FROM jsonb_to_recordset(p_asignaciones) AS x(
         sucursal_id uuid,
-        grupo_id uuid,
+        cancha_id uuid,
         horario_id uuid,
         entrenador_destino_id uuid
       )
@@ -216,16 +216,16 @@ BEGIN
   END IF;
 
   WITH grupos_actuales AS (
-    SELECT sucursal_id, grupo_id, horario_id, count(*) AS total
+    SELECT sucursal_id, cancha_id, horario_id, count(*) AS total
     FROM public.alumnos
     WHERE escuela_id = v_actor.escuela_id
       AND profesor_asignado_id = p_entrenador_saliente
-    GROUP BY sucursal_id, grupo_id, horario_id
+    GROUP BY sucursal_id, cancha_id, horario_id
   ), asignaciones AS (
     SELECT *
     FROM jsonb_to_recordset(p_asignaciones) AS x(
       sucursal_id uuid,
-      grupo_id uuid,
+      cancha_id uuid,
       horario_id uuid,
       entrenador_destino_id uuid
     )
@@ -234,16 +234,16 @@ BEGIN
 
   IF EXISTS (
     WITH grupos_actuales AS (
-      SELECT sucursal_id, grupo_id, horario_id
+      SELECT sucursal_id, cancha_id, horario_id
       FROM public.alumnos
       WHERE escuela_id = v_actor.escuela_id
         AND profesor_asignado_id = p_entrenador_saliente
-      GROUP BY sucursal_id, grupo_id, horario_id
+      GROUP BY sucursal_id, cancha_id, horario_id
     ), asignaciones AS (
       SELECT *
       FROM jsonb_to_recordset(p_asignaciones) AS x(
         sucursal_id uuid,
-        grupo_id uuid,
+        cancha_id uuid,
         horario_id uuid,
         entrenador_destino_id uuid
       )
@@ -252,21 +252,21 @@ BEGIN
     FROM grupos_actuales g
     LEFT JOIN asignaciones a
       ON a.sucursal_id IS NOT DISTINCT FROM g.sucursal_id
-     AND a.grupo_id IS NOT DISTINCT FROM g.grupo_id
+     AND a.cancha_id IS NOT DISTINCT FROM g.cancha_id
      AND a.horario_id IS NOT DISTINCT FROM g.horario_id
     WHERE a.entrenador_destino_id IS NULL
   ) OR EXISTS (
     WITH grupos_actuales AS (
-      SELECT sucursal_id, grupo_id, horario_id, count(*) AS total
+      SELECT sucursal_id, cancha_id, horario_id, count(*) AS total
       FROM public.alumnos
       WHERE escuela_id = v_actor.escuela_id
         AND profesor_asignado_id = p_entrenador_saliente
-      GROUP BY sucursal_id, grupo_id, horario_id
+      GROUP BY sucursal_id, cancha_id, horario_id
     ), asignaciones AS (
       SELECT *
       FROM jsonb_to_recordset(p_asignaciones) AS x(
         sucursal_id uuid,
-        grupo_id uuid,
+        cancha_id uuid,
         horario_id uuid,
         entrenador_destino_id uuid
       )
@@ -275,18 +275,18 @@ BEGIN
     FROM asignaciones a
     LEFT JOIN grupos_actuales g
       ON g.sucursal_id IS NOT DISTINCT FROM a.sucursal_id
-     AND g.grupo_id IS NOT DISTINCT FROM a.grupo_id
+     AND g.cancha_id IS NOT DISTINCT FROM a.cancha_id
      AND g.horario_id IS NOT DISTINCT FROM a.horario_id
     WHERE g.total IS NULL
   ) THEN
-    RAISE EXCEPTION 'Las asignaciones no cubren exactamente todos los grupos actuales del entrenador.' USING ERRCODE = '22023';
+    RAISE EXCEPTION 'Las asignaciones no cubren exactamente todos los canchas actuales del entrenador.' USING ERRCODE = '22023';
   END IF;
 
   WITH asignaciones AS (
     SELECT *
     FROM jsonb_to_recordset(p_asignaciones) AS x(
       sucursal_id uuid,
-      grupo_id uuid,
+      cancha_id uuid,
       horario_id uuid,
       entrenador_destino_id uuid
     )
@@ -297,7 +297,7 @@ BEGIN
     WHERE alumno.escuela_id = v_actor.escuela_id
       AND alumno.profesor_asignado_id = p_entrenador_saliente
       AND alumno.sucursal_id IS NOT DISTINCT FROM a.sucursal_id
-      AND alumno.grupo_id IS NOT DISTINCT FROM a.grupo_id
+      AND alumno.cancha_id IS NOT DISTINCT FROM a.cancha_id
       AND alumno.horario_id IS NOT DISTINCT FROM a.horario_id
     RETURNING alumno.id
   )

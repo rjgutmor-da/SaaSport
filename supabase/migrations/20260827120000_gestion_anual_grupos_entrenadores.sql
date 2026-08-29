@@ -140,15 +140,15 @@ INSERT INTO public.grupos_gestion (
 SELECT DISTINCT
   g.escuela_id,
   g.id,
-  c.sucursal_id,
-  c.id,
+  gr.sucursal_id,
+  gr.id,
   h.id,
-  c.nombre,
+  gr.nombre,
   h.hora
 FROM public.gestiones_deportivas g
-JOIN public.grupos c ON c.escuela_id = g.escuela_id
-JOIN public.grupos_horarios ch ON ch.grupo_id = c.id
-JOIN public.horarios h ON h.id = ch.horario_id AND h.escuela_id = g.escuela_id
+JOIN public.grupos gr ON gr.escuela_id = g.escuela_id
+JOIN public.grupos_horarios gh ON gh.grupo_id = gr.id
+JOIN public.horarios h ON h.id = gh.horario_id AND h.escuela_id = g.escuela_id
 WHERE g.estado = 'activa'
 ON CONFLICT (gestion_id, grupo_id, horario_id) DO NOTHING;
 
@@ -162,12 +162,12 @@ SELECT DISTINCT
   a.sucursal_id,
   a.grupo_id,
   a.horario_id,
-  COALESCE(c.nombre, 'Sin grupo'),
+  COALESCE(gr.nombre, 'Sin grupo'),
   h.hora
 FROM public.alumnos a
 JOIN public.gestiones_deportivas g
   ON g.escuela_id = a.escuela_id AND g.estado = 'activa'
-LEFT JOIN public.grupos c ON c.id = a.grupo_id
+LEFT JOIN public.grupos gr ON gr.id = a.grupo_id
 LEFT JOIN public.horarios h ON h.id = a.horario_id
 WHERE a.archivado IS NOT TRUE
   AND a.grupo_id IS NOT NULL
@@ -198,9 +198,8 @@ WHERE ag.alumno_id = a.id
   AND ag.estado = 'activa'
   AND a.grupo_gestion_id IS NULL;
 
--- Solo se backfillan asignaciones inequívocas: grupos con exactamente un
--- entrenador principal actual. Los conflictos quedan visibles para resolverlos
--- antes de activar una nueva gestión.
+-- Asignación inicial de entrenadores titulares: se asigna al entrenador con
+-- mayor cantidad de alumnos en cada grupo (moda estadística).
 INSERT INTO public.entrenadores_grupos (
   escuela_id, entrenador_id, grupo_gestion_id, gestion_id, estado,
   vigente_desde, motivo
@@ -211,8 +210,11 @@ FROM (
   SELECT a.escuela_id,
          gg.id AS grupo_gestion_id,
          gg.gestion_id,
-         (array_agg(a.profesor_asignado_id ORDER BY a.profesor_asignado_id))[1] AS entrenador_id,
-         COUNT(DISTINCT a.profesor_asignado_id) AS entrenadores
+         a.profesor_asignado_id AS entrenador_id,
+         ROW_NUMBER() OVER (
+           PARTITION BY a.escuela_id, gg.id, gg.gestion_id 
+           ORDER BY COUNT(*) DESC, a.profesor_asignado_id
+         ) AS rank_frecuencia
   FROM public.alumnos a
   JOIN public.grupos_gestion gg
     ON gg.escuela_id = a.escuela_id
@@ -221,9 +223,9 @@ FROM (
   JOIN public.gestiones_deportivas gd ON gd.id = gg.gestion_id AND gd.estado = 'activa'
   WHERE a.archivado IS NOT TRUE
     AND a.profesor_asignado_id IS NOT NULL
-  GROUP BY a.escuela_id, gg.id, gg.gestion_id
+  GROUP BY a.escuela_id, gg.id, gg.gestion_id, a.profesor_asignado_id
 ) x
-WHERE x.entrenadores = 1
+WHERE x.rank_frecuencia = 1
 ON CONFLICT DO NOTHING;
 
 -- RLS: lectura dentro de la escuela; las escrituras de gestión/profesor se
@@ -415,9 +417,9 @@ BEGIN
     RAISE EXCEPTION 'La planificación debe enviarse como un objeto JSON.' USING ERRCODE = '22023';
   END IF;
 
-  FOR v_row IN SELECT * FROM jsonb_to_recordset(COALESCE(p_plan->'grupos', '[]'::jsonb)) AS x(
+  FOR v_row IN SELECT * FROM jsonb_to_recordset(COALESCE(p_plan->'grupos', p_plan->'canchas', '[]'::jsonb)) AS x(
     id uuid, nombre_snapshot varchar, hora_snapshot varchar,
-    sucursal_id uuid, grupo_id uuid, horario_id uuid
+    sucursal_id uuid, grupo_id uuid, cancha_id uuid, horario_id uuid
   ) LOOP
     IF v_row.id IS NULL OR NOT EXISTS (
       SELECT 1 FROM public.grupos_gestion
@@ -429,7 +431,7 @@ BEGIN
     SET nombre_snapshot = COALESCE(v_row.nombre_snapshot, nombre_snapshot),
         hora_snapshot = COALESCE(v_row.hora_snapshot, hora_snapshot),
         sucursal_id = COALESCE(v_row.sucursal_id, sucursal_id),
-        grupo_id = COALESCE(v_row.grupo_id, grupo_id),
+        grupo_id = COALESCE(v_row.grupo_id, v_row.cancha_id, grupo_id),
         horario_id = COALESCE(v_row.horario_id, horario_id),
         updated_at = now()
     WHERE id = v_row.id AND gestion_id = v_gestion.id;
@@ -597,6 +599,7 @@ BEGIN
       vigente_hasta = CASE WHEN decision = 'migrara' THEN NULL ELSE v_now END,
       updated_at = v_now
   WHERE gestion_id = v_target.id AND estado = 'planificada';
+
   UPDATE public.entrenadores_grupos
   SET estado = 'activa', vigente_desde = v_now, updated_at = v_now
   WHERE gestion_id = v_target.id AND estado = 'planificada';
@@ -890,6 +893,7 @@ BEGIN
     grupo_gestion_id uuid,
     sucursal_id uuid,
     grupo_id uuid,
+    cancha_id uuid,
     horario_id uuid,
     entrenador_destino_id uuid
   )
@@ -897,7 +901,7 @@ BEGIN
     ON x.grupo_gestion_id IS NULL
    AND gg.escuela_id = v_actor.escuela_id
    AND gg.sucursal_id IS NOT DISTINCT FROM x.sucursal_id
-   AND gg.grupo_id IS NOT DISTINCT FROM x.grupo_id
+   AND gg.grupo_id IS NOT DISTINCT FROM COALESCE(x.grupo_id, x.cancha_id)
    AND gg.horario_id IS NOT DISTINCT FROM x.horario_id
    AND EXISTS (
      SELECT 1 FROM public.gestiones_deportivas gd
@@ -1016,7 +1020,7 @@ $$;
 REVOKE ALL ON FUNCTION public.rpc_reasignar_y_desactivar_entrenador(uuid, jsonb) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.rpc_reasignar_y_desactivar_entrenador(uuid, jsonb) TO authenticated;
 
--- Contratos de transición para AsiSport.  Ningún cliente debe volver a decidir
+-- Contratos de transición para AsiSport. Ningún cliente debe volver a decidir
 -- libremente el profesor de un alumno o el contexto histórico de una asistencia.
 ALTER TABLE public.fotos_asistencia_grupal
   ADD COLUMN IF NOT EXISTS grupo_gestion_id uuid REFERENCES public.grupos_gestion(id);
@@ -1065,9 +1069,9 @@ BEGIN
   FROM public.grupos_gestion gg
   JOIN public.gestiones_deportivas gd
     ON gd.id = gg.gestion_id AND gd.estado = 'activa'
-  JOIN public.entrenadores_grupos eg
+  LEFT JOIN public.entrenadores_grupos eg
     ON eg.grupo_gestion_id = gg.id AND eg.estado = 'activa'
-  JOIN public.usuarios entrenador ON entrenador.id = eg.entrenador_id
+  LEFT JOIN public.usuarios entrenador ON entrenador.id = eg.entrenador_id
   WHERE gg.escuela_id = v_actor.escuela_id
     AND (
       v_actor.rol = 'SuperAdministrador'

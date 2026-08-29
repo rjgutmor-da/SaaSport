@@ -21,7 +21,7 @@ export interface CuentaPorCobrarRow {
   sucursal_id: string;
   entrenador_id: string;
   horario_id: string;
-  cancha_id: string;
+  grupo_id: string;
 }
 
 export interface UseCuentasPorCobrarResult {
@@ -102,7 +102,7 @@ export function useCuentasPorCobrar(
         sucursal_id: string;
         entrenador_id: string;
         horario_id: string;
-        cancha_id: string;
+        grupo_id: string;
         mesesMensualidad: string[];
         otrosDetallesMensualidad: string[];
         otrosConceptos: string[];
@@ -173,7 +173,7 @@ export function useCuentasPorCobrar(
               sucursal_id: cxc.alumno_sucursal_id,
               entrenador_id: cxc.alumno_entrenador_id,
               horario_id: cxc.alumno_horario_id,
-              cancha_id: cxc.alumno_grupo_id,
+              grupo_id: cxc.alumno_grupo_id,
               mesesMensualidad: itemMeses,
               otrosDetallesMensualidad: itemOtrosDetalles,
               otrosConceptos: itemOtrosConceptos
@@ -265,7 +265,7 @@ export function useCuentasPorCobrar(
           sucursal_id: acc.sucursal_id,
           entrenador_id: acc.entrenador_id,
           horario_id: acc.horario_id,
-          cancha_id: acc.cancha_id
+          grupo_id: acc.grupo_id
         };
       });
 

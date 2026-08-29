@@ -59,7 +59,7 @@ SELECT
   a.apellidos,
   a.fecha_nacimiento,
   a.sucursal_id,
-  a.grupo_id,
+  a.cancha_id,
   a.horario_id,
   a.profesor_asignado_id AS entrenador_id,
   a.nombre_padre,
@@ -92,7 +92,7 @@ SELECT
   a.archivado
 FROM public.alumnos a
 LEFT JOIN public.sucursales s ON a.sucursal_id = s.id
-LEFT JOIN public.grupos c ON a.grupo_id = c.id
+LEFT JOIN public.canchas c ON a.cancha_id = c.id
 LEFT JOIN public.horarios h ON a.horario_id = h.id
 LEFT JOIN public.usuarios u ON a.profesor_asignado_id = u.id
 LEFT JOIN public.v_cuentas_cobrar cc ON a.id = cc.alumno_id
@@ -103,7 +103,7 @@ LEFT JOIN public.escuelas esc ON a.escuela_id = esc.id
 WHERE a.escuela_id = (SELECT public.current_user_escuela_id())
 GROUP BY
   a.id, a.escuela_id, a.nombres, a.apellidos, a.fecha_nacimiento,
-  a.sucursal_id, a.grupo_id, a.horario_id, a.profesor_asignado_id,
+  a.sucursal_id, a.cancha_id, a.horario_id, a.profesor_asignado_id,
   a.nombre_padre, a.telefono_padre, a.nombre_madre, a.telefono_madre,
   a.whatsapp_preferido, a.meses_permanencia_inicial, a.ingresos_iniciales,
   s.nombre, c.nombre, h.hora, u.nombres, u.apellidos,

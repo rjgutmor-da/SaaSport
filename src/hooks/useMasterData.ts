@@ -27,7 +27,7 @@ const fetchEntrenadores = async () => {
 };
 
 const fetchGrupos = async () => {
-  const { data, error } = await supabase.from('canchas').select('*, canchas_horarios(horario_id)').order('nombre');
+  const { data, error } = await supabase.from('grupos').select('*, grupos_horarios(horario_id)').order('nombre');
   if (error) throw error;
   return data;
 };
@@ -47,7 +47,7 @@ const fetchCuentasContables = async () => {
 const fetchAlumnosRelaciones = async () => {
   const { data, error } = await supabase
     .from('alumnos')
-    .select('sucursal_id, cancha_id, horario_id, profesor_asignado_id')
+    .select('sucursal_id, grupo_id, horario_id, profesor_asignado_id')
     .eq('archivado', false);
   if (error) throw error;
   return data;

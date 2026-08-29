@@ -136,7 +136,7 @@ const fetchCxcResumen = async (escuelaId: string, filtros: any) => {
 
   if (filtros.sucursalId) query = query.eq('sucursal_id', filtros.sucursalId);
   if (filtros.entrenadorId) query = query.eq('entrenador_id', filtros.entrenadorId);
-  if (filtros.grupoId) query = query.eq('cancha_id', filtros.grupoId);
+  if (filtros.grupoId) query = query.eq('grupo_id', filtros.grupoId);
   if (filtros.horarioId) query = query.eq('horario_id', filtros.horarioId);
   if (filtros.filtroEstadoAlumno && filtros.filtroEstadoAlumno !== 'todos') {
     query = query.eq('archivado', filtros.filtroEstadoAlumno === 'archivados');
@@ -219,7 +219,7 @@ const fetchCxcAlumnos = async (escuelaId: string, filtros: any) => {
 
   if (filtros.sucursalId) query = query.eq('sucursal_id', filtros.sucursalId);
   if (filtros.entrenadorId) query = query.eq('entrenador_id', filtros.entrenadorId);
-  if (filtros.grupoId) query = query.eq('cancha_id', filtros.grupoId);
+  if (filtros.grupoId) query = query.eq('grupo_id', filtros.grupoId);
   if (filtros.horarioId) query = query.eq('horario_id', filtros.horarioId);
   if (filtros.soloConDeuda) query = query.gt('saldo_pendiente', 0);
   if (filtros.filtroEstadoAlumno && filtros.filtroEstadoAlumno !== 'todos') {

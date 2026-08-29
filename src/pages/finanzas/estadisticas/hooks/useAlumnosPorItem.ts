@@ -129,7 +129,7 @@ export function useAlumnosPorItem(
             profesor_asignado_id,
             sucursal_id,
             horario_id,
-            cancha_id,
+            grupo_id,
             sucursales ( nombre ),
             usuarios!alumnos_profesor_asignado_id_fkey ( nombres, apellidos )
           )
@@ -176,7 +176,7 @@ export function useAlumnosPorItem(
             profesor_asignado_id,
             sucursal_id,
             horario_id,
-            cancha_id,
+            grupo_id,
             sucursales ( nombre ),
             usuarios!alumnos_profesor_asignado_id_fkey ( nombres, apellidos )
           )
@@ -203,8 +203,8 @@ export function useAlumnosPorItem(
         queryPorPeriodoDetalle = queryPorPeriodoDetalle.eq('alumnos.horario_id', horarioId);
       }
       if (grupoId) {
-        query = query.eq('alumnos.cancha_id', grupoId);
-        queryPorPeriodoDetalle = queryPorPeriodoDetalle.eq('alumnos.cancha_id', grupoId);
+        query = query.eq('alumnos.grupo_id', grupoId);
+        queryPorPeriodoDetalle = queryPorPeriodoDetalle.eq('alumnos.grupo_id', grupoId);
       }
 
       const [
@@ -237,7 +237,7 @@ export function useAlumnosPorItem(
         if (entrenadorId && alu.profesor_asignado_id !== entrenadorId) continue;
         if (sucursalId && alu.sucursal_id !== sucursalId) continue;
         if (horarioId && alu.horario_id !== horarioId) continue;
-        if (grupoId && alu.cancha_id !== grupoId) continue;
+        if (grupoId && alu.grupo_id !== grupoId) continue;
 
 
         // Calcular SUB (Categoría por edad)
