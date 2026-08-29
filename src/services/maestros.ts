@@ -12,6 +12,10 @@ export interface Grupo {
   } | null;
   horarios?: Horario[];
   horario_ids?: string[];
+  horario_id?: string | null;
+  horario_hora?: string | null;
+  entrenador_id?: string | null;
+  entrenador_nombre?: string | null;
 }
 
 export interface Horario {
@@ -28,19 +32,50 @@ export interface Horario {
 export const getAllGrupos = async (escuelaId: string): Promise<Grupo[]> => {
   if (!escuelaId) throw new Error('El ID de la escuela es requerido.');
 
-  const { data, error } = await supabase
-    .from('grupos')
-    .select('*, sucursal:sucursales(id, nombre), grupos_horarios(horarios(id, hora, activo))')
-    .eq('escuela_id', escuelaId)
-    .order('nombre', { ascending: true });
+  const [gruposRes, entrenadoresRes] = await Promise.all([
+    supabase
+      .from('grupos')
+      .select('*, sucursal:sucursales(id, nombre), grupos_horarios(horarios(id, hora, activo))')
+      .eq('escuela_id', escuelaId)
+      .order('nombre', { ascending: true }),
+    supabase
+      .from('grupos_gestion')
+      .select(`
+        grupo_id,
+        horario_id,
+        entrenadores:entrenadores_grupos(
+          estado,
+          entrenador_id,
+          entrenador:usuarios(id, nombres, apellidos)
+        ),
+        gestion:gestiones_deportivas!inner(estado)
+      `)
+      .eq('escuela_id', escuelaId)
+      .eq('gestiones_deportivas.estado', 'activa')
+  ]);
 
-  if (error) throw error;
+  if (gruposRes.error) throw gruposRes.error;
 
-  return ((data || []) as any[]).map((item) => {
+  // Mapa de grupo_id a entrenador activo
+  const entrenadorPorGrupo = new Map<string, { id: string; nombre: string }>();
+  (entrenadoresRes.data || []).forEach((gg: any) => {
+    const act = (gg.entrenadores || []).find((e: any) => e.estado === 'activa');
+    if (act?.entrenador) {
+      entrenadorPorGrupo.set(gg.grupo_id, {
+        id: act.entrenador_id,
+        nombre: `${act.entrenador.nombres || ''} ${act.entrenador.apellidos || ''}`.trim()
+      });
+    }
+  });
+
+  return ((gruposRes.data || []) as any[]).map((item) => {
     const horarios = (item.grupos_horarios || [])
       .map((gh: any) => gh.horarios)
       .filter((h: any) => h != null)
       .sort((a: any, b: any) => (a.hora || '').localeCompare(b.hora || ''));
+
+    const primerHorario = horarios[0] || null;
+    const coach = entrenadorPorGrupo.get(item.id);
 
     return {
       id: item.id,
@@ -50,7 +85,11 @@ export const getAllGrupos = async (escuelaId: string): Promise<Grupo[]> => {
       activo: item.activo,
       sucursal: item.sucursal,
       horarios,
-      horario_ids: horarios.map((h: any) => h.id)
+      horario_ids: horarios.map((h: any) => h.id),
+      horario_id: primerHorario?.id || null,
+      horario_hora: primerHorario?.hora || null,
+      entrenador_id: coach?.id || null,
+      entrenador_nombre: coach?.nombre || null
     };
   }) as Grupo[];
 };
@@ -59,61 +98,23 @@ export const createGrupo = async (
   escuelaId: string,
   nombre: string,
   sucursalId: string | null,
-  horarioIds: string[] = []
+  horarioId: string | null = null,
+  entrenadorId: string | null = null
 ): Promise<Grupo> => {
   if (!escuelaId) throw new Error('El ID de la escuela es requerido.');
   if (!nombre || nombre.trim() === '') {
     throw new Error('El nombre del grupo es obligatorio.');
   }
 
-  // Validar duplicados dentro de la misma sucursal
-  let query = supabase
-    .from('grupos')
-    .select('id')
-    .eq('escuela_id', escuelaId)
-    .eq('nombre', nombre.trim());
-
-  if (sucursalId) {
-    query = query.eq('sucursal_id', sucursalId);
-  } else {
-    query = query.is('sucursal_id', null);
-  }
-
-  const { data: existing } = await query.maybeSingle();
-
-  if (existing) {
-    throw new Error('Ya existe un grupo con este nombre en esa configuración.');
-  }
-
-  const { data, error } = await supabase
-    .from('grupos')
-    .insert([
-      {
-        nombre: nombre.trim(),
-        escuela_id: escuelaId,
-        sucursal_id: sucursalId || null,
-        activo: true,
-      },
-    ])
-    .select()
-    .single();
+  const { data, error } = await supabase.rpc('rpc_guardar_grupo_completo', {
+    p_grupo_id: null,
+    p_nombre: nombre.trim(),
+    p_sucursal_id: sucursalId || null,
+    p_horario_id: horarioId || null,
+    p_entrenador_id: entrenadorId || null
+  });
 
   if (error) throw error;
-
-  // Insertar relaciones con horarios
-  if (horarioIds && horarioIds.length > 0) {
-    const relaciones = horarioIds.map((hId) => ({
-      grupo_id: data.id,
-      horario_id: hId
-    }));
-
-    const { error: relError } = await supabase
-      .from('grupos_horarios')
-      .insert(relaciones);
-
-    if (relError) console.error('Error insertando horarios del grupo:', relError);
-  }
-
   return data as Grupo;
 };
 
@@ -122,7 +123,8 @@ export const updateGrupo = async (
   id: string,
   nombre: string,
   sucursalId: string | null,
-  horarioIds: string[] = []
+  horarioId: string | null = null,
+  entrenadorId: string | null = null
 ): Promise<Grupo> => {
   if (!escuelaId) throw new Error('El ID de la escuela es requerido.');
   if (!id) throw new Error('El ID del grupo es requerido.');
@@ -130,55 +132,15 @@ export const updateGrupo = async (
     throw new Error('El nombre del grupo es obligatorio.');
   }
 
-  // Validar duplicados (excepto el mismo grupo, dentro de la misma sucursal)
-  let query = supabase
-    .from('grupos')
-    .select('id')
-    .eq('escuela_id', escuelaId)
-    .eq('nombre', nombre.trim())
-    .neq('id', id);
-
-  if (sucursalId) {
-    query = query.eq('sucursal_id', sucursalId);
-  } else {
-    query = query.is('sucursal_id', null);
-  }
-
-  const { data: existing } = await query.maybeSingle();
-
-  if (existing) {
-    throw new Error('Ya existe un grupo con este nombre en esa configuración.');
-  }
-
-  const { data, error } = await supabase
-    .from('grupos')
-    .update({ nombre: nombre.trim(), sucursal_id: sucursalId || null })
-    .eq('id', id)
-    .eq('escuela_id', escuelaId)
-    .select()
-    .single();
+  const { data, error } = await supabase.rpc('rpc_guardar_grupo_completo', {
+    p_grupo_id: id,
+    p_nombre: nombre.trim(),
+    p_sucursal_id: sucursalId || null,
+    p_horario_id: horarioId || null,
+    p_entrenador_id: entrenadorId || null
+  });
 
   if (error) throw error;
-
-  // Actualizar relaciones con horarios (eliminar previas e insertar nuevas)
-  await supabase
-    .from('grupos_horarios')
-    .delete()
-    .eq('grupo_id', id);
-
-  if (horarioIds && horarioIds.length > 0) {
-    const relaciones = horarioIds.map((hId) => ({
-      grupo_id: id,
-      horario_id: hId
-    }));
-
-    const { error: relError } = await supabase
-      .from('grupos_horarios')
-      .insert(relaciones);
-
-    if (relError) console.error('Error actualizando horarios del grupo:', relError);
-  }
-
   return data as Grupo;
 };
 

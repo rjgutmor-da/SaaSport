@@ -16,10 +16,12 @@ import {
 import type { Grupo, Horario } from '../../services/maestros';
 import { getSucursales } from '../../services/sucursales';
 import type { Sucursal } from '../../services/sucursales';
+import { getUsuarios } from '../../services/usuarios';
+import type { Usuario } from '../../services/usuarios';
 
 const ConfiguracionGrupos: React.FC = () => {
   const navigate = useNavigate();
-  const { escuelaId } = useAuthSaaSport();
+  const { escuelaId, perfil } = useAuthSaaSport();
 
   const [activeTab, setActiveTab] = useState<'grupos' | 'horarios'>('grupos');
   const [loading, setLoading] = useState(true);
@@ -28,14 +30,17 @@ const ConfiguracionGrupos: React.FC = () => {
   const [grupos, setGrupos] = useState<Grupo[]>([]);
   const [newGrupoName, setNewGrupoName] = useState('');
   const [newGrupoSucursal, setNewGrupoSucursal] = useState('');
-  const [newGrupoHorarios, setNewGrupoHorarios] = useState<string[]>([]);
+  const [newGrupoHorario, setNewGrupoHorario] = useState('');
+  const [newGrupoEntrenador, setNewGrupoEntrenador] = useState('');
   const [editingGrupo, setEditingGrupo] = useState<string | null>(null);
   const [editGrupoName, setEditGrupoName] = useState('');
   const [editGrupoSucursal, setEditGrupoSucursal] = useState('');
-  const [editGrupoHorarios, setEditGrupoHorarios] = useState<string[]>([]);
+  const [editGrupoHorario, setEditGrupoHorario] = useState('');
+  const [editGrupoEntrenador, setEditGrupoEntrenador] = useState('');
 
-  // Estado de Sucursales
+  // Estado de Sucursales y Entrenadores
   const [sucursales, setSucursales] = useState<Sucursal[]>([]);
+  const [entrenadores, setEntrenadores] = useState<Usuario[]>([]);
 
   // Estado de Horarios
   const [horarios, setHorarios] = useState<Horario[]>([]);
@@ -66,14 +71,16 @@ const ConfiguracionGrupos: React.FC = () => {
     if (!escuelaId) return;
     try {
       setLoading(true);
-      const [chs, hrs, sucs] = await Promise.all([
+      const [chs, hrs, sucs, usrs] = await Promise.all([
         getAllGrupos(escuelaId),
         getAllHorarios(escuelaId),
-        getSucursales(escuelaId)
+        getSucursales(escuelaId),
+        perfil ? getUsuarios(escuelaId, perfil) : Promise.resolve([])
       ]);
       setGrupos(chs || []);
       setHorarios(hrs || []);
       setSucursales(sucs || []);
+      setEntrenadores((usrs || []).filter(u => u.rol === 'Entrenador' && u.activo));
     } catch (error: any) {
       console.error(error);
       setAlerta({ tipo: 'error', mensaje: error.message || 'Error al cargar las configuraciones.' });
@@ -90,16 +97,28 @@ const ConfiguracionGrupos: React.FC = () => {
     e.preventDefault();
     if (!escuelaId || !newGrupoName.trim()) return;
 
+    if (!newGrupoHorario) {
+      setAlerta({ tipo: 'error', mensaje: 'Debes seleccionar un horario para el grupo.' });
+      return;
+    }
+
     setAlerta(null);
     try {
-      await createGrupo(escuelaId, newGrupoName.trim(), newGrupoSucursal || null, newGrupoHorarios);
-      setAlerta({ tipo: 'success', mensaje: 'Grupo creado correctamente.' });
+      await createGrupo(
+        escuelaId,
+        newGrupoName.trim(),
+        newGrupoSucursal || null,
+        newGrupoHorario || null,
+        newGrupoEntrenador || null
+      );
+      setAlerta({ tipo: 'success', mensaje: 'Grupo creado correctamente con su horario y entrenador asignado.' });
       setNewGrupoName('');
       setNewGrupoSucursal('');
-      setNewGrupoHorarios([]);
+      setNewGrupoHorario('');
+      setNewGrupoEntrenador('');
       loadData();
     } catch (error: any) {
-      setAlerta({ tipo: 'error', mensaje: error.message || 'Error al crear la grupo.' });
+      setAlerta({ tipo: 'error', mensaje: error.message || 'Error al crear el grupo.' });
     }
   };
 
@@ -107,7 +126,8 @@ const ConfiguracionGrupos: React.FC = () => {
     setEditingGrupo(grupo.id);
     setEditGrupoName(grupo.nombre);
     setEditGrupoSucursal(grupo.sucursal_id || '');
-    setEditGrupoHorarios(grupo.horario_ids || []);
+    setEditGrupoHorario(grupo.horario_id || (grupo.horario_ids?.[0] || ''));
+    setEditGrupoEntrenador(grupo.entrenador_id || '');
     setAlerta(null);
   };
 
@@ -115,7 +135,8 @@ const ConfiguracionGrupos: React.FC = () => {
     setEditingGrupo(null);
     setEditGrupoName('');
     setEditGrupoSucursal('');
-    setEditGrupoHorarios([]);
+    setEditGrupoHorario('');
+    setEditGrupoEntrenador('');
     setAlerta(null);
   };
 
@@ -124,15 +145,23 @@ const ConfiguracionGrupos: React.FC = () => {
 
     setAlerta(null);
     try {
-      await updateGrupo(escuelaId, id, editGrupoName.trim(), editGrupoSucursal || null, editGrupoHorarios);
+      await updateGrupo(
+        escuelaId,
+        id,
+        editGrupoName.trim(),
+        editGrupoSucursal || null,
+        editGrupoHorario || null,
+        editGrupoEntrenador || null
+      );
       setAlerta({ tipo: 'success', mensaje: 'Grupo actualizado correctamente.' });
       setEditingGrupo(null);
       setEditGrupoName('');
       setEditGrupoSucursal('');
-      setEditGrupoHorarios([]);
+      setEditGrupoHorario('');
+      setEditGrupoEntrenador('');
       loadData();
     } catch (error: any) {
-      setAlerta({ tipo: 'error', mensaje: error.message || 'Error al actualizar la grupo.' });
+      setAlerta({ tipo: 'error', mensaje: error.message || 'Error al actualizar el grupo.' });
     }
   };
 
@@ -147,7 +176,7 @@ const ConfiguracionGrupos: React.FC = () => {
       });
       loadData();
     } catch (error: any) {
-      setAlerta({ tipo: 'error', mensaje: error.message || 'Error al cambiar el estado de la grupo.' });
+      setAlerta({ tipo: 'error', mensaje: error.message || 'Error al cambiar el estado del grupo.' });
     }
   };
 
@@ -319,13 +348,13 @@ const ConfiguracionGrupos: React.FC = () => {
             </h2>
             <form onSubmit={handleCreateGrupo} style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', alignItems: 'flex-end' }}>
               <div style={{ flex: '1 1 200px' }}>
-                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-tertiary)', textTransform: 'uppercase', marginBottom: '0.5rem' }}>Nombre del grupo</label>
+                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-tertiary)', textTransform: 'uppercase', marginBottom: '0.5rem' }}>Nombre del grupo *</label>
                 <input
                   type="text"
                   placeholder="Ej: Grupo Formativo 1"
                   value={newGrupoName}
                   onChange={(e) => setNewGrupoName(e.target.value)}
-                  style={{ width: '100%', padding: '0.6rem 0.8rem', background: 'var(--bg-input)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}
+                  style={{ width: '100%', padding: '0.6rem 0.8rem', background: 'var(--bg-input)', border: '1px solid var(--border)', color: 'var(--text-primary)', height: '42px', borderRadius: '4px' }}
                   required
                 />
               </div>
@@ -334,7 +363,7 @@ const ConfiguracionGrupos: React.FC = () => {
                 <select
                   value={newGrupoSucursal}
                   onChange={(e) => setNewGrupoSucursal(e.target.value)}
-                  style={{ width: '100%', padding: '0.6rem 0.8rem', background: 'var(--bg-input)', border: '1px solid var(--border)', color: 'var(--text-primary)', height: '42px' }}
+                  style={{ width: '100%', padding: '0.6rem 0.8rem', background: 'var(--bg-input)', border: '1px solid var(--border)', color: 'var(--text-primary)', height: '42px', borderRadius: '4px' }}
                 >
                   <option value="">-- Selecciona sucursal (Opcional) --</option>
                   {sucursales.map((s) => (
@@ -342,41 +371,44 @@ const ConfiguracionGrupos: React.FC = () => {
                   ))}
                 </select>
               </div>
-
-              <div style={{ flex: '1 1 100%', marginTop: '0.5rem' }}>
-                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-tertiary)', textTransform: 'uppercase', marginBottom: '0.5rem' }}>Horarios Disponibles para el Grupo</label>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem', background: 'var(--bg-input)', padding: '0.8rem', borderRadius: '4px', border: '1px solid var(--border)' }}>
-                  {horarios.length === 0 ? (
-                    <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>No hay horarios registrados. Crea horarios en la pestaña "Horarios".</span>
-                  ) : (
-                    horarios.filter(h => h.activo).map((h) => (
-                      <label key={h.id} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem', color: 'var(--text-primary)', cursor: 'pointer' }}>
-                        <input
-                          type="checkbox"
-                          checked={newGrupoHorarios.includes(h.id)}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setNewGrupoHorarios([...newGrupoHorarios, h.id]);
-                            } else {
-                              setNewGrupoHorarios(newGrupoHorarios.filter(id => id !== h.id));
-                            }
-                          }}
-                        />
-                        {h.hora}
-                      </label>
-                    ))
-                  )}
-                </div>
+              <div style={{ flex: '1 1 200px' }}>
+                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-tertiary)', textTransform: 'uppercase', marginBottom: '0.5rem' }}>Horario del Grupo *</label>
+                <select
+                  value={newGrupoHorario}
+                  onChange={(e) => setNewGrupoHorario(e.target.value)}
+                  style={{ width: '100%', padding: '0.6rem 0.8rem', background: 'var(--bg-input)', border: '1px solid var(--border)', color: 'var(--text-primary)', height: '42px', borderRadius: '4px' }}
+                  required
+                >
+                  <option value="">-- Selecciona horario --</option>
+                  {horarios.filter(h => h.activo).map((h) => (
+                    <option key={h.id} value={h.id}>{h.hora}</option>
+                  ))}
+                </select>
+              </div>
+              <div style={{ flex: '1 1 200px' }}>
+                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-tertiary)', textTransform: 'uppercase', marginBottom: '0.5rem' }}>Entrenador Asignado</label>
+                <select
+                  value={newGrupoEntrenador}
+                  onChange={(e) => setNewGrupoEntrenador(e.target.value)}
+                  style={{ width: '100%', padding: '0.6rem 0.8rem', background: 'var(--bg-input)', border: '1px solid var(--border)', color: 'var(--text-primary)', height: '42px', borderRadius: '4px' }}
+                >
+                  <option value="">-- Sin asignar --</option>
+                  {entrenadores.map((u) => (
+                    <option key={u.id} value={u.id}>{u.nombres} {u.apellidos}</option>
+                  ))}
+                </select>
               </div>
 
-              <button
-                type="submit"
-                className="btn-nueva-cuenta"
-                style={{ height: '42px', padding: '0 1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.5rem' }}
-              >
-                <Plus size={18} />
-                Agregar Grupo
-              </button>
+              <div style={{ width: '100%', display: 'flex', justifyContent: 'flex-start', marginTop: '0.5rem' }}>
+                <button
+                  type="submit"
+                  className="btn-nueva-cuenta"
+                  style={{ height: '42px', padding: '0 1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+                >
+                  <Plus size={18} />
+                  Agregar Grupo
+                </button>
+              </div>
             </form>
             {sucursales.length === 0 && (
               <p style={{ color: 'var(--warning)', fontSize: '0.8rem', marginTop: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
@@ -392,7 +424,8 @@ const ConfiguracionGrupos: React.FC = () => {
                 <tr style={{ background: 'rgba(255,255,255,0.02)', borderBottom: '1px solid var(--border)' }}>
                   <th style={{ padding: '1rem', color: 'var(--text-secondary)', fontWeight: 700, fontSize: '0.85rem' }}>Nombre</th>
                   <th style={{ padding: '1rem', color: 'var(--text-secondary)', fontWeight: 700, fontSize: '0.85rem' }}>Sucursal</th>
-                  <th style={{ padding: '1rem', color: 'var(--text-secondary)', fontWeight: 700, fontSize: '0.85rem' }}>Horarios</th>
+                  <th style={{ padding: '1rem', color: 'var(--text-secondary)', fontWeight: 700, fontSize: '0.85rem' }}>Horario</th>
+                  <th style={{ padding: '1rem', color: 'var(--text-secondary)', fontWeight: 700, fontSize: '0.85rem' }}>Entrenador</th>
                   <th style={{ padding: '1rem', color: 'var(--text-secondary)', fontWeight: 700, fontSize: '0.85rem', textAlign: 'center' }}>Estado</th>
                   <th style={{ padding: '1rem', color: 'var(--text-secondary)', fontWeight: 700, fontSize: '0.85rem', textAlign: 'right' }}>Acciones</th>
                 </tr>
@@ -400,7 +433,7 @@ const ConfiguracionGrupos: React.FC = () => {
               <tbody>
                 {grupos.length === 0 ? (
                   <tr>
-                    <td colSpan={5} style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
+                    <td colSpan={6} style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
                       No hay grupos registrados en el sistema.
                     </td>
                   </tr>
@@ -413,7 +446,7 @@ const ConfiguracionGrupos: React.FC = () => {
                             type="text"
                             value={editGrupoName}
                             onChange={(e) => setEditGrupoName(e.target.value)}
-                            style={{ padding: '0.4rem 0.6rem', background: 'var(--bg-input)', border: '1px solid var(--border)', color: 'var(--text-primary)', borderRadius: '4px', width: '200px' }}
+                            style={{ padding: '0.4rem 0.6rem', background: 'var(--bg-input)', border: '1px solid var(--border)', color: 'var(--text-primary)', borderRadius: '4px', width: '180px' }}
                             autoFocus
                           />
                         ) : (
@@ -427,7 +460,7 @@ const ConfiguracionGrupos: React.FC = () => {
                             onChange={(e) => setEditGrupoSucursal(e.target.value)}
                             style={{ padding: '0.4rem 0.6rem', background: 'var(--bg-input)', border: '1px solid var(--border)', color: 'var(--text-primary)', borderRadius: '4px', height: '34px' }}
                           >
-                            <option value="">-- Selecciona sucursal (Opcional) --</option>
+                            <option value="">-- Selecciona sucursal --</option>
                             {sucursales.map((s) => (
                               <option key={s.id} value={s.id}>{s.nombre}</option>
                             ))}
@@ -440,36 +473,48 @@ const ConfiguracionGrupos: React.FC = () => {
                       </td>
                       <td style={{ padding: '1rem' }}>
                         {editingGrupo === grupo.id ? (
-                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', maxWidth: '300px' }}>
+                          <select
+                            value={editGrupoHorario}
+                            onChange={(e) => setEditGrupoHorario(e.target.value)}
+                            style={{ padding: '0.4rem 0.6rem', background: 'var(--bg-input)', border: '1px solid var(--border)', color: 'var(--text-primary)', borderRadius: '4px', height: '34px' }}
+                          >
+                            <option value="">-- Selecciona horario --</option>
                             {horarios.filter(h => h.activo).map((h) => (
-                              <label key={h.id} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.2rem', fontSize: '0.75rem' }}>
-                                <input
-                                  type="checkbox"
-                                  checked={editGrupoHorarios.includes(h.id)}
-                                  onChange={(e) => {
-                                    if (e.target.checked) {
-                                      setEditGrupoHorarios([...editGrupoHorarios, h.id]);
-                                    } else {
-                                      setEditGrupoHorarios(editGrupoHorarios.filter(id => id !== h.id));
-                                    }
-                                  }}
-                                />
-                                {h.hora}
-                              </label>
+                              <option key={h.id} value={h.id}>{h.hora}</option>
                             ))}
-                          </div>
+                          </select>
                         ) : (
-                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem' }}>
-                            {(!grupo.horarios || grupo.horarios.length === 0) ? (
-                              <span style={{ color: 'var(--text-tertiary)', fontSize: '0.8rem', fontStyle: 'italic' }}>Sin horarios</span>
-                            ) : (
-                              grupo.horarios.map((h) => (
-                                <span key={h.id} style={{ background: 'var(--success-bg)', border: '1px solid rgba(0, 210, 106, 0.3)', borderRadius: '4px', padding: '0.1rem 0.4rem', fontSize: '0.75rem', color: 'var(--success)', fontWeight: 600 }}>
-                                  {h.hora}
-                                </span>
-                              ))
-                            )}
-                          </div>
+                          grupo.horario_hora ? (
+                            <span style={{ background: 'var(--success-bg)', border: '1px solid rgba(0, 210, 106, 0.3)', borderRadius: '4px', padding: '0.15rem 0.5rem', fontSize: '0.8rem', color: 'var(--success)', fontWeight: 600 }}>
+                              {grupo.horario_hora}
+                            </span>
+                          ) : (
+                            <span style={{ color: 'var(--text-tertiary)', fontSize: '0.8rem', fontStyle: 'italic' }}>Sin horario</span>
+                          )
+                        )}
+                      </td>
+                      <td style={{ padding: '1rem' }}>
+                        {editingGrupo === grupo.id ? (
+                          <select
+                            value={editGrupoEntrenador}
+                            onChange={(e) => setEditGrupoEntrenador(e.target.value)}
+                            style={{ padding: '0.4rem 0.6rem', background: 'var(--bg-input)', border: '1px solid var(--border)', color: 'var(--text-primary)', borderRadius: '4px', height: '34px' }}
+                          >
+                            <option value="">-- Sin asignar --</option>
+                            {entrenadores.map((u) => (
+                              <option key={u.id} value={u.id}>{u.nombres} {u.apellidos}</option>
+                            ))}
+                          </select>
+                        ) : (
+                          grupo.entrenador_nombre ? (
+                            <span style={{ color: 'var(--text-primary)', fontWeight: 500, fontSize: '0.9rem' }}>
+                              {grupo.entrenador_nombre}
+                            </span>
+                          ) : (
+                            <span style={{ color: 'var(--text-tertiary)', fontSize: '0.8rem', fontStyle: 'italic' }}>
+                              Sin asignar
+                            </span>
+                          )
                         )}
                       </td>
                       <td style={{ padding: '1rem', textAlign: 'center' }}>
