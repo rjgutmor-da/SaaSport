@@ -444,26 +444,6 @@ const PanelEscuela: React.FC = () => {
             <p className="pe-acceso-desc">Gestionar sedes</p>
           </button>
 
-          {/* Grupos y Horarios → ruta interna */}
-          <button className="pe-acceso-card pe-acceso-green" onClick={() => navigate('/panel-escuela/grupos-horarios')}>
-            <div className="pe-acceso-icon">
-              <Building2 size={32} />
-            </div>
-            <h3 className="pe-acceso-titulo">Grupos y Horarios</h3>
-            <p className="pe-acceso-desc">Configuración general</p>
-          </button>
-
-          {/* Gestión anual → planificación histórica (solo SuperAdmin) */}
-          {perfil?.rol === 'SuperAdministrador' && (
-            <button className="pe-acceso-card pe-acceso-orange" onClick={() => navigate('/panel-escuela/gestion-anual')}>
-              <div className="pe-acceso-icon">
-                <CalendarRange size={32} />
-              </div>
-              <h3 className="pe-acceso-titulo">Gestión Anual</h3>
-              <p className="pe-acceso-desc">Planificar grupos y profesores</p>
-            </button>
-          )}
-
           {/* Usuarios → ruta interna */}
           <button className="pe-acceso-card pe-acceso-blue" onClick={() => navigate('/panel-escuela/usuarios')}>
             <div className="pe-acceso-icon">
@@ -471,6 +451,15 @@ const PanelEscuela: React.FC = () => {
             </div>
             <h3 className="pe-acceso-titulo">Usuarios</h3>
             <p className="pe-acceso-desc">Roles y permisos</p>
+          </button>
+
+          {/* Grupos y Horarios → ruta interna */}
+          <button className="pe-acceso-card pe-acceso-green" onClick={() => navigate('/panel-escuela/grupos-horarios')}>
+            <div className="pe-acceso-icon">
+              <Building2 size={32} />
+            </div>
+            <h3 className="pe-acceso-titulo">Grupos y Horarios</h3>
+            <p className="pe-acceso-desc">Configuración general</p>
           </button>
 
           {/* Registro de Actividad → ruta interna */}
@@ -496,6 +485,17 @@ const PanelEscuela: React.FC = () => {
             <h3 className="pe-acceso-titulo">Facturación</h3>
             <p className="pe-acceso-desc">Planes y asistencias</p>
           </button>
+
+          {/* Gestión anual → planificación histórica (solo SuperAdmin) */}
+          {perfil?.rol === 'SuperAdministrador' && (
+            <button className="pe-acceso-card pe-acceso-orange" onClick={() => navigate('/panel-escuela/gestion-anual')}>
+              <div className="pe-acceso-icon">
+                <CalendarRange size={32} />
+              </div>
+              <h3 className="pe-acceso-titulo">Gestión Anual</h3>
+              <p className="pe-acceso-desc">Planificar grupos y profesores</p>
+            </button>
+          )}
 
           {/* Fotos de Asistencia → solo escuelas habilitadas */}
           {(() => {
