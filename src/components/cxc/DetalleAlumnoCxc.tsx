@@ -33,6 +33,62 @@ interface DetalleAlumnoProps {
 const fmtMonto = (n: number): string =>
   n.toLocaleString('es-BO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+type ContactoCobranza = {
+  telefono: string | null;
+  nombre: string | null;
+  tratamiento: string;
+};
+
+const obtenerContactoCobranza = (alumno: AlumnoDeuda): ContactoCobranza | null => {
+  const contactoPadre: ContactoCobranza = {
+    telefono: alumno.telefono_padre,
+    nombre: alumno.nombre_padre,
+    tratamiento: 'Estimado Señor'
+  };
+  const contactoMadre: ContactoCobranza = {
+    telefono: alumno.telefono_madre,
+    nombre: alumno.nombre_madre,
+    tratamiento: 'Estimada Señora'
+  };
+
+  if (alumno.whatsapp_preferido === 'padre') {
+    return contactoPadre.telefono ? contactoPadre : contactoMadre.telefono ? contactoMadre : null;
+  }
+  if (alumno.whatsapp_preferido === 'madre') {
+    return contactoMadre.telefono ? contactoMadre : contactoPadre.telefono ? contactoPadre : null;
+  }
+  return contactoPadre.telefono ? contactoPadre : contactoMadre.telefono ? contactoMadre : null;
+};
+
+const obtenerUrlCobranzaWhatsApp = (alumno: AlumnoDeuda, cxcs: CuentaCobrar[]): string | null => {
+  if (alumno.archivado) return null;
+
+  const contacto = obtenerContactoCobranza(alumno);
+  const deudasCobrables = cxcs.filter(cxc =>
+    !cxc.anulada &&
+    !(cxc as any).es_anticipo &&
+    Number(cxc.saldo_pendiente) > 0
+  );
+  if (!contacto?.telefono || deudasCobrables.length === 0) return null;
+
+  const telLimpio = contacto.telefono.replace(/\D/g, '');
+  const telFinal = telLimpio.length === 8 ? `591${telLimpio}` : telLimpio;
+  const nombreContacto = contacto.nombre?.trim();
+  const saludo = nombreContacto
+    ? `${contacto.tratamiento} ${nombreContacto}`
+    : 'Estimado/a padre/madre';
+  const listadoDeudas = deudasCobrables
+    .map(cxc => `• ${cxc.descripcion?.trim() || 'Deuda pendiente'}: Bs ${fmtMonto(Number(cxc.saldo_pendiente))}`)
+    .join('\n');
+  const mensaje = [
+    `${saludo}, le informamos que actualmente registra los siguientes pagos pendientes correspondientes a *${alumno.nombres.trim()}*:`,
+    listadoDeudas,
+    'Si ya realizó alguno de estos pagos, por favor envíenos el comprobante por este medio para actualizar su estado. Muchas gracias. 🩶'
+  ].join('\n\n');
+
+  return `https://wa.me/${telFinal}?text=${encodeURIComponent(mensaje)}`;
+};
+
 const obtenerMensajeErrorCobro = (error: unknown): string => {
   const mensaje = typeof error === 'object' && error !== null && 'message' in error
     ? String((error as { message?: unknown }).message ?? '')
@@ -656,51 +712,8 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
 
               {/* Botón WhatsApp — solo móvil */}
               {!soloHistorial && (() => {
-                // Lógica de selección: preseleccionado → papá → mamá
-                const preferido = alumno.whatsapp_preferido;
-                const contactoPadre = {
-                  telefono: alumno.telefono_padre,
-                  nombre: alumno.nombre_padre,
-                  tratamiento: 'Estimado Señor'
-                };
-                const contactoMadre = {
-                  telefono: alumno.telefono_madre,
-                  nombre: alumno.nombre_madre,
-                  tratamiento: 'Estimada Señora'
-                };
-                let contacto: typeof contactoPadre | typeof contactoMadre | null = null;
-                if (preferido === 'padre') {
-                  contacto = contactoPadre.telefono ? contactoPadre : contactoMadre;
-                } else if (preferido === 'madre') {
-                  contacto = contactoMadre.telefono ? contactoMadre : contactoPadre;
-                } else {
-                  // Sin preseleccionado: papá primero, luego mamá
-                  contacto = contactoPadre.telefono ? contactoPadre : contactoMadre;
-                }
-
-                const deudasCobrables = cxcs.filter(cxc =>
-                  !cxc.anulada &&
-                  !(cxc as any).es_anticipo &&
-                  Number(cxc.saldo_pendiente) > 0
-                );
-
-                if (!contacto.telefono || deudasCobrables.length === 0) return null;
-
-                const telLimpio = contacto.telefono.replace(/\D/g, '');
-                const telFinal = telLimpio.length === 8 ? `591${telLimpio}` : telLimpio;
-                const nombreContacto = contacto.nombre?.trim();
-                const saludo = nombreContacto
-                  ? `${contacto.tratamiento} ${nombreContacto}`
-                  : 'Estimado/a padre/madre';
-                const listadoDeudas = deudasCobrables
-                  .map(cxc => `• ${cxc.descripcion?.trim() || 'Deuda pendiente'}: Bs ${fmtMonto(Number(cxc.saldo_pendiente))}`)
-                  .join('\n');
-                const mensaje = [
-                  `${saludo}, le informamos que actualmente registra los siguientes pagos pendientes correspondientes a *${alumno.nombres.trim()}*:`,
-                  listadoDeudas,
-                  'Si ya realizó alguno de estos pagos, por favor envíenos el comprobante por este medio para actualizar su estado. Muchas gracias. 🩶'
-                ].join('\n\n');
-                const url = `https://wa.me/${telFinal}?text=${encodeURIComponent(mensaje)}`;
+                const url = obtenerUrlCobranzaWhatsApp(alumno, cxcs);
+                if (!url) return null;
                 return (
                   <a
                     href={url}
@@ -750,21 +763,29 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                     <Clock size={14} /> {alumno.horario_hora || '--:--'}
                   </span>
                   {(() => {
-                    const telefonoPrincipal = alumno.whatsapp_preferido === 'padre' 
-                      ? (alumno.telefono_padre || alumno.telefono_madre) 
-                      : (alumno.whatsapp_preferido === 'madre' 
-                          ? (alumno.telefono_madre || alumno.telefono_padre) 
-                          : (alumno.telefono_padre || alumno.telefono_madre));
+                    const contactoPrincipal = obtenerContactoCobranza(alumno);
+                    const telefonoPrincipal = contactoPrincipal?.telefono;
+                    const urlCobranzaWhatsApp = obtenerUrlCobranzaWhatsApp(alumno, cxcs);
                     return (
                       <>
                         <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#a855f7' }}>
                           <Calendar size={14} /> Mensualidad: {(montoMensualidad !== null && montoMensualidad !== undefined) ? `Bs ${fmtMonto(montoMensualidad)}` : 'N/A'}
                         </span>
-                        {telefonoPrincipal && (
+                        {telefonoPrincipal && (urlCobranzaWhatsApp ? (
+                          <a
+                            href={urlCobranzaWhatsApp}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title="Enviar mensaje de cobro por WhatsApp"
+                            style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#10b981', textDecoration: 'none', fontWeight: 700 }}
+                          >
+                            <MessageCircle size={14} /> {telefonoPrincipal}
+                          </a>
+                        ) : (
                           <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#10b981' }}>
                             <Phone size={14} /> {telefonoPrincipal}
                           </span>
-                        )}
+                        ))}
                         {observacionesAlumno && (
                           <span style={{ 
                             display: 'flex', 
