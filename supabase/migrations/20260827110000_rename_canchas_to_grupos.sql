@@ -104,6 +104,21 @@ DROP VIEW IF EXISTS public.v_cuentas_cobrar CASCADE;
 DROP VIEW IF EXISTS public.v_alumnos CASCADE;
 
 CREATE VIEW public.v_alumnos WITH (security_invoker = true) AS
+WITH attendance_counts AS (
+  SELECT 
+    all_asistencias.alumno_id,
+    count(*) FILTER (WHERE (date_trunc('month'::text, (all_asistencias.fecha)::timestamp with time zone) = date_trunc('month'::text, ((timezone(COALESCE(e.zona_horaria, 'America/La_Paz'::character varying)::text, now())::date))::timestamp with time zone))) AS actual,
+    count(*) FILTER (WHERE (date_trunc('month'::text, (all_asistencias.fecha)::timestamp with time zone) = date_trunc('month'::text, (((timezone(COALESCE(e.zona_horaria, 'America/La_Paz'::character varying)::text, now())::date))::timestamp with time zone - '1 mon'::interval)))) AS anterior
+  FROM ( 
+    SELECT asistencias_normales.alumno_id, asistencias_normales.fecha, asistencias_normales.estado FROM public.asistencias_normales
+    UNION ALL
+    SELECT asistencias_arqueros.alumno_id, asistencias_arqueros.fecha, asistencias_arqueros.estado FROM public.asistencias_arqueros
+  ) all_asistencias
+  JOIN public.alumnos a_int ON a_int.id = all_asistencias.alumno_id
+  LEFT JOIN public.escuelas e ON e.id = a_int.escuela_id
+  WHERE ((all_asistencias.estado)::text = 'Presente'::text)
+  GROUP BY all_asistencias.alumno_id
+)
 SELECT 
   a.id,
   a.escuela_id,
@@ -115,6 +130,7 @@ SELECT
   a.telefono_padre,
   a.nombre_madre,
   a.telefono_madre,
+  a.telefono_deportista,
   a.whatsapp_preferido,
   a.colegio,
   a.direccion,
@@ -128,10 +144,20 @@ SELECT
   a.mensualidad,
   a.observaciones,
   a.foto_url,
-  a.archivado,
   a.estado,
+  a.archivado,
+  a.archivado_at,
   a.created_at,
   a.updated_at,
+  a.created_by,
+  a.meses_permanencia_inicial,
+  a.ingresos_iniciales,
+  a.fecha_inicio,
+  a.terminos_busqueda,
+  a.grupo_gestion_id,
+  ((EXTRACT(year FROM (timezone(COALESCE(e.zona_horaria, 'America/La_Paz'::character varying)::text, now())::date)))::integer - (EXTRACT(year FROM a.fecha_nacimiento))::integer) AS sub,
+  COALESCE(ac.actual, 0::bigint) AS asistencias_mes_actual,
+  COALESCE(ac.anterior, 0::bigint) AS asistencias_mes_anterior,
   s.nombre AS sucursal_nombre,
   g.nombre AS grupo_nombre,
   g.nombre AS cancha_nombre,
@@ -139,6 +165,8 @@ SELECT
   u.nombres AS profesor_nombres,
   u.apellidos AS profesor_apellidos
 FROM public.alumnos a
+LEFT JOIN attendance_counts ac ON a.id = ac.alumno_id
+LEFT JOIN public.escuelas e ON e.id = a.escuela_id
 LEFT JOIN public.sucursales s ON a.sucursal_id = s.id
 LEFT JOIN public.grupos g ON a.grupo_id = g.id
 LEFT JOIN public.horarios h ON a.horario_id = h.id
