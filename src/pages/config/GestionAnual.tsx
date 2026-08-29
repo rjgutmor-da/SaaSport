@@ -97,6 +97,12 @@ const GestionAnual: React.FC = () => {
   const seleccionarGestion = async (id: string) => {
     setGestionId(id);
     setMessage(null);
+    if (!id) {
+      setGrupos([]);
+      setAsignaciones([]);
+      setAlumnos([]);
+      return;
+    }
     try {
       const [grupoData, asignacionData, alumnoData] = await Promise.all([
         getGruposGestion(id),
