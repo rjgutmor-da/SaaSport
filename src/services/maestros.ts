@@ -32,64 +32,29 @@ export interface Horario {
 export const getAllGrupos = async (escuelaId: string): Promise<Grupo[]> => {
   if (!escuelaId) throw new Error('El ID de la escuela es requerido.');
 
-  const [gruposRes, entrenadoresRes] = await Promise.all([
-    supabase
-      .from('grupos')
-      .select('*, sucursal:sucursales(id, nombre), grupos_horarios(horarios(id, hora, activo))')
-      .eq('escuela_id', escuelaId)
-      .order('nombre', { ascending: true }),
-    supabase
-      .from('grupos_gestion')
-      .select(`
-        grupo_id,
-        horario_id,
-        entrenadores:entrenadores_grupos(
-          estado,
-          entrenador_id,
-          entrenador:usuarios(id, nombres, apellidos)
-        ),
-        gestion:gestiones_deportivas!inner(estado)
-      `)
-      .eq('escuela_id', escuelaId)
-      .eq('gestiones_deportivas.estado', 'activa')
-  ]);
-
-  if (gruposRes.error) throw gruposRes.error;
-
-  // Mapa de grupo_id a entrenador activo
-  const entrenadorPorGrupo = new Map<string, { id: string; nombre: string }>();
-  (entrenadoresRes.data || []).forEach((gg: any) => {
-    const act = (gg.entrenadores || []).find((e: any) => e.estado === 'activa');
-    if (act?.entrenador) {
-      entrenadorPorGrupo.set(gg.grupo_id, {
-        id: act.entrenador_id,
-        nombre: `${act.entrenador.nombres || ''} ${act.entrenador.apellidos || ''}`.trim()
-      });
-    }
+  const { data, error } = await supabase.rpc('rpc_obtener_grupos_con_entrenador', {
+    p_escuela_id: escuelaId
   });
 
-  return ((gruposRes.data || []) as any[]).map((item) => {
-    const horarios = (item.grupos_horarios || [])
-      .map((gh: any) => gh.horarios)
-      .filter((h: any) => h != null)
-      .sort((a: any, b: any) => (a.hora || '').localeCompare(b.hora || ''));
+  if (error) throw error;
 
-    const primerHorario = horarios[0] || null;
-    const coach = entrenadorPorGrupo.get(item.id);
+  return ((data || []) as any[]).map((item) => {
+    const horarioObj = item.horario_id ? { id: item.horario_id, hora: item.horario_hora, activo: true } : null;
+    const horarios = horarioObj ? [horarioObj] : [];
 
     return {
       id: item.id,
       nombre: item.nombre,
-      escuela_id: item.escuela_id,
+      escuela_id: escuelaId,
       sucursal_id: item.sucursal_id,
       activo: item.activo,
-      sucursal: item.sucursal,
+      sucursal: item.sucursal_id ? { id: item.sucursal_id, nombre: item.sucursal_nombre } : null,
       horarios,
-      horario_ids: horarios.map((h: any) => h.id),
-      horario_id: primerHorario?.id || null,
-      horario_hora: primerHorario?.hora || null,
-      entrenador_id: coach?.id || null,
-      entrenador_nombre: coach?.nombre || null
+      horario_ids: item.horario_id ? [item.horario_id] : [],
+      horario_id: item.horario_id || null,
+      horario_hora: item.horario_hora || null,
+      entrenador_id: item.entrenador_id || null,
+      entrenador_nombre: item.entrenador_nombre || null
     };
   }) as Grupo[];
 };
