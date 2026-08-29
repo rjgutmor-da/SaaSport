@@ -14,23 +14,6 @@ export interface Usuario {
   creado_a?: string;
 }
 
-export interface GrupoReasignacionEntrenador {
-  clave: string;
-  sucursal_id: string | null;
-  grupo_id: string | null;
-  horario_id: string | null;
-  sucursal_nombre: string;
-  grupo_nombre: string;
-  horario_nombre: string;
-  alumnos_activos: number;
-  alumnos_archivados: number;
-}
-
-export interface ResultadoReasignacionEntrenador {
-  alumnos_reasignados: number;
-  grupos_reasignados: number;
-  sesiones_revocadas: number;
-}
 
 /**
  * Obtiene todos los usuarios de una escuela, filtrando opcionalmente por sucursal
@@ -198,78 +181,6 @@ export const deleteUser = async (userId: string): Promise<void> => {
   throw new Error(error.message || 'No se pudo eliminar el usuario.');
 };
 
-/** Obtiene la vista previa agrupada para una baja de entrenador. */
-export const getGruposReasignacionEntrenador = async (
-  escuelaId: string,
-  entrenadorId: string
-): Promise<GrupoReasignacionEntrenador[]> => {
-  const { data, error } = await supabase
-    .from('alumnos')
-    .select(`
-      sucursal_id,
-      grupo_id,
-      horario_id,
-      archivado,
-      sucursal:sucursales(nombre),
-      grupo:grupos(nombre),
-      horario:horarios(hora)
-    `)
-    .eq('escuela_id', escuelaId)
-    .eq('profesor_asignado_id', entrenadorId);
-
-  if (error) throw error;
-
-  const grupos = new Map<string, GrupoReasignacionEntrenador>();
-  for (const alumno of data || []) {
-    const row = alumno as any;
-    const clave = [row.sucursal_id ?? 'sin-sucursal', row.grupo_id ?? 'sin-grupo', row.horario_id ?? 'sin-horario'].join('|');
-    const grupo = grupos.get(clave) || {
-      clave,
-      sucursal_id: row.sucursal_id ?? null,
-      grupo_id: row.grupo_id ?? null,
-      horario_id: row.horario_id ?? null,
-      sucursal_nombre: row.sucursal?.nombre || 'Sin sucursal',
-      grupo_nombre: row.grupo?.nombre || 'Sin grupo',
-      horario_nombre: row.horario?.hora || 'Sin horario',
-      alumnos_activos: 0,
-      alumnos_archivados: 0,
-    };
-
-    if (row.archivado) grupo.alumnos_archivados += 1;
-    else grupo.alumnos_activos += 1;
-    grupos.set(clave, grupo);
-  }
-
-  return Array.from(grupos.values()).sort((a, b) =>
-    `${a.sucursal_nombre}-${a.grupo_nombre}-${a.horario_nombre}`.localeCompare(
-      `${b.sucursal_nombre}-${b.grupo_nombre}-${b.horario_nombre}`,
-      'es'
-    )
-  );
-};
-
-/** Reasigna grupos completos y deja inactivo al entrenador en una única transacción. */
-export const reasignarYDesactivarEntrenador = async (
-  entrenadorSalienteId: string,
-  grupos: Array<GrupoReasignacionEntrenador & { entrenador_destino_id: string }>
-): Promise<ResultadoReasignacionEntrenador> => {
-  const asignaciones = grupos.map(({ sucursal_id, grupo_id, horario_id, entrenador_destino_id }) => ({
-    sucursal_id,
-    grupo_id,
-    horario_id,
-    entrenador_destino_id,
-  }));
-
-  const { data, error } = await supabase.rpc('rpc_reasignar_y_desactivar_entrenador', {
-    p_entrenador_saliente: entrenadorSalienteId,
-    p_asignaciones: asignaciones,
-  });
-
-  if (error) throw error;
-  const resultado = Array.isArray(data) ? data[0] : data;
-  if (!resultado) throw new Error('La reasignación no devolvió un resultado.');
-  return resultado as ResultadoReasignacionEntrenador;
-};
 
 /**
  * Actualiza la sucursal de un usuario.
