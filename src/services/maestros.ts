@@ -38,25 +38,41 @@ export const getAllGrupos = async (escuelaId: string): Promise<Grupo[]> => {
 
   if (error) throw error;
 
-  return ((data || []) as any[]).map((item) => {
-    const horarioObj = item.horario_id ? { id: item.horario_id, hora: item.horario_hora, activo: true } : null;
+  const gruposMap = new Map<string, Grupo>();
+
+  ((data || []) as any[]).forEach((item) => {
+    const horarioObj = item.horario_id ? { id: item.horario_id, hora: item.horario_hora, escuela_id: escuelaId, activo: true } : null;
     const horarios = horarioObj ? [horarioObj] : [];
 
-    return {
-      id: item.id,
-      nombre: item.nombre,
-      escuela_id: escuelaId,
-      sucursal_id: item.sucursal_id,
-      activo: item.activo,
-      sucursal: item.sucursal_id ? { id: item.sucursal_id, nombre: item.sucursal_nombre } : null,
-      horarios,
-      horario_ids: item.horario_id ? [item.horario_id] : [],
-      horario_id: item.horario_id || null,
-      horario_hora: item.horario_hora || null,
-      entrenador_id: item.entrenador_id || null,
-      entrenador_nombre: item.entrenador_nombre || null
-    };
-  }) as Grupo[];
+    if (!gruposMap.has(item.id)) {
+      gruposMap.set(item.id, {
+        id: item.id,
+        nombre: item.nombre,
+        escuela_id: escuelaId,
+        sucursal_id: item.sucursal_id,
+        activo: item.activo,
+        sucursal: item.sucursal_id ? { id: item.sucursal_id, nombre: item.sucursal_nombre } : null,
+        horarios,
+        horario_ids: item.horario_id ? [item.horario_id] : [],
+        horario_id: item.horario_id || null,
+        horario_hora: item.horario_hora || null,
+        entrenador_id: item.entrenador_id || null,
+        entrenador_nombre: item.entrenador_nombre || null
+      });
+    } else {
+      const existing = gruposMap.get(item.id)!;
+      if (item.horario_id && !existing.horario_ids?.includes(item.horario_id)) {
+        existing.horario_ids?.push(item.horario_id);
+        if (horarioObj) existing.horarios?.push(horarioObj);
+      }
+      if (!existing.entrenador_id && item.entrenador_id) {
+        existing.entrenador_id = item.entrenador_id;
+        existing.entrenador_nombre = item.entrenador_nombre;
+      }
+    }
+  });
+
+  return Array.from(gruposMap.values()).sort((a, b) => a.nombre.localeCompare(b.nombre));
 };
 
 export const createGrupo = async (
