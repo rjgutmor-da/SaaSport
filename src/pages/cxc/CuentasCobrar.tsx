@@ -50,7 +50,7 @@ const CuentasCobrar: React.FC = () => {
 
   // Búsqueda con Debounce
   const [busqueda, setBusqueda] = useState('');
-  const debouncedBusqueda = useDebounce(busqueda, 500);
+  const debouncedBusqueda = useDebounce(busqueda, 250);
 
   // Filtros rápidos y de servidor
   // CxC abre enfocada en los alumnos deudores; el indicador permite quitar el filtro.

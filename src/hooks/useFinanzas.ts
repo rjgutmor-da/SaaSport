@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../lib/supabaseClient';
-import { formatearMesCorto, obtenerOrdenMes } from '../lib/dateUtils';
+import { formatearMesCorto } from '../lib/dateUtils';
 
 const normalizar = (str: string) =>
   str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
@@ -10,8 +10,6 @@ const aplicarBusquedaAlumnos = (query: any, busqueda?: string) => {
   return terminos.reduce((consulta, termino) =>
     consulta.ilike('terminos_busqueda', `%${termino}%`), query);
 };
-
-// Legacy key eliminada
 
 export const queryKeys = {
   cxc_resumen: (filtros: any) => ['cxc-resumen', filtros] as const,
@@ -147,9 +145,10 @@ const fetchCxcResumen = async (escuelaId: string, filtros: any) => {
   const { data, error } = await query;
   if (error) throw error;
 
-  const totalAlumnos = data.length;
-  const conDeuda = data.filter(a => Number(a.saldo_pendiente) > 0).length;
-  const totalPendiente = data.reduce((acc, a) => acc + Number(a.saldo_pendiente), 0);
+  const lista = data || [];
+  const totalAlumnos = lista.length;
+  const conDeuda = lista.filter(a => Number(a.saldo_pendiente) > 0).length;
+  const totalPendiente = lista.reduce((acc, a) => acc + Number(a.saldo_pendiente), 0);
 
   return {
     total_alumnos: totalAlumnos,
@@ -238,56 +237,11 @@ const fetchCxcAlumnos = async (escuelaId: string, filtros: any) => {
   if (error) throw error;
 
   const lista = data || [];
-  const alumnoIds = lista.map((a: any) => a.alumno_id).filter(Boolean);
-
-  if (alumnoIds.length === 0) return { data: lista, count };
-
-  const { data: mensualidades, error: errMensualidades } = await supabase
-    .from('cuentas_cobrar')
-    .select(`
-      alumno_id,
-      fecha_emision,
-      cxc_detalle (
-        id,
-        periodo_meses,
-        catalogo_items!cxc_detalle_catalogo_item_id_fkey (nombre)
-      )
-    `)
-    .eq('escuela_id', escuelaId)
-    .eq('anulada', false)
-    .neq('estado', 'borrador')
-    .in('alumno_id', alumnoIds);
-
-  if (errMensualidades) throw errMensualidades;
-
-  const ultimaPorAlumno: Record<string, { mes: string; fecha: string; orden: number }> = {};
-
-  for (const nota of (mensualidades || []) as any[]) {
-    const detallesMensualidad = (nota.cxc_detalle || []).filter((det: any) =>
-      det.catalogo_items?.nombre?.toLowerCase().includes('mensualidad')
-    );
-
-    for (const det of detallesMensualidad) {
-      const meses = Array.isArray(det.periodo_meses) ? det.periodo_meses : [];
-      for (const mes of meses) {
-        const orden = obtenerOrdenMes(mes);
-        if (!orden) continue;
-
-        const actual = ultimaPorAlumno[nota.alumno_id];
-        const fecha = nota.fecha_emision || '';
-        if (!actual || fecha > actual.fecha || (fecha === actual.fecha && orden > actual.orden)) {
-          ultimaPorAlumno[nota.alumno_id] = { mes, fecha, orden };
-        }
-      }
-    }
-  }
 
   return {
     data: lista.map((alumno: any) => ({
       ...alumno,
-      ultima_mensualidad: formatearMesCorto(
-        ultimaPorAlumno[alumno.alumno_id]?.mes,
-      ),
+      ultima_mensualidad: formatearMesCorto(alumno.ultima_mensualidad),
     })),
     count,
   };
@@ -532,7 +486,7 @@ const fetchMovimientos = async (
           })(),
           conciliado: c.conciliado || false,
           es_movimiento_directo: esIngresoDirecto,
-           cuenta_maestra_id: c.cuentas_cobrar?.id,
+          cuenta_maestra_id: c.cuentas_cobrar?.id,
           alumno_raw: c.cuentas_cobrar?.alumnos || null,
           detalles_cxc: c.cuentas_cobrar?.cxc_detalle || [],
           ciclo_inicio: c.cuentas_cobrar?.ciclo_inicio || null,
