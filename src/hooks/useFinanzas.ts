@@ -255,6 +255,7 @@ const fetchCxcAlumnos = async (escuelaId: string, filtros: any) => {
     `)
     .eq('escuela_id', escuelaId)
     .eq('anulada', false)
+    .neq('estado', 'borrador')
     .in('alumno_id', alumnoIds);
 
   if (errMensualidades) throw errMensualidades;
@@ -285,7 +286,7 @@ const fetchCxcAlumnos = async (escuelaId: string, filtros: any) => {
     data: lista.map((alumno: any) => ({
       ...alumno,
       ultima_mensualidad: formatearMesCorto(
-        ultimaPorAlumno[alumno.alumno_id]?.mes ?? alumno.ultima_mensualidad,
+        ultimaPorAlumno[alumno.alumno_id]?.mes,
       ),
     })),
     count,
