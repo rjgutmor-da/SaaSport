@@ -30,7 +30,7 @@ import ModalNotaMasiva from '../../components/cxc/ModalNotaMasiva';
 
 import { useDebounce } from '../../hooks/useDebounce';
 import { useAuthSaaSport } from '../../lib/authHelper';
-import { useCxcAlumnos, useCxcResumen } from '../../hooks/useFinanzas';
+import { useCxcBusqueda } from '../../hooks/useFinanzas';
 import { useQueryClient } from '@tanstack/react-query';
 import { useIsMobile } from '../../hooks/useIsMobile';
 import { getDataScope } from '../../config/roles';
@@ -44,13 +44,14 @@ type FiltroEstadoAlumno = 'activos' | 'archivados' | 'todos';
 const CuentasCobrar: React.FC = () => {
   const navigate = useNavigate();
   const { setExtra } = useContext(SidebarContext);
-  const { escuelaId, sucursalId, perfil } = useAuthSaaSport();
+  const { session, escuelaId, sucursalId, perfil } = useAuthSaaSport();
   const queryClient = useQueryClient();
   const isMobile = useIsMobile();
 
   // Búsqueda con Debounce
   const [busqueda, setBusqueda] = useState('');
-  const debouncedBusqueda = useDebounce(busqueda, 250);
+  const debouncedBusqueda = useDebounce(busqueda, 300);
+  const busquedaDebouncedValida = debouncedBusqueda.trim().length !== 1;
 
   // Filtros rápidos y de servidor
   // CxC abre enfocada en los alumnos deudores; el indicador permite quitar el filtro.
@@ -77,8 +78,6 @@ const CuentasCobrar: React.FC = () => {
 
     if (!teniaBusqueda && tieneBusqueda) {
       filtrosAntesBusqueda.current = { soloConDeuda, estado: filtroEstadoAlumno };
-      setSoloConDeuda(false);
-      setFiltroEstadoAlumno('todos');
     }
 
     if (teniaBusqueda && !tieneBusqueda && filtrosAntesBusqueda.current) {
@@ -99,23 +98,25 @@ const CuentasCobrar: React.FC = () => {
     entrenadorId: filtroEntrenador,
     grupoId: filtroGrupo,
     horarioId: filtroHorario,
-    soloConDeuda,
-    filtroEstadoAlumno,
-    busqueda: debouncedBusqueda,
+    soloConDeuda: debouncedBusqueda.trim().length >= 2 ? false : soloConDeuda,
+    filtroEstadoAlumno: debouncedBusqueda.trim().length >= 2 ? 'todos' as const : filtroEstadoAlumno,
+    busqueda: debouncedBusqueda.trim().length >= 2 ? debouncedBusqueda : '',
     pagina,
     itemsPorPagina
   };
 
-  const { data: alumnosData, isLoading: cargandoAlumnos, error: errorAlumnos, refetch: refetchAlumnos } = useCxcAlumnos(escuelaId, filtros);
-  const { data: resumenData, isLoading: cargandoResumen, refetch: refetchResumen } = useCxcResumen(escuelaId, filtros);
-
-  const cargando = cargandoAlumnos || cargandoResumen;
-  const alumnosDeuda = (alumnosData?.data as unknown as AlumnoDeuda[]) || [];
-  const totalResultados = alumnosData?.count || 0;
+  const alcanceBusqueda = {
+    userId: session?.user?.id || null,
+    escuelaId,
+    sucursalId: sucursalEfectiva || null,
+  };
+  const { data: busquedaData, isLoading: cargando } = useCxcBusqueda(alcanceBusqueda, filtros, busquedaDebouncedValida);
+  const alumnosDeuda = (busquedaData?.items as AlumnoDeuda[]) || [];
+  const totalResultados = busquedaData?.total_resultados || 0;
   const stats = {
-    totalAlumnos: resumenData?.total_alumnos || 0,
-    conDeuda: resumenData?.con_deuda || 0,
-    totalPendiente: Number(resumenData?.total_pendiente || 0)
+    totalAlumnos: busquedaData?.resumen.total_alumnos || 0,
+    conDeuda: busquedaData?.resumen.con_deuda || 0,
+    totalPendiente: Number(busquedaData?.resumen.total_pendiente || 0)
   };
 
   // Modales
@@ -171,8 +172,7 @@ const CuentasCobrar: React.FC = () => {
   const mesAnteriorStr = nombresMeses[fechaHoyAnt.getMonth()];
 
   const manejarActualizacion = () => {
-    queryClient.invalidateQueries({ queryKey: ['cxc-alumnos'] });
-    queryClient.invalidateQueries({ queryKey: ['cxc-resumen'] });
+    queryClient.invalidateQueries({ queryKey: ['cxc-busqueda'] });
   };
 
 
@@ -232,6 +232,11 @@ const CuentasCobrar: React.FC = () => {
                   boxSizing: 'border-box'
                 }}
               />
+              {busqueda.trim().length === 1 && (
+                <span style={{ display: 'block', marginTop: '0.35rem', color: 'var(--text-tertiary)', fontSize: '0.75rem' }}>
+                  Escribe al menos 2 caracteres
+                </span>
+              )}
             </div>
             {(() => {
               const totalDeudaVal = stats.totalPendiente;
@@ -394,6 +399,11 @@ const CuentasCobrar: React.FC = () => {
                 <button className="cxc-search-clear" onClick={() => manejarBusqueda('')}>✕</button>
               )}
             </div>
+            {busqueda.trim().length === 1 && (
+              <span style={{ color: 'var(--text-tertiary)', fontSize: '0.78rem', whiteSpace: 'nowrap' }}>
+                Escribe al menos 2 caracteres
+              </span>
+            )}
 
             {!isMobile && (
               <div className="cxc-stats-horizontal">

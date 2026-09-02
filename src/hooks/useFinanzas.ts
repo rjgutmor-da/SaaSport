@@ -1,20 +1,11 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../lib/supabaseClient';
 import { formatearMesCorto } from '../lib/dateUtils';
-
-const normalizar = (str: string) =>
-  str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
-
-const aplicarBusquedaAlumnos = (query: any, busqueda?: string) => {
-  const terminos = normalizar(busqueda || '').split(/\s+/).filter(Boolean);
-  return terminos.reduce((consulta, termino) =>
-    consulta.ilike('terminos_busqueda', `%${termino}%`), query);
-};
+import type { ResultadoBusquedaCxc } from '../types/cxc';
 
 export const queryKeys = {
-  cxc_resumen: (filtros: any) => ['cxc-resumen', filtros] as const,
+  cxc_busqueda: (alcance: AlcanceBusquedaCxc, filtros: FiltrosBusquedaCxc) => ['cxc-busqueda', alcance, filtros] as const,
   cxp_resumen: (filtros: any) => ['cxp-resumen', filtros] as const,
-  cxc_alumnos: (filtros: any) => ['cxc-alumnos', filtros] as const,
   cxp_entidades: (filtros: any) => ['cxp-entidades', filtros] as const,
 };
 
@@ -112,51 +103,6 @@ const agruparCobrosDeUnaTransaccion = (movimientos: MovimientoFinanciero[]) => {
   return resultado;
 };
 
-const fetchCxcResumen = async (escuelaId: string, filtros: any) => {
-  // Si no hay filtros relevantes, usamos la vista de resumen pre-calculada para mayor velocidad
-  const tieneFiltros = filtros.sucursalId || filtros.entrenadorId || filtros.grupoId || filtros.horarioId || filtros.busqueda?.trim() || filtros.filtroEstadoAlumno;
-
-  if (!tieneFiltros) {
-    const { data, error } = await supabase
-      .from('v_cxc_resumen')
-      .select('*')
-      .eq('escuela_id', escuelaId)
-      .single();
-    if (error) throw error;
-    return data;
-  }
-
-  // Si hay filtros, calculamos el resumen dinámicamente desde v_alumnos_deuda
-  let query = supabase
-    .from('v_alumnos_deuda')
-    .select('saldo_pendiente')
-    .eq('escuela_id', escuelaId);
-
-  if (filtros.sucursalId) query = query.eq('sucursal_id', filtros.sucursalId);
-  if (filtros.entrenadorId) query = query.eq('entrenador_id', filtros.entrenadorId);
-  if (filtros.grupoId) query = query.eq('grupo_id', filtros.grupoId);
-  if (filtros.horarioId) query = query.eq('horario_id', filtros.horarioId);
-  if (filtros.filtroEstadoAlumno && filtros.filtroEstadoAlumno !== 'todos') {
-    query = query.eq('archivado', filtros.filtroEstadoAlumno === 'archivados');
-  }
-
-  query = aplicarBusquedaAlumnos(query, filtros.busqueda);
-
-  const { data, error } = await query;
-  if (error) throw error;
-
-  const lista = data || [];
-  const totalAlumnos = lista.length;
-  const conDeuda = lista.filter(a => Number(a.saldo_pendiente) > 0).length;
-  const totalPendiente = lista.reduce((acc, a) => acc + Number(a.saldo_pendiente), 0);
-
-  return {
-    total_alumnos: totalAlumnos,
-    con_deuda: conDeuda,
-    total_pendiente: totalPendiente
-  };
-};
-
 const fetchCxpResumen = async (escuelaId: string, filtros?: any) => {
   const tieneFiltros = filtros && (filtros.categoria || filtros.busqueda?.trim());
 
@@ -210,40 +156,45 @@ const fetchCxpResumen = async (escuelaId: string, filtros?: any) => {
 
 // --- Listados ---
 
-const fetchCxcAlumnos = async (escuelaId: string, filtros: any) => {
-  let query = supabase
-    .from('v_alumnos_deuda')
-    .select('*, fecha_nacimiento', { count: 'exact' })
-    .eq('escuela_id', escuelaId);
+export interface FiltrosBusquedaCxc {
+  sucursalId?: string | null;
+  entrenadorId?: string | null;
+  grupoId?: string | null;
+  horarioId?: string | null;
+  soloConDeuda?: boolean;
+  filtroEstadoAlumno?: 'activos' | 'archivados' | 'todos';
+  busqueda?: string;
+  pagina?: number;
+  itemsPorPagina?: number;
+}
 
-  if (filtros.sucursalId) query = query.eq('sucursal_id', filtros.sucursalId);
-  if (filtros.entrenadorId) query = query.eq('entrenador_id', filtros.entrenadorId);
-  if (filtros.grupoId) query = query.eq('grupo_id', filtros.grupoId);
-  if (filtros.horarioId) query = query.eq('horario_id', filtros.horarioId);
-  if (filtros.soloConDeuda) query = query.gt('saldo_pendiente', 0);
-  if (filtros.filtroEstadoAlumno && filtros.filtroEstadoAlumno !== 'todos') {
-    query = query.eq('archivado', filtros.filtroEstadoAlumno === 'archivados');
-  }
+export interface AlcanceBusquedaCxc {
+  userId: string | null;
+  escuelaId: string | null;
+  sucursalId: string | null;
+}
 
-  query = aplicarBusquedaAlumnos(query, filtros.busqueda);
-
-  const desde = (filtros.pagina - 1) * filtros.itemsPorPagina;
-  const hasta = desde + filtros.itemsPorPagina - 1;
-  
-  const { data, error, count } = await query
-    .order('nombres', { ascending: true })
-    .range(desde, hasta);
+const fetchCxcBusqueda = async (filtros: FiltrosBusquedaCxc, signal: AbortSignal) => {
+  const { data, error } = await supabase.rpc('rpc_buscar_alumnos_cxc', {
+    p_busqueda: filtros.busqueda?.trim() || null,
+    p_estado: filtros.filtroEstadoAlumno || 'activos',
+    p_solo_con_deuda: filtros.soloConDeuda ?? false,
+    p_sucursal_filtro: filtros.sucursalId || null,
+    p_entrenador_id: filtros.entrenadorId || null,
+    p_grupo_id: filtros.grupoId || null,
+    p_horario_id: filtros.horarioId || null,
+    p_pagina: filtros.pagina || 1,
+    p_limite: filtros.itemsPorPagina || 30,
+  }).abortSignal(signal);
 
   if (error) throw error;
-
-  const lista = data || [];
-
+  const resultado = data as unknown as ResultadoBusquedaCxc;
   return {
-    data: lista.map((alumno: any) => ({
+    ...resultado,
+    items: (resultado?.items || []).map(alumno => ({
       ...alumno,
       ultima_mensualidad: formatearMesCorto(alumno.ultima_mensualidad),
     })),
-    count,
   };
 };
 
@@ -277,13 +228,17 @@ const fetchCxpEntidades = async (escuelaId: string, filtros: any) => {
 
 // --- Hooks ---
 
-export const useCxcResumen = (escuelaId: string | null, filtros: any) =>
-  useQuery({
-    queryKey: queryKeys.cxc_resumen(filtros),
-    queryFn: () => fetchCxcResumen(escuelaId!, filtros),
-    enabled: !!escuelaId,
-    staleTime: 1000 * 60 * 5, // 5 minutos
-  });
+export const useCxcBusqueda = (
+  alcance: AlcanceBusquedaCxc,
+  filtros: FiltrosBusquedaCxc,
+  enabled = true,
+) => useQuery({
+  queryKey: queryKeys.cxc_busqueda(alcance, filtros),
+  queryFn: ({ signal }) => fetchCxcBusqueda(filtros, signal),
+  enabled: enabled && !!alcance.userId && !!alcance.escuelaId,
+  staleTime: 1000 * 60 * 2,
+  placeholderData: previousData => previousData,
+});
 
 export const useCxpResumen = (escuelaId: string | null, filtros: any) =>
   useQuery({
@@ -291,14 +246,6 @@ export const useCxpResumen = (escuelaId: string | null, filtros: any) =>
     queryFn: () => fetchCxpResumen(escuelaId!, filtros),
     enabled: !!escuelaId,
     staleTime: 1000 * 60 * 5, // 5 minutos
-  });
-
-export const useCxcAlumnos = (escuelaId: string | null, filtros: any) =>
-  useQuery({
-    queryKey: queryKeys.cxc_alumnos(filtros),
-    queryFn: () => fetchCxcAlumnos(escuelaId!, filtros),
-    enabled: !!escuelaId,
-    staleTime: 1000 * 60 * 2, // 2 minutos
   });
 
 export const useCxpEntidades = (escuelaId: string | null, filtros: any) =>

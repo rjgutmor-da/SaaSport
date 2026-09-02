@@ -12,6 +12,10 @@ import { getHoyISO, getHoraLocal, FECHA_MINIMA_MOVIMIENTO_FINANCIERO, validarFec
 import { useCobroMultiple } from './useCobroMultiple';
 import type { CatalogoItem } from '../../types/cuentas';
 import { confirmarMovimientoEnPeriodoConciliado } from '../../lib/conciliacion';
+import { useDebounce } from '../../hooks/useDebounce';
+import { useCxcBusqueda } from '../../hooks/useFinanzas';
+import { useAuthSaaSport } from '../../lib/authHelper';
+import { getDataScope } from '../../config/roles';
 
 /** Formatea un número como moneda (Bs) */
 const fmtMonto = (n: number): string =>
@@ -25,7 +29,24 @@ interface Props {
 }
 
 const ModalCobroRapido: React.FC<Props> = ({ alumnoInicial, visible, onCerrar, onCobrado }) => {
-  const [alumnos, setAlumnos] = useState<AlumnoDeuda[]>([]);
+  const { session, escuelaId, sucursalId, perfil } = useAuthSaaSport();
+  const sucursalEfectiva = getDataScope(perfil?.rol) === 'branch' ? sucursalId : null;
+  const [busquedaAlumno, setBusquedaAlumno] = useState('');
+  const busquedaAlumnoDebounced = useDebounce(busquedaAlumno, 300);
+  const busquedaAlumnoValida = busquedaAlumnoDebounced.trim().length === 0 || busquedaAlumnoDebounced.trim().length >= 2;
+  const { data: alumnosBusqueda, isFetching: buscandoAlumnos } = useCxcBusqueda({
+    userId: session?.user?.id || null,
+    escuelaId,
+    sucursalId: sucursalEfectiva,
+  }, {
+    sucursalId: sucursalEfectiva,
+    filtroEstadoAlumno: 'activos',
+    soloConDeuda: false,
+    busqueda: busquedaAlumnoDebounced.trim().length >= 2 ? busquedaAlumnoDebounced : '',
+    pagina: 1,
+    itemsPorPagina: 50,
+  }, visible && busquedaAlumnoValida);
+  const alumnos = alumnosBusqueda?.items || [];
   const [alumnoSel, setAlumnoSel] = useState<AlumnoDeuda | null>(alumnoInicial);
   const [cxcsPendientes, setCxcsPendientes] = useState<CuentaCobrar[]>([]);
   const [cxcSelId, setCxcSelId] = useState('');
@@ -51,6 +72,7 @@ const ModalCobroRapido: React.FC<Props> = ({ alumnoInicial, visible, onCerrar, o
   useEffect(() => {
     if (!visible) return;
     setError(null); setExito(null);
+    setBusquedaAlumno('');
     // Sincronizar el alumno seleccionado con el alumno preseleccionado al abrir el modal
     setAlumnoSel(alumnoInicial);
 
@@ -64,14 +86,6 @@ const ModalCobroRapido: React.FC<Props> = ({ alumnoInicial, visible, onCerrar, o
       if (!usr) return;
 
       const esAdmin = usr.rol === 'SuperAdministrador';
-
-      // Cargar lista de todos los alumnos
-      const { data: listaAlumnos } = await supabase
-        .from('v_alumnos_deuda')
-        .select('*')
-        .eq('escuela_id', usr.escuela_id)
-        .eq('archivado', false);
-      setAlumnos((listaAlumnos as unknown as AlumnoDeuda[]) ?? []);
 
       // Cargar cuentas (Cajas y Bancos) disponibles
       let q = supabase.from('cajas_bancos').select('*').eq('activo', true);
@@ -93,7 +107,7 @@ const ModalCobroRapido: React.FC<Props> = ({ alumnoInicial, visible, onCerrar, o
       setCatalogo(resCat ?? []);
     };
     cargar();
-  }, [visible]);
+  }, [visible, alumnoInicial]);
 
   // Al cambiar alumno seleccionado, cargar sus CxC pendientes
   useEffect(() => {
@@ -415,13 +429,25 @@ const ModalCobroRapido: React.FC<Props> = ({ alumnoInicial, visible, onCerrar, o
               {!alumnoInicial ? (
                 <div className="form-campo full-width" style={{ marginBottom: '1rem' }}>
                   <label><Users size={14} /> Alumno / Cliente *</label>
+                  <input
+                    type="search"
+                    value={busquedaAlumno}
+                    onChange={e => setBusquedaAlumno(e.target.value)}
+                    placeholder="Buscar por nombre, teléfono o representante"
+                    style={{ fontSize: '0.95rem', padding: '0.75rem', marginBottom: '0.5rem' }}
+                  />
+                  {busquedaAlumno.trim().length === 1 && (
+                    <small style={{ color: 'var(--text-tertiary)', marginBottom: '0.5rem' }}>
+                      Escribe al menos 2 caracteres
+                    </small>
+                  )}
                   <select
                     value={alumnoSel?.alumno_id || ''}
                     onChange={e => setAlumnoSel(alumnos.find(a => a.alumno_id === e.target.value) || null)}
                     style={{ fontSize: '1rem', padding: '0.8rem' }}
                   >
-                    <option value="">— Seleccionar alumno —</option>
-                    {alumnos.sort((a, b) => `${a.nombres} ${a.apellidos}`.localeCompare(`${b.nombres} ${b.apellidos}`))
+                    <option value="">{buscandoAlumnos ? 'Buscando…' : '— Seleccionar alumno —'}</option>
+                    {[...alumnos].sort((a, b) => `${a.nombres} ${a.apellidos}`.localeCompare(`${b.nombres} ${b.apellidos}`))
                       .map(a => (
                         <option key={a.alumno_id} value={a.alumno_id}>
                           {a.nombres} {a.apellidos} — Pendiente: Bs {fmtMonto(Number(a.saldo_pendiente))}

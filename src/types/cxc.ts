@@ -133,6 +133,18 @@ export interface AlumnoDeuda {
   archivado?: boolean;
 }
 
+export interface ResultadoBusquedaCxc {
+  items: AlumnoDeuda[];
+  total_resultados: number;
+  pagina: number;
+  items_por_pagina: number;
+  resumen: {
+    total_alumnos: number;
+    con_deuda: number;
+    total_pendiente: number;
+  };
+}
+
 /** Colores y etiquetas por estado */
 export const ESTADOS_CXC: Record<CuentaCobrar['estado'], { color: string; bg: string; label: string }> = {
   pendiente: { color: '#facc15', bg: 'rgba(250,204,21,0.1)', label: 'Pendiente' },
