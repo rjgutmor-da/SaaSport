@@ -172,12 +172,15 @@ const NotasAutomaticas: React.FC = () => {
   const aprobarNota = async (id: string) => {
     setProcesandoAccion(id);
     try {
-      const { error: err } = await supabase
-        .from('cuentas_cobrar')
-        .update({ estado: 'pendiente' })
-        .eq('id', id);
+      const { data, error: err } = await supabase.rpc('rpc_aprobar_notas_automaticas', {
+        p_ids: [id]
+      });
 
       if (err) throw err;
+
+      if (data?.descartadas > 0) {
+        alert('Esta nota automática fue descartada porque el alumno ya cuenta con una mensualidad registrada para ese período.');
+      }
       setNotas(prev => prev.filter(n => n.id !== id));
     } catch (err: any) {
       alert('Error al aprobar la nota: ' + (err.message || err));
@@ -196,12 +199,21 @@ const NotasAutomaticas: React.FC = () => {
     setProcesandoAccion('todas');
     try {
       const ids = notasFiltradas.map(n => n.id);
-      const { error: err } = await supabase
-        .from('cuentas_cobrar')
-        .update({ estado: 'pendiente' })
-        .in('id', ids);
+      const { data, error: err } = await supabase.rpc('rpc_aprobar_notas_automaticas', {
+        p_ids: ids
+      });
 
       if (err) throw err;
+
+      const aprobadas = data?.aprobadas || 0;
+      const descartadas = data?.descartadas || 0;
+
+      if (descartadas > 0) {
+        alert(`Operación completada:\n• ${aprobadas} notas aprobadas como deuda pendiente.\n• ${descartadas} notas descartadas automáticamente porque ya contaban con una mensualidad activa o pagada.`);
+      } else {
+        alert(`Operación completada:\n• ${aprobadas} notas aprobadas exitosamente.`);
+      }
+
       cargarNotas();
     } catch (err: any) {
       alert('Error al aprobar las notas: ' + (err.message || err));
