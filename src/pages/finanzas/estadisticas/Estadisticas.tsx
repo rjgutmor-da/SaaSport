@@ -82,7 +82,6 @@ const Estadisticas: React.FC = () => {
   // Filtros inteligentes compartidos entre alumnos por ítem y cuentas por cobrar
   const [entrenadorId, setEntrenadorId] = useState('');
   const [sucursalId, setSucursalId] = useState('');
-  const [horarioId, setHorarioId] = useState('');
   const [grupoId, setGrupoId] = useState('');
   const [pagadoFiltro, setPagadoFiltro] = useState('');
 
@@ -154,7 +153,6 @@ const Estadisticas: React.FC = () => {
     subfiltrosActivos.length > 0 ? subfiltrosActivos : undefined,
     sucursalId,
     entrenadorId,
-    horarioId,
     grupoId,
     itemSeleccionado?.nombre,
     pagadoFiltro,
@@ -170,7 +168,6 @@ const Estadisticas: React.FC = () => {
     undefined,
     sucursalId,
     entrenadorId,
-    horarioId,
     grupoId
   );
 
@@ -370,16 +367,13 @@ const Estadisticas: React.FC = () => {
                       sucursalId={sucursalId}
                       entrenadorId={entrenadorId}
                       grupoId={grupoId}
-                      horarioId={horarioId}
                       onChangeSucursal={setSucursalId}
                       onChangeEntrenador={setEntrenadorId}
                       onChangeGrupo={setGrupoId}
-                      onChangeHorario={setHorarioId}
                       onLimpiar={() => {
                         setSucursalId('');
                         setEntrenadorId('');
                         setGrupoId('');
-                        setHorarioId('');
                       }}
                       compact
                     />
@@ -558,16 +552,13 @@ const Estadisticas: React.FC = () => {
                 sucursalId={sucursalId}
                 entrenadorId={entrenadorId}
                 grupoId={grupoId}
-                horarioId={horarioId}
                 onChangeSucursal={setSucursalId}
                 onChangeEntrenador={setEntrenadorId}
                 onChangeGrupo={setGrupoId}
-                onChangeHorario={setHorarioId}
                 onLimpiar={() => {
                   setSucursalId('');
                   setEntrenadorId('');
                   setGrupoId('');
-                  setHorarioId('');
                 }}
                 compact
               />

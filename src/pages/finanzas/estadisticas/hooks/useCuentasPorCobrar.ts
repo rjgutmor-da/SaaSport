@@ -20,7 +20,6 @@ export interface CuentaPorCobrarRow {
   fecha: string;
   sucursal_id: string;
   entrenador_id: string;
-  horario_id: string;
   grupo_id: string;
 }
 
@@ -38,7 +37,6 @@ export function useCuentasPorCobrar(
   hastaPersonalizado?: string,
   sucursalId?: string,
   entrenadorId?: string,
-  horarioId?: string,
   grupoId?: string
 ): UseCuentasPorCobrarResult {
   const [datos, setDatos] = useState<CuentaPorCobrarRow[]>([]);
@@ -52,7 +50,7 @@ export function useCuentasPorCobrar(
     if (!escuelaId) return;
     const rango = calcularRango(intervalo);
     cargarDatos(escuelaId, rango.desde, rango.hasta);
-  }, [escuelaId, intervalo, desdePersonalizado, hastaPersonalizado, tick, sucursalId, entrenadorId, horarioId, grupoId]);
+  }, [escuelaId, intervalo, desdePersonalizado, hastaPersonalizado, tick, sucursalId, entrenadorId, grupoId]);
 
   async function cargarDatos(eid: string, desde: string, hasta: string) {
     setCargando(true);
@@ -82,7 +80,6 @@ export function useCuentasPorCobrar(
       // Filtros opcionales (basados en las columnas de la vista)
       if (sucursalId) query = query.eq('alumno_sucursal_id', sucursalId);
       if (entrenadorId) query = query.eq('alumno_entrenador_id', entrenadorId);
-      if (horarioId) query = query.eq('alumno_horario_id', horarioId);
       if (grupoId) query = query.eq('alumno_grupo_id', grupoId);
 
       const { data, error: err } = await query;
@@ -101,7 +98,6 @@ export function useCuentasPorCobrar(
         fecha: string;
         sucursal_id: string;
         entrenador_id: string;
-        horario_id: string;
         grupo_id: string;
         mesesMensualidad: string[];
         otrosDetallesMensualidad: string[];
@@ -172,7 +168,6 @@ export function useCuentasPorCobrar(
               fecha: cxc.fecha_emision,
               sucursal_id: cxc.alumno_sucursal_id,
               entrenador_id: cxc.alumno_entrenador_id,
-              horario_id: cxc.alumno_horario_id,
               grupo_id: cxc.alumno_grupo_id,
               mesesMensualidad: itemMeses,
               otrosDetallesMensualidad: itemOtrosDetalles,
@@ -264,7 +259,6 @@ export function useCuentasPorCobrar(
           fecha: acc.fecha,
           sucursal_id: acc.sucursal_id,
           entrenador_id: acc.entrenador_id,
-          horario_id: acc.horario_id,
           grupo_id: acc.grupo_id
         };
       });

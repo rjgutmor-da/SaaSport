@@ -61,7 +61,6 @@ const CuentasCobrar: React.FC = () => {
   const [filtroSucursal, setFiltroSucursal] = useState('');
   const [filtroEntrenador, setFiltroEntrenador] = useState('');
   const [filtroGrupo, setFiltroGrupo] = useState('');
-  const [filtroHorario, setFiltroHorario] = useState('');
 
   // Los roles con alcance de sucursal nunca deben poder ampliar CxC a toda la escuela.
   // El filtro visible sigue disponible para usuarios con alcance escolar.
@@ -91,13 +90,12 @@ const CuentasCobrar: React.FC = () => {
 
   useEffect(() => {
     setPagina(1);
-  }, [debouncedBusqueda, soloConDeuda, filtroEstadoAlumno, sucursalEfectiva, filtroEntrenador, filtroGrupo, filtroHorario]);
+  }, [debouncedBusqueda, soloConDeuda, filtroEstadoAlumno, sucursalEfectiva, filtroEntrenador, filtroGrupo]);
 
   const filtros = {
     sucursalId: sucursalEfectiva,
     entrenadorId: filtroEntrenador,
     grupoId: filtroGrupo,
-    horarioId: filtroHorario,
     soloConDeuda: debouncedBusqueda.trim().length >= 2 ? false : soloConDeuda,
     filtroEstadoAlumno: debouncedBusqueda.trim().length >= 2 ? 'todos' as const : filtroEstadoAlumno,
     busqueda: debouncedBusqueda.trim().length >= 2 ? debouncedBusqueda : '',
@@ -333,14 +331,12 @@ const CuentasCobrar: React.FC = () => {
                     sucursalBloqueada={sucursalBloqueada}
                     entrenadorId={filtroEntrenador}
                     grupoId={filtroGrupo}
-                    horarioId={filtroHorario}
                     onChangeSucursal={sucursalBloqueada ? () => undefined : setFiltroSucursal}
                     onChangeEntrenador={setFiltroEntrenador}
                     onChangeGrupo={setFiltroGrupo}
-                    onChangeHorario={setFiltroHorario}
                     onLimpiar={() => {
                       setFiltroSucursal(''); setFiltroEntrenador('');
-                      setFiltroGrupo(''); setFiltroHorario('');
+                      setFiltroGrupo('');
                     }}
                     compact
                   />

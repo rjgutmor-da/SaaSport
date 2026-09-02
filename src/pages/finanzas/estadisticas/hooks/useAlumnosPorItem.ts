@@ -44,7 +44,6 @@ export function useAlumnosPorItem(
   filtroSubItems?: string[], // meses o texto de torneo
   sucursalId?: string,
   entrenadorId?: string,
-  horarioId?: string,
   grupoId?: string,
   conceptoNombre?: string, // Para setear el concepto en el resultado
   pagadoFiltro?: string,
@@ -83,7 +82,7 @@ export function useAlumnosPorItem(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [escuelaId, catalogoItemId, intervalo, desdePersonalizado, hastaPersonalizado, tick,
     // serializar filtros para evitar re-renders infinitos
-    JSON.stringify(filtroSubItems), sucursalId, entrenadorId, horarioId, grupoId, conceptoNombre, pagadoFiltro,
+    JSON.stringify(filtroSubItems), sucursalId, entrenadorId, grupoId, conceptoNombre, pagadoFiltro,
     anioMensualidad, JSON.stringify(montosExactos), JSON.stringify(montoRango)]);
 
   async function cargarAlumnos(
@@ -128,7 +127,6 @@ export function useAlumnosPorItem(
             fecha_nacimiento,
             profesor_asignado_id,
             sucursal_id,
-            horario_id,
             grupo_id,
             sucursales ( nombre ),
             usuarios!alumnos_profesor_asignado_id_fkey ( nombres, apellidos )
@@ -175,7 +173,6 @@ export function useAlumnosPorItem(
             fecha_nacimiento,
             profesor_asignado_id,
             sucursal_id,
-            horario_id,
             grupo_id,
             sucursales ( nombre ),
             usuarios!alumnos_profesor_asignado_id_fkey ( nombres, apellidos )
@@ -197,10 +194,6 @@ export function useAlumnosPorItem(
       if (sucursalId) {
         query = query.eq('alumnos.sucursal_id', sucursalId);
         queryPorPeriodoDetalle = queryPorPeriodoDetalle.eq('alumnos.sucursal_id', sucursalId);
-      }
-      if (horarioId) {
-        query = query.eq('alumnos.horario_id', horarioId);
-        queryPorPeriodoDetalle = queryPorPeriodoDetalle.eq('alumnos.horario_id', horarioId);
       }
       if (grupoId) {
         query = query.eq('alumnos.grupo_id', grupoId);
@@ -236,7 +229,6 @@ export function useAlumnosPorItem(
         // Validar filtros del alumno en JS para asegurar que no se incluyan registros vacíos o no correspondientes
         if (entrenadorId && alu.profesor_asignado_id !== entrenadorId) continue;
         if (sucursalId && alu.sucursal_id !== sucursalId) continue;
-        if (horarioId && alu.horario_id !== horarioId) continue;
         if (grupoId && alu.grupo_id !== grupoId) continue;
 
 
