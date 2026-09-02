@@ -169,7 +169,9 @@ const CajasBancos: React.FC = () => {
   const { data: entidades = [] } = useCxpEntidades(escuelaId, {});
 
   const cargando = cargandoCajas || (!rangoPendiente && cargandoMovimientos);
-  const error = errorMovs ? (errorMovs instanceof Error ? errorMovs.message : 'Error al cargar datos') : null;
+  const error = errorMovs
+    ? ((errorMovs as any)?.message || (errorMovs as any)?.details || (errorMovs instanceof Error ? errorMovs.message : 'Error al cargar datos'))
+    : null;
 
   // ── Drag-and-drop de tarjetas (solo super admin) ──
   const [cajasOrdenadas, setCajasOrdenadas] = useState<typeof cajas>([]);

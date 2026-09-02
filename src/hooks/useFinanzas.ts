@@ -334,177 +334,199 @@ const fetchMovimientos = async (
 
   const limiteAlcanzadoPorCaja: Record<string, boolean> = {};
   const todosLosMovimientos: MovimientoFinanciero[] = [];
+  const erroresPorCaja: Record<string, any> = {};
 
-  // Consultar de forma concurrente para cada caja
-  await Promise.all(
-    cajas.map(async (caja) => {
-      let queryCobros = supabase.from('cobros_aplicados').select(`
-        *,
-        cuentas_cobrar (
-          id, descripcion, nro_recibo, es_anticipo, es_ingreso_directo, ciclo_inicio, ciclo_fin,
-          alumnos ( nombres, apellidos, telefono_padre, telefono_madre, whatsapp_preferido ),
-          cxc_detalle (
-            id,
-            catalogo_item_id,
-            cantidad,
-            precio_unitario,
-            periodo_meses,
-            detalle_extra,
-            ciclo_inicio,
-            ciclo_fin,
-            catalogo_items ( nombre )
-          )
+  // Función para procesar una caja individual de forma segura
+  const procesarCaja = async (caja: CajaConSaldo) => {
+    let queryCobros = supabase.from('cobros_aplicados').select(`
+      *,
+      cuentas_cobrar (
+        id, descripcion, nro_recibo, es_anticipo, es_ingreso_directo, ciclo_inicio, ciclo_fin,
+        alumnos ( nombres, apellidos, telefono_padre, telefono_madre, whatsapp_preferido ),
+        cxc_detalle (
+          id,
+          catalogo_item_id,
+          cantidad,
+          precio_unitario,
+          periodo_meses,
+          detalle_extra,
+          ciclo_inicio,
+          ciclo_fin,
+          catalogo_items ( nombre )
         )
-      `)
-      .eq('caja_id', caja.id)
-      .order('fecha', { ascending: false })
-      .order('created_at', { ascending: false })
-      .limit(201); // Fila centinela
+      )
+    `)
+    .eq('caja_id', caja.id)
+    .order('fecha', { ascending: false })
+    .order('created_at', { ascending: false })
+    .limit(201); // Fila centinela
 
-      let queryPagos = supabase.from('pagos_aplicados').select(`
-        *,
-        cuentas_pagar (
-          id, descripcion, es_anticipo,
-          proveedores ( nombre ),
-          personal ( nombres, apellidos ),
-          cxp_detalle (
-            id,
-            catalogo_item_id,
-            catalogo_items ( nombre )
-          )
+    let queryPagos = supabase.from('pagos_aplicados').select(`
+      *,
+      cuentas_pagar (
+        id, descripcion, es_anticipo,
+        proveedores ( nombre ),
+        personal ( nombres, apellidos ),
+        cxp_detalle (
+          id,
+          catalogo_item_id,
+          catalogo_items ( nombre )
         )
-      `)
-      .eq('caja_id', caja.id)
-      .order('fecha', { ascending: false })
-      .order('created_at', { ascending: false })
-      .limit(201); // Fila centinela
+      )
+    `)
+    .eq('caja_id', caja.id)
+    .order('fecha', { ascending: false })
+    .order('created_at', { ascending: false })
+    .limit(201); // Fila centinela
 
-      if (rango) {
-        // Filtro inclusivo de desde y exclusivo de hasta, soportando nulos de fecha de forma defensiva
-        const filter = `and(fecha.gte.${rango.desde},fecha.lt.${rango.hasta}),and(fecha.is.null,created_at.gte.${rango.desde},created_at.lt.${rango.hasta})`;
-        queryCobros = queryCobros.or(filter);
-        queryPagos = queryPagos.or(filter);
-      }
+    if (rango) {
+      // Filtro inclusivo de desde y exclusivo de hasta, soportando nulos de fecha de forma defensiva
+      const filter = `and(fecha.gte.${rango.desde},fecha.lt.${rango.hasta}),and(fecha.is.null,created_at.gte.${rango.desde},created_at.lt.${rango.hasta})`;
+      queryCobros = queryCobros.or(filter);
+      queryPagos = queryPagos.or(filter);
+    }
 
-      const [cobrosRes, pagosRes] = await Promise.all([queryCobros, queryPagos]);
+    const [cobrosRes, pagosRes] = await Promise.all([queryCobros, queryPagos]);
 
-      if (cobrosRes.error) throw cobrosRes.error;
-      if (pagosRes.error) throw pagosRes.error;
+    if (cobrosRes.error) throw cobrosRes.error;
+    if (pagosRes.error) throw pagosRes.error;
 
-      const movsCaja: MovimientoFinanciero[] = [];
+    const movsCaja: MovimientoFinanciero[] = [];
 
-      // Mapear cobros
-      cobrosRes.data.forEach((c: any) => {
-        const monto = Number(c.monto_aplicado) || 0;
-        const items = c.cuentas_cobrar?.cxc_detalle?.map((d: any) => d.catalogo_items?.nombre).filter(Boolean);
-        const esIngresoDirecto = c.cuentas_cobrar?.es_ingreso_directo === true
-          || (!c.cuentas_cobrar?.alumnos
-          && !c.cuentas_cobrar?.descripcion?.startsWith('[INGRESO TRF]')
-          && (!items || items.length === 0));
-        const esIngresoDirectoSinDetalle = esIngresoDirecto && (!items || items.length === 0);
-        movsCaja.push({
-          id: c.id,
-          tipo_origen: 'cobro',
-          debe: monto > 0 ? monto : 0,
-          haber: monto < 0 ? -monto : 0,
-          fecha: c.fecha || c.created_at,
-          created_at: c.created_at,
-          descripcion: c.cuentas_cobrar?.descripcion || 'Cobro / Ingreso',
-          nro_transaccion: c.documento_referencia || c.cuentas_cobrar?.nro_recibo || '',
-          // Los ingresos directos antiguos sin detalle identifican el origen en
-          // su descripción; debe mostrarse como Alumno / Proveedor.
-          cliente: c.cuentas_cobrar?.alumnos
-            ? `${c.cuentas_cobrar.alumnos.nombres} ${c.cuentas_cobrar.alumnos.apellidos}`
-            : (esIngresoDirecto ? c.cuentas_cobrar?.descripcion || '—' : '—'),
-          cuenta_id: c.caja_id,
-          cuenta_nombre: (() => {
-            if (c.cuentas_cobrar?.descripcion?.startsWith('[INGRESO TRF]')) {
-              return 'Transferencia';
-            }
-            if (c.cuentas_cobrar?.es_anticipo) {
-              const items = c.cuentas_cobrar?.cxc_detalle?.map((d: any) => d.catalogo_items?.nombre).filter(Boolean);
-              if (items && items.length > 0) return Array.from(new Set(items)).join(', ');
-              return c.cuentas_cobrar?.descripcion || 'Anticipo';
-            }
-            if (!items || items.length === 0) {
-              return esIngresoDirectoSinDetalle ? 'Ingreso directo' : (c.cuentas_cobrar?.descripcion || 'Concepto no especificado');
-            }
-            return Array.from(new Set(items)).join(', ');
-          })(),
-          conciliado: c.conciliado || false,
-          es_movimiento_directo: esIngresoDirecto,
-          cuenta_maestra_id: c.cuentas_cobrar?.id,
-          alumno_raw: c.cuentas_cobrar?.alumnos || null,
-          detalles_cxc: c.cuentas_cobrar?.cxc_detalle || [],
-          ciclo_inicio: c.cuentas_cobrar?.ciclo_inicio || null,
-          ciclo_fin: c.cuentas_cobrar?.ciclo_fin || null,
-          concepto_id: c.cuentas_cobrar?.cxc_detalle?.[0]?.catalogo_item_id || null
-        });
+    // Mapear cobros
+    (cobrosRes.data || []).forEach((c: any) => {
+      const monto = Number(c.monto_aplicado) || 0;
+      const items = c.cuentas_cobrar?.cxc_detalle?.map((d: any) => d.catalogo_items?.nombre).filter(Boolean);
+      const esIngresoDirecto = c.cuentas_cobrar?.es_ingreso_directo === true
+        || (!c.cuentas_cobrar?.alumnos
+        && !c.cuentas_cobrar?.descripcion?.startsWith('[INGRESO TRF]')
+        && (!items || items.length === 0));
+      const esIngresoDirectoSinDetalle = esIngresoDirecto && (!items || items.length === 0);
+      movsCaja.push({
+        id: c.id,
+        tipo_origen: 'cobro',
+        debe: monto > 0 ? monto : 0,
+        haber: monto < 0 ? -monto : 0,
+        fecha: c.fecha || c.created_at,
+        created_at: c.created_at,
+        descripcion: c.cuentas_cobrar?.descripcion || 'Cobro / Ingreso',
+        nro_transaccion: c.documento_referencia || c.cuentas_cobrar?.nro_recibo || '',
+        // Los ingresos directos antiguos sin detalle identifican el origen en
+        // su descripción; debe mostrarse como Alumno / Proveedor.
+        cliente: c.cuentas_cobrar?.alumnos
+          ? `${c.cuentas_cobrar.alumnos.nombres} ${c.cuentas_cobrar.alumnos.apellidos}`
+          : (esIngresoDirecto ? c.cuentas_cobrar?.descripcion || '—' : '—'),
+        cuenta_id: c.caja_id,
+        cuenta_nombre: (() => {
+          if (c.cuentas_cobrar?.descripcion?.startsWith('[INGRESO TRF]')) {
+            return 'Transferencia';
+          }
+          if (c.cuentas_cobrar?.es_anticipo) {
+            const items = c.cuentas_cobrar?.cxc_detalle?.map((d: any) => d.catalogo_items?.nombre).filter(Boolean);
+            if (items && items.length > 0) return Array.from(new Set(items)).join(', ');
+            return c.cuentas_cobrar?.descripcion || 'Anticipo';
+          }
+          if (!items || items.length === 0) {
+            return esIngresoDirectoSinDetalle ? 'Ingreso directo' : (c.cuentas_cobrar?.descripcion || 'Concepto no especificado');
+          }
+          return Array.from(new Set(items)).join(', ');
+        })(),
+        conciliado: c.conciliado || false,
+        es_movimiento_directo: esIngresoDirecto,
+        cuenta_maestra_id: c.cuentas_cobrar?.id,
+        alumno_raw: c.cuentas_cobrar?.alumnos || null,
+        detalles_cxc: c.cuentas_cobrar?.cxc_detalle || [],
+        ciclo_inicio: c.cuentas_cobrar?.ciclo_inicio || null,
+        ciclo_fin: c.cuentas_cobrar?.ciclo_fin || null,
+        concepto_id: c.cuentas_cobrar?.cxc_detalle?.[0]?.catalogo_item_id || null
       });
+    });
 
-      // Mapear pagos
-      pagosRes.data.forEach((p: any) => {
-        const esEgresoDirecto = !p.cuentas_pagar?.proveedores && !p.cuentas_pagar?.personal && !p.cuentas_pagar?.descripcion?.startsWith('[EGRESO TRF]') && !p.cuentas_pagar?.es_anticipo;
-        movsCaja.push({
-          id: p.id,
-          tipo_origen: 'pago',
-          debe: 0,
-          haber: Number(p.monto_aplicado) || 0,
-          fecha: p.fecha || p.created_at,
-          created_at: p.created_at,
-          descripcion: p.cuentas_pagar?.descripcion || 'Pago / Egreso',
-          nro_transaccion: p.referencia || '',
-          cliente: p.cuentas_pagar?.proveedores?.nombre
-            || (p.cuentas_pagar?.personal ? `${p.cuentas_pagar.personal.nombres} ${p.cuentas_pagar.personal.apellidos}` : null)
-            || (esEgresoDirecto ? p.cuentas_pagar?.descripcion || '—' : '—'),
-          cuenta_id: p.caja_id,
-          cuenta_nombre: (() => {
-            if (p.cuentas_pagar?.descripcion?.startsWith('[EGRESO TRF]')) {
-              return 'Transferencia';
-            }
-            if (p.cuentas_pagar?.es_anticipo) {
-              const items = p.cuentas_pagar?.cxp_detalle?.map((d: any) => d.catalogo_items?.nombre).filter(Boolean);
-              if (items && items.length > 0) return Array.from(new Set(items)).join(', ');
-              return p.cuentas_pagar?.descripcion || 'Anticipo';
-            }
+    // Mapear pagos
+    (pagosRes.data || []).forEach((p: any) => {
+      const esEgresoDirecto = !p.cuentas_pagar?.proveedores && !p.cuentas_pagar?.personal && !p.cuentas_pagar?.descripcion?.startsWith('[EGRESO TRF]') && !p.cuentas_pagar?.es_anticipo;
+      movsCaja.push({
+        id: p.id,
+        tipo_origen: 'pago',
+        debe: 0,
+        haber: Number(p.monto_aplicado) || 0,
+        fecha: p.fecha || p.created_at,
+        created_at: p.created_at,
+        descripcion: p.cuentas_pagar?.descripcion || 'Pago / Egreso',
+        nro_transaccion: p.referencia || '',
+        cliente: p.cuentas_pagar?.proveedores?.nombre
+          || (p.cuentas_pagar?.personal ? `${p.cuentas_pagar.personal.nombres} ${p.cuentas_pagar.personal.apellidos}` : null)
+          || (esEgresoDirecto ? p.cuentas_pagar?.descripcion || '—' : '—'),
+        cuenta_id: p.caja_id,
+        cuenta_nombre: (() => {
+          if (p.cuentas_pagar?.descripcion?.startsWith('[EGRESO TRF]')) {
+            return 'Transferencia';
+          }
+          if (p.cuentas_pagar?.es_anticipo) {
             const items = p.cuentas_pagar?.cxp_detalle?.map((d: any) => d.catalogo_items?.nombre).filter(Boolean);
-            if (!items || items.length === 0) return 'Concepto no especificado';
-            let res = Array.from(new Set(items)).join(', ');
-            if (p.cuentas_pagar?.personal && res === 'ACF') return 'Sueldos y Salarios';
-            return res;
-          })(),
-          conciliado: p.conciliado || false,
-          cuenta_maestra_id: p.cuentas_pagar?.id,
-          es_movimiento_directo: esEgresoDirecto,
-          concepto_id: p.cuentas_pagar?.cxp_detalle?.[0]?.catalogo_item_id || null
-        });
+            if (items && items.length > 0) return Array.from(new Set(items)).join(', ');
+            return p.cuentas_pagar?.descripcion || 'Anticipo';
+          }
+          const items = p.cuentas_pagar?.cxp_detalle?.map((d: any) => d.catalogo_items?.nombre).filter(Boolean);
+          if (!items || items.length === 0) return 'Concepto no especificado';
+          let res = Array.from(new Set(items)).join(', ');
+          if (p.cuentas_pagar?.personal && res === 'ACF') return 'Sueldos y Salarios';
+          return res;
+        })(),
+        conciliado: p.conciliado || false,
+        cuenta_maestra_id: p.cuentas_pagar?.id,
+        es_movimiento_directo: esEgresoDirecto,
+        concepto_id: p.cuentas_pagar?.cxp_detalle?.[0]?.catalogo_item_id || null
       });
+    });
 
-      // Ordenar descendente: primero por fecha (día), luego por timestamp de creación
-      movsCaja.sort(compararMovimientosDesc);
+    // Ordenar descendente: primero por fecha (día), luego por timestamp de creación
+    movsCaja.sort(compararMovimientosDesc);
 
-      const movimientosAgrupados = agruparCobrosDeUnaTransaccion(movsCaja);
-      movimientosAgrupados.sort(compararMovimientosDesc);
+    const movimientosAgrupados = agruparCobrosDeUnaTransaccion(movsCaja);
+    movimientosAgrupados.sort(compararMovimientosDesc);
 
-      // Evaluar si se excede el límite usando fila centinela
-      const masDe200 = movsCaja.length > 200 || cobrosRes.data.length > 200 || pagosRes.data.length > 200;
-      limiteAlcanzadoPorCaja[caja.id] = masDe200;
+    // Evaluar si se excede el límite usando fila centinela
+    const masDe200 = movsCaja.length > 200 || (cobrosRes.data?.length || 0) > 200 || (pagosRes.data?.length || 0) > 200;
+    limiteAlcanzadoPorCaja[caja.id] = masDe200;
 
-      // Mantener solo los 200 movimientos más recientes de esta caja
-      const sliceMovs = movimientosAgrupados.slice(0, 200);
+    // Mantener solo los 200 movimientos más recientes de esta caja
+    const sliceMovs = movimientosAgrupados.slice(0, 200);
 
-      // Calcular saldo histórico hacia atrás:
-      // saldoAnterior = saldoActual - debe + haber
-      let runningBalance = saldosCierre[caja.id] || 0;
-      for (let i = 0; i < sliceMovs.length; i++) {
-        const m = sliceMovs[i];
-        m.saldo_historico = runningBalance;
-        runningBalance = runningBalance - m.debe + m.haber;
+    // Calcular saldo histórico hacia atrás:
+    // saldoAnterior = saldoActual - debe + haber
+    let runningBalance = saldosCierre[caja.id] || 0;
+    for (let i = 0; i < sliceMovs.length; i++) {
+      const m = sliceMovs[i];
+      m.saldo_historico = runningBalance;
+      runningBalance = runningBalance - m.debe + m.haber;
+    }
+
+    return sliceMovs;
+  };
+
+  // Consultar en lotes de hasta 2 cajas concurrentes para no saturar conexiones HTTP/PostgREST
+  const TAMANIO_LOTE = 2;
+  for (let i = 0; i < cajas.length; i += TAMANIO_LOTE) {
+    const lote = cajas.slice(i, i + TAMANIO_LOTE);
+    const resultados = await Promise.allSettled(lote.map(c => procesarCaja(c)));
+
+    resultados.forEach((res, idx) => {
+      const caja = lote[idx];
+      if (res.status === 'fulfilled' && res.value) {
+        todosLosMovimientos.push(...res.value);
+      } else if (res.status === 'rejected') {
+        console.error(`[Finanzas] Error al cargar movimientos de la caja ${caja.id}:`, res.reason);
+        erroresPorCaja[caja.id] = res.reason;
       }
+    });
+  }
 
-      todosLosMovimientos.push(...sliceMovs);
-    })
-  );
+  // Si fallaron absolutamente todas las cajas consultadas, lanzar error para TanStack Query
+  if (Object.keys(erroresPorCaja).length === cajas.length && cajas.length > 0) {
+    const primerError = Object.values(erroresPorCaja)[0];
+    throw primerError || new Error('No se pudieron obtener los movimientos de las cuentas');
+  }
 
   // Ordenar la lista combinada global de forma descendente por fecha
   todosLosMovimientos.sort(compararMovimientosDesc);
@@ -520,7 +542,7 @@ export const useCajasBancos = (escuelaId: string | null) =>
     queryKey: ['cajas-bancos', escuelaId],
     queryFn: () => fetchCajasBancos(escuelaId!),
     enabled: !!escuelaId,
-    staleTime: 0, // Siempre verificar saldo fresco
+    staleTime: 1000 * 30, // 30 segundos de datos frescos
   });
 
 export const useMovimientos = (
@@ -539,5 +561,5 @@ export const useMovimientos = (
     ],
     queryFn: () => fetchMovimientos(escuelaId!, cajas, rango),
     enabled: habilitado && !!escuelaId && cajas.length > 0,
-    staleTime: 0, // Siempre verificar movimientos frescos
+    staleTime: 1000 * 30, // 30 segundos de datos frescos
   });
