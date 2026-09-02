@@ -31,6 +31,7 @@ import ModalNotaMasiva from '../../components/cxc/ModalNotaMasiva';
 import { useDebounce } from '../../hooks/useDebounce';
 import { useAuthSaaSport } from '../../lib/authHelper';
 import { useCxcBusqueda } from '../../hooks/useFinanzas';
+import { formatearMesCorto } from '../../lib/dateUtils';
 import { useQueryClient } from '@tanstack/react-query';
 import { useIsMobile } from '../../hooks/useIsMobile';
 import { getDataScope } from '../../config/roles';
@@ -526,7 +527,7 @@ const CuentasCobrar: React.FC = () => {
                         {esArchivado && <span className="cxc-badge-archivado">Archivado</span>}
                       </div>
                     </td>
-                    {!isMobile && <td className="cxc-td cxc-td-meta">{alumno.ultima_mensualidad || '—'}</td>}
+                    {!isMobile && <td className="cxc-td cxc-td-meta">{formatearMesCorto(alumno.ultima_mensualidad) || '—'}</td>}
                     {!isMobile && <td className="cxc-td cxc-td-center cxc-td-meta">{alumno.sub ? `Sub ${alumno.sub}` : '—'}</td>}
                     {!isMobile && <td className="cxc-td cxc-td-center cxc-td-asist">{alumno.asistencias_anterior || 0}</td>}
                     {!isMobile && <td className="cxc-td cxc-td-center cxc-td-asist cxc-td-asist--actual">{alumno.asistencias_actual || 0}</td>}

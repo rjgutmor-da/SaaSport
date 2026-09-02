@@ -232,27 +232,56 @@ const normalizarMes = (mes: string): string =>
     .replace(/-[0-9]{4}$/, '')
     .replace(/\.$/, '');
 
-export const obtenerOrdenMes = (mes: string | null | undefined): number =>
-  mes ? (ORDEN_MESES[normalizarMes(mes)] ?? 0) : 0;
+export const obtenerOrdenMes = (mes: string | null | undefined): number => {
+  if (!mes) return 0;
+  const str = mes.trim();
+
+  // 1. Formato ISO YYYY-MM o YYYY-MM-DD (ej: "2026-08", "2026-08-31")
+  const isoMatch = /^(\d{4})-(\d{1,2})(?:-\d{1,2})?$/.exec(str);
+  if (isoMatch) {
+    const num = Number(isoMatch[2]);
+    return num >= 1 && num <= 12 ? num : 0;
+  }
+
+  // 2. Formato MM-YYYY (ej: "08-2026")
+  const mmYyyyMatch = /^(\d{1,2})-(\d{4})$/.exec(str);
+  if (mmYyyyMatch) {
+    const num = Number(mmYyyyMatch[1]);
+    return num >= 1 && num <= 12 ? num : 0;
+  }
+
+  // 3. Número directo de mes (ej: "8", "08")
+  if (/^\d{1,2}$/.test(str)) {
+    const num = Number(str);
+    return num >= 1 && num <= 12 ? num : 0;
+  }
+
+  // 4. Nombre o abreviatura de mes (ej: "Ago-2026", "Agosto", "Ago.", "ago")
+  return ORDEN_MESES[normalizarMes(str)] ?? 0;
+};
 
 /**
  * Unifica los periodos de mensualidad para mostrarlos sin el año completo.
- * Acepta valores heredados como "Jun-2026" y devuelve "Jun".
+ * Acepta valores heredados como "Jun-2026", fechas ISO como "2026-08" y devuelve "Jun" o "Ago".
  */
 export const formatearMesCorto = (mes: string | null | undefined): string => {
   if (!mes) return '';
 
-  const sinAnio = mes.trim().replace(/-[0-9]{2,4}$/, '');
-  const orden = obtenerOrdenMes(sinAnio);
+  const orden = obtenerOrdenMes(mes);
   const mesesCortos = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 
-  return orden > 0 ? mesesCortos[orden - 1] : sinAnio;
+  if (orden >= 1 && orden <= 12) {
+    return mesesCortos[orden - 1];
+  }
+
+  // Si no se reconoce el mes, limpiar sufijo de año si existe y retornar texto limpio
+  return mes.trim().replace(/-[0-9]{4}$/, '');
 };
 
 export const ordenarMesesCalendario = (meses: string[] | null | undefined): string[] =>
   [...(meses || [])].sort((a, b) => {
-    const anioA = Number(/-([0-9]{4})$/.exec(a.trim())?.[1] || 0);
-    const anioB = Number(/-([0-9]{4})$/.exec(b.trim())?.[1] || 0);
+    const anioA = Number(/^(\d{4})-/.exec(a.trim())?.[1] || /-([0-9]{4})$/.exec(a.trim())?.[1] || 0);
+    const anioB = Number(/^(\d{4})-/.exec(b.trim())?.[1] || /-([0-9]{4})$/.exec(b.trim())?.[1] || 0);
     if (anioA && anioB && anioA !== anioB) return anioA - anioB;
 
     const ordenA = obtenerOrdenMes(a) || 99;
