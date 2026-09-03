@@ -39,6 +39,49 @@ type ContactoCobranza = {
   tratamiento: string;
 };
 
+type DetalleItemCobranza = {
+  item_nombre?: string | null;
+  periodo_meses?: string[] | null;
+  periodo_estadistico?: string | null;
+};
+
+const formatearPeriodoCobranza = (periodo: string): string => {
+  const valor = periodo.trim();
+  const isoMatch = /^(\d{4})-(\d{1,2})(?:-\d{1,2})?$/.exec(valor);
+  if (isoMatch) return formatearMesCorto(isoMatch[2]) + '-' + isoMatch[1];
+
+  const mesAnioMatch = /^(.+?)-(\d{4})$/.exec(valor);
+  if (mesAnioMatch) return formatearMesCorto(mesAnioMatch[1]) + '-' + mesAnioMatch[2];
+
+  return valor;
+};
+
+const obtenerDescripcionCobranza = (
+  cxc: CuentaCobrar,
+  detallesPorCuenta: Record<string, DetalleItemCobranza[]>,
+): string => {
+  const descripcion = cxc.descripcion?.trim() || 'Deuda pendiente';
+  const detallesMensualidad = (detallesPorCuenta[cxc.id] || []).filter(item =>
+    item.item_nombre?.toLowerCase().includes('mensualidad')
+  );
+  if (detallesMensualidad.length === 0) return descripcion;
+
+  const periodos = detallesMensualidad.flatMap(item => item.periodo_meses || []);
+  if (periodos.length === 0 && cxc.periodo) periodos.push(cxc.periodo);
+
+  const periodosUnicos = [...new Set(
+    ordenarMesesCalendario(periodos).map(formatearPeriodoCobranza)
+  )];
+  if (periodosUnicos.length === 0) return descripcion;
+
+  const descripcionNormalizada = descripcion.toLowerCase();
+  const yaIncluyePeriodo = periodosUnicos.some(periodo =>
+    descripcionNormalizada.includes(periodo.toLowerCase())
+  );
+
+  return yaIncluyePeriodo ? descripcion : descripcion + ' (' + periodosUnicos.join(', ') + ')';
+};
+
 const obtenerContactoCobranza = (alumno: AlumnoDeuda): ContactoCobranza | null => {
   const contactoPadre: ContactoCobranza = {
     telefono: alumno.telefono_padre,
@@ -60,7 +103,11 @@ const obtenerContactoCobranza = (alumno: AlumnoDeuda): ContactoCobranza | null =
   return contactoPadre.telefono ? contactoPadre : contactoMadre.telefono ? contactoMadre : null;
 };
 
-const obtenerUrlCobranzaWhatsApp = (alumno: AlumnoDeuda, cxcs: CuentaCobrar[]): string | null => {
+const obtenerUrlCobranzaWhatsApp = (
+  alumno: AlumnoDeuda,
+  cxcs: CuentaCobrar[],
+  detallesPorCuenta: Record<string, DetalleItemCobranza[]>,
+): string | null => {
   if (alumno.archivado) return null;
 
   const contacto = obtenerContactoCobranza(alumno);
@@ -78,7 +125,7 @@ const obtenerUrlCobranzaWhatsApp = (alumno: AlumnoDeuda, cxcs: CuentaCobrar[]): 
     ? `${contacto.tratamiento} ${nombreContacto}`
     : 'Estimado/a padre/madre';
   const listadoDeudas = deudasCobrables
-    .map(cxc => `• ${cxc.descripcion?.trim() || 'Deuda pendiente'}: Bs ${fmtMonto(Number(cxc.saldo_pendiente))}`)
+    .map(cxc => `• ${obtenerDescripcionCobranza(cxc, detallesPorCuenta)}: Bs ${fmtMonto(Number(cxc.saldo_pendiente))}`)
     .join('\n');
   const mensaje = [
     `${saludo}, le informamos que actualmente registra los siguientes pagos pendientes correspondientes a *${alumno.nombres.trim()}*:`,
@@ -712,7 +759,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
 
               {/* Botón WhatsApp — solo móvil */}
               {!soloHistorial && (() => {
-                const url = obtenerUrlCobranzaWhatsApp(alumno, cxcs);
+                const url = obtenerUrlCobranzaWhatsApp(alumno, cxcs, detallesItems);
                 if (!url) return null;
                 return (
                   <a
@@ -765,7 +812,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                   {(() => {
                     const contactoPrincipal = obtenerContactoCobranza(alumno);
                     const telefonoPrincipal = contactoPrincipal?.telefono;
-                    const urlCobranzaWhatsApp = obtenerUrlCobranzaWhatsApp(alumno, cxcs);
+                    const urlCobranzaWhatsApp = obtenerUrlCobranzaWhatsApp(alumno, cxcs, detallesItems);
                     return (
                       <>
                         <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#a855f7' }}>
