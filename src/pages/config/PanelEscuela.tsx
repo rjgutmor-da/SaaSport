@@ -500,12 +500,14 @@ const PanelEscuela: React.FC = () => {
           {/* Fotos de Asistencia → solo escuelas habilitadas */}
           {(() => {
             const tieneAcceso = escuela && ESCUELAS_CON_FOTOS_ASISTENCIA.includes(escuela.nombre);
+            const puedeVerPromocion = perfil?.rol === 'Administrador' || perfil?.rol === 'SuperAdministrador';
+            const mensajePromocion = 'solicita su activación desde $us 5 mensuales';
             return (
               <button
                 className={`pe-acceso-card pe-acceso-purple${!tieneAcceso ? ' pe-acceso-bloqueado' : ''}`}
                 onClick={() => tieneAcceso ? navigate('/panel-escuela/fotos-asistencia') : undefined}
                 disabled={!tieneAcceso}
-                title={tieneAcceso ? 'Ver fotos grupales de asistencia' : 'Funcionalidad no disponible en tu plan actual'}
+                title={tieneAcceso ? 'Ver fotos grupales de asistencia' : (puedeVerPromocion ? mensajePromocion : 'Funcionalidad no disponible en tu plan actual')}
                 style={!tieneAcceso ? { opacity: 0.45, cursor: 'not-allowed', filter: 'grayscale(0.3)' } : {}}
               >
                 <div className="pe-acceso-icon" style={{ position: 'relative' }}>
