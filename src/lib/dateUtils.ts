@@ -383,3 +383,25 @@ export const diferenciaEnMeses = (fechaA: string, fechaB: string): number => {
   return (bY - aY) * 12 + (bM - aM);
 };
 
+/**
+ * Retorna la etiqueta de la categoría deportiva Sub (ej. "Sub-14").
+ * En fútbol formativo, la categoría se rige exclusivamente por el año de nacimiento
+ * (Año actual - Año de nacimiento), sin depender del día o mes de cumpleaños.
+ */
+export const formatearCategoriaSub = (
+  sub?: number | null,
+  fechaNacimiento?: string | null,
+  textoDefault = 'Categoría'
+): string => {
+  if (sub && !isNaN(sub) && sub > 0) {
+    return `Sub-${sub}`;
+  }
+  if (fechaNacimiento) {
+    const anioNac = parseInt(String(fechaNacimiento).split('-')[0], 10);
+    const anioActual = new Date().getFullYear();
+    if (!isNaN(anioNac) && anioNac > 1900 && anioActual >= anioNac) {
+      return `Sub-${anioActual - anioNac}`;
+    }
+  }
+  return textoDefault;
+};
