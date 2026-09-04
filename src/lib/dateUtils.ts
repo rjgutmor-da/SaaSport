@@ -121,23 +121,16 @@ export const formatFecha = (iso: string | null | undefined): string => {
       // Fallback por si el formato es distinto
       const d = new Date(iso);
       if (isNaN(d.getTime())) return iso;
-      return d.toLocaleDateString('es-BO', { 
-        day: '2-digit', 
-        month: '2-digit', 
-        year: 'numeric' 
-      });
+      const dia = String(d.getDate()).padStart(2, '0');
+      const mes = String(d.getMonth() + 1).padStart(2, '0');
+      const anio = d.getFullYear();
+      return `${dia}/${mes}/${anio}`;
     }
     
-    const year = parseInt(parts[0], 10);
-    const month = parseInt(parts[1], 10) - 1;
-    const day = parseInt(parts[2], 10);
-    
-    const d = new Date(year, month, day);
-    return d.toLocaleDateString('es-BO', { 
-      day: '2-digit', 
-      month: '2-digit', 
-      year: 'numeric' 
-    });
+    const year = parts[0];
+    const month = parts[1].padStart(2, '0');
+    const day = parts[2].padStart(2, '0');
+    return `${day}/${month}/${year}`;
   } catch {
     return iso;
   }

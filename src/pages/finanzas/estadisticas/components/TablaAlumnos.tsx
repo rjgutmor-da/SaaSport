@@ -9,6 +9,7 @@ import React, { useState, useMemo } from 'react';
 import { Search, Copy, Check, RefreshCw } from 'lucide-react';
 import type { AlumnoPorItem } from '../hooks/useAlumnosPorItem';
 import { fmtMonto } from '../utils/estadisticasUtils';
+import { formatFecha } from '../../../../lib/dateUtils';
 
 interface Props {
   alumnos: AlumnoPorItem[];
@@ -31,7 +32,8 @@ const TablaAlumnos: React.FC<Props> = ({
     const q = busqueda.toLowerCase();
     return alumnos.filter(a =>
       a.nombre_completo.toLowerCase().includes(q) ||
-      a.detalle.toLowerCase().includes(q)
+      a.detalle.toLowerCase().includes(q) ||
+      formatFecha(a.fecha).toLowerCase().includes(q)
     );
   }, [alumnos, busqueda]);
 
@@ -47,7 +49,7 @@ const TablaAlumnos: React.FC<Props> = ({
 
   /** Copia la tabla como texto TSV (Tab-Separated Values) listo para pegar en Excel */
   const copiarTabla = () => {
-    const cabecera = ['Alumno', 'Entrenador', 'Concepto', 'Sub', 'Monto', 'Saldo Pendiente', 'Fecha de Emision'].join('\t');
+    const cabecera = ['Alumno', 'Entrenador', 'Concepto', 'Sub', 'Monto', 'Saldo Pendiente', 'Fecha de Emisión'].join('\t');
     const filas = alumnosFiltrados.map(a => [
       a.nombre_completo,
       a.entrenador,
@@ -55,7 +57,7 @@ const TablaAlumnos: React.FC<Props> = ({
       a.sub,
       a.monto.toFixed(2).replace('.', ','),
       a.saldo_pendiente.toFixed(2).replace('.', ','),
-      a.fecha
+      formatFecha(a.fecha)
     ].join('\t'));
     const texto = [cabecera, ...filas].join('\n');
     navigator.clipboard.writeText(texto).then(() => {
@@ -149,7 +151,7 @@ const TablaAlumnos: React.FC<Props> = ({
                   <td className="est-td est-td-right text-warn">
                     {fmtMonto(a.saldo_pendiente)}
                   </td>
-                  <td className="est-td est-td-fecha">{a.fecha}</td>
+                  <td className="est-td est-td-fecha">{formatFecha(a.fecha)}</td>
                 </tr>
               ))
             )}

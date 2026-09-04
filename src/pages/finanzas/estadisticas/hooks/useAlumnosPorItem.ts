@@ -95,8 +95,27 @@ export function useAlumnosPorItem(
     setError(null);
 
     try {
+      // Helper para paginar consultas en lotes de 1000 y evitar que PostgREST
+      // limite silenciosamente los resultados cuando hay más de 1000 registros.
+      async function ejecutarConsultaPaginada(queryBuilder: any): Promise<any[]> {
+        const TAMANIO_LOTE = 1000;
+        let todos: any[] = [];
+        let desdeIndice = 0;
+
+        while (true) {
+          const { data, error } = await queryBuilder.range(desdeIndice, desdeIndice + TAMANIO_LOTE - 1);
+          if (error) throw new Error(error.message);
+          if (!data || data.length === 0) break;
+          todos = todos.concat(data);
+          if (data.length < TAMANIO_LOTE) break;
+          desdeIndice += TAMANIO_LOTE;
+        }
+
+        return todos;
+      }
+
       // Consultamos las notas emitidas para que el saldo represente la deuda real,
-      // no solo los cobros ya aplicados.
+      // filtrando directamente por el ítem en la base de datos para no desbordar el límite de filas.
       let query = supabase
         .from('cuentas_cobrar')
         .select(`
@@ -111,7 +130,7 @@ export function useAlumnosPorItem(
           cobros_aplicados (
             monto_aplicado
           ),
-          cxc_detalle (
+          cxc_detalle!inner (
             id,
             subtotal,
             periodo_meses,
@@ -137,12 +156,12 @@ export function useAlumnosPorItem(
         // Los anticipos pueden reclasificarse con el concepto final al aplicarse,
         // pero no representan una compra adicional en esta estadística.
         .eq('es_anticipo', false)
-        .or(`and(periodo_estadistico.gte.${desde},periodo_estadistico.lte.${hasta}),and(periodo_estadistico.is.null,fecha_emision.gte.${desde},fecha_emision.lte.${hasta})`)
-        .limit(5000);
+        .eq('cxc_detalle.catalogo_item_id', itemId)
+        .or(`and(periodo_estadistico.gte.${desde},periodo_estadistico.lte.${hasta}),and(periodo_estadistico.is.null,fecha_emision.gte.${desde},fecha_emision.lte.${hasta})`);
 
       // Una nota puede contener mensualidades de varios ciclos. Esta segunda
-      // consulta recupera las notas por el periodo de cada linea, aunque la
-      // cabecera no tenga un unico periodo representativo.
+      // consulta recupera las notas por el periodo de cada línea, aunque la
+      // cabecera no tenga un único periodo representativo.
       let queryPorPeriodoDetalle = supabase
         .from('cuentas_cobrar')
         .select(`
@@ -183,8 +202,7 @@ export function useAlumnosPorItem(
         .eq('es_anticipo', false)
         .eq('cxc_detalle.catalogo_item_id', itemId)
         .gte('cxc_detalle.periodo_estadistico', desde)
-        .lte('cxc_detalle.periodo_estadistico', hasta)
-        .limit(5000);
+        .lte('cxc_detalle.periodo_estadistico', hasta);
 
       // Filtros adicionales condicionales
       if (entrenadorId) {
@@ -200,19 +218,26 @@ export function useAlumnosPorItem(
         queryPorPeriodoDetalle = queryPorPeriodoDetalle.eq('alumnos.grupo_id', grupoId);
       }
 
-      const [
-        { data: dataCabecera, error: errorCabecera },
-        { data: dataDetalle, error: errorDetalle },
-      ] = await Promise.all([query, queryPorPeriodoDetalle]);
-
-      if (errorCabecera) throw new Error(errorCabecera.message);
-      if (errorDetalle) throw new Error(errorDetalle.message);
+      const [dataCabecera, dataDetalle] = await Promise.all([
+        ejecutarConsultaPaginada(query),
+        ejecutarConsultaPaginada(queryPorPeriodoDetalle),
+      ]);
 
       const notasPorId = new Map<string, any>();
-      for (const nota of [...(dataCabecera || []), ...(dataDetalle || [])] as any[]) {
+      for (const nota of [...dataCabecera, ...dataDetalle]) {
         const existente = notasPorId.get(nota.id);
-        if (!existente || (nota.cxc_detalle?.length || 0) > (existente.cxc_detalle?.length || 0)) {
-          notasPorId.set(nota.id, nota);
+        if (!existente) {
+          notasPorId.set(nota.id, { ...nota, cxc_detalle: [...(nota.cxc_detalle || [])] });
+        } else {
+          // Fusionar cxc_detalle evitando duplicados por id
+          const detallesMap = new Map<string, any>();
+          for (const d of existente.cxc_detalle || []) {
+            detallesMap.set(d.id, d);
+          }
+          for (const d of nota.cxc_detalle || []) {
+            detallesMap.set(d.id, d);
+          }
+          existente.cxc_detalle = Array.from(detallesMap.values());
         }
       }
 
@@ -265,23 +290,32 @@ export function useAlumnosPorItem(
           const fechaEstadistica = detInteres.periodo_estadistico || cxc.periodo_estadistico || fechaEmision;
           if (!fechaEstadistica || fechaEstadistica < desde || fechaEstadistica > hasta) continue;
 
-          // Filtro de sub-ítems (Meses o Torneos)
+          // Filtro de sub-ítems (Meses para mensualidad o Torneo/texto en detalle_extra)
           if (filtroSubItems && filtroSubItems.length > 0) {
             let cumpleSub = false;
-            const mesPeriodoEstadistico = /^\d{4}-(\d{2})-(\d{2})$/.exec(
-              detInteres.periodo_estadistico || cxc.periodo_estadistico || '',
-            )?.[1];
-            if (mesPeriodoEstadistico) {
-              const ordenesFiltro = filtroSubItems.map(f => obtenerOrdenMes(f)).filter(o => o > 0);
-              cumpleSub = ordenesFiltro.includes(Number(mesPeriodoEstadistico));
-            } else if (Array.isArray(detInteres.periodo_meses)) {
-              const ordenesFiltro = filtroSubItems.map(f => obtenerOrdenMes(f)).filter(o => o > 0);
-              cumpleSub = (detInteres.periodo_meses as string[]).some(m => {
-                const ordenM = obtenerOrdenMes(m);
-                return filtroSubItems.includes(m) || (ordenM > 0 && ordenesFiltro.includes(ordenM));
+            const ordenesFiltro = filtroSubItems.map(f => obtenerOrdenMes(f)).filter(o => o > 0);
+            const esFiltroMeses = ordenesFiltro.length > 0;
+
+            if (esFiltroMeses) {
+              const mesPeriodoEstadistico = /^\d{4}-(\d{2})-(\d{2})$/.exec(
+                detInteres.periodo_estadistico || cxc.periodo_estadistico || '',
+              )?.[1];
+              if (mesPeriodoEstadistico && ordenesFiltro.includes(Number(mesPeriodoEstadistico))) {
+                cumpleSub = true;
+              } else if (Array.isArray(detInteres.periodo_meses)) {
+                cumpleSub = (detInteres.periodo_meses as string[]).some(m => {
+                  const ordenM = obtenerOrdenMes(m);
+                  return filtroSubItems.includes(m) || (ordenM > 0 && ordenesFiltro.includes(ordenM));
+                });
+              }
+            } else {
+              // Subfiltro por texto (ej. nombre del torneo en detalle_extra o descripción)
+              const detalleExtra = String(detInteres.detalle_extra || '').toLowerCase();
+              const descripcionNota = String(cxc.descripcion || '').toLowerCase();
+              cumpleSub = filtroSubItems.some(f => {
+                const querySub = f.toLowerCase();
+                return detalleExtra.includes(querySub) || descripcionNota.includes(querySub);
               });
-            } else if (detInteres.detalle_extra) {
-              cumpleSub = filtroSubItems.some(f => detInteres.detalle_extra.toLowerCase().includes(f.toLowerCase()));
             }
             if (!cumpleSub) continue;
           }
