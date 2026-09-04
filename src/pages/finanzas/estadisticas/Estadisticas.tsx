@@ -66,10 +66,12 @@ const Estadisticas: React.FC = () => {
   const { escuelaId } = useEscuelaId();
 
   // ─── Estado compartido: filtro de fechas ───
-  const [intervalo, setIntervalo] = useState<IntervaloPredefinido>('total');
+  const [intervalo, setIntervalo] = useState<IntervaloPredefinido>('este-mes');
+  const [fechaDesde, setFechaDesde] = useState('');
+  const [fechaHasta, setFechaHasta] = useState('');
 
-  // ─── Pestaña activa ───
-  const [pestaña, setPestaña] = useState<Pestaña>('resumen');
+  // ─── Pestaña activa (Alumnos por Ítem primero como en la vista principal) ───
+  const [pestaña, setPestaña] = useState<Pestaña>('alumnos');
 
   // ─── Catálogo de ítems ───
   const [catalogo, setCatalogo] = useState<CatalogoItem[]>([]);
@@ -83,6 +85,7 @@ const Estadisticas: React.FC = () => {
   const [entrenadorId, setEntrenadorId] = useState('');
   const [sucursalId, setSucursalId] = useState('');
   const [grupoId, setGrupoId] = useState('');
+  const [horarioId, setHorarioId] = useState('');
   const [pagadoFiltro, setPagadoFiltro] = useState('');
 
   // Filtro de monto (chips exactos y rango)
@@ -104,8 +107,9 @@ const Estadisticas: React.FC = () => {
   };
 
   // Subfiltros: meses (para Mensualidad) o torneo seleccionado (para Torneos)
-  const [mesesSeleccionados, setMesesSeleccionados] = useState<string[]>([]);
   const anioActual = new Date().getFullYear();
+  const mesActualNombre = NOMBRES_MESES[new Date().getMonth()];
+  const [mesesSeleccionados, setMesesSeleccionados] = useState<string[]>([mesActualNombre]);
   const [anioMensualidad, setAnioMensualidad] = useState<number>(anioActual);
   const aniosMensualidad = useMemo(
     () => Array.from({ length: 11 }, (_, index) => anioActual + 1 - index),
@@ -122,9 +126,6 @@ const Estadisticas: React.FC = () => {
   // ─── Determinar si el ítem seleccionado tiene subfiltro ───
   const esMensualidad = itemSeleccionado?.nombre?.toLowerCase().includes('mensualidad') ?? false;
   const esTorneo = itemSeleccionado?.nombre?.toLowerCase().includes('torneo') ?? false;
-  const tieneSubfiltro = esMensualidad || esTorneo;
-
-  /** Etiqueta de la columna de detalle en la tabla */
 
   /** Torneo efectivo para filtrar */
   const torneoEfectivo = torneoSeleccionado === 'Otro'
@@ -141,34 +142,38 @@ const Estadisticas: React.FC = () => {
   // ─── Hooks de datos ───
   const resumen = useResumenFinanciero(
     escuelaId,
-    intervalo
+    intervalo,
+    fechaDesde,
+    fechaHasta
   );
 
   const alumnosResult = useAlumnosPorItem(
     escuelaId,
     itemSeleccionado?.id ?? null,
     intervalo,
-    undefined,
-    undefined,
+    fechaDesde,
+    fechaHasta,
     subfiltrosActivos.length > 0 ? subfiltrosActivos : undefined,
     sucursalId,
     entrenadorId,
     grupoId,
     itemSeleccionado?.nombre,
     pagadoFiltro,
-    esMensualidad ? anioMensualidad : undefined,
+    anioMensualidad,
     montosExactos,
     montoRangoObj,
+    horarioId,
   );
 
   const cxcResult = useCuentasPorCobrar(
     escuelaId,
     intervalo,
-    undefined,
-    undefined,
+    fechaDesde,
+    fechaHasta,
     sucursalId,
     entrenadorId,
-    grupoId
+    grupoId,
+    horarioId
   );
 
   // ─── Cargar catálogo ───
@@ -195,6 +200,13 @@ const Estadisticas: React.FC = () => {
         }
       }
       setCatalogo(unicos);
+
+      // Precargar Mensualidad por defecto si está disponible para acelerar la vista
+      if (unicos.length > 0) {
+        const mensualidadItem = unicos.find(i => i.nombre.toLowerCase().includes('mensualidad')) || unicos[0];
+        setItemSeleccionado(mensualidadItem);
+      }
+
       setCargandoCatalogo(false);
 
       // Cargar Torneos dinámicamente
@@ -235,11 +247,19 @@ const Estadisticas: React.FC = () => {
 
     if (nuevoIntervalo === 'año-pasado') {
       setAnioMensualidad(anioActual - 1);
+      setMesesSeleccionados([]);
     } else if (nuevoIntervalo === 'mes-pasado') {
       const mesPasado = new Date(anioActual, new Date().getMonth() - 1, 1);
       setAnioMensualidad(mesPasado.getFullYear());
-    } else if (nuevoIntervalo === 'este-mes' || nuevoIntervalo === 'este-año') {
+      setMesesSeleccionados([NOMBRES_MESES[mesPasado.getMonth()]]);
+    } else if (nuevoIntervalo === 'este-mes') {
       setAnioMensualidad(anioActual);
+      setMesesSeleccionados([NOMBRES_MESES[new Date().getMonth()]]);
+    } else if (nuevoIntervalo === 'este-año') {
+      setAnioMensualidad(anioActual);
+      setMesesSeleccionados([]);
+    } else if (nuevoIntervalo === 'personalizado') {
+      setMesesSeleccionados([]);
     }
   };
 
@@ -250,6 +270,10 @@ const Estadisticas: React.FC = () => {
       <SelectorFechas
         intervalo={intervalo}
         onCambiarIntervalo={cambiarIntervalo}
+        fechaDesde={fechaDesde}
+        fechaHasta={fechaHasta}
+        onChangeFechaDesde={setFechaDesde}
+        onChangeFechaHasta={setFechaHasta}
       />
 
       {/* ─── Pestañas ─── */}
@@ -367,61 +391,109 @@ const Estadisticas: React.FC = () => {
                       sucursalId={sucursalId}
                       entrenadorId={entrenadorId}
                       grupoId={grupoId}
+                      horarioId={horarioId}
                       onChangeSucursal={setSucursalId}
                       onChangeEntrenador={setEntrenadorId}
                       onChangeGrupo={setGrupoId}
+                      onChangeHorario={setHorarioId}
                       onLimpiar={() => {
                         setSucursalId('');
                         setEntrenadorId('');
                         setGrupoId('');
+                        setHorarioId('');
                       }}
                       compact
                     />
                   </div>
-                  {!esMensualidad && (
-                    <select
-                      className="cxc-filtro-select est-filtro-pagado"
-                      value={pagadoFiltro}
-                      onChange={e => setPagadoFiltro(e.target.value)}
-                      aria-label="Filtrar por estado de pago"
-                    >
-                      <option value="">Pagado</option>
-                      <option value="Si">Sí</option>
-                      <option value="No">No</option>
-                    </select>
-                  )}
                 </div>
               </div>
 
-              {/* Subfiltro para Mensualidad: selector de meses con Pagado, Año y Monto inline */}
-              {esMensualidad && (
-                <div className="est-filtro-meses-row">
-                  <div className="est-filtro-meses-col-meses">
-                    <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 500, paddingLeft: '2px', display: 'block', marginBottom: '0.2rem' }}>
-                      Meses <span className="est-filtro-hint">(opcional — deja vacío para ver todos)</span>
-                    </span>
-                    <div className="est-meses-grid">
-                      {NOMBRES_MESES.map(mes => (
+              {/* Fila de subfiltros y controles (Meses/Torneo + Pagado, Año y Monto unificados para todos los conceptos) */}
+              {itemSeleccionado && (
+                <div className="est-filtro-meses-row" style={{ alignItems: 'flex-end' }}>
+                  {/* Selector de Meses para Mensualidad */}
+                  {esMensualidad && (
+                    <div className="est-filtro-meses-col-meses">
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 500, paddingLeft: '2px', display: 'block', marginBottom: '0.2rem' }}>
+                        Meses <span className="est-filtro-hint">(opcional — deja vacío para ver todos)</span>
+                      </span>
+                      <div className="est-meses-grid">
+                        {NOMBRES_MESES.map(mes => (
+                          <button
+                            key={mes}
+                            className={`est-mes-chip ${mesesSeleccionados.includes(mes) ? 'est-mes-chip--activo' : ''}`}
+                            onClick={() => toggleMes(mes)}
+                          >
+                            {mes}
+                          </button>
+                        ))}
+                        {mesesSeleccionados.length > 0 && (
+                          <button
+                            className="est-limpiar-subfiltro-chip"
+                            onClick={() => setMesesSeleccionados([])}
+                          >
+                            <X size={12} /> Limpiar
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Selector de Torneos para Torneos */}
+                  {esTorneo && (
+                    <div className="est-filtro-meses-col-meses" style={{ minWidth: '240px' }}>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 500, paddingLeft: '2px', display: 'block', marginBottom: '0.2rem' }}>
+                        Torneo <span className="est-filtro-hint">(opcional — sin selección muestra todos)</span>
+                      </span>
+                      <div className="est-fechas-chips" style={{ flexWrap: 'wrap', gap: '0.4rem' }}>
                         <button
-                          key={mes}
-                          className={`est-mes-chip ${mesesSeleccionados.includes(mes) ? 'est-mes-chip--activo' : ''}`}
-                          onClick={() => toggleMes(mes)}
+                          className={`est-chip ${torneoSeleccionado === '' ? 'est-chip--activo' : ''}`}
+                          onClick={() => { setTorneoSeleccionado(''); setTorneoPersonalizado(''); }}
                         >
-                          {mes}
+                          Todos
                         </button>
-                      ))}
-                      {mesesSeleccionados.length > 0 && (
+                        {torneos.map(t => (
+                          <button
+                            key={t}
+                            className={`est-chip ${torneoSeleccionado === t ? 'est-chip--activo' : ''}`}
+                            onClick={() => { setTorneoSeleccionado(t); setTorneoPersonalizado(''); }}
+                          >
+                            {t}
+                          </button>
+                        ))}
                         <button
-                          className="est-limpiar-subfiltro-chip"
-                          onClick={() => setMesesSeleccionados([])}
+                          className={`est-chip ${torneoSeleccionado === 'Otro' ? 'est-chip--activo' : ''}`}
+                          onClick={() => setTorneoSeleccionado('Otro')}
                         >
-                          <X size={12} /> Limpiar
+                          Otro...
                         </button>
+                      </div>
+
+                      {torneoSeleccionado === 'Otro' && (
+                        <div className="est-torneo-input-wrap" style={{ marginTop: '0.5rem' }}>
+                          <input
+                            type="text"
+                            className="est-input-torneo"
+                            placeholder="Escribe el nombre del torneo..."
+                            value={torneoPersonalizado}
+                            onChange={e => setTorneoPersonalizado(e.target.value)}
+                            autoFocus
+                          />
+                          {torneoPersonalizado && (
+                            <button
+                              className="est-torneo-limpiar"
+                              onClick={() => setTorneoPersonalizado('')}
+                            >
+                              <X size={14} />
+                            </button>
+                          )}
+                        </div>
                       )}
                     </div>
-                  </div>
+                  )}
 
-                  <div className="est-filtros-meses-inline">
+                  {/* Bloque inline: Pagado, Año y Monto (común para TODOS los conceptos) */}
+                  <div className="est-filtros-meses-inline" style={{ marginLeft: !esMensualidad && !esTorneo ? '0' : 'auto' }}>
                     <div className="est-filtro-item-label est-filtro-pagado">
                       <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 500, paddingLeft: '2px' }}>Pagado</span>
                       <select 
@@ -442,7 +514,6 @@ const Estadisticas: React.FC = () => {
                         value={anioMensualidad}
                         onChange={e => {
                           setAnioMensualidad(Number(e.target.value));
-                          setIntervalo('total');
                         }}
                       >
                         {aniosMensualidad.map(anio => (
@@ -464,66 +535,6 @@ const Estadisticas: React.FC = () => {
                       onLimpiarMonto={limpiarMonto}
                     />
                   </div>
-                </div>
-              )}
-
-              {/* Subfiltro para Torneos: dropdown predefinido + campo libre para "Otro" */}
-              {esTorneo && (
-                <div className="est-filtro-grupo">
-                  <label className="est-filtro-label">
-                    Torneo <span className="est-filtro-hint">(opcional — sin selección muestra todos)</span>
-                  </label>
-
-                  {/* Chips de torneos predefinidos */}
-                  <div className="est-fechas-chips" style={{ flexWrap: 'wrap', gap: '0.4rem' }}>
-                    {/* Chip "Todos" para limpiar */}
-                    <button
-                      className={`est-chip ${torneoSeleccionado === '' ? 'est-chip--activo' : ''}`}
-                      onClick={() => { setTorneoSeleccionado(''); setTorneoPersonalizado(''); }}
-                    >
-                      Todos
-                    </button>
-
-                    {torneos.map(t => (
-                      <button
-                        key={t}
-                        className={`est-chip ${torneoSeleccionado === t ? 'est-chip--activo' : ''}`}
-                        onClick={() => { setTorneoSeleccionado(t); setTorneoPersonalizado(''); }}
-                      >
-                        {t}
-                      </button>
-                    ))}
-
-                    {/* Opción "Otro" */}
-                    <button
-                      className={`est-chip ${torneoSeleccionado === 'Otro' ? 'est-chip--activo' : ''}`}
-                      onClick={() => setTorneoSeleccionado('Otro')}
-                    >
-                      Otro...
-                    </button>
-                  </div>
-
-                  {/* Campo libre si eligió "Otro" */}
-                  {torneoSeleccionado === 'Otro' && (
-                    <div className="est-torneo-input-wrap" style={{ marginTop: '0.5rem' }}>
-                      <input
-                        type="text"
-                        className="est-input-torneo"
-                        placeholder="Escribe el nombre del torneo..."
-                        value={torneoPersonalizado}
-                        onChange={e => setTorneoPersonalizado(e.target.value)}
-                        autoFocus
-                      />
-                      {torneoPersonalizado && (
-                        <button
-                          className="est-torneo-limpiar"
-                          onClick={() => setTorneoPersonalizado('')}
-                        >
-                          <X size={14} />
-                        </button>
-                      )}
-                    </div>
-                  )}
                 </div>
               )}
             </div>
@@ -552,13 +563,16 @@ const Estadisticas: React.FC = () => {
                 sucursalId={sucursalId}
                 entrenadorId={entrenadorId}
                 grupoId={grupoId}
+                horarioId={horarioId}
                 onChangeSucursal={setSucursalId}
                 onChangeEntrenador={setEntrenadorId}
                 onChangeGrupo={setGrupoId}
+                onChangeHorario={setHorarioId}
                 onLimpiar={() => {
                   setSucursalId('');
                   setEntrenadorId('');
                   setGrupoId('');
+                  setHorarioId('');
                 }}
                 compact
               />

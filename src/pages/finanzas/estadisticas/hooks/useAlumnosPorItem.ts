@@ -50,6 +50,7 @@ export function useAlumnosPorItem(
   anioMensualidad?: number,
   montosExactos?: number[],
   montoRango?: { desde?: number; hasta?: number },
+  horarioId?: string,
 ): UseAlumnosPorItemResult {
   const [alumnos, setAlumnos] = useState<AlumnoPorItem[]>([]);
   const [montosUnicos, setMontosUnicos] = useState<number[]>([]);
@@ -65,12 +66,17 @@ export function useAlumnosPorItem(
       setMontosUnicos([]);
       return;
     }
-    const rangoIntervalo = calcularRango(intervalo);
+    const rangoIntervalo = calcularRango(intervalo, desdePersonalizado, hastaPersonalizado);
+    // Si hay subfiltros específicos (ej. meses o torneos seleccionados a mano),
+    // ampliamos la búsqueda al año completo de anioMensualidad para que no se trunque por el mes del intervalo general
+    const tieneSubfiltroManual = filtroSubItems && filtroSubItems.length > 0;
     const rango = anioMensualidad
-      ? {
-          desde: rangoIntervalo.desde > `${anioMensualidad}-01-01` ? rangoIntervalo.desde : `${anioMensualidad}-01-01`,
-          hasta: rangoIntervalo.hasta < `${anioMensualidad}-12-31` ? rangoIntervalo.hasta : `${anioMensualidad}-12-31`,
-        }
+      ? tieneSubfiltroManual && intervalo !== 'personalizado'
+        ? { desde: `${anioMensualidad}-01-01`, hasta: `${anioMensualidad}-12-31` }
+        : {
+            desde: rangoIntervalo.desde > `${anioMensualidad}-01-01` ? rangoIntervalo.desde : `${anioMensualidad}-01-01`,
+            hasta: rangoIntervalo.hasta < `${anioMensualidad}-12-31` ? rangoIntervalo.hasta : `${anioMensualidad}-12-31`,
+          }
       : rangoIntervalo;
 
     if (rango.desde > rango.hasta) {
@@ -82,7 +88,7 @@ export function useAlumnosPorItem(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [escuelaId, catalogoItemId, intervalo, desdePersonalizado, hastaPersonalizado, tick,
     // serializar filtros para evitar re-renders infinitos
-    JSON.stringify(filtroSubItems), sucursalId, entrenadorId, grupoId, conceptoNombre, pagadoFiltro,
+    JSON.stringify(filtroSubItems), sucursalId, entrenadorId, grupoId, horarioId, conceptoNombre, pagadoFiltro,
     anioMensualidad, JSON.stringify(montosExactos), JSON.stringify(montoRango)]);
 
   async function cargarAlumnos(
@@ -147,6 +153,7 @@ export function useAlumnosPorItem(
             profesor_asignado_id,
             sucursal_id,
             grupo_id,
+            horario_id,
             sucursales ( nombre ),
             usuarios!alumnos_profesor_asignado_id_fkey ( nombres, apellidos )
           )
@@ -193,6 +200,7 @@ export function useAlumnosPorItem(
             profesor_asignado_id,
             sucursal_id,
             grupo_id,
+            horario_id,
             sucursales ( nombre ),
             usuarios!alumnos_profesor_asignado_id_fkey ( nombres, apellidos )
           )
@@ -216,6 +224,10 @@ export function useAlumnosPorItem(
       if (grupoId) {
         query = query.eq('alumnos.grupo_id', grupoId);
         queryPorPeriodoDetalle = queryPorPeriodoDetalle.eq('alumnos.grupo_id', grupoId);
+      }
+      if (horarioId) {
+        query = query.eq('alumnos.horario_id', horarioId);
+        queryPorPeriodoDetalle = queryPorPeriodoDetalle.eq('alumnos.horario_id', horarioId);
       }
 
       const [dataCabecera, dataDetalle] = await Promise.all([
@@ -255,6 +267,7 @@ export function useAlumnosPorItem(
         if (entrenadorId && alu.profesor_asignado_id !== entrenadorId) continue;
         if (sucursalId && alu.sucursal_id !== sucursalId) continue;
         if (grupoId && alu.grupo_id !== grupoId) continue;
+        if (horarioId && alu.horario_id !== horarioId) continue;
 
 
         // Calcular SUB (Categoría por edad)

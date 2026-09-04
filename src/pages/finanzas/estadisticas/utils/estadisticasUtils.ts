@@ -7,19 +7,23 @@
  */
 
 export type IntervaloPredefinido =
-  | 'total'
   | 'este-mes'
   | 'mes-pasado'
   | 'este-año'
-  | 'año-pasado';
+  | 'año-pasado'
+  | 'personalizado';
 
 export interface RangoFechas {
   desde: string; // ISO date string YYYY-MM-DD
   hasta: string; // ISO date string YYYY-MM-DD
 }
 
-/** Convierte un intervalo predefinido en un rango de fechas concreto */
-export function calcularRango(intervalo: IntervaloPredefinido): RangoFechas {
+/** Convierte un intervalo predefinido o personalizado en un rango de fechas concreto */
+export function calcularRango(
+  intervalo: IntervaloPredefinido,
+  desdePersonalizado?: string,
+  hastaPersonalizado?: string
+): RangoFechas {
   const hoy = new Date();
   const año = hoy.getFullYear();
   const mes = hoy.getMonth(); // 0-indexed
@@ -32,9 +36,6 @@ export function calcularRango(intervalo: IntervaloPredefinido): RangoFechas {
   };
 
   switch (intervalo) {
-    case 'total': {
-      return { desde: '1900-01-01', hasta: '9999-12-31' };
-    }
     case 'este-mes': {
       const inicio = new Date(año, mes, 1);
       const fin = new Date(año, mes + 1, 0);
@@ -51,8 +52,19 @@ export function calcularRango(intervalo: IntervaloPredefinido): RangoFechas {
     case 'año-pasado': {
       return { desde: `${año - 1}-01-01`, hasta: `${año - 1}-12-31` };
     }
-    default:
-      return { desde: '1900-01-01', hasta: '9999-12-31' };
+    case 'personalizado': {
+      const inicioMes = fmt(new Date(año, mes, 1));
+      const finMes = fmt(new Date(año, mes + 1, 0));
+      return {
+        desde: desdePersonalizado || inicioMes,
+        hasta: hastaPersonalizado || finMes,
+      };
+    }
+    default: {
+      const inicio = new Date(año, mes, 1);
+      const fin = new Date(año, mes + 1, 0);
+      return { desde: fmt(inicio), hasta: fmt(fin) };
+    }
   }
 }
 
@@ -96,11 +108,11 @@ export const NOMBRES_MESES = [
 /** Etiqueta legible para un intervalo predefinido */
 export function etiquetaIntervalo(intervalo: IntervaloPredefinido): string {
   const mapa: Record<IntervaloPredefinido, string> = {
-    'total': 'Total',
     'este-mes': 'Este mes',
     'mes-pasado': 'Mes pasado',
     'este-año': 'Este año',
     'año-pasado': 'Año pasado',
+    'personalizado': 'Personalizado',
   };
-  return mapa[intervalo];
+  return mapa[intervalo] || 'Este mes';
 }

@@ -37,7 +37,8 @@ export function useCuentasPorCobrar(
   hastaPersonalizado?: string,
   sucursalId?: string,
   entrenadorId?: string,
-  grupoId?: string
+  grupoId?: string,
+  horarioId?: string
 ): UseCuentasPorCobrarResult {
   const [datos, setDatos] = useState<CuentaPorCobrarRow[]>([]);
   const [cargando, setCargando] = useState(false);
@@ -48,9 +49,9 @@ export function useCuentasPorCobrar(
 
   useEffect(() => {
     if (!escuelaId) return;
-    const rango = calcularRango(intervalo);
+    const rango = calcularRango(intervalo, desdePersonalizado, hastaPersonalizado);
     cargarDatos(escuelaId, rango.desde, rango.hasta);
-  }, [escuelaId, intervalo, desdePersonalizado, hastaPersonalizado, tick, sucursalId, entrenadorId, grupoId]);
+  }, [escuelaId, intervalo, desdePersonalizado, hastaPersonalizado, tick, sucursalId, entrenadorId, grupoId, horarioId]);
 
   async function cargarDatos(eid: string, desde: string, hasta: string) {
     setCargando(true);
@@ -81,6 +82,7 @@ export function useCuentasPorCobrar(
       if (sucursalId) query = query.eq('alumno_sucursal_id', sucursalId);
       if (entrenadorId) query = query.eq('alumno_entrenador_id', entrenadorId);
       if (grupoId) query = query.eq('alumno_grupo_id', grupoId);
+      if (horarioId) query = query.eq('alumno_horario_id', horarioId);
 
       const { data, error: err } = await query;
 

@@ -11,15 +11,23 @@ import { etiquetaIntervalo } from '../utils/estadisticasUtils';
 interface Props {
   intervalo: IntervaloPredefinido;
   onCambiarIntervalo: (i: IntervaloPredefinido) => void;
+  fechaDesde?: string;
+  fechaHasta?: string;
+  onChangeFechaDesde?: (f: string) => void;
+  onChangeFechaHasta?: (f: string) => void;
 }
 
 const INTERVALOS: IntervaloPredefinido[] = [
-  'total', 'este-mes', 'mes-pasado', 'este-año', 'año-pasado',
+  'este-mes', 'mes-pasado', 'este-año', 'año-pasado', 'personalizado'
 ];
 
 const SelectorFechas: React.FC<Props> = ({
   intervalo,
   onCambiarIntervalo,
+  fechaDesde = '',
+  fechaHasta = '',
+  onChangeFechaDesde,
+  onChangeFechaHasta,
 }) => {
   return (
     <div className="est-selector-fechas">
@@ -38,6 +46,26 @@ const SelectorFechas: React.FC<Props> = ({
           </button>
         ))}
       </div>
+
+      {/* Rango de fechas personalizado */}
+      {intervalo === 'personalizado' && onChangeFechaDesde && onChangeFechaHasta && (
+        <div className="est-fechas-custom">
+          <span className="est-custom-label">Desde</span>
+          <input
+            type="date"
+            className="est-input-fecha"
+            value={fechaDesde}
+            onChange={e => onChangeFechaDesde(e.target.value)}
+          />
+          <span className="est-custom-label">Hasta</span>
+          <input
+            type="date"
+            className="est-input-fecha"
+            value={fechaHasta}
+            onChange={e => onChangeFechaHasta(e.target.value)}
+          />
+        </div>
+      )}
     </div>
   );
 };
