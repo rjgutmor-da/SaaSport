@@ -49,6 +49,32 @@ const esReferenciaAgrupable = (referencia: string) => {
   return !!valor && !/^(efectivo|transferencia|qr|transferencia bancaria|pago qr)$/i.test(valor);
 };
 
+// En Caja y Bancos el concepto ya tiene su propia columna. La referencia del
+// cobro debe ser solamente el mes o torneo registrado, no un conteo de cuotas.
+const obtenerReferenciaCxc = (detalles: any[] | null | undefined): string => {
+  const meses: string[] = [];
+  const torneos: string[] = [];
+
+  (detalles || []).forEach(detalle => {
+    const concepto = String(detalle?.catalogo_items?.nombre || '').toLowerCase();
+
+    if (concepto.includes('mensualidad')) {
+      (Array.isArray(detalle?.periodo_meses) ? detalle.periodo_meses : []).forEach((mes: string) => {
+        const mesCorto = formatearMesCorto(mes);
+        if (mesCorto && !meses.includes(mesCorto)) meses.push(mesCorto);
+      });
+      return;
+    }
+
+    if (concepto.includes('torneo')) {
+      const torneo = String(detalle?.detalle_extra || '').trim();
+      if (torneo && !torneos.includes(torneo)) torneos.push(torneo);
+    }
+  });
+
+  return [...meses, ...torneos].join(', ');
+};
+
 // CxC conserva un cobro por cada nota cancelada. En Bancos, las cuotas que
 // comparten transferencia se presentan como un único ingreso.
 const agruparCobrosDeUnaTransaccion = (movimientos: MovimientoFinanciero[]) => {
@@ -74,6 +100,7 @@ const agruparCobrosDeUnaTransaccion = (movimientos: MovimientoFinanciero[]) => {
     // Combinar los detalles de todas las notas del grupo para que el recibo
     // muestre cada mensualidad (julio, agosto, etc.) correctamente.
     const detallesCombinados = grupo.flatMap(mov => mov.detalles_cxc || []);
+    const referenciaCxc = obtenerReferenciaCxc(detallesCombinados);
 
     resultado.push({
       ...principal,
@@ -81,7 +108,7 @@ const agruparCobrosDeUnaTransaccion = (movimientos: MovimientoFinanciero[]) => {
       debe: grupo.reduce((total, mov) => total + mov.debe, 0),
       haber: grupo.reduce((total, mov) => total + mov.haber, 0),
       cuenta_nombre: conceptos.join(', ') || principal.cuenta_nombre,
-      descripcion: `${principal.descripcion} (${grupo.length} cuotas)`,
+      descripcion: detallesCombinados.length > 0 ? referenciaCxc : principal.descripcion,
       conciliado: grupo.every(mov => mov.conciliado),
       is_grouped: true,
       original_ids: grupo.map(mov => mov.id),
@@ -397,6 +424,8 @@ const fetchMovimientos = async (
     (cobrosRes.data || []).forEach((c: any) => {
       const monto = Number(c.monto_aplicado) || 0;
       const items = c.cuentas_cobrar?.cxc_detalle?.map((d: any) => d.catalogo_items?.nombre).filter(Boolean);
+      const tieneDetalleCxc = (c.cuentas_cobrar?.cxc_detalle?.length || 0) > 0;
+      const referenciaCxc = obtenerReferenciaCxc(c.cuentas_cobrar?.cxc_detalle);
       const esIngresoDirecto = c.cuentas_cobrar?.es_ingreso_directo === true
         || (!c.cuentas_cobrar?.alumnos
         && !c.cuentas_cobrar?.descripcion?.startsWith('[INGRESO TRF]')
@@ -409,7 +438,7 @@ const fetchMovimientos = async (
         haber: monto < 0 ? -monto : 0,
         fecha: c.fecha || c.created_at,
         created_at: c.created_at,
-        descripcion: c.cuentas_cobrar?.descripcion || 'Cobro / Ingreso',
+        descripcion: tieneDetalleCxc ? referenciaCxc : c.cuentas_cobrar?.descripcion || 'Cobro / Ingreso',
         nro_transaccion: c.documento_referencia || c.cuentas_cobrar?.nro_recibo || '',
         // Los ingresos directos antiguos sin detalle identifican el origen en
         // su descripción; debe mostrarse como Alumno / Proveedor.
