@@ -674,6 +674,12 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
           if (rpcEditErr) throw new Error(`Error al actualizar cobro: ${rpcEditErr.message}`);
           if (rpcData && rpcData.success === false) throw new Error(rpcData.message || 'Error al actualizar cobro');
         }
+
+        // Restaurar fecha_emision correcta: rpc_editar_movimiento_simple la
+        // sobrescribe con la fecha del pago como efecto secundario.
+        await supabase.from('cuentas_cobrar').update({
+          fecha_emision: fechaEmision,
+        }).eq('id', notaId);
       }
 
       // 4. Pago (Solo si es nueva nota o si explícitamente se pidió pagar algo adicional)
