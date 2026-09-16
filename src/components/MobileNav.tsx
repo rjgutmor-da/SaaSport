@@ -1,5 +1,5 @@
 import { NavLink, useLocation } from 'react-router-dom';
-import { HandCoins, PieChart, Landmark, Package } from 'lucide-react';
+import { HandCoins, PieChart, Landmark } from 'lucide-react';
 import { useAuthSaaSport } from '../lib/authHelper';
 import { can } from '../config/roles';
 
@@ -7,7 +7,6 @@ const tabs = [
   { to: '/cxc',          icon: HandCoins, label: 'CXC', permission: 'finance.cxc.view' },
   { to: '/cxp',          icon: PieChart,  label: 'CxP', permission: 'finance.cxp.view' },
   { to: '/cajas-bancos', icon: Landmark,  label: 'Cajas', permission: 'finance.boxes.view' },
-  { to: '/cuentas',      icon: Package,   label: 'Inventario', permission: 'finance.inventory.manage' },
 ] as const;
 
 export function MobileNav() {

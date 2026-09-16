@@ -333,11 +333,11 @@ const AppRouter: React.FC<AppRouterProps> = ({ onLogout, theme, onCycleTheme }) 
             <Route path="/cxc"           element={<CuentasCobrar />} />
             <Route path="/cxp"           element={<RequirePermission permission="finance.cxp.view"><CuentasPagar /></RequirePermission>} />
             <Route path="/cajas-bancos"  element={<RequirePermission permission="finance.boxes.view"><CajasBancos /></RequirePermission>} />
-            <Route path="/cuentas"       element={<RequireAccountsOrInventory><Cuentas /></RequireAccountsOrInventory>} />
 
             {/* Rutas solo para desktop — el celular nunca descarga estos módulos */}
             {!isMobile && (
               <>
+                <Route path="/cuentas"            element={<RequireAccountsOrInventory><Cuentas /></RequireAccountsOrInventory>} />
                 <Route path="/estadisticas"       element={<RequirePermission permission="finance.statistics.view"><Estadisticas /></RequirePermission>} />
                 <Route path="/finanzas/registro-actividad" element={<RegistroActividad />} />
                 <Route path="/configuraciones"    element={<Configuraciones />} />
