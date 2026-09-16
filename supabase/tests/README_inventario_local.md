@@ -57,3 +57,30 @@ manuales, traslados, cupo, reintento secuencial, restricciones de RPC e históri
 
 No se aplicó esta migración a producción ni se crearon conteos reales.
 Nunca ejecutar la fixture en una base compartida o de producción.
+
+## Sucursal del alumno en notas CxC (2026-09-16)
+
+La prueba adicional carga ambas migraciones en PostgreSQL embebido:
+
+```powershell
+node supabase/tests/run-nota-sucursal-alumno.mjs "$env:TEMP/saasport-inventario-pglite-058/node_modules/@electric-sql/pglite/dist/index.js"
+```
+
+Cubre sucursal automática para servicios, origen alternativo autorizado para
+productos, alumnos sin sucursal, edición sin cambio de sucursal, alcance de
+Administrador/Asistente fijo y sin sucursal fija, aislamiento entre escuelas,
+conteo inicial, ventas negativas e idempotencia. También bloquea notas mixtas
+en otra sucursal al crear y editar, sin alterar stock ni detalles; permite
+mezclar en la sucursal del alumno. Las 44 comprobaciones pasan.
+Usa la fixture mínima; no sustituye una prueba autenticada del flujo completo.
+
+Activación: aplicar `20260916135117_nota_cxc_sucursal_alumno.sql` y después
+publicar el frontend. La migración reemplaza `rpc_guardar_nota_cxc` y ajusta
+solo las políticas SELECT de `inventario_aperturas` e `inventario_saldos`.
+No modifica notas ni saldos existentes. Verificar servicios y productos con
+administrador fijo, administrador sin sucursal fija y SuperAdministrador.
+
+Reversión: restaurar el frontend anterior y la definición anterior de
+`rpc_guardar_nota_cxc` y de esas dos políticas (se encuentran en la migración
+`20260915131645_inventario_por_sucursal.sql`). No ejecutar de nuevo esa
+migración completa. Las notas creadas durante la activación conservan sus datos.

@@ -144,7 +144,7 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
 }) => {
   const { perfil, escuelaId } = useAuthSaaSport();
   const configuracionFacturacion = useConfiguracionFacturacion(escuelaId, visible);
-  const [alumnos, setAlumnos] = useState<{ id: string; nombres: string; apellidos: string; mensualidad?: number | null }[]>([]);
+  const [alumnos, setAlumnos] = useState<{ id: string; nombres: string; apellidos: string; sucursal_id: string | null; mensualidad?: number | null }[]>([]);
   const [catalogo, setCatalogo] = useState<CatalogoNota[]>([]);
   const [cajasBancos, setCajasBancos] = useState<{ id: string; nombre: string; saldo_actual: number }[]>([]);
   const [torneos, setTorneos] = useState<string[]>([]);
@@ -169,7 +169,21 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
   const [cuentaAnticipoId, setCuentaAnticipoId] = useState('');
 
   const { data: sucursales = [] } = useSucursales();
-  const [sucursalId, setSucursalId] = useState('');
+  const [sucursalManualId, setSucursalManualId] = useState('');
+  const alumnoSeleccionado = alumnos.find(a => a.id === alumnoId);
+  const tieneProductos = !esAnticipo && lineas.some(l => esLineaRegistrable(l)
+    && catalogo.find(c => c.id === l.catalogo_item_id)?.categoria === 'producto');
+  const sucursalAlumnoId = alumnoSeleccionado?.sucursal_id || '';
+  const sucursalId = cxcEditar ? (cxcEditar.sucursal_id || '')
+    : ((tieneProductos || !sucursalAlumnoId ? sucursalManualId : '') || sucursalAlumnoId);
+  const tieneServicios = lineas.some(l => esLineaRegistrable(l)
+    && catalogo.some(c => c.id === l.catalogo_item_id && c.categoria !== 'producto'));
+  const mezclaEntreSucursales = tieneProductos && tieneServicios
+    && Boolean(sucursalAlumnoId && sucursalId && sucursalId !== sucursalAlumnoId);
+  const avisoMezclaSucursales = 'Para entregar productos desde otra sucursal, registra una nota solo de productos. Los servicios y mensualidades deben ir en una nota separada en la sucursal del alumno.';
+  const sucursalesPermitidas = sucursales.filter(s => s.escuela_id === escuelaId
+    && (perfil?.rol === 'SuperAdministrador' || !perfil?.sucursal_id || s.id === perfil.sucursal_id));
+  const puedeElegirSucursal = !cxcEditar && Boolean(alumnoId) && (tieneProductos || !sucursalAlumnoId);
   const [saldosInventario, setSaldosInventario] = useState<Map<string, number>>(new Map());
 
   // Cobros existentes al editar una nota
@@ -227,19 +241,18 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
   };
 
   useEffect(() => {
-    if (!sucursalId && perfil?.rol !== 'SuperAdministrador' && perfil?.sucursal_id) {
-      setSucursalId(perfil.sucursal_id);
-    }
-  }, [perfil, sucursalId]);
+    setSucursalManualId('');
+  }, [alumnoId, tieneProductos]);
 
   useEffect(() => {
+    let vigente = true;
+    setSaldosInventario(new Map());
     if (visible && escuelaId && sucursalId) {
       obtenerSaldosPorSucursal(escuelaId, sucursalId)
-        .then(setSaldosInventario)
+        .then(saldos => { if (vigente) setSaldosInventario(saldos); })
         .catch(console.error);
-    } else if (!sucursalId) {
-      setSaldosInventario(new Map());
     }
+    return () => { vigente = false; };
   }, [visible, escuelaId, sucursalId]);
 
   useEffect(() => {
@@ -260,7 +273,7 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
       if (!perfil || !escuelaId) return;
 
       const [resAlum, resCat, resCajas] = await Promise.all([
-        supabase.from('alumnos').select('id, nombres, apellidos, mensualidad').eq('archivado', false).order('nombres'),
+        supabase.from('alumnos').select('id, nombres, apellidos, mensualidad, sucursal_id').eq('escuela_id', escuelaId).eq('archivado', false).order('nombres'),
         supabase.from('catalogo_items').select('id, nombre, tipo, categoria, precio_venta, cuenta_ingreso_id, tipo_movimiento').eq('activo', true).or('tipo_movimiento.eq.ingreso,tipo_movimiento.eq.ambos').order('nombre'),
         supabase.from('cajas_bancos').select('id, nombre, saldo_actual, es_predeterminada').eq('activo', true).eq('escuela_id', escuelaId).order('nombre'),
       ]);
@@ -323,7 +336,7 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
       yaInicializado.current = true;
       if (cxcEditar) {
         setAlumnoId(cxcEditar.alumno_id);
-        setSucursalId(cxcEditar.sucursal_id || perfil?.sucursal_id || '');
+        setSucursalManualId('');
         // Normalizar periodo_meses de mensualidades para eliminar sufijos como "-2026"
         const lineasNormalizadas = (cxcEditar.lineas || []).map((l: any) => {
           if (l.nombre === 'Mensualidad' && Array.isArray(l.periodo_meses)) {
@@ -417,7 +430,7 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
         })();
       } else {
         setAlumnoId(alumnoPreseleccionado?.id || '');
-        setSucursalId(perfil?.rol === 'SuperAdministrador' ? '' : (perfil?.sucursal_id || ''));
+        setSucursalManualId('');
         setLineas([lineaVacia()]);
         setObservaciones('');
         setVencimiento(getHoyISO());
@@ -661,20 +674,19 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
       let notaId = '';
       const descripcionFinal = esAnticipo ? 'Anticipo' : lineas.filter(esLineaRegistrable).map(l => l.nombre).join(', ');
       const lineasValidasGuardar = lineas.filter(esLineaRegistrable);
-      const esSuperAdmin = ctx.rol === 'SuperAdministrador';
-      const targetSucursalId = cxcEditar?.sucursal_id || (esSuperAdmin ? (sucursalId || null) : (sucursalId || ctx.sucursal_id));
+      const targetSucursalId = cxcEditar ? (cxcEditar.sucursal_id || null) : (sucursalId || null);
 
-      const tieneProductos = lineasValidasGuardar.some(l => {
-        const it = catalogo.find(c => c.id === l.catalogo_item_id);
-        return it?.categoria === 'producto';
-      });
-
-      if (tieneProductos && (!targetSucursalId || !String(targetSucursalId).trim())) {
-        if (esSuperAdmin) {
-          setError('Debes seleccionar una sucursal para los productos incluidos en la nota de venta.');
-        } else {
-          setError('Tu usuario no tiene una sucursal asignada para registrar ventas de productos.');
-        }
+      if (mezclaEntreSucursales) {
+        setError(avisoMezclaSucursales);
+        return;
+      }
+      if (!cxcEditar && !targetSucursalId) {
+        setError('El alumno no tiene sucursal. Selecciona una sucursal para registrar la nota.');
+        return;
+      }
+      if (!cxcEditar && (!sucursalesPermitidas.some(s => s.id === targetSucursalId)
+        || (ctx.rol !== 'SuperAdministrador' && ctx.sucursal_id && sucursalAlumnoId && ctx.sucursal_id !== sucursalAlumnoId))) {
+        setError('No tienes acceso a la sucursal del alumno o a la sucursal seleccionada.');
         return;
       }
 
@@ -933,31 +945,36 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
               </div>
             )}
             <div className="modal-form-grid" style={{ marginBottom: '1.5rem' }}>
-              {perfil?.rol === 'SuperAdministrador' && (
                 <div className="form-campo full-width">
                   <label>Sucursal {!cxcEditar && '*'}</label>
-                  {cxcEditar ? (
+                  {!puedeElegirSucursal ? (
                     <input
                       type="text"
-                      value={(sucursales as any[]).find((s: any) => s.id === sucursalId)?.nombre || 'Sucursal de la nota'}
+                      value={sucursales.find(s => s.id === sucursalId)?.nombre || (cxcEditar ? 'Sin sucursal registrada' : 'Selecciona primero un alumno')}
                       disabled
                       style={{ opacity: 0.7, cursor: 'not-allowed' }}
                     />
                   ) : (
                     <select
                       value={sucursalId}
-                      onChange={e => setSucursalId(e.target.value)}
+                      onChange={e => setSucursalManualId(e.target.value)}
                       disabled={guardando}
                       required
                     >
                       <option value="">— Seleccionar Sucursal —</option>
-                      {(sucursales as any[]).map((s: any) => (
+                      {sucursalesPermitidas.map(s => (
                         <option key={s.id} value={s.id}>{s.nombre}</option>
                       ))}
                     </select>
                   )}
+                  <small style={{ color: 'var(--text-secondary)' }}>
+                    {cxcEditar ? 'Se conserva la sucursal original de la nota.'
+                      : tieneProductos ? 'Sucursal de entrega: se descontará el inventario de esta sucursal.'
+                      : sucursalAlumnoId ? 'Asignada automáticamente según el alumno.'
+                      : alumnoId ? 'El alumno no tiene sucursal asignada. Selecciona una para esta nota.' : ''}
+                  </small>
+                  {mezclaEntreSucursales && <p role="alert" style={{ color: 'var(--danger)', margin: 0 }}>{avisoMezclaSucursales}</p>}
                 </div>
-              )}
               <div className="form-campo full-width">
                 <label>Alumno / Deportista *</label>
                 <select 
