@@ -812,23 +812,42 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
       }
 
       // 4. Pago (Solo si es nueva nota o si explícitamente se pidió pagar algo adicional)
+      let cobroExitoso = true;
+      let errorCobroMsg: string | null = null;
+
       if (pagarAlCrear || esAnticipo) {
         if (mp > 0 && cuentaCobroId) {
-          const { error: rpcErr } = await supabase.rpc('rpc_registrar_cobro', {
-            p_payload: {
-              cuenta_cobrar_id: notaId,
-              escuela_id: ctx.escuela_id,
-              sucursal_id: targetSucursalId,
-              usuario_id: ctx.id,
-              monto: mp,
-              cuenta_cobro_id: cuentaCobroId,
-              nro_comprobante: cobroNroDoc || null,
-              fecha: `${fechaPago}T${horaPago}:00`
-            }
-          });
+          try {
+            const { error: rpcErr } = await supabase.rpc('rpc_registrar_cobro', {
+              p_payload: {
+                cuenta_cobrar_id: notaId,
+                escuela_id: ctx.escuela_id,
+                sucursal_id: targetSucursalId,
+                usuario_id: ctx.id,
+                monto: mp,
+                cuenta_cobro_id: cuentaCobroId,
+                nro_comprobante: cobroNroDoc || null,
+                fecha: `${fechaPago}T${horaPago}:00`
+              }
+            });
 
-          if (rpcErr) throw rpcErr;
+            if (rpcErr) {
+              cobroExitoso = false;
+              errorCobroMsg = rpcErr.message;
+            }
+          } catch (e: any) {
+            cobroExitoso = false;
+            errorCobroMsg = e?.message || 'Error inesperado al registrar cobro';
+          }
         }
+      }
+
+      if ((pagarAlCrear || esAnticipo) && mp > 0 && !cobroExitoso) {
+        removerOperacionIncierta(operacionId);
+        operacionIdRef.current = crypto.randomUUID();
+        setError(`⚠️ La nota fue guardada y conservada correctamente (ID: ${notaId}), pero el cobro financiero no pudo confirmarse: ${errorCobroMsg}. Puedes registrar el cobro manualmente desde la lista.`);
+        onCreada();
+        return;
       }
 
       setExito(`✅ ${cxcEditar ? 'Cambios guardados' : 'Registrado'} correctamente.`);

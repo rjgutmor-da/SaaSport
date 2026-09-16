@@ -497,25 +497,44 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, esAnticipo = false, o
       removerOperacionIncierta(operacionId);
 
       // 3. Pago (solo si es nuevo, la edición de pagos va por otro lado)
+      let pagoExitoso = true;
+      let errorPagoMsg: string | null = null;
+
       if (!cxpEditar && (pagarAlCrear || esAnticipo)) {
         if (mp > 0 && cuentaPagoId) {
-          const { error: errRpc } = await supabase.rpc('rpc_registrar_pago_cxp', {
-            p_payload: {
-              escuela_id: ctx.escuela_id,
-              sucursal_id: targetSucursalId,
-              usuario_id: ctx.id,
-              cuenta_pagar_id: notaId,
-              monto: mp,
-              cuenta_pago_id: cuentaPagoId,
-              fecha: fechaPago,
-              nro_comprobante: nroComprobante || null,
-              metodo_pago: 'efectivo',
-              descripcion: esAnticipo ? `Anticipo: ${observaciones || 'Sin observaciones'}` : undefined
+          try {
+            const { error: errRpc } = await supabase.rpc('rpc_registrar_pago_cxp', {
+              p_payload: {
+                escuela_id: ctx.escuela_id,
+                sucursal_id: targetSucursalId,
+                usuario_id: ctx.id,
+                cuenta_pagar_id: notaId,
+                monto: mp,
+                cuenta_pago_id: cuentaPagoId,
+                fecha: fechaPago,
+                nro_comprobante: nroComprobante || null,
+                metodo_pago: 'efectivo',
+                descripcion: esAnticipo ? `Anticipo: ${observaciones || 'Sin observaciones'}` : undefined
+              }
+            });
+            
+            if (errRpc) {
+              pagoExitoso = false;
+              errorPagoMsg = errRpc.message;
             }
-          });
-          
-          if (errRpc) throw errRpc;
+          } catch (e: any) {
+            pagoExitoso = false;
+            errorPagoMsg = e?.message || 'Error inesperado al registrar pago';
+          }
         }
+      }
+
+      if (!cxpEditar && (pagarAlCrear || esAnticipo) && mp > 0 && !pagoExitoso) {
+        removerOperacionIncierta(operacionId);
+        operacionIdRef.current = crypto.randomUUID();
+        setError(`⚠️ La nota de pago fue guardada y conservada correctamente (ID: ${notaId}), pero el movimiento financiero no pudo confirmarse: ${errorPagoMsg}. Puedes registrar el pago manualmente desde la lista.`);
+        onCreada();
+        return;
       }
 
       setExito('✅ Registrado correctamente.');

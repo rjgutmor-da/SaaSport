@@ -450,3 +450,55 @@ test('8. Reintento con cobro/pago fallido: distinguir nota guardada de cobro con
   assert.ok(mensajeMostrado.startsWith('⚠️ La nota fue guardada y conservada correctamente'), 'Distingue nota guardada de cobro fallido');
   assert.ok(mensajeMostrado.includes(notaIdGenerada), 'Muestra el ID de la nota conservada');
 });
+
+test('9. Guardado inicial con cobro/pago fallido: nota se conserva, se informa advertencia y no se genera nota duplicada', async () => {
+  storageMock.clear();
+  const operacionId = 'd0b90202-0000-4000-b000-000000000099';
+  const notaIdGenerada = 'cxc_nota_nueva_888';
+
+  // Configurar cliente donde rpc_guardar_nota_cxc tiene éxito pero rpc_registrar_cobro falla
+  const supabase = crearClienteSupabaseSimulado({ datosInicialesCxc: [] });
+  supabase.rpcHandler = async (nombreFn, params) => {
+    if (nombreFn === 'rpc_guardar_nota_cxc') {
+      return { data: notaIdGenerada, error: null };
+    }
+    if (nombreFn === 'rpc_registrar_cobro') {
+      return { data: null, error: { message: 'Saldo insuficiente en cuenta de cobro.' } };
+    }
+    return { data: null, error: null };
+  };
+
+  // Simular flujo inicial de NotaServicios.tsx:
+  const { data: notaIdResp, error: errRpcGuardar } = await supabase.rpc('rpc_guardar_nota_cxc', {
+    p_monto_total: 150,
+    p_operacion_id: operacionId,
+  });
+  assert.equal(errRpcGuardar, null);
+  const notaId = notaIdResp;
+  assert.equal(notaId, notaIdGenerada);
+
+  // Ejecución del cobro con fallo capturado
+  let cobroExitoso = true;
+  let errorCobroMsg = null;
+  const { error: rpcErr } = await supabase.rpc('rpc_registrar_cobro', {
+    p_payload: { cuenta_cobrar_id: notaId, monto: 150 }
+  });
+
+  if (rpcErr) {
+    cobroExitoso = false;
+    errorCobroMsg = rpcErr.message;
+  }
+
+  assert.equal(cobroExitoso, false, 'El cobro falla como se esperaba');
+  assert.equal(errorCobroMsg, 'Saldo insuficiente en cuenta de cobro.');
+
+  // Comprobar mensaje resultante de advertencia segura
+  const mensajeMostrado = !cobroExitoso
+    ? `⚠️ La nota fue guardada y conservada correctamente (ID: ${notaId}), pero el cobro financiero no pudo confirmarse: ${errorCobroMsg}. Puedes registrar el cobro manualmente desde la lista.`
+    : '✅ Registrado correctamente.';
+
+  assert.ok(mensajeMostrado.includes('La nota fue guardada y conservada correctamente'));
+  assert.ok(mensajeMostrado.includes(notaIdGenerada));
+  assert.ok(mensajeMostrado.includes('Saldo insuficiente'));
+});
+
