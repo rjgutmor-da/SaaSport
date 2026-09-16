@@ -510,11 +510,12 @@ const ModalNotaMasiva: React.FC<ModalNotaMasivaProps> = ({
         } catch (errAlum: any) {
           if (esRespuestaIncierta(errAlum)) {
             // Respuesta incierta: conservar identificador y payload original
+            const detalleError = errAlum?.message ? ` (${errAlum.message})` : '';
             nuevosFallidos.push({
               alumno_id: alumno.alumno_id,
               nombres: alumno.nombres,
               apellidos: alumno.apellidos,
-              error: 'Respuesta no confirmada del servidor. Se conservó la operación para resolver si fue guardada antes de reintentar.',
+              error: `Respuesta no confirmada del servidor${detalleError}. Se conservó la operación para resolver si fue guardada antes de reintentar.`,
             });
           } else {
             // Error concluyente de PostgreSQL (código '23505', 'P0001', etc.): ROLLBACK confirmado

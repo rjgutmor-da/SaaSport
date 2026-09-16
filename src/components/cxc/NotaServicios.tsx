@@ -29,6 +29,7 @@ import {
   guardarOperacionIncierta,
   obtenerOperacionIncierta,
   removerOperacionIncierta,
+  descartarOperacionIncierta,
   resolverOperacionIncierta,
   type OperacionIncierta,
 } from '../../lib/idempotenciaNotas';
@@ -900,7 +901,8 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
             );
           }
         }
-        setError('Respuesta no confirmada del servidor. Se conservó el identificador de la operación para verificar si fue guardada antes de reintentar.');
+        const detalleError = err?.message ? ` (${err.message})` : '';
+        setError(`Respuesta no confirmada del servidor${detalleError}. Se conservó el identificador de la operación para verificar si fue guardada antes de reintentar.`);
       } else {
         removerOperacionIncierta(operacionIdRef.current);
         operacionIdRef.current = crypto.randomUUID();
@@ -938,10 +940,39 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
                 color: '#fbbf24',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '0.5rem',
+                justifyContent: 'space-between',
+                gap: '0.75rem',
+                flexWrap: 'wrap',
               }}>
-                <AlertCircle size={16} style={{ flexShrink: 0 }} />
-                <span>{avisoRecuperacion}</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <AlertCircle size={16} style={{ flexShrink: 0 }} />
+                  <span>{avisoRecuperacion}</span>
+                </div>
+                {operacionPendiente && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      descartarOperacionIncierta(operacionPendiente.operacionId);
+                      operacionIdRef.current = crypto.randomUUID();
+                      setOperacionPendiente(null);
+                      setAvisoRecuperacion(null);
+                      setError(null);
+                    }}
+                    style={{
+                      background: 'rgba(245, 158, 11, 0.2)',
+                      border: '1px solid rgba(245, 158, 11, 0.5)',
+                      color: '#fbbf24',
+                      borderRadius: '4px',
+                      padding: '0.25rem 0.6rem',
+                      cursor: 'pointer',
+                      fontSize: '0.75rem',
+                      fontWeight: 600,
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    Descartar intento anterior
+                  </button>
+                )}
               </div>
             )}
             <div className="modal-form-grid" style={{ marginBottom: '1.5rem' }}>

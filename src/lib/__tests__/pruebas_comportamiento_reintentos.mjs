@@ -32,6 +32,7 @@ import {
   obtenerOperacionIncierta,
   obtenerTodasOperacionesInciertas,
   removerOperacionIncierta,
+  descartarOperacionIncierta,
   esRespuestaIncierta,
   verificarSiNotaSeGuardo,
   resolverOperacionIncierta,
@@ -127,8 +128,13 @@ test('1. Clasificación estricta: respuestas inciertas vs errores concluyentes c
   assert.equal(esRespuestaIncierta({ code: 'P0001', message: 'Stock insuficiente para el producto' }), false, 'P0001 rollback debe ser concluyente');
   assert.equal(esRespuestaIncierta({ code: '23505', message: 'duplicate key value violates unique constraint' }), false, '23505 unique violation debe ser concluyente');
   assert.equal(esRespuestaIncierta({ code: '42501', message: 'permission denied' }), false, '42501 permiso denegado debe ser concluyente');
+  assert.equal(esRespuestaIncierta({ code: '21000', message: 'DELETE requires a WHERE clause' }), false, '21000 safeupdate debe ser concluyente');
+  assert.equal(esRespuestaIncierta({ code: 'PGRST116', message: 'JSON object requested, multiple (or no) rows returned' }), false, 'PGRST debe ser concluyente');
+  assert.equal(esRespuestaIncierta({ status: 400, message: 'Bad Request' }), false, 'HTTP 400 debe ser concluyente');
+  assert.equal(esRespuestaIncierta({ status: 409, message: 'Conflict' }), false, 'HTTP 409 debe ser concluyente');
   assert.equal(esRespuestaIncierta({ message: 'Stock insuficiente en la sucursal' }), false, 'Validación semántica de stock debe ser concluyente');
   assert.equal(esRespuestaIncierta({ message: 'Debe seleccionar una sucursal para productos' }), false, 'Falta de sucursal debe ser concluyente');
+  assert.equal(esRespuestaIncierta({ message: 'safeupdate: DELETE requires a WHERE clause' }), false, 'safeupdate texto debe ser concluyente');
 });
 
 test('2. Servidor guardó, cliente perdió la respuesta: recuperar la misma nota sin llamar a la RPC ni crear otra', async () => {
@@ -500,5 +506,31 @@ test('9. Guardado inicial con cobro/pago fallido: nota se conserva, se informa a
   assert.ok(mensajeMostrado.includes('La nota fue guardada y conservada correctamente'));
   assert.ok(mensajeMostrado.includes(notaIdGenerada));
   assert.ok(mensajeMostrado.includes('Saldo insuficiente'));
+});
+
+test('7. Descarte explícito: el usuario puede descartar una operación pendiente para reintentar desde cero', () => {
+  storageMock.clear();
+  const operacionId = 'c0a80101-0000-4000-a000-000000000077';
+  const escuelaId = 'escuela_central';
+  const usuarioId = 'usuario_admin_1';
+
+  guardarOperacionIncierta({
+    operacionId,
+    tipo: 'cxc_individual',
+    escuelaId,
+    usuarioId,
+    claveEntidad: 'alumno_99',
+    payloadOriginal: { total: 100 },
+    timestamp: Date.now(),
+    estado: 'incierto',
+  });
+
+  const encontradaAntes = obtenerOperacionIncierta('cxc_individual', escuelaId, usuarioId, 'alumno_99');
+  assert.ok(encontradaAntes !== null, 'Debe existir la operación antes de descartar');
+
+  descartarOperacionIncierta(operacionId);
+
+  const encontradaDespues = obtenerOperacionIncierta('cxc_individual', escuelaId, usuarioId, 'alumno_99');
+  assert.equal(encontradaDespues, null, 'No debe existir la operación tras descartar');
 });
 

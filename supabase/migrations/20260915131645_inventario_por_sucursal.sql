@@ -499,10 +499,10 @@ BEGIN
   PERFORM set_config('saasport.en_rpc_guardar_nota', 'true', true);
 
   CREATE TEMP TABLE IF NOT EXISTS temp_cxc_lineas_ant (catalogo_item_id uuid PRIMARY KEY, cantidad integer) ON COMMIT DROP;
-  DELETE FROM temp_cxc_lineas_ant;
+  DELETE FROM temp_cxc_lineas_ant WHERE true;
 
   CREATE TEMP TABLE IF NOT EXISTS temp_cxc_lineas_nue (catalogo_item_id uuid PRIMARY KEY, cantidad integer) ON COMMIT DROP;
-  DELETE FROM temp_cxc_lineas_nue;
+  DELETE FROM temp_cxc_lineas_nue WHERE true;
 
   IF p_nota_id IS NOT NULL AND NOT v_es_historica THEN
     INSERT INTO temp_cxc_lineas_ant (catalogo_item_id, cantidad)
@@ -771,10 +771,10 @@ BEGIN
   PERFORM set_config('saasport.en_rpc_guardar_nota', 'true', true);
 
   CREATE TEMP TABLE IF NOT EXISTS temp_cxp_lineas_ant (catalogo_item_id uuid PRIMARY KEY, cantidad integer) ON COMMIT DROP;
-  DELETE FROM temp_cxp_lineas_ant;
+  DELETE FROM temp_cxp_lineas_ant WHERE true;
 
   CREATE TEMP TABLE IF NOT EXISTS temp_cxp_lineas_nue (catalogo_item_id uuid PRIMARY KEY, cantidad integer) ON COMMIT DROP;
-  DELETE FROM temp_cxp_lineas_nue;
+  DELETE FROM temp_cxp_lineas_nue WHERE true;
 
   IF p_nota_id IS NOT NULL AND NOT v_es_historica THEN
     INSERT INTO temp_cxp_lineas_ant (catalogo_item_id, cantidad)

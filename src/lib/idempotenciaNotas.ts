@@ -173,22 +173,42 @@ export function removerOperacionIncierta(operacionId: string): void {
 }
 
 /**
+ * Descarta una operación incierta del almacenamiento local,
+ * permitiendo al usuario iniciar una nueva operación limpia tras descartar el intento anterior.
+ */
+export function descartarOperacionIncierta(operacionId: string): void {
+  removerOperacionIncierta(operacionId);
+}
+
+/**
  * Determina si un error corresponde a una respuesta incierta (red, timeout, 5xx, interrupción).
- * Si es un error de negocio de PostgreSQL con ROLLBACK asegurado (códigos P0001, 23505, etc.), retorna false.
+ * Si es un error de negocio o sintaxis de PostgreSQL con ROLLBACK asegurado (códigos P0001, 23505, safeupdate 21000, etc.),
+ * o un error de cliente HTTP 4xx, retorna false.
  */
 export function esRespuestaIncierta(err: any): boolean {
   if (!err) return false;
 
-  // Errores con ROLLBACK garantizado en PostgreSQL
-  const codigosConcluyentes = ['23505', '23503', '23502', '22000', '42501', 'P0001'];
-  if (err.code && codigosConcluyentes.includes(err.code)) {
+  // 1. Errores HTTP 4xx (400, 401, 403, 404, 409, 422, etc.):
+  // PostgREST/PostgreSQL procesó la solicitud y la rechazó con ROLLBACK garantizado.
+  if (typeof err.status === 'number' && err.status >= 400 && err.status < 500) {
     return false;
+  }
+
+  // 2. Errores con código de PostgreSQL (SQLSTATE estándar de 5 caracteres alfanuméricos)
+  // o códigos propios de PostgREST (prefijo PGRST): el servidor rechazó la transacción y ejecutó ROLLBACK.
+  // Ejemplos: '21000' (safeupdate), '23505' (unique), '23503' (fk), '23502' (not null), '22000'/'22P02' (tipo de dato),
+  // '42501' (permisos), '42P01' (tabla inexistente), 'P0001' (raise exception), etc.
+  if (err.code && typeof err.code === 'string') {
+    const code = err.code.trim().toUpperCase();
+    if (code.startsWith('PGRST') || /^[A-Z0-9]{5}$/.test(code)) {
+      return false;
+    }
   }
 
   const msg = (err.message || '').toLowerCase();
   const name = (err.name || '').toLowerCase();
 
-  // Validaciones semánticas deterministas
+  // 3. Validaciones semánticas deterministas o mensajes específicos de PostgreSQL / PostgREST
   if (
     msg.includes('no autorizado')
     || msg.includes('saldo insuficiente')
@@ -196,11 +216,13 @@ export function esRespuestaIncierta(err: any): boolean {
     || msg.includes('confirma el conteo')
     || msg.includes('no es un producto')
     || msg.includes('debe seleccionar una sucursal')
+    || msg.includes('requires a where clause')
+    || msg.includes('safeupdate')
   ) {
     return false;
   }
 
-  // Errores de transporte, red, timeout o HTTP 5xx
+  // 4. Errores de transporte, red, timeout o HTTP 5xx
   if (
     err instanceof TypeError
     || name.includes('abort')

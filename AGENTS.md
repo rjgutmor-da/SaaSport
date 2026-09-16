@@ -8,3 +8,9 @@
 
 2. **Detección y Aviso Proactivo**:
    - Si durante el análisis, depuración o desarrollo el asistente detecta consultas a la base de datos que recuperen datos históricos sin rango de fechas (`periodo`, `fecha_emision`, etc.) o sin paginación, debe **avisar proactivamente al usuario** sugiriendo acotar la consulta con filtros por mes, año o paginación en lotes.
+
+## Navegación Móvil y Nuevas Pestañas (`MobileNav`)
+
+1. **Restricción de nuevas pestañas móviles**:
+   - Si una tarea o requerimiento involucra la creación o adición de nuevas pestañas en la barra inferior (`MobileNav.tsx`) o habilitar nuevas rutas generales para dispositivos móviles (`isMobile`), el asistente **NO debe incorporarlas automáticamente**.
+   - El asistente debe **consultar primero al usuario** si desea incluir dicha pestaña/sección en la versión móvil o si debe permanecer exclusiva para PC/escritorio.
