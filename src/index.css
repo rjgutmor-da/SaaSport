@@ -1431,6 +1431,37 @@ input[type=number] {
 @media (max-width: 1200px) { .cxc-modal--wide { max-width: 98vw !important; } }
 
 /* ── Cobro rápido ── */
+.cxc-modal.inventario-historial-modal {
+  max-width: none;
+  width: 100%;
+}
+.inventario-historial-modal .cxc-modal-form {
+  padding: 1.25rem;
+  gap: 1rem;
+}
+.inventario-historial-modal .cxc-tabla-wrapper {
+  max-height: none;
+  overflow: visible;
+}
+.inventario-historial-modal .cxc-tabla {
+  table-layout: fixed;
+  min-width: 0;
+}
+.inventario-historial-modal .cxc-th,
+.inventario-historial-modal .cxc-td {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  padding: 0.65rem 0.5rem;
+}
+.inventario-historial-modal .cxc-th:nth-child(1) { width: 12%; }
+.inventario-historial-modal .cxc-th:nth-child(2) { width: 12%; }
+.inventario-historial-modal .cxc-th:nth-child(3),
+.inventario-historial-modal .cxc-th:nth-child(4) { width: 7%; }
+.inventario-historial-modal .cxc-th:nth-child(5) { width: 10%; }
+.inventario-historial-modal .cxc-th:nth-child(6) { width: 16%; }
+.inventario-historial-modal .cxc-th:nth-child(7) { width: 23%; }
+.inventario-historial-modal .cxc-th:nth-child(8) { width: 13%; }
+
 .cxc-modal--cobro-rapido { max-width: 680px; }
 .cxc-cobro-alumno {
   display: flex; align-items: center; gap: 1rem;
