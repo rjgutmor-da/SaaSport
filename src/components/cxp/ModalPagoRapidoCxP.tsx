@@ -69,10 +69,11 @@ const ModalPagoRapidoCxP: React.FC<Props> = ({ entidadInicial, entidades, visibl
         setCuentaId(pred ? pred.id : cuentas[0].id);
       }
 
-      // Cargar catálogo para anticipos
+      // Cargar catálogo para anticipos (excluyendo productos de inventario)
       const { data: resCat } = await supabase.from('catalogo_items')
         .select('*').eq('activo', true)
         .or('tipo_movimiento.eq.egreso,tipo_movimiento.eq.ambos')
+        .neq('categoria', 'producto')
         .order('nombre');
       setCatalogo(resCat ?? []);
     };
@@ -179,8 +180,13 @@ const ModalPagoRapidoCxP: React.FC<Props> = ({ entidadInicial, entidades, visibl
           if (errCxp || !nuevaNota) throw new Error('Error al crear nota de anticipo en CxP.');
           objetivoCxpId = nuevaNota.id;
 
-          // Crear detalle para consistencia
+          // Crear detalle para consistencia (solo servicios/anticipos)
           const itemAnticipo = cuentaAnticipoId || (catalogo.length > 0 ? catalogo[0].id : null);
+          const itemAnticipoObj = catalogo.find(c => c.id === itemAnticipo);
+          if (itemAnticipoObj && (itemAnticipoObj.categoria === 'producto' || (itemAnticipoObj as any).tipo === 'producto')) {
+            throw new Error('Un anticipo financiero no puede registrarse sobre un concepto de inventario/producto.');
+          }
+
           await supabase.from('cxp_detalle').insert({
               escuela_id: ctx.escuela_id,
               cuenta_pagar_id: nuevaNota.id,

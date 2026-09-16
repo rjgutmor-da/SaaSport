@@ -9,7 +9,7 @@ import type { CatalogoItem } from '../../types/cuentas';
 import type { LineaNota } from '../../types/cxc';
 import { MESES_ANIO } from '../../types/cxc';
 import {
-  X, Plus, Trash2, FileText, Lock, DollarSign
+  X, Plus, Trash2, FileText, Lock, DollarSign, AlertCircle
 } from 'lucide-react';
 import {
   calcularPeriodoEstadistico,
@@ -23,10 +23,20 @@ import {
 import { useAuthSaaSport } from '../../lib/authHelper';
 import { useConfiguracionFacturacion } from '../../hooks/useConfiguracionFacturacion';
 import { esObservacionAnticipoAutomatica } from '../../lib/cxcUtils';
+import { validarAperturaInventario, obtenerSaldosPorSucursal } from '../../lib/inventario';
+import {
+  esRespuestaIncierta,
+  guardarOperacionIncierta,
+  obtenerOperacionIncierta,
+  removerOperacionIncierta,
+  resolverOperacionIncierta,
+  type OperacionIncierta,
+} from '../../lib/idempotenciaNotas';
+import { useSucursales } from '../../hooks/useMasterData';
 
 type CatalogoNota = Pick<
   CatalogoItem,
-  'id' | 'nombre' | 'tipo' | 'precio_venta' | 'cuenta_ingreso_id' | 'tipo_movimiento'
+  'id' | 'nombre' | 'tipo' | 'categoria' | 'precio_venta' | 'cuenta_ingreso_id' | 'tipo_movimiento'
 >;
 
 interface NotaServiciosProps {
@@ -158,6 +168,10 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
   const [montoAnticipo, setMontoAnticipo] = useState('');
   const [cuentaAnticipoId, setCuentaAnticipoId] = useState('');
 
+  const { data: sucursales = [] } = useSucursales();
+  const [sucursalId, setSucursalId] = useState('');
+  const [saldosInventario, setSaldosInventario] = useState<Map<string, number>>(new Map());
+
   // Cobros existentes al editar una nota
   interface CobroExistente {
     id: string;
@@ -172,17 +186,73 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
     modificado: boolean;
   }
   const [cobrosExistentes, setCobrosExistentes] = useState<CobroExistente[]>([]);
+  const [operacionPendiente, setOperacionPendiente] = useState<OperacionIncierta | null>(null);
+  const [avisoRecuperacion, setAvisoRecuperacion] = useState<string | null>(null);
 
   // Ref para detectar si el modal ya fue inicializado en esta apertura.
   // Evita que al navegar hacia otra pantalla y volver se reseteen los campos.
   const yaInicializado = useRef(false);
   // Bloquea reenvíos antes de que React alcance a deshabilitar el botón.
   const guardandoRef = useRef(false);
+  // Identificador de operación persistente para idempotencia ante reintentos
+  const operacionIdRef = useRef<string>(crypto.randomUUID());
+
+  const verificarOperacionPendiente = (idAlumno?: string) => {
+    const escId = escuelaId || perfil?.escuela_id;
+    const usrId = perfil?.id;
+    if (!escId || !usrId) return;
+
+    const clave = idAlumno ? `alumno_${idAlumno}` : undefined;
+    const op = obtenerOperacionIncierta<any>(
+      'cxc_individual',
+      escId,
+      usrId,
+      clave,
+      cxcEditar?.id || null,
+    );
+
+    if (op) {
+      operacionIdRef.current = op.operacionId;
+      setOperacionPendiente(op);
+      setAvisoRecuperacion(
+        `Se detectó un intento anterior pendiente de confirmación (ID: ${op.operacionId.slice(0, 8)}...). Al procesar se verificará primero si ya fue registrada en el servidor o se reintentará con sus datos originales sin duplicar.`
+      );
+      if (!idAlumno && op.payloadOriginal?.rpcParams?.p_alumno_id) {
+        setAlumnoId(op.payloadOriginal.rpcParams.p_alumno_id);
+      }
+    } else {
+      setOperacionPendiente(null);
+      setAvisoRecuperacion(null);
+    }
+  };
+
+  useEffect(() => {
+    if (!sucursalId && perfil?.rol !== 'SuperAdministrador' && perfil?.sucursal_id) {
+      setSucursalId(perfil.sucursal_id);
+    }
+  }, [perfil, sucursalId]);
+
+  useEffect(() => {
+    if (visible && escuelaId && sucursalId) {
+      obtenerSaldosPorSucursal(escuelaId, sucursalId)
+        .then(setSaldosInventario)
+        .catch(console.error);
+    } else if (!sucursalId) {
+      setSaldosInventario(new Map());
+    }
+  }, [visible, escuelaId, sucursalId]);
 
   useEffect(() => {
     if (!visible) {
-      // Al cerrar el modal, marcamos que la próxima apertura debe reinicializar.
       yaInicializado.current = false;
+      const escId = escuelaId || perfil?.escuela_id;
+      const usrId = perfil?.id;
+      const opIncierta = (escId && usrId) ? obtenerOperacionIncierta('cxc_individual', escId, usrId, alumnoId ? `alumno_${alumnoId}` : undefined, cxcEditar?.id || null) : null;
+      if (!opIncierta) {
+        operacionIdRef.current = crypto.randomUUID();
+        setOperacionPendiente(null);
+        setAvisoRecuperacion(null);
+      }
       return;
     }
 
@@ -191,7 +261,7 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
 
       const [resAlum, resCat, resCajas] = await Promise.all([
         supabase.from('alumnos').select('id, nombres, apellidos, mensualidad').eq('archivado', false).order('nombres'),
-        supabase.from('catalogo_items').select('id, nombre, tipo, precio_venta, cuenta_ingreso_id, tipo_movimiento').eq('activo', true).or('tipo_movimiento.eq.ingreso,tipo_movimiento.eq.ambos').order('nombre'),
+        supabase.from('catalogo_items').select('id, nombre, tipo, categoria, precio_venta, cuenta_ingreso_id, tipo_movimiento').eq('activo', true).or('tipo_movimiento.eq.ingreso,tipo_movimiento.eq.ambos').order('nombre'),
         supabase.from('cajas_bancos').select('id, nombre, saldo_actual, es_predeterminada').eq('activo', true).eq('escuela_id', escuelaId).order('nombre'),
       ]);
       setAlumnos(resAlum.data ?? []);
@@ -253,6 +323,7 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
       yaInicializado.current = true;
       if (cxcEditar) {
         setAlumnoId(cxcEditar.alumno_id);
+        setSucursalId(cxcEditar.sucursal_id || perfil?.sucursal_id || '');
         // Normalizar periodo_meses de mensualidades para eliminar sufijos como "-2026"
         const lineasNormalizadas = (cxcEditar.lineas || []).map((l: any) => {
           if (l.nombre === 'Mensualidad' && Array.isArray(l.periodo_meses)) {
@@ -292,7 +363,7 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
               .maybeSingle(),
             supabase
               .from('cxc_detalle')
-              .select('id, catalogo_item_id, cantidad, precio_unitario, periodo_meses, detalle_extra, subtotal, ciclo_inicio, ciclo_fin, periodo_estadistico, catalogo_items(id, nombre, tipo)')
+              .select('id, catalogo_item_id, cantidad, precio_unitario, periodo_meses, detalle_extra, subtotal, ciclo_inicio, ciclo_fin, periodo_estadistico, catalogo_items(id, nombre, tipo, categoria)')
               .eq('cuenta_cobrar_id', cxcEditar.id),
           ]);
 
@@ -308,7 +379,7 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
               return {
                 catalogo_item_id: d.catalogo_item_id || '',
                 nombre: itemNombre,
-                tipo: d.catalogo_items?.tipo || 'servicio',
+                tipo: d.catalogo_items?.categoria === 'producto' ? 'producto' : 'servicio',
                 cantidad: cant,
                 precio_unitario: precio,
                 periodo_meses: pMeses,
@@ -346,6 +417,7 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
         })();
       } else {
         setAlumnoId(alumnoPreseleccionado?.id || '');
+        setSucursalId(perfil?.rol === 'SuperAdministrador' ? '' : (perfil?.sucursal_id || ''));
         setLineas([lineaVacia()]);
         setObservaciones('');
         setVencimiento(getHoyISO());
@@ -354,6 +426,11 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
         setMontoPago('');
         setCobroNroDoc('');
         setCobrosExistentes([]);
+
+        verificarOperacionPendiente(alumnoPreseleccionado?.id);
+      }
+      if (cxcEditar) {
+        verificarOperacionPendiente(cxcEditar.alumno_id);
       }
       setError(null); setExito(null);
     }
@@ -490,124 +567,127 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
     if (guardandoRef.current) return;
     guardandoRef.current = true;
     setGuardando(true);
+    setError(null); setExito(null);
+
     try {
       if (!perfil) throw new Error('Sesión expirada.');
       const ctx = perfil;
+      const escId = ctx.escuela_id;
+      const usrId = ctx.id;
 
-      // 1. Guardar/Actualizar Nota
-      let notaId = '';
-      let detalleGuardadoEnRpc = false;
-      const descripcionFinal = esAnticipo ? 'Anticipo' : lineas.filter(esLineaRegistrable).map(l => l.nombre).join(', ');
-      const lineasValidasGuardar = lineas.filter(esLineaRegistrable);
-      const mensualidadesGuardar = lineasValidasGuardar.filter(l => l.nombre === 'Mensualidad');
-      const mensualidadUnica = mensualidadesGuardar.length === 1 ? mensualidadesGuardar[0] : null;
-      const periodoMensualidadUnica = mensualidadUnica
-        ? calcularPeriodoEstadistico(mensualidadUnica.ciclo_inicio || '')
-        : '';
+      // 1. Si existe una operación previa pendiente para esta entidad/usuario, debemos resolverla estrictamente:
+      if (operacionPendiente) {
+        setAvisoRecuperacion('Consultando al servidor si la operación previa pendiente ya fue registrada...');
+        const verif = await resolverOperacionIncierta('cxc_individual', escId, operacionPendiente.operacionId);
 
-      if (cxcEditar?.id) {
-        notaId = cxcEditar.id;
-
-        // Recalcular el estado correcto en base a los cobros y el nuevo monto_total
-        // Si hay cobros con montos editados, usar esos montos; de lo contrario, consultar la BD
-        let totalCobrado = 0;
-        if (cobrosExistentes.length > 0) {
-          totalCobrado = cobrosExistentes.reduce((s, c) => s + c.monto_editado, 0);
-        } else {
-          const { data: cobrosDB } = await supabase
-            .from('cobros_aplicados')
-            .select('monto_aplicado')
-            .eq('cuenta_cobrar_id', notaId);
-          totalCobrado = (cobrosDB || []).reduce((s: number, c: any) => s + Number(c.monto_aplicado), 0);
+        if (verif.estado === 'error_consulta') {
+          // Un fallo al consultar no demuestra que la nota no exista: conserva el pendiente
+          setError(`No fue posible comprobar si la nota pendiente ya fue procesada por el servidor (${verif.mensaje}). Se conserva el intento anterior para no duplicar registros ni stock. Por favor, reintenta en unos momentos.`);
+          return;
         }
-        // Sumar nuevo pago si se registra uno adicional
-        if (pagarAlCrear) {
-          totalCobrado += parseFloat(montoPago) || 0;
-        }
-        let nuevoEstado = 'pendiente';
-        if (totalCobrado >= total) nuevoEstado = 'pagada';
-        else if (totalCobrado > 0) nuevoEstado = 'parcial';
 
-        const { error: errU } = await supabase.from('cuentas_cobrar').update({
-          monto_total: total,
-          descripcion: descripcionFinal,
-          observaciones,
-          fecha_emision: fechaEmision,
-          fecha_vencimiento: vencimiento || null,
-          estado: nuevoEstado,
-          editado: true,
-          editado_por: ctx.id,
-          updated_at: new Date().toISOString(),
-          periodo: periodoMensualidadUnica ? periodoMensualidadUnica.slice(0, 7) : null,
-          periodo_estadistico: periodoMensualidadUnica || null,
-          ciclo_inicio: mensualidadUnica?.ciclo_inicio || null,
-          ciclo_fin: mensualidadUnica?.ciclo_fin || null,
-          origen_facturacion: 'manual',
-          ejecucion_facturacion_id: null,
-        }).eq('id', notaId);
-        if (errU) throw errU;
-
-        // Reemplazar detalle previo. Nunca continuar si el borrado no fue
-        // autorizado o falló: insertar después de un fallo genera duplicados.
-        const { error: errEliminarDetalle } = await supabase
-          .from('cxc_detalle')
-          .delete()
-          .eq('cuenta_cobrar_id', notaId)
-          .eq('escuela_id', ctx.escuela_id);
-        if (errEliminarDetalle) {
-          throw new Error(`No se pudieron reemplazar los detalles de la nota: ${errEliminarDetalle.message}`);
+        if (verif.estado === 'guardada' && verif.notaId) {
+          // Si existe, recupera esa nota sin llamar a la RPC
+          // No confundas la recuperación de una nota con la confirmación de su cobro o pago.
+          setOperacionPendiente(null);
+          setAvisoRecuperacion(null);
+          operacionIdRef.current = crypto.randomUUID();
+          setExito(`✅ Se recuperó la nota previamente guardada en el servidor (ID: ${verif.notaId}). La nota ya existe y no se duplicó.`);
+          onCreada();
+          setTimeout(() => { onCerrar(); }, 1600);
+          return;
         }
-      } else if (tieneMensualidad) {
-        const { data: nuevaId, error: errRpc } = await supabase.rpc('rpc_crear_nota_mensualidad', {
-          p_alumno_id: alumnoId,
-          p_sucursal_id: ctx.sucursal_id,
-          p_monto_total: total,
-          p_descripcion: descripcionFinal,
-          p_observaciones: observaciones || null,
-          p_fecha_emision: fechaEmision,
-          p_fecha_vencimiento: vencimiento || null,
-          p_ciclo_inicio: mensualidadesGuardar[0]?.ciclo_inicio,
-          p_ciclo_fin: mensualidadesGuardar[0]?.ciclo_fin,
-          p_lineas: lineasValidasGuardar.map(l => ({
-            catalogo_item_id: l.catalogo_item_id,
-            cantidad: l.cantidad,
-            precio_unitario: l.precio_unitario,
-            periodo_meses: l.periodo_meses.length > 0 ? l.periodo_meses : null,
-            detalle_extra: l.detalle_personalizado || null,
-            ciclo_inicio: l.nombre === 'Mensualidad' ? l.ciclo_inicio : null,
-            ciclo_fin: l.nombre === 'Mensualidad' ? l.ciclo_fin : null,
-          })),
-          p_nro_recibo: cobroNroDoc || null,
-        });
-        if (errRpc || !nuevaId) throw errRpc || new Error('No se pudo crear la mensualidad.');
-        notaId = nuevaId as string;
-        detalleGuardadoEnRpc = true;
-      } else {
-        const { data: nueva, error: errN } = await supabase.from('cuentas_cobrar').insert({
-          escuela_id: ctx.escuela_id,
-          sucursal_id: ctx.sucursal_id,
-          alumno_id: alumnoId,
-          monto_total: total,
-          descripcion: descripcionFinal,
-          observaciones,
-          fecha_emision: fechaEmision,
-          fecha_vencimiento: vencimiento || null,
-          es_anticipo: esAnticipo,
-          estado: 'pendiente',
-          nro_recibo: cobroNroDoc || null,
-          periodo: periodoMensualidadUnica ? periodoMensualidadUnica.slice(0, 7) : null,
-          periodo_estadistico: periodoMensualidadUnica || null,
-          ciclo_inicio: mensualidadUnica?.ciclo_inicio || null,
-          ciclo_fin: mensualidadUnica?.ciclo_fin || null,
-          origen_facturacion: 'manual',
-        }).select('id').single();
-        if (errN) throw errN;
-        notaId = nueva.id;
+
+        // Si verif.estado === 'no_guardada':
+        // Corresponde reintentar enviando EXACTAMENTE el payloadOriginal sin sobreescribirlo ni generar otro UUID por cambios del formulario.
+        setAvisoRecuperacion(`Reintentando el envío de la operación original (ID: ${operacionPendiente.operacionId.slice(0, 8)}...)...`);
+        const rpcPayload = operacionPendiente.payloadOriginal.rpcParams;
+
+        const { data: notaIdResp, error: errRpcGuardar } = await supabase.rpc('rpc_guardar_nota_cxc', rpcPayload);
+        if (errRpcGuardar) throw errRpcGuardar;
+
+        const notaId = notaIdResp as string;
+        removerOperacionIncierta(operacionPendiente.operacionId);
+        setOperacionPendiente(null);
+        setAvisoRecuperacion(null);
+        operacionIdRef.current = crypto.randomUUID();
+
+        // Si el payload original incluía cobro:
+        const pagoOriginal = operacionPendiente.payloadOriginal.pago;
+        let cobroExitoso = true;
+        let errorCobroMsg: string | null = null;
+
+        if (pagoOriginal && pagoOriginal.monto > 0 && pagoOriginal.cuentaCobroId) {
+          try {
+            const { error: errCobro } = await supabase.rpc('rpc_registrar_cobro', {
+              p_payload: {
+                cuenta_cobrar_id: notaId,
+                escuela_id: escId,
+                sucursal_id: rpcPayload.p_sucursal_id,
+                usuario_id: usrId,
+                monto: pagoOriginal.monto,
+                cuenta_cobro_id: pagoOriginal.cuentaCobroId,
+                nro_comprobante: pagoOriginal.cobroNroDoc || null,
+                fecha: `${pagoOriginal.fechaPago}T${pagoOriginal.horaPago || '12:00'}:00`
+              }
+            });
+            if (errCobro) {
+              cobroExitoso = false;
+              errorCobroMsg = errCobro.message;
+              console.error('Error al registrar cobro tras reintento de nota:', errCobro);
+            }
+          } catch (e: any) {
+            cobroExitoso = false;
+            errorCobroMsg = e?.message || 'Error inesperado de conexión al registrar cobro';
+            console.error('Excepción al registrar cobro tras reintento de nota:', e);
+          }
+        }
+
+        if (pagoOriginal && pagoOriginal.monto > 0 && !cobroExitoso) {
+          setError(`⚠️ La nota fue guardada y conservada correctamente (ID: ${notaId}), pero el cobro financiero no pudo confirmarse: ${errorCobroMsg}. Puedes registrar el cobro manualmente desde la lista.`);
+          onCreada();
+          return;
+        }
+
+        setExito(pagoOriginal && pagoOriginal.monto > 0
+          ? '✅ Nota guardada y cobro confirmado correctamente tras el reintento de la operación original.'
+          : '✅ Nota guardada correctamente tras el reintento de la operación original.');
+        onCreada();
+        setTimeout(() => { onCerrar(); }, 1400);
+        return;
       }
 
-      // 2. Detalle
+      // 2. Guardar/Actualizar Nota nueva de forma atómica en PostgreSQL
+      let notaId = '';
+      const descripcionFinal = esAnticipo ? 'Anticipo' : lineas.filter(esLineaRegistrable).map(l => l.nombre).join(', ');
+      const lineasValidasGuardar = lineas.filter(esLineaRegistrable);
+      const esSuperAdmin = ctx.rol === 'SuperAdministrador';
+      const targetSucursalId = cxcEditar?.sucursal_id || (esSuperAdmin ? (sucursalId || null) : (sucursalId || ctx.sucursal_id));
+
+      const tieneProductos = lineasValidasGuardar.some(l => {
+        const it = catalogo.find(c => c.id === l.catalogo_item_id);
+        return it?.categoria === 'producto';
+      });
+
+      if (tieneProductos && (!targetSucursalId || !String(targetSucursalId).trim())) {
+        if (esSuperAdmin) {
+          setError('Debes seleccionar una sucursal para los productos incluidos en la nota de venta.');
+        } else {
+          setError('Tu usuario no tiene una sucursal asignada para registrar ventas de productos.');
+        }
+        return;
+      }
+
+      if (!esAnticipo && !cxcEditar?.id) {
+        await validarAperturaInventario(
+          ctx.escuela_id,
+          targetSucursalId,
+          lineasValidasGuardar.map(l => l.catalogo_item_id),
+        );
+      }
+
+      let itemAnticipoId = '';
       if (esAnticipo) {
-        let itemAnticipoId = '';
         const itemAnticipo = catalogo.find(c => c.nombre?.trim().toLowerCase() === 'anticipo');
         if (!itemAnticipo) {
           const { data: nuevoItem, error: errC } = await supabase.from('catalogo_items').insert({
@@ -626,33 +706,82 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
         } else {
           itemAnticipoId = itemAnticipo.id;
         }
-
-        const { error: errDetalleAnticipo } = await supabase.from('cxc_detalle').insert({
-          escuela_id: ctx.escuela_id,
-          cuenta_cobrar_id: notaId,
-          catalogo_item_id: itemAnticipoId,
-          cantidad: 1,
-          precio_unitario: total,
-          detalle_extra: 'Anticipo'
-        });
-        if (errDetalleAnticipo) throw errDetalleAnticipo;
-      } else if (!detalleGuardadoEnRpc) {
-        const { error: errInsertarDetalles } = await supabase.from('cxc_detalle').insert(lineasValidasGuardar.map(l => ({
-          escuela_id: ctx.escuela_id,
-          cuenta_cobrar_id: notaId,
-          catalogo_item_id: l.catalogo_item_id,
-          cantidad: l.cantidad,
-          precio_unitario: l.precio_unitario,
-          periodo_meses: l.periodo_meses.length > 0 ? l.periodo_meses : null,
-          detalle_extra: l.detalle_personalizado,
-          ciclo_inicio: l.nombre === 'Mensualidad' ? l.ciclo_inicio : null,
-          ciclo_fin: l.nombre === 'Mensualidad' ? l.ciclo_fin : null,
-          periodo_estadistico: l.nombre === 'Mensualidad'
-            ? calcularPeriodoEstadistico(l.ciclo_inicio || '')
-            : null,
-        })));
-        if (errInsertarDetalles) throw errInsertarDetalles;
       }
+
+      const lineasPayload = esAnticipo
+        ? [{
+            catalogo_item_id: itemAnticipoId,
+            cantidad: 1,
+            precio_unitario: total,
+            detalle_extra: 'Anticipo',
+            periodo_meses: null,
+            ciclo_inicio: null,
+            ciclo_fin: null
+          }]
+        : lineasValidasGuardar.map(l => ({
+            catalogo_item_id: l.catalogo_item_id,
+            cantidad: l.cantidad,
+            precio_unitario: l.precio_unitario,
+            periodo_meses: l.periodo_meses.length > 0 ? l.periodo_meses : null,
+            detalle_extra: l.detalle_personalizado || null,
+            ciclo_inicio: l.nombre === 'Mensualidad' ? l.ciclo_inicio : null,
+            ciclo_fin: l.nombre === 'Mensualidad' ? l.ciclo_fin : null,
+          }));
+
+      const operacionId = operacionIdRef.current;
+      const claveEntidad = alumnoId ? `alumno_${alumnoId}` : 'general';
+
+      const rpcParams = {
+        p_nota_id: cxcEditar?.id || null,
+        p_alumno_id: alumnoId || null,
+        p_sucursal_id: targetSucursalId,
+        p_monto_total: total,
+        p_descripcion: descripcionFinal,
+        p_observaciones: observaciones || null,
+        p_fecha_emision: fechaEmision,
+        p_fecha_vencimiento: vencimiento || null,
+        p_es_anticipo: esAnticipo,
+        p_lineas: lineasPayload,
+        p_nro_recibo: cobroNroDoc || null,
+        p_ciclo_inicio: lineasValidasGuardar.find(l => l.nombre === 'Mensualidad')?.ciclo_inicio || null,
+        p_ciclo_fin: lineasValidasGuardar.find(l => l.nombre === 'Mensualidad')?.ciclo_fin || null,
+        p_operacion_id: operacionId,
+      };
+
+      const mp = esAnticipo ? parseFloat(montoAnticipo) : parseFloat(montoPago);
+      const payloadOriginal = {
+        rpcParams,
+        pago: (pagarAlCrear || esAnticipo) ? {
+          monto: mp,
+          cuentaCobroId,
+          fechaPago,
+          horaPago,
+          cobroNroDoc,
+        } : null,
+        resumen: {
+          alumnoId,
+          total,
+          descripcionFinal
+        }
+      };
+
+      guardarOperacionIncierta({
+        operacionId,
+        tipo: 'cxc_individual',
+        escuelaId: escId,
+        usuarioId: usrId,
+        claveEntidad,
+        documentoId: cxcEditar?.id || null,
+        payloadOriginal,
+        timestamp: Date.now(),
+        estado: 'incierto'
+      });
+
+      const { data: notaIdResp, error: errRpcGuardar } = await supabase.rpc('rpc_guardar_nota_cxc', rpcParams);
+
+      if (errRpcGuardar) throw errRpcGuardar;
+      notaId = notaIdResp as string;
+      removerOperacionIncierta(operacionId);
 
       // 3. Actualizar cobros existentes modificados (solo en edición)
       if (cxcEditar?.id && cobrosExistentes.length > 0) {
@@ -684,13 +813,12 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
 
       // 4. Pago (Solo si es nueva nota o si explícitamente se pidió pagar algo adicional)
       if (pagarAlCrear || esAnticipo) {
-        const mp = esAnticipo ? parseFloat(montoAnticipo) : parseFloat(montoPago);
         if (mp > 0 && cuentaCobroId) {
           const { error: rpcErr } = await supabase.rpc('rpc_registrar_cobro', {
             p_payload: {
               cuenta_cobrar_id: notaId,
               escuela_id: ctx.escuela_id,
-              sucursal_id: ctx.sucursal_id,
+              sucursal_id: targetSucursalId,
               usuario_id: ctx.id,
               monto: mp,
               cuenta_cobro_id: cuentaCobroId,
@@ -724,12 +852,33 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
         });
       } catch (e) { console.error(e); }
 
+      removerOperacionIncierta(operacionId);
+      operacionIdRef.current = crypto.randomUUID();
       onCreada();
       setTimeout(() => { onCerrar(); }, 600);
     } catch (err: any) {
-      setError(err.code === '23505'
-        ? 'Ya existe una mensualidad activa para este alumno y periodo estadístico.'
-        : `Error: ${err.message}`);
+      if (esRespuestaIncierta(err)) {
+        const escId = perfil?.escuela_id;
+        const usrId = perfil?.id;
+        if (escId && usrId) {
+          const op = obtenerOperacionIncierta('cxc_individual', escId, usrId, alumnoId ? `alumno_${alumnoId}` : undefined, cxcEditar?.id || null);
+          if (op) {
+            setOperacionPendiente(op);
+            setAvisoRecuperacion(
+              `Respuesta no confirmada del servidor. Se conservó la operación original (ID: ${op.operacionId.slice(0, 8)}...) para verificar antes de volver a intentar.`
+            );
+          }
+        }
+        setError('Respuesta no confirmada del servidor. Se conservó el identificador de la operación para verificar si fue guardada antes de reintentar.');
+      } else {
+        removerOperacionIncierta(operacionIdRef.current);
+        operacionIdRef.current = crypto.randomUUID();
+        setOperacionPendiente(null);
+        setAvisoRecuperacion(null);
+        setError(err.code === '23505'
+          ? 'Ya existe una mensualidad activa para este alumno y periodo estadístico.'
+          : `Error: ${err.message}`);
+      }
     } finally {
       guardandoRef.current = false;
       setGuardando(false);
@@ -747,7 +896,49 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
         </div>
         <div style={{ padding: '1.5rem' }}>
           <form onSubmit={guardarNota}>
+            {avisoRecuperacion && (
+              <div style={{
+                background: 'rgba(245, 158, 11, 0.12)',
+                border: '1px solid rgba(245, 158, 11, 0.35)',
+                borderRadius: '8px',
+                padding: '0.75rem 1rem',
+                marginBottom: '1.25rem',
+                fontSize: '0.82rem',
+                color: '#fbbf24',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+              }}>
+                <AlertCircle size={16} style={{ flexShrink: 0 }} />
+                <span>{avisoRecuperacion}</span>
+              </div>
+            )}
             <div className="modal-form-grid" style={{ marginBottom: '1.5rem' }}>
+              {perfil?.rol === 'SuperAdministrador' && (
+                <div className="form-campo full-width">
+                  <label>Sucursal {!cxcEditar && '*'}</label>
+                  {cxcEditar ? (
+                    <input
+                      type="text"
+                      value={(sucursales as any[]).find((s: any) => s.id === sucursalId)?.nombre || 'Sucursal de la nota'}
+                      disabled
+                      style={{ opacity: 0.7, cursor: 'not-allowed' }}
+                    />
+                  ) : (
+                    <select
+                      value={sucursalId}
+                      onChange={e => setSucursalId(e.target.value)}
+                      disabled={guardando}
+                      required
+                    >
+                      <option value="">— Seleccionar Sucursal —</option>
+                      {(sucursales as any[]).map((s: any) => (
+                        <option key={s.id} value={s.id}>{s.nombre}</option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+              )}
               <div className="form-campo full-width">
                 <label>Alumno / Deportista *</label>
                 <select 
@@ -755,6 +946,7 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
                   onChange={e => {
                     const newAlumnoId = e.target.value;
                     setAlumnoId(newAlumnoId);
+                    verificarOperacionPendiente(newAlumnoId);
                     
                     // Sincronizar el precio de la mensualidad si cambia el alumno
                     const alum = alumnos.find(a => a.id === newAlumnoId);
@@ -915,6 +1107,7 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
                               ...nuevas[idx], 
                               catalogo_item_id: it.id, 
                               nombre: it.nombre, 
+                              tipo: it.categoria === 'producto' ? 'producto' : 'servicio',
                               precio_unitario: precioUnitario, 
                               cantidad: cantidadInicial,
                               subtotal: precioUnitario * cantidadInicial,
@@ -929,7 +1122,11 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
                           }
                         }} required disabled={guardando}>
                           <option value="">— Seleccionar Ítem —</option>
-                          {catalogo.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                          {catalogo.map(c => (
+                            <option key={c.id} value={c.id}>
+                              {c.nombre}{c.categoria === 'producto' ? ` (Stock: ${saldosInventario.get(c.id) ?? 0})` : ''}
+                            </option>
+                          ))}
                         </select>
                         <input type="number" value={linea.cantidad} onChange={e => {
                           const cant = parseInt(e.target.value) || 1;
@@ -946,6 +1143,13 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
                         <div style={{ textAlign: 'right', fontWeight: 700, fontSize: '0.9rem' }}>Bs {fmtMonto(linea.subtotal)}</div>
                         <button type="button" onClick={() => setLineas(lineas.filter((_, i) => i !== idx))} disabled={lineas.length === 1} style={{ color: '#f87171' }}><Trash2 size={16} /></button>
                       </div>
+
+                      {catalogo.find(c => c.id === linea.catalogo_item_id)?.categoria === 'producto' && linea.catalogo_item_id && (
+                        <div style={{ fontSize: '0.75rem', marginTop: '0.25rem', color: (saldosInventario.get(linea.catalogo_item_id) ?? 0) <= 0 ? '#f59e0b' : '#34d399' }}>
+                          📦 Existencias en sucursal: <strong>{saldosInventario.get(linea.catalogo_item_id) ?? 0} unid.</strong>
+                          {(saldosInventario.get(linea.catalogo_item_id) ?? 0) <= 0 && ' (Permite venta con saldo negativo)'}
+                        </div>
+                      )}
 
                       {esMensualidad && (
                         <div style={{ marginTop: '0.75rem', padding: '0.75rem', background: 'rgba(255,255,255,0.02)', borderRadius: '8px' }}>

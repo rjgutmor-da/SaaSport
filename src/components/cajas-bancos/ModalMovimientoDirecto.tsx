@@ -62,7 +62,8 @@ const ModalMovimientoDirecto: React.FC<Props> = ({ visible, tipo, cajas, onCerra
       .from('catalogo_items')
       .select('*')
       .eq('escuela_id', perfil.escuela_id)
-      .eq('activo', true);
+      .eq('activo', true)
+      .neq('categoria', 'producto');
     
     if (isIngreso) {
       query.in('tipo_movimiento', ['ingreso', 'ambos']);
@@ -110,6 +111,12 @@ const ModalMovimientoDirecto: React.FC<Props> = ({ visible, tipo, cajas, onCerra
         usuarioNombre: `${perfil.nombres || ''} ${perfil.apellidos || ''}`.trim() || perfil.email
       });
       if (!puedeContinuar) return;
+
+      // Validar que el concepto seleccionado no sea un producto de inventario
+      const contraCuentaObj = todasLasCuentas.find(c => c.id === contraCuentaId);
+      if (contraCuentaObj && (contraCuentaObj.categoria === 'producto' || (contraCuentaObj as any).tipo === 'producto')) {
+        throw new Error('Los movimientos directos no permiten conceptos de inventario/producto. Usa los módulos de Ventas o Compras.');
+      }
 
       // 2. Crear el registro maestro (CxC o CxP)
       if (isIngreso) {
@@ -236,6 +243,9 @@ const ModalMovimientoDirecto: React.FC<Props> = ({ visible, tipo, cajas, onCerra
                 ))}
               </select>
             </div>
+            <p style={{ gridColumn: '1 / -1', margin: 0, fontSize: '0.78rem', color: 'var(--text-tertiary)' }}>
+              Los productos se registran mediante una Nota de Compra o una Nota de Venta para controlar sus cantidades.
+            </p>
 
             <div className="form-campo">
               <label><DollarSign size={14} /> Monto (Bs) *</label>

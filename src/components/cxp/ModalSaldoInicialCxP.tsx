@@ -134,10 +134,11 @@ const ModalSaldoInicialCxP: React.FC<Props> = ({ visible, onCerrar, onCreado, ed
 
       if (errCxp || !nuevaCxp) throw new Error(`Error al crear CxP: ${errCxp?.message || 'desconocido'}`);
 
-      // Crear detalle (informativo)
+      // Crear detalle (informativo, financiero sin concepto de producto)
       await supabase.from('cxp_detalle').insert({
         escuela_id: ctx.escuela_id,
         cuenta_pagar_id: nuevaCxp.id,
+        catalogo_item_id: null,
         descripcion: descripcion.trim() || 'Saldo inicial',
         cantidad: 1,
         precio_unitario: valorMonto,

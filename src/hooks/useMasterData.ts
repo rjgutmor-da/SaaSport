@@ -57,10 +57,7 @@ const fetchCatalogo = async (escuelaId: string | null) => {
   if (!escuelaId) return [];
   const { data, error } = await supabase
     .from('catalogo_items')
-    .select(`
-      *,
-      stock:stock_productos(id, cantidad_disponible)
-    `)
+    .select('*')
     .eq('escuela_id', escuelaId)
     .order('nombre');
   if (error) throw error;

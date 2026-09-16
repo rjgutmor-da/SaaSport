@@ -6,14 +6,18 @@
 import { createClient } from '@supabase/supabase-js'
 import Cookies from 'js-cookie'
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+const proc = typeof globalThis !== 'undefined' ? (globalThis as any).process : undefined;
+const env = (typeof import.meta !== 'undefined' && import.meta.env) ? import.meta.env : (proc?.env ? proc.env : {} as any);
+const supabaseUrl = env.VITE_SUPABASE_URL || 'https://placeholder.supabase.co';
+const supabaseAnonKey = env.VITE_SUPABASE_ANON_KEY || 'placeholder-anon-key';
 
 if (!supabaseUrl || !supabaseAnonKey) {
-  console.error(
-    '⚠️ Variables de entorno de Supabase no encontradas.\n' +
-    'Asegúrate de tener un archivo .env con VITE_SUPABASE_URL y VITE_SUPABASE_ANON_KEY'
-  )
+  if (typeof window !== 'undefined') {
+    console.error(
+      '⚠️ Variables de entorno de Supabase no encontradas.\n' +
+      'Asegúrate de tener un archivo .env con VITE_SUPABASE_URL y VITE_SUPABASE_ANON_KEY'
+    );
+  }
 }
 
 const CHUNK_SIZE = 3000;
@@ -39,12 +43,13 @@ const cookieStorage = {
     return result || null;
   },
   setItem: (key: string, value: string): void => {
-    const isProduction = window.location.hostname.endsWith('saasport.pro');
+    const isProduction = typeof window !== 'undefined' && Boolean(window.location?.hostname?.endsWith('saasport.pro'));
+    const isHttps = typeof window !== 'undefined' && window.location?.protocol === 'https:';
     const opts: any = {
       expires: 7,
       path: '/',
       sameSite: 'lax' as const,
-      secure: isProduction || window.location.protocol === 'https:',
+      secure: isProduction || isHttps,
     };
 
     if (isProduction) {

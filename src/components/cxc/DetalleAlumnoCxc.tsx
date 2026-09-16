@@ -242,6 +242,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
           .eq('activo', true)
           .eq('escuela_id', escuelaId)
           .or('tipo_movimiento.eq.ingreso,tipo_movimiento.eq.ambos')
+          .neq('categoria', 'producto')
           .order('nombre')
       ]);
 

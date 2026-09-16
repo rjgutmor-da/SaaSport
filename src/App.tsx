@@ -119,7 +119,7 @@ const Sidebar: React.FC<SidebarProps> = ({ onLogout, theme, onCycleTheme, extra 
           </div>
         )}
 
-        {can(perfil?.rol, 'finance.manageAccounts') && <div className="sidebar-item-group">
+        {(can(perfil?.rol, 'finance.manageAccounts') || can(perfil?.rol, 'finance.inventory.manage')) && <div className="sidebar-item-group">
           <NavLink to="/cuentas" className={({ isActive }) => (isActive ? 'sidebar-link active' : 'sidebar-link')}>
             <BookOpen size={20} strokeWidth={1.5} />
             <span>Cuentas</span>
@@ -271,6 +271,13 @@ const RequirePermission: React.FC<{ permission: Permission; children: React.Reac
   return can(perfil?.rol, permission) ? <>{children}</> : <Navigate to="/" replace />;
 };
 
+const RequireAccountsOrInventory: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { perfil } = useAuthSaaSport();
+  return can(perfil?.rol, 'finance.manageAccounts') || can(perfil?.rol, 'finance.inventory.manage')
+    ? <>{children}</>
+    : <Navigate to="/" replace />;
+};
+
 const AppRouter: React.FC<AppRouterProps> = ({ onLogout, theme, onCycleTheme }) => {
   const { tieneAcceso, perfil, cargando } = useAuthSaaSport();
   const isMobile = useIsMobile();
@@ -326,11 +333,11 @@ const AppRouter: React.FC<AppRouterProps> = ({ onLogout, theme, onCycleTheme }) 
             <Route path="/cxc"           element={<CuentasCobrar />} />
             <Route path="/cxp"           element={<RequirePermission permission="finance.cxp.view"><CuentasPagar /></RequirePermission>} />
             <Route path="/cajas-bancos"  element={<RequirePermission permission="finance.boxes.view"><CajasBancos /></RequirePermission>} />
+            <Route path="/cuentas"       element={<RequireAccountsOrInventory><Cuentas /></RequireAccountsOrInventory>} />
 
             {/* Rutas solo para desktop — el celular nunca descarga estos módulos */}
             {!isMobile && (
               <>
-                <Route path="/cuentas"            element={<RequirePermission permission="finance.manageAccounts"><Cuentas /></RequirePermission>} />
                 <Route path="/estadisticas"       element={<RequirePermission permission="finance.statistics.view"><Estadisticas /></RequirePermission>} />
                 <Route path="/finanzas/registro-actividad" element={<RegistroActividad />} />
                 <Route path="/configuraciones"    element={<Configuraciones />} />

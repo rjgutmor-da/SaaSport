@@ -268,8 +268,13 @@ const NotasAutomaticas: React.FC = () => {
     }
   };
 
-  // Cambiar el monto entre Completa (100%) y Parcial (50%)
+  // Cambiar el monto entre Completa (100%) y Parcial (50%) - Solo mensualidades (servicios)
   const cambiarModalidadMonto = async (nota: CuentaCobrar, tipo: 'completa' | 'parcial') => {
+    if (nota.descripcion && !nota.descripcion.toLowerCase().includes('mensualidad')) {
+      alert('Solo las notas de mensualidad de servicios pueden cambiar su modalidad de cobro.');
+      return;
+    }
+
     const mensualidadBase = Number(nota.alumnos?.mensualidad || nota.monto_total);
     const nuevoMonto = tipo === 'completa' ? mensualidadBase : Math.round(mensualidadBase * 0.5 * 100) / 100;
 

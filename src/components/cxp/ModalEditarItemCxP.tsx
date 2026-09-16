@@ -31,6 +31,12 @@ const ModalEditarItemCxP: React.FC<Props> = ({ visible, item, notaId, onCerrar, 
       return;
     }
 
+    const esProducto = item?.categoria === 'producto' || item?.tipo === 'producto';
+    if (esProducto) {
+      setError('Los ítems de categoría producto no se pueden editar directamente aquí para no desincronizar el inventario. Edita la Nota de Pago completa.');
+      return;
+    }
+
     setGuardando(true);
     setError('');
 
@@ -172,6 +178,24 @@ const ModalEditarItemCxP: React.FC<Props> = ({ visible, item, notaId, onCerrar, 
             </span>
           </div>
 
+          {(item?.categoria === 'producto' || item?.tipo === 'producto') && (
+            <div style={{
+              background: 'rgba(245, 158, 11, 0.1)',
+              border: '1px solid rgba(245, 158, 11, 0.3)',
+              borderRadius: '8px',
+              padding: '0.75rem',
+              marginBottom: '1rem',
+              fontSize: '0.8rem',
+              color: '#fbbf24',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+            }}>
+              <AlertCircle size={16} style={{ flexShrink: 0 }} />
+              <span>Este concepto es un producto de inventario. Para ajustar sus cantidades o precios debes editar la Nota de Pago completa.</span>
+            </div>
+          )}
+
           {error && (
             <div className="form-msg form-msg--error" style={{ marginBottom: '1rem' }}>
               <AlertCircle size={14} /> {error}
@@ -181,9 +205,9 @@ const ModalEditarItemCxP: React.FC<Props> = ({ visible, item, notaId, onCerrar, 
           <button
             type="button"
             onClick={guardar}
-            disabled={guardando}
+            disabled={guardando || item?.categoria === 'producto' || item?.tipo === 'producto'}
             className="btn-guardar-cuenta"
-            style={{ width: '100%', justifyContent: 'center', gap: '0.5rem' }}
+            style={{ width: '100%', justifyContent: 'center', gap: '0.5rem', opacity: (item?.categoria === 'producto' || item?.tipo === 'producto') ? 0.5 : 1, cursor: (item?.categoria === 'producto' || item?.tipo === 'producto') ? 'not-allowed' : 'pointer' }}
           >
             <Check size={16} />
             {guardando ? 'Guardando...' : 'Guardar Cambios'}

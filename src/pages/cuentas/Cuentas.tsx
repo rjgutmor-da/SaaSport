@@ -11,8 +11,10 @@ import {
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthSaaSport } from '../../lib/authHelper';
+import { can } from '../../config/roles';
 import { useCatalogo } from '../../hooks/useMasterData';
 import { useQueryClient } from '@tanstack/react-query';
+import InventarioProductos from '../../components/cuentas/InventarioProductos';
 
 const obtenerCtx = async () => {
   const { data: { user } } = await supabase.auth.getUser();
@@ -45,7 +47,8 @@ interface ItemConsolidado {
 const Cuentas: React.FC = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { escuelaId, cargando: authCargando } = useAuthSaaSport();
+  const { escuelaId, cargando: authCargando, esSuperAdmin, perfil } = useAuthSaaSport();
+  const puedeEditarCatalogo = esSuperAdmin || can(perfil?.rol, 'finance.manageAccounts');
 
   // ── Hook de datos maestros ──
   const { data: catalogoRaw, isLoading: cargandoCatalogo, error: errorCatalogo } = useCatalogo(escuelaId);
@@ -59,8 +62,8 @@ const Cuentas: React.FC = () => {
       tipo_movimiento: item.tipo_movimiento || 'ingreso',
       precio_venta: item.precio_venta,
       costo_unitario: item.costo_unitario,
-      saldo: item.stock?.[0]?.cantidad_disponible || 0,
-      stock_id: item.stock?.[0]?.id,
+      saldo: 0,
+      stock_id: undefined,
       cuenta_ingreso_id: item.cuenta_ingreso_id,
       cuenta_gasto_id: item.cuenta_gasto_id,
       ventasMesPresente: 0,
@@ -274,24 +277,12 @@ const Cuentas: React.FC = () => {
           es_gasto: i.tipo_movimiento === 'egreso' || i.tipo_movimiento === 'ambos',
         }));
 
-        const { data: insertados, error: errIns } = await supabase
-          .from('catalogo_items').insert(inserts).select('id, categoria');
+        const { error: errIns } = await supabase
+          .from('catalogo_items').insert(inserts);
 
         if (errIns) {
           console.error("Error insertando ítems:", errIns);
           errorOcurrido = true;
-        } else if (insertados) {
-          const productosNuevos = insertados.filter(i => i.categoria === 'producto');
-          if (productosNuevos.length > 0) {
-            const { error: errStock } = await supabase.from('stock_productos').insert(
-              productosNuevos.map(p => ({
-                escuela_id: ctx.escuela_id,
-                catalogo_item_id: p.id,
-                cantidad_disponible: 0,
-              }))
-            );
-            if (errStock) console.error("Error creando stock:", errStock);
-          }
         }
       }
 
@@ -435,6 +426,14 @@ const Cuentas: React.FC = () => {
     }
   };
 
+  if (!esSuperAdmin) {
+    return (
+      <main className="main-content cxc-main" style={{ padding: '0 1.5rem 1rem' }}>
+        <InventarioProductos />
+      </main>
+    );
+  }
+
   return (
     <main className="main-content cxc-main" style={{ 
       paddingTop: 0, 
@@ -523,44 +522,48 @@ const Cuentas: React.FC = () => {
             </div>
 
             <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
-              <button 
-                className="btn-nueva-cuenta" 
-                onClick={iniciarEdicion} 
-                style={{ 
-                  padding: '0.45rem 1rem', 
-                  fontSize: '0.85rem', 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  gap: '0.4rem',
-                  borderRadius: '8px',
-                  background: 'rgba(255,255,255,0.05)',
-                  border: '1px solid rgba(255,255,255,0.1)',
-                  color: 'var(--text-primary)',
-                  cursor: 'pointer',
-                  fontWeight: 600
-                }}
-              >
-                <Edit2 size={14} /> Conceptos
-              </button>
-              <button 
-                className="btn-nueva-cuenta" 
-                onClick={iniciarEdicionTorneos} 
-                style={{ 
-                  padding: '0.45rem 1rem', 
-                  fontSize: '0.85rem', 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  gap: '0.4rem',
-                  borderRadius: '8px',
-                  background: 'rgba(255,255,255,0.05)',
-                  border: '1px solid rgba(255,255,255,0.1)',
-                  color: 'var(--text-primary)',
-                  cursor: 'pointer',
-                  fontWeight: 600
-                }}
-              >
-                <Edit2 size={14} /> Torneos
-              </button>
+              {puedeEditarCatalogo && (
+                <>
+                  <button
+                    className="btn-nueva-cuenta"
+                    onClick={iniciarEdicion}
+                    style={{
+                      padding: '0.45rem 1rem',
+                      fontSize: '0.85rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.4rem',
+                      borderRadius: '8px',
+                      background: 'rgba(255,255,255,0.05)',
+                      border: '1px solid rgba(255,255,255,0.1)',
+                      color: 'var(--text-primary)',
+                      cursor: 'pointer',
+                      fontWeight: 600
+                    }}
+                  >
+                    <Edit2 size={14} /> Conceptos
+                  </button>
+                  <button
+                    className="btn-nueva-cuenta"
+                    onClick={iniciarEdicionTorneos}
+                    style={{
+                      padding: '0.45rem 1rem',
+                      fontSize: '0.85rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.4rem',
+                      borderRadius: '8px',
+                      background: 'rgba(255,255,255,0.05)',
+                      border: '1px solid rgba(255,255,255,0.1)',
+                      color: 'var(--text-primary)',
+                      cursor: 'pointer',
+                      fontWeight: 600
+                    }}
+                  >
+                    <Edit2 size={14} /> Iniciar torneos
+                  </button>
+                </>
+              )}
               <button className="btn-refrescar" onClick={manejarActualizacion} disabled={cargando}>
                 <RefreshCw size={16} className={cargando ? 'spin' : ''} />
               </button>
@@ -949,7 +952,7 @@ const Cuentas: React.FC = () => {
                     <th className="cxc-th">Movimiento</th>
                     <th className="cxc-th cxc-th-center">Precio (Bs)</th>
                     <th className="cxc-th cxc-th-center">Costo (Bs)</th>
-                    <th className="cxc-th cxc-th-center">Saldo</th>
+                    <th className="cxc-th cxc-th-center">Inventario</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -993,12 +996,11 @@ const Cuentas: React.FC = () => {
                           {fmtMonto(item.costo_unitario)}
                         </td>
                         <td className="cxc-td cxc-td-center">
-                          <span style={{ 
-                            color: item.saldo > 0 ? 'var(--success)' : item.saldo < 0 ? 'var(--danger)' : 'var(--text-tertiary)',
-                            fontWeight: item.saldo !== 0 ? 700 : 400
-                          }}>
-                            {item.saldo}
-                          </span>
+                          {item.categoria === 'producto' ? (
+                            <span style={{ fontSize: '0.8rem', color: 'var(--primary)', fontWeight: 600 }}>Por sucursal</span>
+                          ) : (
+                            <span style={{ color: 'var(--text-tertiary)' }}>—</span>
+                          )}
                         </td>
                       </tr>
                     );
@@ -1009,6 +1011,7 @@ const Cuentas: React.FC = () => {
           )}
         </>
       )}
+      <InventarioProductos />
     </main>
   );
 };

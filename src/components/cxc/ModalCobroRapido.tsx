@@ -99,10 +99,11 @@ const ModalCobroRapido: React.FC<Props> = ({ alumnoInicial, visible, onCerrar, o
         setCuentaId(pred ? pred.id : cuentas[0].id);
       }
 
-      // Cargar catálogo para anticipos
+      // Cargar catálogo para anticipos (excluyendo productos de inventario)
       const { data: resCat } = await supabase.from('catalogo_items')
         .select('*').eq('activo', true)
         .or('tipo_movimiento.eq.ingreso,tipo_movimiento.eq.ambos')
+        .neq('categoria', 'producto')
         .order('nombre');
       setCatalogo(resCat ?? []);
     };

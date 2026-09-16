@@ -651,10 +651,12 @@ const CuentasCobrar: React.FC = () => {
 
       <ModalNotaMasiva
         visible={mostrarNotaMasiva}
-        onCerrar={() => setMostrarNotaMasiva(false)}
-        onCreada={() => {
+        onCerrar={() => {
           setMostrarNotaMasiva(false);
-          setAlumnosMarcados([]); // Limpiar selección tras crear
+          setAlumnosMarcados([]);
+          manejarActualizacion();
+        }}
+        onActualizar={() => {
           manejarActualizacion();
         }}
         alumnosSeleccionados={alumnosMarcados}
