@@ -13,7 +13,8 @@ import { useNavigate } from 'react-router-dom';
 import { useAuthSaaSport } from '../../lib/authHelper';
 import { can } from '../../config/roles';
 import { useCatalogo } from '../../hooks/useMasterData';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { obtenerInventarioConsolidado } from '../../lib/inventario';
 import InventarioProductos from '../../components/cuentas/InventarioProductos';
 
 const obtenerCtx = async () => {
@@ -52,6 +53,11 @@ const Cuentas: React.FC = () => {
 
   // ── Hook de datos maestros ──
   const { data: catalogoRaw, isLoading: cargandoCatalogo, error: errorCatalogo } = useCatalogo(escuelaId);
+  const { data: inventarioConsolidado, isPending: cargandoInventario, isError: errorInventario } = useQuery({
+    queryKey: ['inventario-consolidado', escuelaId, perfil?.id, perfil?.rol, perfil?.sucursal_id],
+    queryFn: ({ signal }) => obtenerInventarioConsolidado(escuelaId!, signal),
+    enabled: Boolean(escuelaId) && !authCargando,
+  });
 
   // Procesar items para la vista
   const items = useMemo(() => {
@@ -109,6 +115,7 @@ const Cuentas: React.FC = () => {
 
   const manejarActualizacion = () => {
     queryClient.invalidateQueries({ queryKey: ['catalogo', escuelaId] });
+    queryClient.invalidateQueries({ queryKey: ['inventario-consolidado', escuelaId] });
   };
 
   const cargarTorneos = async () => {
@@ -631,6 +638,7 @@ const Cuentas: React.FC = () => {
       )}
 
       {/* Edición de Catálogo in-line / Torneos in-line */}
+      {errorInventario && <div className="pc-error" role="alert">No se pudo cargar el inventario consolidado. Pulsa Actualizar para reintentar.</div>}
       {modoEdicion === 'conceptos' ? (
         <div className="cxc-tabla-wrapper">
           <table className="cxc-tabla">
@@ -952,7 +960,7 @@ const Cuentas: React.FC = () => {
                     <th className="cxc-th">Movimiento</th>
                     <th className="cxc-th cxc-th-center">Precio (Bs)</th>
                     <th className="cxc-th cxc-th-center">Costo (Bs)</th>
-                    <th className="cxc-th cxc-th-center">Inventario</th>
+                    <th className="cxc-th cxc-th-center" title={esSuperAdmin ? 'Suma de todas las sucursales de la escuela' : 'Saldo de tu sucursal autorizada'}>Inventario {esSuperAdmin ? 'consolidado' : 'de sucursal'}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -997,7 +1005,9 @@ const Cuentas: React.FC = () => {
                         </td>
                         <td className="cxc-td cxc-td-center">
                           {item.categoria === 'producto' ? (
-                            <span style={{ fontSize: '0.8rem', color: 'var(--primary)', fontWeight: 600 }}>Por sucursal</span>
+                            <span style={{ fontSize: '0.8rem', color: 'var(--primary)', fontWeight: 600 }}>
+                              {errorInventario ? 'No disponible' : cargandoInventario ? 'Cargando…' : (inventarioConsolidado?.[item.id] ?? 0).toLocaleString('es-BO')}
+                            </span>
                           ) : (
                             <span style={{ color: 'var(--text-tertiary)' }}>—</span>
                           )}

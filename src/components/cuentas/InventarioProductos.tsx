@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { PackagePlus, RefreshCw, ArrowLeftRight, ClipboardCheck, Gift, History, SlidersHorizontal, X } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import { useAuthSaaSport } from '../../lib/authHelper';
+import { useQueryClient } from '@tanstack/react-query';
 
 type Producto = { id: string; nombre: string; activo: boolean };
 type Sucursal = { id: string; nombre: string };
@@ -25,6 +26,7 @@ const Modal: React.FC<{ titulo: string; onCerrar: () => void; children: React.Re
 );
 
 const InventarioProductos: React.FC = () => {
+  const queryClient = useQueryClient();
   const { perfil, escuelaId, esSuperAdmin } = useAuthSaaSport();
   const [productos, setProductos] = useState<Producto[]>([]);
   const [sucursales, setSucursales] = useState<Sucursal[]>([]);
@@ -81,6 +83,7 @@ const InventarioProductos: React.FC = () => {
     ]);
     if (errSaldos || errApertura) { setError((errSaldos || errApertura)?.message || 'No se pudo cargar la sucursal.'); return; }
     setSaldos((saldosData ?? []) as Saldo[]); setAbierto(Boolean(apertura));
+    void queryClient.invalidateQueries({ queryKey: ['inventario-consolidado', escuelaId] });
   };
 
   useEffect(() => { void cargar(); }, [escuelaId, esSuperAdmin, perfil?.sucursal_id]);

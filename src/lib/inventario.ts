@@ -1,5 +1,28 @@
 import { supabase } from './supabaseClient';
 
+/** Suma saldos actuales por producto, paginando y conservando el alcance de RLS. */
+export const obtenerInventarioConsolidado = async (
+  escuelaId: string,
+  signal?: AbortSignal,
+): Promise<Record<string, number>> => {
+  const totales: Record<string, number> = {};
+  const lote = 500;
+  for (let desde = 0; ; desde += lote) {
+    let query = supabase.from('inventario_saldos')
+      .select('catalogo_item_id,cantidad_disponible')
+      .eq('escuela_id', escuelaId)
+      .order('sucursal_id').order('catalogo_item_id')
+      .range(desde, desde + lote - 1);
+    if (signal) query = query.abortSignal(signal);
+    const { data, error } = await query;
+    if (error) throw error;
+    for (const saldo of data ?? []) {
+      totales[saldo.catalogo_item_id] = (totales[saldo.catalogo_item_id] ?? 0) + Number(saldo.cantidad_disponible);
+    }
+    if (!data || data.length < lote) return totales;
+  }
+};
+
 /** Comprueba la apertura antes de crear una nota con productos. */
 export const validarAperturaInventario = async (
   escuelaId: string,
