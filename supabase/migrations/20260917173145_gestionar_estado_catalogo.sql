@@ -164,5 +164,7 @@ $$;
 
 REVOKE ALL ON FUNCTION public.rpc_estado_catalogo() FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.rpc_gestionar_catalogo_item(uuid, text) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.rpc_estado_catalogo() FROM anon;
+REVOKE ALL ON FUNCTION public.rpc_gestionar_catalogo_item(uuid, text) FROM anon;
 GRANT EXECUTE ON FUNCTION public.rpc_estado_catalogo() TO authenticated;
 GRANT EXECUTE ON FUNCTION public.rpc_gestionar_catalogo_item(uuid, text) TO authenticated;
