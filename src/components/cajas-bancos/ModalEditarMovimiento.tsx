@@ -126,7 +126,7 @@ const ModalEditarMovimiento: React.FC<Props> = ({ visible, movimiento, cajas, on
           cuenta_id: cajaId,
           monto: valorMonto,
           fecha: fechaConTZ,
-          descripcion: esMovimientoDeNota ? movimiento.descripcion : descripcion.trim(),
+          descripcion: descripcion.trim(),
           nro_transaccion: nroTransaccion.trim() || null,
           concepto_id: movimiento.es_movimiento_directo ? (conceptoId || null) : null
         }
@@ -223,8 +223,8 @@ const ModalEditarMovimiento: React.FC<Props> = ({ visible, movimiento, cajas, on
               <textarea
                 value={descripcion}
                 onChange={e => setDescripcion(e.target.value)}
-                required={!esMovimientoDeNota}
-                disabled={guardando || esMovimientoDeNota}
+                required
+                disabled={guardando}
                 maxLength={255}
                 style={{ resize: 'vertical', minHeight: '60px', width: '100%' }}
               />
