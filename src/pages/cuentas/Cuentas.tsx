@@ -7,7 +7,8 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import {
   RefreshCw, Plus, X, Trash2,
-  Edit2, Save, BookOpen, ShoppingBag, Wrench, Receipt, Layers, Search
+  Edit2, Save, BookOpen, ShoppingBag, Wrench, Receipt, Layers, Search,
+  Archive, RotateCcw
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthSaaSport } from '../../lib/authHelper';
@@ -28,6 +29,30 @@ const obtenerCtx = async () => {
 const fmtMonto = (n: number | null | undefined): string =>
   n != null ? n.toLocaleString('es-BO', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—';
 
+const mensajeGestionCatalogo = (
+  error: unknown,
+  accion: 'eliminar' | 'desactivar' | 'reactivar',
+): string => {
+  const mensaje = error && typeof error === 'object' && 'message' in error
+    ? String(error.message)
+    : '';
+  const mensajesEsperados = [
+    'Solo el SuperAdministrador',
+    'El concepto no existe',
+    'El ítem Mensualidad',
+    'El concepto ya tiene movimientos',
+    'No se puede eliminar',
+    'El concepto no tiene movimientos',
+    'No se puede desactivar',
+    'Alcanzaste el límite de productos',
+  ];
+  if (mensajesEsperados.some(texto => mensaje.includes(texto))) return mensaje;
+  if (mensaje.includes('inventario_saldos_catalogo_item_id_fkey')) {
+    return 'El producto tiene información de inventario. Actualiza el catálogo e intenta nuevamente.';
+  }
+  return `No se pudo ${accion} el concepto. Actualiza el catálogo e intenta nuevamente.`;
+};
+
 /** Datos consolidados para la tabla */
 interface ItemConsolidado {
   id: string;
@@ -43,6 +68,13 @@ interface ItemConsolidado {
   stock_id?: string;
   cuenta_ingreso_id?: string | null;
   cuenta_gasto_id?: string | null;
+  activo: boolean;
+}
+
+interface EstadoCatalogo {
+  catalogo_item_id: string;
+  tiene_movimientos: boolean;
+  tiene_saldo_no_cero: boolean;
 }
 
 const Cuentas: React.FC = () => {
@@ -58,6 +90,23 @@ const Cuentas: React.FC = () => {
     queryFn: ({ signal }) => obtenerInventarioConsolidado(escuelaId!, signal),
     enabled: Boolean(escuelaId) && !authCargando,
   });
+  const {
+    data: estadosCatalogo,
+    isPending: cargandoEstadosCatalogo,
+    isError: errorEstadosCatalogo,
+  } = useQuery({
+    queryKey: ['estado-catalogo', escuelaId],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('rpc_estado_catalogo');
+      if (error) throw error;
+      return (data ?? []) as EstadoCatalogo[];
+    },
+    enabled: Boolean(escuelaId) && !authCargando && puedeEditarCatalogo,
+  });
+  const estadoCatalogoPorId = useMemo(
+    () => new Map((estadosCatalogo ?? []).map(estado => [estado.catalogo_item_id, estado])),
+    [estadosCatalogo],
+  );
 
   // Procesar items para la vista
   const items = useMemo(() => {
@@ -72,6 +121,7 @@ const Cuentas: React.FC = () => {
       stock_id: undefined,
       cuenta_ingreso_id: item.cuenta_ingreso_id,
       cuenta_gasto_id: item.cuenta_gasto_id,
+      activo: item.activo !== false,
       ventasMesPresente: 0,
       ventasMesPasado: 0,
       ventasTotales: 0,
@@ -101,6 +151,7 @@ const Cuentas: React.FC = () => {
     costo_unitario: string;
     cuenta_ingreso_id: string;
     cuenta_gasto_id: string;
+    activo: boolean;
     esNuevo: boolean;
   }[]>([]);
   const [torneosEditables, setTorneosEditables] = useState<{
@@ -116,6 +167,7 @@ const Cuentas: React.FC = () => {
   const manejarActualizacion = () => {
     queryClient.invalidateQueries({ queryKey: ['catalogo', escuelaId] });
     queryClient.invalidateQueries({ queryKey: ['inventario-consolidado', escuelaId] });
+    queryClient.invalidateQueries({ queryKey: ['estado-catalogo', escuelaId] });
   };
 
   const cargarTorneos = async () => {
@@ -173,6 +225,7 @@ const Cuentas: React.FC = () => {
         costo_unitario: i.costo_unitario != null ? i.costo_unitario.toFixed(2) : '',
         cuenta_ingreso_id: i.cuenta_ingreso_id || '',
         cuenta_gasto_id: i.cuenta_gasto_id || '',
+        activo: i.activo,
         esNuevo: false,
       }))
     );
@@ -188,12 +241,45 @@ const Cuentas: React.FC = () => {
       costo_unitario: '',
       cuenta_ingreso_id: '',
       cuenta_gasto_id: '',
+      activo: true,
       esNuevo: true,
     }]);
   };
 
-  const eliminarItemEditable = (idx: number) => {
-    setItemsEditables(prev => prev.filter((_, i) => i !== idx));
+  const gestionarItemEditable = async (
+    idx: number,
+    accion: 'eliminar' | 'desactivar' | 'reactivar',
+  ) => {
+    const item = itemsEditables[idx];
+    if (!item) return;
+    if (item.esNuevo || !item.id) {
+      setItemsEditables(prev => prev.filter((_, i) => i !== idx));
+      return;
+    }
+
+    if (accion === 'eliminar' && !window.confirm(`¿Eliminar definitivamente “${item.nombre}”?`)) return;
+
+    setGuardandoItems(true);
+    try {
+      const { error } = await supabase.rpc('rpc_gestionar_catalogo_item', {
+        p_catalogo_item_id: item.id,
+        p_accion: accion,
+      });
+      if (error) throw error;
+
+      setItemsEditables(prev => accion === 'eliminar'
+        ? prev.filter(actual => actual.id !== item.id)
+        : prev.map(actual => actual.id === item.id
+          ? { ...actual, activo: accion === 'reactivar' }
+          : actual));
+      manejarActualizacion();
+    } catch (error: unknown) {
+      console.error(`Error al ${accion} concepto:`, error);
+      alert(mensajeGestionCatalogo(error, accion));
+      manejarActualizacion();
+    } finally {
+      setGuardandoItems(false);
+    }
   };
 
   const actualizarItemEditable = (idx: number, campo: string, valor: any) => {
@@ -222,31 +308,8 @@ const Cuentas: React.FC = () => {
         return;
       }
 
-      // 1. Eliminar los ítems quitados en la tabla. Antes solo se los ocultaba
-      // del estado local, por lo que reaparecían al volver a cargar el catálogo.
-      // El trigger de la base de datos impide borrar cualquiera con movimientos.
-      const idsEditables = new Set(
-        itemsEditables
-          .filter(i => !i.esNuevo && i.id)
-          .map(i => i.id!)
-      );
-      const eliminados = items.filter(i => !idsEditables.has(i.id));
-
-      for (const item of eliminados) {
-        const { error } = await supabase
-          .from('catalogo_items')
-          .delete()
-          .eq('id', item.id)
-          .eq('escuela_id', ctx.escuela_id);
-
-        if (error) {
-          console.error('Error eliminando ítem:', error);
-          alert(`No se pudo eliminar "${item.nombre}": ${error.message}`);
-          errorOcurrido = true;
-        }
-      }
-
-      // 2. Actualizar ítems existentes
+      // 1. Actualizar ítems existentes. Eliminar/desactivar/reactivar se ejecuta
+      // mediante un RPC transaccional desde la acción de cada fila.
       for (const item of validos.filter(i => !i.esNuevo && i.id && !esItemMensualidad(i))) {
         const { error } = await supabase.from('catalogo_items').update({
           nombre: item.nombre,
@@ -267,7 +330,7 @@ const Cuentas: React.FC = () => {
         }
       }
 
-      // 3. Insertar ítems nuevos
+      // 2. Insertar ítems nuevos
       const nuevos = validos.filter(i => i.esNuevo);
       if (nuevos.length > 0) {
         const inserts = nuevos.map(i => ({
@@ -637,6 +700,12 @@ const Cuentas: React.FC = () => {
         </div>
       )}
 
+      {errorEstadosCatalogo && modoEdicion === 'conceptos' && (
+        <div className="pc-error" role="alert" style={{ marginBottom: '1rem' }}>
+          No se pudo verificar el historial de los conceptos. Pulsa Actualizar para reintentar.
+        </div>
+      )}
+
       {/* Edición de Catálogo in-line / Torneos in-line */}
       {errorInventario && <div className="pc-error" role="alert">No se pudo cargar el inventario consolidado. Pulsa Actualizar para reintentar.</div>}
       {modoEdicion === 'conceptos' ? (
@@ -649,31 +718,59 @@ const Cuentas: React.FC = () => {
                 <th className="cxc-th" style={{ width: '20%' }}>Movimiento</th>
                 <th className="cxc-th cxc-th-center" style={{ width: '15%' }}>Precio (Bs)</th>
                 <th className="cxc-th cxc-th-center" style={{ width: '15%' }}>Costo (Bs)</th>
-                <th className="cxc-th" style={{ width: '50px' }}></th>
+                <th className="cxc-th cxc-th-center" style={{ width: '120px' }}>Acción</th>
               </tr>
             </thead>
             <tbody>
               {itemsEditables.map((item, idx) => {
                 const itemProtegido = esItemMensualidad(item);
+                const estado = item.id ? estadoCatalogoPorId.get(item.id) : undefined;
+                const accion = item.esNuevo
+                  ? 'eliminar'
+                  : !item.activo
+                    ? 'reactivar'
+                    : estado?.tiene_movimientos
+                      ? 'desactivar'
+                      : 'eliminar';
+                const accionBloqueada = guardandoItems
+                  || itemProtegido
+                  || (!item.esNuevo && (cargandoEstadosCatalogo || !estado))
+                  || (accion !== 'reactivar' && Boolean(estado?.tiene_saldo_no_cero));
+                const tituloAccion = itemProtegido
+                  ? 'El ítem Mensualidad está protegido'
+                  : accion !== 'reactivar' && estado?.tiene_saldo_no_cero
+                    ? 'Debe dejar el saldo en cero en cada sucursal antes de eliminar o desactivar'
+                    : accion === 'reactivar'
+                      ? 'Reactivar concepto'
+                      : accion === 'desactivar'
+                        ? 'Desactivar y conservar el historial'
+                        : 'Eliminar definitivamente';
                 return (
-                <tr key={idx} className="cxc-tr">
+                <tr key={item.id ?? `nuevo-${idx}`} className="cxc-tr" style={{ opacity: item.activo ? 1 : 0.65 }}>
                   <td className="cxc-td" style={{ padding: 0 }}>
-                    <input
-                      type="text"
-                      value={item.nombre}
-                      onChange={e => actualizarItemEditable(idx, 'nombre', e.target.value)}
-                      placeholder="Ej. Polera o Alquiler"
-                      style={{ 
-                        width: '100%', 
-                        height: '100%', 
-                        background: 'transparent', 
-                        border: 'none', 
-                        padding: '0.75rem', 
-                        color: 'var(--text-primary)',
-                        fontSize: 'inherit'
-                      }}
-                      disabled={guardandoItems || itemProtegido}
-                    />
+                    <div style={{ display: 'flex', alignItems: 'center' }}>
+                      <input
+                        type="text"
+                        value={item.nombre}
+                        onChange={e => actualizarItemEditable(idx, 'nombre', e.target.value)}
+                        placeholder="Ej. Polera o Alquiler"
+                        style={{
+                          width: '100%',
+                          height: '100%',
+                          background: 'transparent',
+                          border: 'none',
+                          padding: '0.75rem',
+                          color: 'var(--text-primary)',
+                          fontSize: 'inherit'
+                        }}
+                        disabled={guardandoItems || itemProtegido}
+                      />
+                      {!item.activo && (
+                        <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', marginRight: '0.5rem' }}>
+                          Inactivo
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td className="cxc-td" style={{ padding: 0 }}>
                     <select
@@ -764,22 +861,31 @@ const Cuentas: React.FC = () => {
                   </td>
                   <td className="cxc-td cxc-td-center" style={{ padding: 0 }}>
                     <button
-                      onClick={() => eliminarItemEditable(idx)}
-                      disabled={guardandoItems || itemProtegido}
+                      onClick={() => gestionarItemEditable(idx, accion)}
+                      disabled={accionBloqueada}
                       style={{ 
                         background: 'none', 
                         border: 'none', 
-                        color: 'var(--danger)', 
-                        cursor: 'pointer',
+                        color: accion === 'reactivar' ? 'var(--primary)' : accion === 'desactivar' ? '#f59e0b' : 'var(--danger)',
+                        cursor: accionBloqueada ? 'not-allowed' : 'pointer',
                         padding: '0.5rem',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
+                        gap: '0.35rem',
                         width: '100%'
                       }}
-                      title={itemProtegido ? 'El ítem Mensualidad está protegido' : 'Eliminar ítem'}
+                      title={tituloAccion}
+                      aria-label={tituloAccion}
                     >
-                      <Trash2 size={16} />
+                      {accion === 'reactivar'
+                        ? <RotateCcw size={16} />
+                        : accion === 'desactivar'
+                          ? <Archive size={16} />
+                          : <Trash2 size={16} />}
+                      <span style={{ fontSize: '0.72rem', fontWeight: 700 }}>
+                        {accion === 'reactivar' ? 'Reactivar' : accion === 'desactivar' ? 'Desactivar' : 'Eliminar'}
+                      </span>
                     </button>
                   </td>
                 </tr>
@@ -971,6 +1077,19 @@ const Cuentas: React.FC = () => {
                       <tr key={item.id} className="cxc-tr">
                         <td className="cxc-td" style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
                           {item.nombre}
+                          {!item.activo && (
+                            <span style={{
+                              marginLeft: '0.5rem',
+                              fontSize: '0.68rem',
+                              padding: '0.15rem 0.45rem',
+                              borderRadius: '10px',
+                              background: 'rgba(148,163,184,0.15)',
+                              color: 'var(--text-secondary)',
+                              fontWeight: 700,
+                            }}>
+                              Inactivo
+                            </span>
+                          )}
                         </td>
                         <td className="cxc-td">
                           <span style={{
