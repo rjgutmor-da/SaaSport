@@ -392,7 +392,11 @@ export function useAlumnosPorItem(
         }
       }
 
-      finalResultado.sort((a, b) => a.nombre_completo.localeCompare(b.nombre_completo));
+      // Fecha de emisión ascendente; a igual fecha, ordenar por nombre.
+      finalResultado.sort((a, b) =>
+        (a.fecha || '9999-12-31').localeCompare(b.fecha || '9999-12-31') ||
+        a.nombre_completo.localeCompare(b.nombre_completo)
+      );
       setAlumnos(finalResultado);
     } catch (e: any) {
       setError(e.message ?? 'Error');
