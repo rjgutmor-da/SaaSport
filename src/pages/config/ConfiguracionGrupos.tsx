@@ -37,6 +37,8 @@ const ConfiguracionGrupos: React.FC = () => {
   const [editGrupoSucursal, setEditGrupoSucursal] = useState('');
   const [editGrupoHorario, setEditGrupoHorario] = useState('');
   const [editGrupoEntrenador, setEditGrupoEntrenador] = useState('');
+  const [guardandoGrupoId, setGuardandoGrupoId] = useState<string | null>(null);
+  const [guardandoNuevoGrupo, setGuardandoNuevoGrupo] = useState(false);
 
   // Estado de Sucursales y Entrenadores
   const [sucursales, setSucursales] = useState<Sucursal[]>([]);
@@ -47,6 +49,8 @@ const ConfiguracionGrupos: React.FC = () => {
   const [newHorarioTime, setNewHorarioTime] = useState('');
   const [editingHorario, setEditingHorario] = useState<string | null>(null);
   const [editHorarioTime, setEditHorarioTime] = useState('');
+  const [guardandoHorarioId, setGuardandoHorarioId] = useState<string | null>(null);
+  const [guardandoNuevoHorario, setGuardandoNuevoHorario] = useState(false);
 
   // Alerta local
   const [alerta, setAlerta] = useState<{ tipo: 'success' | 'error'; mensaje: string } | null>(null);
@@ -103,6 +107,7 @@ const ConfiguracionGrupos: React.FC = () => {
     }
 
     setAlerta(null);
+    setGuardandoNuevoGrupo(true);
     try {
       await createGrupo(
         escuelaId,
@@ -119,6 +124,8 @@ const ConfiguracionGrupos: React.FC = () => {
       loadData();
     } catch (error: any) {
       setAlerta({ tipo: 'error', mensaje: error.message || 'Error al crear el grupo.' });
+    } finally {
+      setGuardandoNuevoGrupo(false);
     }
   };
 
@@ -144,6 +151,7 @@ const ConfiguracionGrupos: React.FC = () => {
     if (!escuelaId || !editGrupoName.trim()) return;
 
     setAlerta(null);
+    setGuardandoGrupoId(id);
     try {
       await updateGrupo(
         escuelaId,
@@ -162,6 +170,8 @@ const ConfiguracionGrupos: React.FC = () => {
       loadData();
     } catch (error: any) {
       setAlerta({ tipo: 'error', mensaje: error.message || 'Error al actualizar el grupo.' });
+    } finally {
+      setGuardandoGrupoId(null);
     }
   };
 
@@ -203,6 +213,7 @@ const ConfiguracionGrupos: React.FC = () => {
     if (!escuelaId || !newHorarioTime.trim()) return;
 
     setAlerta(null);
+    setGuardandoNuevoHorario(true);
     try {
       await createHorario(escuelaId, newHorarioTime.trim());
       setAlerta({ tipo: 'success', mensaje: 'Horario creado correctamente.' });
@@ -210,6 +221,8 @@ const ConfiguracionGrupos: React.FC = () => {
       loadData();
     } catch (error: any) {
       setAlerta({ tipo: 'error', mensaje: error.message || 'Error al crear el horario.' });
+    } finally {
+      setGuardandoNuevoHorario(false);
     }
   };
 
@@ -229,6 +242,7 @@ const ConfiguracionGrupos: React.FC = () => {
     if (!escuelaId || !editHorarioTime.trim()) return;
 
     setAlerta(null);
+    setGuardandoHorarioId(id);
     try {
       await updateHorario(escuelaId, id, editHorarioTime.trim());
       setAlerta({ tipo: 'success', mensaje: 'Horario actualizado correctamente.' });
@@ -237,6 +251,8 @@ const ConfiguracionGrupos: React.FC = () => {
       loadData();
     } catch (error: any) {
       setAlerta({ tipo: 'error', mensaje: error.message || 'Error al actualizar el horario.' });
+    } finally {
+      setGuardandoHorarioId(null);
     }
   };
 
@@ -403,10 +419,11 @@ const ConfiguracionGrupos: React.FC = () => {
                 <button
                   type="submit"
                   className="btn-nueva-cuenta"
-                  style={{ height: '42px', padding: '0 1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+                  disabled={guardandoNuevoGrupo}
+                  style={{ height: '42px', padding: '0 1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem', opacity: guardandoNuevoGrupo ? 0.7 : 1 }}
                 >
                   <Plus size={18} />
-                  Agregar Grupo
+                  {guardandoNuevoGrupo ? 'Guardando...' : 'Agregar Grupo'}
                 </button>
               </div>
             </form>
@@ -534,6 +551,7 @@ const ConfiguracionGrupos: React.FC = () => {
                             <>
                               <button
                                 onClick={() => handleUpdateGrupo(grupo.id)}
+                                disabled={guardandoGrupoId === grupo.id}
                                 style={{
                                   fontSize: '0.75rem',
                                   padding: '0.4rem 0.75rem',
@@ -544,10 +562,12 @@ const ConfiguracionGrupos: React.FC = () => {
                                   fontWeight: 600,
                                   display: 'inline-flex',
                                   alignItems: 'center',
-                                  gap: '0.25rem'
+                                  gap: '0.25rem',
+                                  opacity: guardandoGrupoId === grupo.id ? 0.7 : 1,
+                                  cursor: guardandoGrupoId === grupo.id ? 'not-allowed' : 'pointer'
                                 }}
                               >
-                                <Save size={14} /> Guardar
+                                <Save size={14} /> {guardandoGrupoId === grupo.id ? 'Guardando...' : 'Guardar'}
                               </button>
                               <button
                                 onClick={cancelEditGrupo}
@@ -649,10 +669,11 @@ const ConfiguracionGrupos: React.FC = () => {
               <button
                 type="submit"
                 className="btn-nueva-cuenta"
-                style={{ height: '42px', padding: '0 1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+                disabled={guardandoNuevoHorario}
+                style={{ height: '42px', padding: '0 1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem', opacity: guardandoNuevoHorario ? 0.7 : 1 }}
               >
                 <Plus size={18} />
-                Agregar Horario
+                {guardandoNuevoHorario ? 'Guardando...' : 'Agregar Horario'}
               </button>
             </form>
           </div>
@@ -708,6 +729,7 @@ const ConfiguracionGrupos: React.FC = () => {
                             <>
                               <button
                                 onClick={() => handleUpdateHorario(horario.id)}
+                                disabled={guardandoHorarioId === horario.id}
                                 style={{
                                   fontSize: '0.75rem',
                                   padding: '0.4rem 0.75rem',
@@ -718,10 +740,12 @@ const ConfiguracionGrupos: React.FC = () => {
                                   fontWeight: 600,
                                   display: 'inline-flex',
                                   alignItems: 'center',
-                                  gap: '0.25rem'
+                                  gap: '0.25rem',
+                                  opacity: guardandoHorarioId === horario.id ? 0.7 : 1,
+                                  cursor: guardandoHorarioId === horario.id ? 'not-allowed' : 'pointer'
                                 }}
                               >
-                                <Save size={14} /> Guardar
+                                <Save size={14} /> {guardandoHorarioId === horario.id ? 'Guardando...' : 'Guardar'}
                               </button>
                               <button
                                 onClick={cancelEditHorario}
