@@ -104,7 +104,7 @@ const ModalEditarMovimiento: React.FC<Props> = ({ visible, movimiento, cajas, on
     if (isNaN(valorMonto) || valorMonto <= 0) { setError('Ingrese un monto válido mayor a 0.'); return; }
     const errorFecha = validarFechaMovimientoFinanciero(fecha);
     if (errorFecha) { setError(errorFecha); return; }
-    if (!descripcion.trim()) { setError('Ingrese una descripción.'); return; }
+    if (movimiento.es_movimiento_directo && !descripcion.trim()) { setError('Ingrese una descripción.'); return; }
     setGuardando(true);
 
     try {
@@ -126,7 +126,7 @@ const ModalEditarMovimiento: React.FC<Props> = ({ visible, movimiento, cajas, on
           cuenta_id: cajaId,
           monto: valorMonto,
           fecha: fechaConTZ,
-          descripcion: descripcion.trim(),
+          descripcion: movimiento.es_movimiento_directo ? descripcion.trim() : null,
           nro_transaccion: nroTransaccion.trim() || null,
           concepto_id: movimiento.es_movimiento_directo ? (conceptoId || null) : null
         }
@@ -218,17 +218,33 @@ const ModalEditarMovimiento: React.FC<Props> = ({ visible, movimiento, cajas, on
             </div>
 
             {/* Descripción */}
-            <div className="form-campo full-width">
-              <label><AlignLeft size={14} /> Descripción *</label>
-              <textarea
-                value={descripcion}
-                onChange={e => setDescripcion(e.target.value)}
-                required
-                disabled={guardando}
-                maxLength={255}
-                style={{ resize: 'vertical', minHeight: '60px', width: '100%' }}
-              />
-            </div>
+            {movimiento.es_movimiento_directo ? (
+              <div className="form-campo full-width">
+                <label><AlignLeft size={14} /> Descripción *</label>
+                <textarea
+                  value={descripcion}
+                  onChange={e => setDescripcion(e.target.value)}
+                  required
+                  disabled={guardando}
+                  maxLength={255}
+                  style={{ resize: 'vertical', minHeight: '60px', width: '100%' }}
+                />
+              </div>
+            ) : (
+              <div className="form-campo full-width">
+                <label><AlignLeft size={14} /> Detalle / Concepto</label>
+                <input
+                  type="text"
+                  value={movimiento.cuenta_nombre ? `${movimiento.cuenta_nombre}${descripcion ? ` (${descripcion})` : ''}` : (descripcion || 'Movimiento de nota')}
+                  disabled
+                  readOnly
+                  style={{ opacity: 0.75, cursor: 'not-allowed', background: 'var(--bg-card)' }}
+                />
+                <span style={{ fontSize: '0.72rem', color: 'var(--text-tertiary)', marginTop: '0.25rem', display: 'block' }}>
+                  El concepto pertenece a la nota original y no se modifica desde el movimiento.
+                </span>
+              </div>
+            )}
           </div>
 
           {error && (

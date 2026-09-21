@@ -1,4 +1,8 @@
-﻿CREATE OR REPLACE FUNCTION public.rpc_editar_movimiento_simple(p_payload jsonb)
+-- Migración: Corregir rpc_editar_movimiento_simple
+-- Evita sobreescribir fecha_emision, descripcion y montos de cuentas_cobrar o cuentas_pagar
+-- cuando el movimiento pertenece a una nota de alumno o cuenta con proveedor/personal.
+
+CREATE OR REPLACE FUNCTION public.rpc_editar_movimiento_simple(p_payload jsonb)
  RETURNS jsonb
  LANGUAGE plpgsql
  SECURITY DEFINER

@@ -234,7 +234,8 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
       const [resCxc, resCuentas, resAlumno, resCat] = await Promise.all([
         supabase.from('v_cuentas_cobrar').select('*')
           .eq('alumno_id', alumno.alumno_id)
-          .order('fecha_emision', { ascending: false }),
+          .order('fecha_emision', { ascending: false })
+          .order('created_at', { ascending: false }),
         qCuentas.order('nombre'),
         supabase.from('alumnos').select('mensualidad, observaciones').eq('id', alumno.alumno_id).single(),
         supabase.from('catalogo_items')
@@ -246,14 +247,23 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
           .order('nombre')
       ]);
 
-      setCxcs((resCxc.data as unknown as CuentaCobrar[]) ?? []);
+      const rawCxcs = (resCxc.data as unknown as CuentaCobrar[]) ?? [];
+      // Ordenar cronológicamente priorizando el ciclo/período más reciente
+      const ordenadas = [...rawCxcs].sort((a, b) => {
+        const fechaA = (a as any).ciclo_inicio || a.fecha_emision || a.created_at || '';
+        const fechaB = (b as any).ciclo_inicio || b.fecha_emision || b.created_at || '';
+        if (fechaB !== fechaA) return fechaB.localeCompare(fechaA);
+        return (b.created_at || '').localeCompare(a.created_at || '');
+      });
+
+      setCxcs(ordenadas);
       setCuentasCobro(resCuentas.data ?? []);
       setMontoMensualidad(resAlumno.data?.mensualidad !== null && resAlumno.data?.mensualidad !== undefined ? resAlumno.data.mensualidad : null);
       setObservacionesAlumno(resAlumno.data?.observaciones || null);
       setCatalogo(resCat.data ?? []);
 
       
-      const cxcIds = (resCxc.data as any[])?.map(c => c.id) || [];
+      const cxcIds = ordenadas.map(c => c.id);
       if (cxcIds.length > 0) {
         // Cargar cobros
         const { data: todosCobros } = await supabase
