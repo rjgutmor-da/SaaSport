@@ -248,10 +248,10 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
       ]);
 
       const rawCxcs = (resCxc.data as unknown as CuentaCobrar[]) ?? [];
-      // Ordenar cronológicamente priorizando el ciclo/período más reciente
+      // Mostrar primero la fecha de emisión más reciente, igual que en la tabla.
       const ordenadas = [...rawCxcs].sort((a, b) => {
-        const fechaA = (a as any).ciclo_inicio || a.fecha_emision || a.created_at || '';
-        const fechaB = (b as any).ciclo_inicio || b.fecha_emision || b.created_at || '';
+        const fechaA = a.fecha_emision || a.created_at || '';
+        const fechaB = b.fecha_emision || b.created_at || '';
         if (fechaB !== fechaA) return fechaB.localeCompare(fechaA);
         return (b.created_at || '').localeCompare(a.created_at || '');
       });
