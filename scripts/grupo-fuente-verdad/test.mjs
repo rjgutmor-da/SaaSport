@@ -35,6 +35,8 @@ const expected = (h,t) => ({ horario_id:h,profesor_asignado_id:t,sucursal_id:id(
 try {
   await db.exec(await fs.readFile(path.join(here,'fixture.sql'),'utf8'));
   await db.exec(await fs.readFile(path.join(here,'funciones-previas.sql'),'utf8'));
+  await db.exec(await fs.readFile(path.join(here,'validacion-minima-previa.sql'),'utf8'));
+  await db.exec('CREATE TRIGGER check_min_entrenadores BEFORE DELETE ON alumnos_entrenadores FOR EACH ROW EXECUTE FUNCTION validar_eliminar_entrenador();');
   await db.exec(`CREATE TRIGGER trg_sync_alumnos_grupo_cancha BEFORE INSERT OR UPDATE ON alumnos
     FOR EACH ROW EXECUTE FUNCTION fn_sync_alumnos_grupo_cancha();
     CREATE TRIGGER trigger_sync_alumnos_entrenadores AFTER INSERT OR UPDATE OF profesor_asignado_id ON alumnos
@@ -64,6 +66,7 @@ try {
   await actor(10);
   const beforeInstall = await rows('SELECT * FROM alumnos ORDER BY id');
   await db.exec(migration);
+  await db.exec(await fs.readFile(path.resolve(here,'../../supabase/migrations/20260930135328_permitir_entrenador_vacio_desde_grupo.sql'),'utf8'));
   check(await rows('SELECT * FROM alumnos ORDER BY id'),beforeInstall,'La instalación no regulariza datos silenciosamente');
   await student(103,g);
   check(await tuple(103),expected(id(30),id(11)),'Alta deriva ambos campos y conserva sucursal');
