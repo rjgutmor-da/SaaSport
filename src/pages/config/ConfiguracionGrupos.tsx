@@ -101,11 +101,6 @@ const ConfiguracionGrupos: React.FC = () => {
     e.preventDefault();
     if (!escuelaId || !newGrupoName.trim()) return;
 
-    if (!newGrupoHorario) {
-      setAlerta({ tipo: 'error', mensaje: 'Debes seleccionar un horario para el grupo.' });
-      return;
-    }
-
     setAlerta(null);
     setGuardandoNuevoGrupo(true);
     try {
@@ -116,7 +111,7 @@ const ConfiguracionGrupos: React.FC = () => {
         newGrupoHorario || null,
         newGrupoEntrenador || null
       );
-      setAlerta({ tipo: 'success', mensaje: 'Grupo creado correctamente con su horario y entrenador asignado.' });
+      setAlerta({ tipo: 'success', mensaje: 'Grupo creado correctamente.' });
       setNewGrupoName('');
       setNewGrupoSucursal('');
       setNewGrupoHorario('');
@@ -393,7 +388,6 @@ const ConfiguracionGrupos: React.FC = () => {
                   value={newGrupoHorario}
                   onChange={(e) => setNewGrupoHorario(e.target.value)}
                   style={{ width: '100%', padding: '0.6rem 0.8rem', background: 'var(--bg-input)', border: '1px solid var(--border)', color: 'var(--text-primary)', height: '42px', borderRadius: '4px' }}
-                  required
                 >
                   <option value="">-- Selecciona horario --</option>
                   {horarios.filter(h => h.activo).map((h) => (

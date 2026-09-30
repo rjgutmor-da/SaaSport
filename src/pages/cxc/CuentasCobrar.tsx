@@ -457,12 +457,43 @@ const CuentasCobrar: React.FC = () => {
                   </button>
                 )}
 
-                <div className="cxc-stat-pill" onClick={() => setSoloConDeuda(!soloConDeuda)} style={{ cursor: 'pointer' }} aria-pressed={soloConDeuda}>
-                  <span className="cxc-pill-label">Deudores</span>
-                  <span className={`cxc-pill-value ${soloConDeuda ? 'text-warn' : ''}`}>
+                <button
+                  type="button"
+                  className={`cxc-stat-pill ${soloConDeuda ? 'cxc-stat-pill--active-deuda' : ''}`}
+                  onClick={() => setSoloConDeuda(!soloConDeuda)}
+                  aria-pressed={soloConDeuda}
+                  style={{
+                    borderColor: soloConDeuda ? '#ef4444' : undefined,
+                    background: soloConDeuda ? 'rgba(239, 68, 68, 0.12)' : undefined,
+                    boxShadow: soloConDeuda ? '0 0 0 1px rgba(239, 68, 68, 0.25)' : undefined,
+                    color: 'inherit',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                  }}
+                  title={soloConDeuda ? 'Filtro activo: mostrando solo alumnos con deuda (clic para ver todos)' : 'Clic para filtrar solo alumnos con deuda'}
+                >
+                  <span
+                    className="cxc-pill-label"
+                    style={{
+                      color: soloConDeuda ? '#ef4444' : undefined,
+                      fontWeight: soloConDeuda ? 800 : undefined,
+                    }}
+                  >
+                    Deudores
+                  </span>
+                  <span
+                    className="cxc-pill-value"
+                    style={{
+                      color: soloConDeuda ? '#ef4444' : 'var(--text-secondary)',
+                      background: soloConDeuda ? 'rgba(239, 68, 68, 0.2)' : undefined,
+                      padding: soloConDeuda ? '0.1rem 0.45rem' : undefined,
+                      borderRadius: soloConDeuda ? '4px' : undefined,
+                      fontWeight: 700,
+                    }}
+                  >
                     {stats.conDeuda}
                   </span>
-                </div>
+                </button>
                 <div className="cxc-stat-pill" style={{ borderColor: stats.totalPendiente < 0 ? '#a855f7' : undefined }}>
                   <span className="cxc-pill-label">{stats.totalPendiente < 0 ? 'Saldo a Favor' : 'Pendiente'}</span>
                   <span className="cxc-pill-value" style={{ color: stats.totalPendiente < 0 ? '#a855f7' : undefined }}>

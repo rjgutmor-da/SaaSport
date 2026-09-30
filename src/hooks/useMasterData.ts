@@ -18,7 +18,7 @@ const fetchSucursales = async () => {
 const fetchEntrenadores = async () => {
   const { data, error } = await supabase
     .from('usuarios')
-    .select('id, nombres, apellidos')
+    .select('id, nombres, apellidos, sucursal_id')
     .eq('rol', 'Entrenador')
     .eq('activo', true)
     .order('nombres');
@@ -27,7 +27,11 @@ const fetchEntrenadores = async () => {
 };
 
 const fetchGrupos = async () => {
-  const { data, error } = await supabase.from('grupos').select('*, grupos_horarios(horario_id)').order('nombre');
+  const { data, error } = await supabase
+    .from('grupos')
+    .select('*, grupos_horarios(horario_id)')
+    .eq('activo', true)
+    .order('nombre');
   if (error) throw error;
   return data;
 };

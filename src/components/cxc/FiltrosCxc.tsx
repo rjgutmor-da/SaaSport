@@ -6,7 +6,7 @@
  */
 import React, { useMemo } from 'react';
 import { Filter, X } from 'lucide-react';
-import { useSucursales, useEntrenadores, useGrupos, useHorarios, useAlumnosRelaciones } from '../../hooks/useMasterData';
+import { useSucursales, useEntrenadores, useGrupos, useHorarios } from '../../hooks/useMasterData';
 
 /** Estructura de opciones de filtro */
 interface OpcionFiltro {
@@ -40,37 +40,56 @@ const FiltrosCxc: React.FC<FiltrosProps> = ({
   const { data: entrenadoresRaw } = useEntrenadores();
   const { data: gruposRaw } = useGrupos();
   const { data: horariosRaw } = useHorarios();
-  const { data: relaciones } = useAlumnosRelaciones();
+
 
   // Mapear a formato OpcionFiltro
   const sucursales = useMemo(() => (sucursalesRaw ?? []).map(s => ({ id: s.id, nombre: s.nombre })), [sucursalesRaw]);
-  const entrenadores = useMemo(() => (entrenadoresRaw ?? []).map(e => ({ id: e.id, nombre: `${e.nombres} ${e.apellidos}` })), [entrenadoresRaw]);
-  const grupos = useMemo(() => (gruposRaw ?? []).map(c => ({ id: c.id, nombre: c.nombre })), [gruposRaw]);
+  const entrenadores = useMemo(() => (entrenadoresRaw ?? []).map(e => ({
+    id: e.id,
+    nombre: `${e.nombres} ${e.apellidos}`.trim(),
+    sucursal_id: (e as any).sucursal_id || null,
+  })), [entrenadoresRaw]);
+  const grupos = useMemo(() => (gruposRaw ?? [])
+    .filter(c => c.activo !== false)
+    .map(c => ({
+      id: c.id,
+      nombre: c.nombre,
+      sucursal_id: c.sucursal_id || null,
+      horario_ids: ((c.grupos_horarios ?? []) as any[]).map((gh: any) => gh.horario_id).filter(Boolean) as string[],
+    })), [gruposRaw]);
   const horarios = useMemo(() => (horariosRaw ?? []).map(h => ({ id: h.id, nombre: h.hora })), [horariosRaw]);
 
-  // Filtrar opciones disponibles bidireccionalmente
+  // Filtrar opciones disponibles de manera jerárquica y directa
   const filtrarOpciones = useMemo(() => {
-    let rels = relaciones ?? [];
+    // 1. Grupos: acotar por sucursal seleccionada si existe; mostrar todos los grupos activos creados
+    let gruposFilt = grupos;
+    if (sucursalId) {
+      gruposFilt = gruposFilt.filter(g => !g.sucursal_id || g.sucursal_id === sucursalId);
+    }
 
-    // Aplicar filtros actuales para reducir el conjunto
-    if (sucursalId) rels = rels.filter(r => r.sucursal_id === sucursalId);
-    if (entrenadorId) rels = rels.filter(r => r.profesor_asignado_id === entrenadorId);
-    if (grupoId) rels = rels.filter(r => r.grupo_id === grupoId);
-    if (horarioId) rels = rels.filter(r => r.horario_id === horarioId);
+    // 2. Entrenadores: acotar por sucursal si existe y el entrenador tiene sucursal asignada
+    let entrenadoresFilt = entrenadores;
+    if (sucursalId) {
+      entrenadoresFilt = entrenadoresFilt.filter(e => !e.sucursal_id || e.sucursal_id === sucursalId);
+    }
 
-    // IDs únicos disponibles según los filtros activos
-    const sucIds = new Set(rels.map(r => r.sucursal_id).filter(Boolean));
-    const entIds = new Set(rels.map(r => r.profesor_asignado_id).filter(Boolean));
-    const canIds = new Set(rels.map(r => r.grupo_id).filter(Boolean));
-    const horarioIds = new Set(rels.map(r => r.horario_id).filter(Boolean));
+    // 3. Horarios: si se selecciona un grupo con horarios configurados, acotar a dichos horarios
+    let horariosFilt = horarios;
+    if (grupoId) {
+      const grupoSel = grupos.find(g => g.id === grupoId);
+      if (grupoSel && grupoSel.horario_ids && grupoSel.horario_ids.length > 0) {
+        const horIdsSet = new Set(grupoSel.horario_ids);
+        horariosFilt = horariosFilt.filter(h => horIdsSet.has(h.id));
+      }
+    }
 
     return {
-      sucursalesFilt: sucursalId ? sucursales : sucursales.filter(s => sucIds.has(s.id)),
-      entrenadoresFilt: entrenadorId ? entrenadores : entrenadores.filter(e => entIds.has(e.id)),
-      gruposFilt: grupoId ? grupos : grupos.filter(c => canIds.has(c.id)),
-      horariosFilt: horarioId ? horarios : horarios.filter(h => horarioIds.has(h.id)),
+      sucursalesFilt: sucursales,
+      entrenadoresFilt,
+      gruposFilt,
+      horariosFilt,
     };
-  }, [relaciones, sucursalId, entrenadorId, grupoId, horarioId, sucursales, entrenadores, grupos, horarios]);
+  }, [sucursales, entrenadores, grupos, horarios, sucursalId, grupoId]);
 
 
   const hayFiltros = sucursalId || entrenadorId || grupoId || horarioId;
@@ -98,7 +117,7 @@ const FiltrosCxc: React.FC<FiltrosProps> = ({
         <div className="sidebar-filter-item">
           <label className="sidebar-filter-label">Grupo</label>
           <select value={grupoId} onChange={e => onChangeGrupo(e.target.value)} className="sidebar-select">
-            <option value="">Todas</option>
+            <option value="">Todos</option>
             {filtrarOpciones.gruposFilt.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
           </select>
         </div>
