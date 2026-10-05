@@ -100,7 +100,11 @@ const ModalMovimientoDirecto: React.FC<Props> = ({ visible, tipo, cajas, onCerra
       const { data: perfil } = await supabase.from('usuarios').select('id, escuela_id, nombres, apellidos, email').eq('id', user.id).single();
       const escuelaId = perfil?.escuela_id;
       if (!escuelaId) throw new Error('No se pudo determinar la escuela.');
-      const cajaNombre = cajas.find(c => c.id === cajaId)?.nombre || 'la cuenta seleccionada';
+      const cajaSeleccionada = cajas.find(c => c.id === cajaId);
+      if (!cajaSeleccionada || cajaSeleccionada.escuela_id !== escuelaId) {
+        throw new Error('La caja seleccionada no pertenece a la escuela.');
+      }
+      const cajaNombre = cajaSeleccionada.nombre;
       const puedeContinuar = await confirmarMovimientoEnPeriodoConciliado({
         cajaId,
         cajaNombre,
@@ -123,6 +127,7 @@ const ModalMovimientoDirecto: React.FC<Props> = ({ visible, tipo, cajas, onCerra
         // --- FLUJO INGRESO ---
         const { data: cxc, error: errCxC } = await supabase.from('cuentas_cobrar').insert({
           escuela_id: escuelaId,
+          sucursal_id: cajaSeleccionada.sucursal_id,
           monto_total: valorMonto,
           estado: 'pagada',
           es_ingreso_directo: true,
@@ -144,7 +149,7 @@ const ModalMovimientoDirecto: React.FC<Props> = ({ visible, tipo, cajas, onCerra
         if (errDetalle) throw new Error('Error al registrar el concepto del ingreso: ' + errDetalle.message);
 
         // Aplicar cobro a caja
-        await supabase.from('cobros_aplicados').insert({
+        const { error: errCobro } = await supabase.from('cobros_aplicados').insert({
           escuela_id: escuelaId,
           cuenta_cobrar_id: cxc.id,
           caja_id: cajaId,
@@ -152,6 +157,9 @@ const ModalMovimientoDirecto: React.FC<Props> = ({ visible, tipo, cajas, onCerra
           fecha: buildTimestampLocal(fecha, getHoraLocal()),
           documento_referencia: nroTransaccion.trim() || null
         });
+        if (errCobro) {
+          throw new Error('La nota del ingreso fue creada, pero el cobro no pudo registrarse. No repita el ingreso; revise la nota creada. Detalle: ' + errCobro.message);
+        }
 
       } else {
         // --- FLUJO EGRESO ---
