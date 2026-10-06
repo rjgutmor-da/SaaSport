@@ -39,9 +39,14 @@ const obtenerCliente = (cliente?: string | null) => {
 const obtenerTelefonoWhatsApp = (alumno?: MovimientoFinanciero['alumno_raw']) => {
   if (!alumno) return '';
 
-  const telefonoPreferido = alumno.whatsapp_preferido === 'madre'
-    ? (alumno.telefono_madre || alumno.telefono_padre)
-    : (alumno.telefono_padre || alumno.telefono_madre);
+  let telefonoPreferido = '';
+  if (alumno.whatsapp_preferido === 'madre') {
+    telefonoPreferido = alumno.telefono_madre || alumno.telefono_padre || alumno.telefono_deportista;
+  } else if (alumno.whatsapp_preferido === 'deportista') {
+    telefonoPreferido = alumno.telefono_deportista || alumno.telefono_padre || alumno.telefono_madre;
+  } else {
+    telefonoPreferido = alumno.telefono_padre || alumno.telefono_madre || alumno.telefono_deportista;
+  }
 
   if (!telefonoPreferido) return '';
 
@@ -526,7 +531,7 @@ const CajasBancos: React.FC = () => {
     const telFinal = obtenerTelefonoWhatsApp(mov.alumno_raw);
     if (!telFinal) {
       setGenerandoReciboId(null);
-      alert('El alumno no tiene un teléfono de WhatsApp registrado para su papá o mamá.');
+      alert('El alumno no tiene un teléfono de WhatsApp registrado.');
       return;
     }
 
