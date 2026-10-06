@@ -4,7 +4,7 @@ import {
   RefreshCw, Landmark, ArrowDownRight, ArrowUpRight, Search,
   CheckCircle2, ArrowRightLeft, Square, Pencil, Trash2,
   Star, GripVertical, MessageCircle, ShieldCheck, ShieldOff, LockKeyhole,
-  AlertTriangle, Calendar, Copy, Check
+  Calendar, Copy, Check
 } from 'lucide-react';
 import { toBlob } from 'html-to-image';
 import type { CajaBanco } from '../../types/finanzas';
@@ -22,7 +22,7 @@ import { logActivity } from '../../lib/auditLogger';
 import { can } from '../../config/roles';
 
 import { useAuthSaaSport } from '../../lib/authHelper';
-import { useCajasBancos, useMovimientos, useCxpEntidades, type MovimientoFinanciero, type RangoFecha } from '../../hooks/useFinanzas';
+import { useCajasBancos, useMovimientos, useCxpEntidades, cargarDetalleMovimiento, type CursorMovimientos, type MovimientoFinanciero, type RangoFecha } from '../../hooks/useFinanzas';
 import { useQueryClient } from '@tanstack/react-query';
 import { useIsMobile } from '../../hooks/useIsMobile';
 
@@ -63,8 +63,7 @@ const obtenerRangoFechas = (
 
   let desdeBolivia = 0;
   let hastaBolivia = 0;
-  // Todo rango explícito necesita su saldo de cierre. Solo "Últimos movimientos"
-  // puede partir del saldo actual, porque incluye todo el historial disponible.
+  // El servidor calcula el saldo historico independientemente del rango y la pagina.
   const usarRpc = true;
 
   if (tipo === 'hoy') {
@@ -107,8 +106,14 @@ const CajasBancos: React.FC = () => {
   const isMobile = useIsMobile();
 
   // Filtros
-  const [filtroCuenta, setFiltroCuenta] = useState<string>('todas');
+  const [cuentaElegida, setFiltroCuenta] = useState<string | null>(null);
   const [busqueda, setBusqueda] = useState('');
+  const [busquedaAplicada, setBusquedaAplicada] = useState('');
+  useEffect(() => {
+    const timer = setTimeout(() => setBusquedaAplicada(busqueda.trim()), 300);
+    return () => clearTimeout(timer);
+  }, [busqueda]);
+  const [navegacion, setNavegacion] = useState<{ contexto: string; cursores: Array<CursorMovimientos | null> }>({ contexto: '', cursores: [null] });
   const [busquedaCuenta, setBusquedaCuenta] = useState('');
   const [modoConciliacion, setModoConciliacion] = useState(false);
   const [conciliandoId, setConciliandoId] = useState<string | null>(null);
@@ -148,27 +153,22 @@ const CajasBancos: React.FC = () => {
   // ── Hooks de datos con TanStack Query ──
   const { data: cajas = [], isLoading: cargandoCajas } = useCajasBancos(escuelaId);
 
-  const cajasAConsultar = useMemo(() => {
-    if (filtroCuenta === 'todas') {
-      return cajas.map(c => ({ id: c.id, saldo_actual: Number(c.saldo_actual) || 0 }));
-    }
-    return cajas
-      .filter(c => c.id === filtroCuenta)
-      .map(c => ({ id: c.id, saldo_actual: Number(c.saldo_actual) || 0 }));
-  }, [cajas, filtroCuenta]);
-
-  const { data: resultMovs, isLoading: cargandoMovimientos, error: errorMovs } = useMovimientos(
-    escuelaId,
-    cajasAConsultar,
-    rangoAplicado,
-    !rangoPendiente
+  const filtroCuenta = cajas.find(c => c.id === cuentaElegida)?.id
+    || cajas.find(c => c.es_predeterminada)?.id || cajas[0]?.id || '';
+  const contextoPagina = JSON.stringify([perfil?.id, escuelaId, perfil?.sucursal_id, perfil?.rol, filtroCuenta, rangoAplicado, busquedaAplicada]);
+  useEffect(() => {
+    setNavegacion({ contexto: contextoPagina, cursores: [null] });
+  }, [contextoPagina]);
+  const cursores = navegacion.contexto === contextoPagina ? navegacion.cursores : [null];
+  const paginaActual = cursores.length;
+  const { data: resultMovs, isLoading: cargandoMovimientos, isFetching: consultandoMovimientos, error: errorMovs } = useMovimientos(
+    { userId: perfil?.id || null, escuelaId, sucursalId: perfil?.sucursal_id || null, rol: perfil?.rol || null },
+    filtroCuenta || null, rangoAplicado, busquedaAplicada, cursores[paginaActual - 1],
+    !rangoPendiente && busqueda.trim() === busquedaAplicada
   );
+  const movimientosRaw = rangoPendiente || busqueda.trim() !== busquedaAplicada ? [] : resultMovs?.movimientos || [];
 
-  const movimientosRaw = rangoPendiente ? [] : resultMovs?.movimientos || [];
-  const limiteAlcanzadoPorCaja = rangoPendiente ? {} : resultMovs?.limiteAlcanzadoPorCaja || {};
-  const { data: entidades = [] } = useCxpEntidades(escuelaId, {});
-
-  const cargando = cargandoCajas || (!rangoPendiente && cargandoMovimientos);
+  const cargando = cargandoCajas || (!rangoPendiente && (cargandoMovimientos || busqueda.trim() !== busquedaAplicada));
   const error = errorMovs
     ? ((errorMovs as any)?.message || (errorMovs as any)?.details || (errorMovs instanceof Error ? errorMovs.message : 'Error al cargar datos'))
     : null;
@@ -197,6 +197,7 @@ const CajasBancos: React.FC = () => {
   // Estados para Cobros/Pagos rápidos
   const [showCobro, setShowCobro] = useState(false);
   const [showPago, setShowPago] = useState(false);
+  const { data: entidades = [] } = useCxpEntidades(escuelaId, {}, showPago);
 
   // Estados y refs para Recibos de WhatsApp
   const [escuelaInfo, setEscuelaInfo] = useState<{ nombre: string; logo_url: string | null } | null>(null);
@@ -230,6 +231,7 @@ const CajasBancos: React.FC = () => {
 
 
   const manejarActualizacion = () => {
+    setNavegacion({ contexto: contextoPagina, cursores: [null] });
     queryClient.invalidateQueries({ queryKey: ['cajas-bancos', escuelaId] });
     queryClient.invalidateQueries({ queryKey: ['movimientos-financieros', escuelaId] });
   };
@@ -380,38 +382,8 @@ const CajasBancos: React.FC = () => {
     return Object.values(saldos).reduce((sum, val) => sum + val, 0);
   }, [saldos]);
 
-  // Eliminar el useEffect que actualizaba el SidebarContext (líneas 195-230 aprox)
-  // El saldo consolidado y el selector ahora se integran en la rejilla de tarjetas.
-
-  // Normalizar texto: quitar acentos y pasar a minúsculas
-  const normalizar = useCallback((str: string) =>
-    str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim()
-  , []);
-
-  // Filtros cruzados — búsqueda inteligente por Cuentas, Alumno/Proveedor y Documentos
-  const movimientosFiltrados = useMemo(() => {
-    let list = movimientos;
-    if (filtroCuenta !== 'todas') list = list.filter(m => m.cuenta_id === filtroCuenta);
-    if (busqueda.trim()) {
-      // Separar la búsqueda en tokens individuales (AND lógico)
-      const tokens = normalizar(busqueda).split(/\s+/).filter(t => t.length > 0);
-      
-      list = list.filter(m => {
-        // Campos de búsqueda en orden de prioridad: Cuentas, Alumno/Proveedor, Documentos
-        const campoCuentas = normalizar(m.cuenta_nombre || '');
-        const campoCliente = normalizar(m.cliente || '');
-        const campoDocumento = normalizar(m.nro_transaccion || '');
-        
-        // Concatenar todos los campos para buscar tokens que pueden cruzar columnas
-        const textoCompleto = `${campoCuentas} ${campoCliente} ${campoDocumento}`;
-        
-        // Cada token debe encontrarse en al menos uno de los campos
-        return tokens.every(token => textoCompleto.includes(token));
-      });
-    }
-    return list;
-  }, [movimientos, filtroCuenta, busqueda, normalizar]);
-
+  // La busqueda se aplica en el servidor antes de paginar.
+  const movimientosFiltrados = movimientos;
 
   const actualizarConciliadoMovimiento = async (mov: MovimientoFinanciero, conciliado: boolean) => {
     const tabla = mov.tipo_origen === 'cobro' ? 'cobros_aplicados' : 'pagos_aplicados';
@@ -493,7 +465,7 @@ const CajasBancos: React.FC = () => {
 
     const saldo = Number((mov as any).saldo_historico || 0);
     const ok = window.confirm(
-      `Conciliar ${pendientes.length} movimiento(s) de ${mov.cuenta_nombre} hasta este saldo verificado?\n\nSaldo verificado: Bs ${fmtMonto(saldo)}`
+      `Conciliar ${pendientes.length} movimiento(s) de ${mov.cuenta_nombre} de esta pagina, desde la fila seleccionada hacia atras?\n\nSaldo verificado: Bs ${fmtMonto(saldo)}`
     );
     if (!ok) return;
 
@@ -520,7 +492,7 @@ const CajasBancos: React.FC = () => {
     const pendientes = movsCaja.filter(m => !m.conciliado);
     if (pendientes.length === 0) return;
 
-    const ok = window.confirm(`Conciliar ${pendientes.length} movimiento(s) visibles de ${caja.nombre}?`);
+    const ok = window.confirm(`Conciliar ${pendientes.length} movimiento(s) de esta página de ${caja.nombre}?`);
     if (!ok) return;
 
     try {
@@ -542,9 +514,18 @@ const CajasBancos: React.FC = () => {
 
   const generarReciboWhatsApp = async (mov: MovimientoFinanciero) => {
     if (generandoReciboId) return;
+    setGenerandoReciboId(mov.id);
+    try {
+      mov = await cargarDetalleMovimiento(mov);
+    } catch (err: any) {
+      setGenerandoReciboId(null);
+      alert('No se pudo cargar el recibo: ' + err.message);
+      return;
+    }
 
     const telFinal = obtenerTelefonoWhatsApp(mov.alumno_raw);
     if (!telFinal) {
+      setGenerandoReciboId(null);
       alert('El alumno no tiene un teléfono de WhatsApp registrado para su papá o mamá.');
       return;
     }
@@ -672,6 +653,9 @@ const CajasBancos: React.FC = () => {
     <main className="main-content cxc-main">
       {isMobile ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', width: '100%', boxSizing: 'border-box', overflow: 'hidden' }}>
+          <div aria-label="Saldo consolidado de las cuentas" style={{ display: 'flex', justifyContent: 'space-between', padding: '0.5rem' }}>
+            <span>Saldo consolidado</span><strong>Bs {fmtMonto(saldoTotal)}</strong>
+          </div>
           {/* Tarjetas de Cajas/Bancos — scroll horizontal */}
           <div style={{
             display: 'flex',
@@ -688,7 +672,9 @@ const CajasBancos: React.FC = () => {
               return (
                 <div
                   key={c.id}
-                  onClick={() => setFiltroCuenta(filtroCuenta === c.id ? 'todas' : c.id)}
+                  role="button" tabIndex={0} aria-pressed={esActiva}
+                  onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setFiltroCuenta(c.id); } }}
+                  onClick={() => setFiltroCuenta(c.id)}
                   onDoubleClick={() => {
                     if (esSuperAdmin) {
                       setCajaAEditar(c);
@@ -775,9 +761,8 @@ const CajasBancos: React.FC = () => {
 
           {/* Tabla de movimientos de la caja seleccionada (inline, sin modal) */}
           {(() => {
-            const cajasFiltradas = filtroCuenta === 'todas' ? cajasOrdenadas : cajasOrdenadas.filter(c => c.id === filtroCuenta);
-            const movsFiltrados = filtroCuenta === 'todas' ? movimientosFiltrados : movimientosFiltrados.filter(m => m.cuenta_id === filtroCuenta);
-            const cajaActiva = filtroCuenta !== 'todas' ? cajas.find(c => c.id === filtroCuenta) : null;
+            const movsFiltrados = movimientosFiltrados;
+            const cajaActiva = cajas.find(c => c.id === filtroCuenta);
 
             return (
               <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: '10px', overflow: 'hidden' }}>
@@ -825,7 +810,7 @@ const CajasBancos: React.FC = () => {
                         display: 'flex', justifyContent: 'space-between', alignItems: 'center'
                       }}>
                         <span style={{ fontWeight: 800, fontSize: '0.85rem', color: 'var(--text-table-header)' }}>
-                          Todos los movimientos
+                          Seleccione una cuenta
                         </span>
                         <span style={{ fontWeight: 900, fontSize: '0.9rem', color: 'var(--primary)' }}>
                           Bs {fmtMonto(saldoTotal)}
@@ -835,9 +820,13 @@ const CajasBancos: React.FC = () => {
 
                     {/* Lista de movimientos tipo tarjeta */}
                     <div style={{ maxHeight: '50vh', overflowY: 'auto' }}>
-                      {movsFiltrados.length === 0 ? (
+                      {cargando || error ? (
+                        <div role={error ? 'alert' : 'status'} style={{ padding: '2rem', textAlign: 'center' }}>
+                          {error || 'Cargando movimientos...'}
+                        </div>
+                      ) : movsFiltrados.length === 0 ? (
                         <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-tertiary)', fontSize: '0.85rem' }}>
-                          {filtroCuenta === 'todas' ? 'No hay movimientos registrados.' : 'No hay movimientos en esta cuenta.'}
+                          No hay movimientos en esta cuenta para los filtros seleccionados.
                         </div>
                       ) : (
                         movsFiltrados.map(mov => {
@@ -1176,19 +1165,19 @@ const CajasBancos: React.FC = () => {
               }}>
                 {/* Tarjeta de Saldo Consolidado */}
                 <div 
-                  onClick={() => setFiltroCuenta('todas')}
+                  aria-label="Saldo consolidado de las cuentas"
                   style={{
-                    background: filtroCuenta === 'todas' ? 'var(--primary-glow)' : 'rgba(255,255,255,0.05)',
-                    border: `2px solid ${filtroCuenta === 'todas' ? 'var(--primary)' : '#E5E7EB'}`,
+                    background: 'rgba(255,255,255,0.05)',
+                    border: '2px solid var(--border)',
                     borderRadius: '10px',
                     padding: '0.4rem 1rem',
-                    cursor: 'pointer',
+                    cursor: 'default',
                     minWidth: '160px',
                     display: 'flex',
                     flexDirection: 'column',
                     justifyContent: 'center',
                     transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-                    boxShadow: filtroCuenta === 'todas' ? '0 0 15px var(--primary-glow)' : 'none',
+                    boxShadow: 'none',
                     position: 'relative',
                     overflow: 'hidden'
                   }}
@@ -1219,7 +1208,9 @@ const CajasBancos: React.FC = () => {
                       onDragOver={esSuperAdmin ? e => handleDragOver(e, c.id) : undefined}
                       onDrop={esSuperAdmin ? e => handleDrop(e, c.id) : undefined}
                       onDragEnd={esSuperAdmin ? handleDragEnd : undefined}
-                      onClick={() => setFiltroCuenta(filtroCuenta === c.id ? 'todas' : c.id)}
+                      role="button" tabIndex={0} aria-pressed={esActiva}
+                      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setFiltroCuenta(c.id); } }}
+                      onClick={() => setFiltroCuenta(c.id)}
                       onDoubleClick={() => {
                         if (esSuperAdmin) {
                           setCajaAEditar(c);
@@ -1335,11 +1326,8 @@ const CajasBancos: React.FC = () => {
             </div>
           ) : (
             <div className="cajas-tablas-container" style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-              {cajasOrdenadas.filter(c => filtroCuenta === 'todas' || c.id === filtroCuenta).map(caja => {
+              {cajasOrdenadas.filter(c => c.id === filtroCuenta).map(caja => {
                 const movsCaja = movimientosFiltrados.filter(m => m.cuenta_id === caja.id);
-
-                // Si hay búsqueda y esta caja no tiene movimientos coincidentes, la ocultamos para limpiar la UI
-                if (busqueda && movsCaja.length === 0) return null;
 
                 return (
                   <div key={caja.id} className="caja-seccion">
@@ -1349,31 +1337,12 @@ const CajasBancos: React.FC = () => {
                           <Landmark size={20} style={{ display: 'inline-block', verticalAlign: 'middle', marginRight: '8px', color: 'var(--primary)' }} />
                           {caja.nombre}
                         </h3>
-                        {limiteAlcanzadoPorCaja[caja.id] && (
-                          <span style={{
-                            fontSize: '0.75rem',
-                            fontWeight: 500,
-                            color: '#d97706',
-                            backgroundColor: 'rgba(245, 158, 11, 0.08)',
-                            border: '1px solid rgba(245, 158, 11, 0.2)',
-                            padding: '2px 8px',
-                            borderRadius: '6px',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '4px'
-                          }}>
-                            <AlertTriangle size={12} />
-                            Mostrando los 200 movimientos más recientes
-                          </span>
-                        )}
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                         {!isMobile && (
                           <button
                             type="button"
                             className={`est-tabla-copiar ${copiadoCajaId === caja.id ? 'est-tabla-copiar--ok' : ''}`}
                             onClick={() => copiarTablaCaja(caja.id, movsCaja)}
-                            title="Copiar movimientos de esta cuenta para Excel (formato TSV)"
+                            title="Copiar movimientos de esta página para Excel (formato TSV)"
                           >
                             {copiadoCajaId === caja.id ? (
                               <>
@@ -1405,10 +1374,10 @@ const CajasBancos: React.FC = () => {
                               fontWeight: 800,
                               fontSize: '0.78rem'
                             }}
-                            title="Marcar como conciliados todos los movimientos visibles de esta cuenta"
+                            title="Marcar como conciliados los movimientos de esta página"
                           >
                             <CheckCircle2 size={15} />
-                            Conciliar visibles
+                            Conciliar esta página
                           </button>
                         )}
                       </div>
@@ -1649,7 +1618,7 @@ const CajasBancos: React.FC = () => {
                                         ? `Conciliado. Saldo verificado: Bs ${fmtMonto(Number((mov as any).saldo_historico || 0))}. Click para desmarcar con motivo.`
                                         : (puedeConciliar
                                           ? (modoConciliacion
-                                            ? `Conciliar hasta aqui. Saldo verificado: Bs ${fmtMonto(Number((mov as any).saldo_historico || 0))}`
+                                            ? `Conciliar desde esta fila al final de esta pagina. Saldo verificado: Bs ${fmtMonto(Number((mov as any).saldo_historico || 0))}`
                                             : "Marcar solo este movimiento como conciliado")
                                           : "Sin permiso para conciliar")}
                                       disabled={!puedeConciliar || conciliandoId === mov.id}
@@ -1670,6 +1639,18 @@ const CajasBancos: React.FC = () => {
             </div>
           )}
         </>
+      )}
+
+      {filtroCuenta && !rangoPendiente && (
+        <nav aria-label="Páginas de movimientos" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '1rem', padding: '1rem', flexWrap: 'wrap', marginBottom: isMobile ? '90px' : 0 }}>
+          <button type="button" className="btn-refrescar" disabled={paginaActual === 1 || consultandoMovimientos || busqueda.trim() !== busquedaAplicada}
+            onClick={() => setNavegacion({ contexto: contextoPagina, cursores: cursores.slice(0, -1) })}>Anterior</button>
+          <span aria-live="polite">Página {paginaActual} · {movimientos.length} movimientos</span>
+          <button type="button" className="btn-refrescar" disabled={!resultMovs?.hayMas || consultandoMovimientos || !!errorMovs || busqueda.trim() !== busquedaAplicada}
+            onClick={() => {
+              if (resultMovs?.cursorSiguiente) setNavegacion({ contexto: contextoPagina, cursores: [...cursores, resultMovs.cursorSiguiente] });
+            }}>Siguiente</button>
+        </nav>
       )}
 
       {/* Modales */}

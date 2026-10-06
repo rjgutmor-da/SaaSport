@@ -275,11 +275,11 @@ export const useCxpResumen = (escuelaId: string | null, filtros: any) =>
     staleTime: 1000 * 60 * 5, // 5 minutos
   });
 
-export const useCxpEntidades = (escuelaId: string | null, filtros: any) =>
+export const useCxpEntidades = (escuelaId: string | null, filtros: any, habilitado = true) =>
   useQuery({
-    queryKey: queryKeys.cxp_entidades(filtros),
+    queryKey: ['cxp-entidades', escuelaId, filtros],
     queryFn: () => fetchCxpEntidades(escuelaId!, filtros),
-    enabled: !!escuelaId,
+    enabled: habilitado && !!escuelaId,
   });
 
 // --- Cajas y Bancos ---
@@ -295,86 +295,58 @@ const fetchCajasBancos = async (escuelaId: string) => {
   return data;
 };
 
-export interface CajaConSaldo {
-  id: string;
-  saldo_actual: number;
+export interface RangoFecha {
+  desde: string;
+  hasta: string;
+  usarRpc: boolean;
 }
 
-export interface RangoFecha {
-  desde: string; // ISO String UTC
-  hasta: string; // ISO String UTC
-  usarRpc: boolean;
+export interface CursorMovimientos {
+  dia: string;
+  registro: string;
+  id: string;
+  origen: 'cobro' | 'pago';
+  filtro: string;
+}
+
+interface GrupoMovimiento {
+  ids: string[];
+  origen: 'cobro' | 'pago';
+  saldo_historico: string;
 }
 
 export interface MovimientosResult {
   movimientos: MovimientoFinanciero[];
-  limiteAlcanzadoPorCaja: Record<string, boolean>;
+  hayMas: boolean;
+  cursorSiguiente: CursorMovimientos | null;
 }
 
-// El saldo historico debe calcularse en el mismo orden que se muestra la tabla.
-// Priorizamos el dia contable y, dentro del mismo dia, el momento de registro.
-const compararMovimientosDesc = (a: MovimientoFinanciero, b: MovimientoFinanciero) => {
-  const obtenerDia = (fecha: string) => {
-    const match = fecha?.match(/^(\d{4})-(\d{2})-(\d{2})/);
-    if (!match) return 0;
-    return Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
-  };
-
-  const diferenciaDia = obtenerDia(b.fecha) - obtenerDia(a.fecha);
-  if (diferenciaDia !== 0) return diferenciaDia;
-
-  const diferenciaCreacion =
-    new Date(b.created_at || b.fecha).getTime() -
-    new Date(a.created_at || a.fecha).getTime();
-  if (diferenciaCreacion !== 0) return diferenciaCreacion;
-
-  return b.id.localeCompare(a.id);
-};
-
 const fetchMovimientos = async (
-  escuelaId: string,
-  cajas: CajaConSaldo[],
-  rango: RangoFecha | null
+  escuelaId: string, cajaId: string, rango: RangoFecha | null,
+  busqueda: string, cursor: CursorMovimientos | null, signal: AbortSignal
 ): Promise<MovimientosResult> => {
-  if (!escuelaId || cajas.length === 0) {
-    return { movimientos: [], limiteAlcanzadoPorCaja: {} };
-  }
-
-  // 1. Obtener saldos de cierre por caja
-  const saldosCierre: Record<string, number> = {};
-  if (rango) {
-    const { data: saldosRpc, error: errorRpc } = await supabase.rpc('obtener_saldo_cierre_cajas', {
-      p_caja_ids: cajas.map(c => c.id),
-      p_hasta: rango.hasta
-    });
-    if (errorRpc) throw errorRpc;
-
-    cajas.forEach(c => {
-      const found = saldosRpc?.find((r: any) => r.caja_id === c.id);
-      saldosCierre[c.id] = found ? Number(found.saldo_cierre) : 0;
-    });
-  } else {
-    cajas.forEach(c => {
-      saldosCierre[c.id] = Number(c.saldo_actual) || 0;
-    });
-  }
-
-  const limiteAlcanzadoPorCaja: Record<string, boolean> = {};
-  const todosLosMovimientos: MovimientoFinanciero[] = [];
-  const erroresPorCaja: Record<string, any> = {};
-
-  // Función para procesar una caja individual de forma segura
-  const procesarCaja = async (caja: CajaConSaldo) => {
-    let queryCobros = supabase.from('cobros_aplicados').select(`
-      *,
+  const { data: pagina, error } = await supabase.rpc('rpc_listar_movimientos_caja', {
+    p_caja_id: cajaId, p_desde: rango?.desde || null, p_hasta: rango?.hasta || null,
+    p_busqueda: busqueda.trim() || null, p_cursor: cursor, p_limite: 50
+  }).abortSignal(signal);
+  if (error) throw error;
+  const grupos: GrupoMovimiento[] = pagina?.grupos || [];
+  const cobros: any[] = [];
+  const pagos: any[] = [];
+  // Enriquecer solo los identificadores de esta pagina, en lotes acotados.
+  await Promise.all((['cobro', 'pago'] as const).map(async origen => {
+    const ids = grupos.filter(g => g.origen === origen).flatMap(g => g.ids);
+    for (let desde = 0; desde < ids.length; desde += 50) {
+      const lote = ids.slice(desde, desde + 50);
+      const { data, error: errorDetalle } = origen === 'cobro'
+        ? await supabase.from('cobros_aplicados').select(`
+      id, monto_aplicado, fecha, created_at, caja_id, documento_referencia, conciliado,
       cuentas_cobrar (
         id, descripcion, nro_recibo, es_anticipo, es_ingreso_directo, ciclo_inicio, ciclo_fin,
-        alumnos ( nombres, apellidos, telefono_padre, telefono_madre, whatsapp_preferido ),
+        alumnos ( nombres, apellidos ),
         cxc_detalle (
           id,
           catalogo_item_id,
-          cantidad,
-          precio_unitario,
           periodo_meses,
           detalle_extra,
           ciclo_inicio,
@@ -383,13 +355,9 @@ const fetchMovimientos = async (
         )
       )
     `)
-    .eq('caja_id', caja.id)
-    .order('fecha', { ascending: false })
-    .order('created_at', { ascending: false })
-    .limit(201); // Fila centinela
-
-    let queryPagos = supabase.from('pagos_aplicados').select(`
-      *,
+            .eq('escuela_id', escuelaId).eq('caja_id', cajaId).in('id', lote).limit(50).abortSignal(signal)
+        : await supabase.from('pagos_aplicados').select(`
+      id, monto_aplicado, fecha, created_at, caja_id, referencia, conciliado,
       cuentas_pagar (
         id, descripcion, es_anticipo,
         proveedores ( nombre ),
@@ -401,27 +369,16 @@ const fetchMovimientos = async (
         )
       )
     `)
-    .eq('caja_id', caja.id)
-    .order('fecha', { ascending: false })
-    .order('created_at', { ascending: false })
-    .limit(201); // Fila centinela
-
-    if (rango) {
-      // Filtro inclusivo de desde y exclusivo de hasta, soportando nulos de fecha de forma defensiva
-      const filter = `and(fecha.gte.${rango.desde},fecha.lt.${rango.hasta}),and(fecha.is.null,created_at.gte.${rango.desde},created_at.lt.${rango.hasta})`;
-      queryCobros = queryCobros.or(filter);
-      queryPagos = queryPagos.or(filter);
+            .eq('escuela_id', escuelaId).eq('caja_id', cajaId).in('id', lote).limit(50).abortSignal(signal);
+      if (errorDetalle) throw errorDetalle;
+      if (data?.length !== lote.length) throw new Error('Los movimientos cambiaron. Actualice el historial.');
+      (origen === 'cobro' ? cobros : pagos).push(...(data || []));
     }
-
-    const [cobrosRes, pagosRes] = await Promise.all([queryCobros, queryPagos]);
-
-    if (cobrosRes.error) throw cobrosRes.error;
-    if (pagosRes.error) throw pagosRes.error;
-
+  }));
     const movsCaja: MovimientoFinanciero[] = [];
 
     // Mapear cobros
-    (cobrosRes.data || []).forEach((c: any) => {
+    cobros.forEach((c: any) => {
       const monto = Number(c.monto_aplicado) || 0;
       const items = c.cuentas_cobrar?.cxc_detalle?.map((d: any) => d.catalogo_items?.nombre).filter(Boolean);
       const tieneDetalleCxc = (c.cuentas_cobrar?.cxc_detalle?.length || 0) > 0;
@@ -472,7 +429,7 @@ const fetchMovimientos = async (
     });
 
     // Mapear pagos
-    (pagosRes.data || []).forEach((p: any) => {
+    pagos.forEach((p: any) => {
       const esEgresoDirecto = !p.cuentas_pagar?.proveedores && !p.cuentas_pagar?.personal && !p.cuentas_pagar?.descripcion?.startsWith('[EGRESO TRF]') && !p.cuentas_pagar?.es_anticipo;
       movsCaja.push({
         id: p.id,
@@ -509,61 +466,38 @@ const fetchMovimientos = async (
       });
     });
 
-    // Ordenar descendente: primero por fecha (día), luego por timestamp de creación
-    movsCaja.sort(compararMovimientosDesc);
 
-    const movimientosAgrupados = agruparCobrosDeUnaTransaccion(movsCaja);
-    movimientosAgrupados.sort(compararMovimientosDesc);
+  const porId = new Map(movsCaja.map(m => [m.tipo_origen + ':' + m.id, m]));
+  const movimientos = grupos.map(grupo => {
+    const miembros = grupo.ids.map(id => porId.get(grupo.origen + ':' + id));
+    if (miembros.some(m => !m)) throw new Error('Los movimientos cambiaron. Actualice el historial.');
+    const agrupados = agruparCobrosDeUnaTransaccion(miembros as MovimientoFinanciero[]);
+    if (agrupados.length !== 1) throw new Error('La transaccion cambio. Actualice el historial.');
+    return { ...agrupados[0], saldo_historico: Number(grupo.saldo_historico) };
+  });
+  return { movimientos, hayMas: pagina.hay_mas, cursorSiguiente: pagina.cursor_siguiente };
+};
 
-    // Evaluar si se excede el límite usando fila centinela
-    const masDe200 = movsCaja.length > 200 || (cobrosRes.data?.length || 0) > 200 || (pagosRes.data?.length || 0) > 200;
-    limiteAlcanzadoPorCaja[caja.id] = masDe200;
-
-    // Mantener solo los 200 movimientos más recientes de esta caja
-    const sliceMovs = movimientosAgrupados.slice(0, 200);
-
-    // Calcular saldo histórico hacia atrás:
-    // saldoAnterior = saldoActual - debe + haber
-    let runningBalance = saldosCierre[caja.id] || 0;
-    for (let i = 0; i < sliceMovs.length; i++) {
-      const m = sliceMovs[i];
-      m.saldo_historico = runningBalance;
-      runningBalance = runningBalance - m.debe + m.haber;
+// Precios, cantidades y datos completos del recibo se obtienen al abrirlo.
+export const cargarDetalleMovimiento = async (mov: MovimientoFinanciero): Promise<MovimientoFinanciero> => {
+  if (mov.tipo_origen !== 'cobro') return mov;
+  const ids = mov.original_ids || [mov.id];
+  const detalles: any[] = [];
+  let alumno = mov.alumno_raw;
+  for (let desde = 0; desde < ids.length; desde += 50) {
+    const { data, error } = await supabase.from('cobros_aplicados').select(`
+      id, cuentas_cobrar (alumnos (nombres, apellidos, telefono_padre, telefono_madre, whatsapp_preferido),
+        cxc_detalle (id, catalogo_item_id, cantidad, precio_unitario, periodo_meses, detalle_extra,
+          ciclo_inicio, ciclo_fin, catalogo_items (nombre)))
+    `).eq('caja_id', mov.cuenta_id).in('id', ids.slice(desde, desde + 50)).limit(50);
+    if (error) throw error;
+    if (data?.length !== ids.slice(desde, desde + 50).length) throw new Error('El recibo cambio. Actualice el historial.');
+    for (const fila of (data || []) as any[]) {
+      detalles.push(...(fila.cuentas_cobrar?.cxc_detalle || []));
+      alumno ||= fila.cuentas_cobrar?.alumnos;
     }
-
-    return sliceMovs;
-  };
-
-  // Consultar en lotes de hasta 2 cajas concurrentes para no saturar conexiones HTTP/PostgREST
-  const TAMANIO_LOTE = 2;
-  for (let i = 0; i < cajas.length; i += TAMANIO_LOTE) {
-    const lote = cajas.slice(i, i + TAMANIO_LOTE);
-    const resultados = await Promise.allSettled(lote.map(c => procesarCaja(c)));
-
-    resultados.forEach((res, idx) => {
-      const caja = lote[idx];
-      if (res.status === 'fulfilled' && res.value) {
-        todosLosMovimientos.push(...res.value);
-      } else if (res.status === 'rejected') {
-        console.error(`[Finanzas] Error al cargar movimientos de la caja ${caja.id}:`, res.reason);
-        erroresPorCaja[caja.id] = res.reason;
-      }
-    });
   }
-
-  // Si fallaron absolutamente todas las cajas consultadas, lanzar error para TanStack Query
-  if (Object.keys(erroresPorCaja).length === cajas.length && cajas.length > 0) {
-    const primerError = Object.values(erroresPorCaja)[0];
-    throw primerError || new Error('No se pudieron obtener los movimientos de las cuentas');
-  }
-
-  // Ordenar la lista combinada global de forma descendente por fecha
-  todosLosMovimientos.sort(compararMovimientosDesc);
-
-  return {
-    movimientos: todosLosMovimientos,
-    limiteAlcanzadoPorCaja
-  };
+  return { ...mov, detalles_cxc: detalles, alumno_raw: alumno };
 };
 
 export const useCajasBancos = (escuelaId: string | null) =>
@@ -575,20 +509,12 @@ export const useCajasBancos = (escuelaId: string | null) =>
   });
 
 export const useMovimientos = (
-  escuelaId: string | null,
-  cajas: CajaConSaldo[],
-  rango: RangoFecha | null,
-  habilitado = true
-) =>
-  useQuery({
-    queryKey: [
-      'movimientos-financieros',
-      escuelaId,
-      cajas.map(c => c.id).join(','),
-      rango,
-      cajas.map(c => c.saldo_actual).join(',')
-    ],
-    queryFn: () => fetchMovimientos(escuelaId!, cajas, rango),
-    enabled: habilitado && !!escuelaId && cajas.length > 0,
-    staleTime: 1000 * 30, // 30 segundos de datos frescos
-  });
+  alcance: AlcanceBusquedaCxc & { rol: string | null },
+  cajaId: string | null, rango: RangoFecha | null, busqueda: string,
+  cursor: CursorMovimientos | null, habilitado = true
+) => useQuery({
+  queryKey: ['movimientos-financieros', alcance.escuelaId, alcance, cajaId, rango, busqueda, cursor],
+  queryFn: ({ signal }) => fetchMovimientos(alcance.escuelaId!, cajaId!, rango, busqueda, cursor, signal),
+  enabled: habilitado && !!alcance.escuelaId && !!cajaId,
+  staleTime: 30_000,
+});
