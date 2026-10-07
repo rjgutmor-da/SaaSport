@@ -379,6 +379,21 @@ export const formatCicloCompleto = (inicioStr: string | null | undefined, finStr
   return `${diaIni} ${nombreMesIni} al ${diaFin} ${nombreMesFin}`;
 };
 
+/** Formato breve para mensajes: "21 Sep a 20 Oct de 2026". */
+export const formatCicloWhatsApp = (inicioStr: string | null | undefined, finStr: string | null | undefined): string | null => {
+  if (!inicioStr || !finStr) return null;
+  const inicioParts = /^(\d{4})-(\d{2})-(\d{2})$/.exec(inicioStr);
+  const finParts = /^(\d{4})-(\d{2})-(\d{2})$/.exec(finStr);
+  if (!inicioParts || !finParts) return null;
+
+  const meses = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+  const fecha = (parts: RegExpExecArray) => `${Number(parts[3])} ${meses[Number(parts[2]) - 1]}`;
+  if (!meses[Number(inicioParts[2]) - 1] || !meses[Number(finParts[2]) - 1]) return null;
+  return inicioParts[1] === finParts[1]
+    ? `${fecha(inicioParts)} a ${fecha(finParts)} de ${finParts[1]}`
+    : `${fecha(inicioParts)} de ${inicioParts[1]} a ${fecha(finParts)} de ${finParts[1]}`;
+};
+
 /**
  * Calcula la diferencia en meses transcurridos entre dos fechas YYYY-MM-DD.
  * Retorna (fechaB.año - fechaA.año) * 12 + (fechaB.mes - fechaA.mes).

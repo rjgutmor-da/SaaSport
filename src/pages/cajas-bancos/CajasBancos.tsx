@@ -17,7 +17,7 @@ import ModalCobroRapido from '../../components/cxc/ModalCobroRapido';
 import ModalPagoRapidoCxP from '../../components/cxp/ModalPagoRapidoCxP';
 import NotaServicios from '../../components/cxc/NotaServicios';
 import DropdownAcciones from '../../components/cajas-bancos/DropdownAcciones';
-import { formatFecha, formatCicloCompleto } from '../../lib/dateUtils';
+import { formatFecha, formatCicloWhatsApp } from '../../lib/dateUtils';
 import { logActivity } from '../../lib/auditLogger';
 import { can } from '../../config/roles';
 
@@ -580,7 +580,31 @@ const CajasBancos: React.FC = () => {
         // para evitar que el navegador bloquee WhatsApp como ventana emergente,
         // ya que la imagen se genera de forma asíncrona.
         const nombresAlumno = String(mov.alumno_raw?.nombres || '').trim() || 'su alumno';
-        const textoSaludo = `Anexamos el recibo digital del pago de ${nombresAlumno}`;
+        const conceptosRecibo = (mov.detalles_cxc || []).map((det: any) => {
+          const nombre = String(det.catalogo_items?.nombre || 'Concepto').trim();
+          const nombreLower = nombre.toLowerCase();
+          if (nombreLower.includes('mensualidad')) {
+            const tieneCicloDetalle = Boolean(det.ciclo_inicio && det.ciclo_fin);
+            const tieneCicloNota = Boolean(det.ciclo_nota_inicio && det.ciclo_nota_fin);
+            const ciclo = formatCicloWhatsApp(
+              tieneCicloDetalle ? det.ciclo_inicio : tieneCicloNota ? det.ciclo_nota_inicio : !mov.is_grouped ? mov.ciclo_inicio : null,
+              tieneCicloDetalle ? det.ciclo_fin : tieneCicloNota ? det.ciclo_nota_fin : !mov.is_grouped ? mov.ciclo_fin : null,
+            );
+            if (ciclo) return `${nombre} (${ciclo})`;
+            if (det.detalle_extra?.trim() && /\d/.test(det.detalle_extra) && /\b(?:a|al)\b/i.test(det.detalle_extra)) {
+              return `${nombre} (${det.detalle_extra.trim()})`;
+            }
+            if (Array.isArray(det.periodo_meses) && det.periodo_meses.length > 0) {
+              return `${nombre} (${det.periodo_meses.join(', ')})`;
+            }
+          }
+          if (nombreLower.includes('torneo') && det.detalle_extra?.trim()) return `${nombre} (${det.detalle_extra.trim()})`;
+          return nombre;
+        });
+        const detalleTexto = conceptosRecibo.length > 0
+          ? `\n\nConceptos del pago:\n${[...new Set(conceptosRecibo)].map(concepto => `• ${concepto}`).join('\n')}`
+          : '';
+        const textoSaludo = `Anexamos el recibo digital del pago de ${nombresAlumno}${detalleTexto}`;
         const urlWa = `https://wa.me/${telFinal}?text=${encodeURIComponent(textoSaludo)}`;
 
         if (isMobile) {
@@ -1914,16 +1938,25 @@ const CajasBancos: React.FC = () => {
                         let nombreConcepto = det.catalogo_items?.nombre || 'Concepto';
                         const nombreLower = nombreConcepto.toLowerCase();
                         
-                        if (nombreLower.includes('mensualidad') && Array.isArray(det.periodo_meses) && det.periodo_meses.length > 0) {
+                        const tieneCicloDetalle = Boolean(det.ciclo_inicio && det.ciclo_fin);
+                        const tieneCicloNota = Boolean(det.ciclo_nota_inicio && det.ciclo_nota_fin);
+                        const cicloInicioDetalle = tieneCicloDetalle ? det.ciclo_inicio : tieneCicloNota ? det.ciclo_nota_inicio : !movimientoParaRecibo.is_grouped ? movimientoParaRecibo.ciclo_inicio : null;
+                        const cicloFinDetalle = tieneCicloDetalle ? det.ciclo_fin : tieneCicloNota ? det.ciclo_nota_fin : !movimientoParaRecibo.is_grouped ? movimientoParaRecibo.ciclo_fin : null;
+                        const cicloFormateado = nombreLower.includes('mensualidad')
+                          ? formatCicloWhatsApp(cicloInicioDetalle, cicloFinDetalle)
+                          : null;
+
+                        if (nombreLower.includes('mensualidad') && cicloFormateado) {
+                          nombreConcepto = `${nombreConcepto} (${cicloFormateado})`;
+                        } else if (nombreLower.includes('mensualidad') && det.detalle_extra?.trim() && /\d/.test(det.detalle_extra) && /\b(?:a|al)\b/i.test(det.detalle_extra)) {
+                          nombreConcepto = `${nombreConcepto} (${det.detalle_extra.trim()})`;
+                        } else if (nombreLower.includes('mensualidad') && Array.isArray(det.periodo_meses) && det.periodo_meses.length > 0) {
                           nombreConcepto = `${nombreConcepto} - ${det.periodo_meses.join(', ')}`;
                         } else if (nombreLower.includes('torneo') && det.detalle_extra && det.detalle_extra.trim()) {
                           nombreConcepto = `${nombreConcepto} - ${det.detalle_extra.trim()}`;
                         }
 
                         const totalLinea = (det.cantidad || 1) * (det.precio_unitario || 0);
-                        const tieneCiclo = nombreLower.includes('mensualidad') && (det.ciclo_inicio || movimientoParaRecibo.ciclo_inicio) && (det.ciclo_fin || movimientoParaRecibo.ciclo_fin);
-                        const cicloFormateado = tieneCiclo ? formatCicloCompleto(det.ciclo_inicio || movimientoParaRecibo.ciclo_inicio, det.ciclo_fin || movimientoParaRecibo.ciclo_fin) : null;
-
                         return (
                           <li key={idx} style={{ display: 'flex', flexDirection: 'column', gap: '2px', width: '100%' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
@@ -1937,19 +1970,15 @@ const CajasBancos: React.FC = () => {
                                 {fmtMonto(totalLinea)}
                               </span>
                             </div>
-                            {cicloFormateado && (
-                              <div style={{ paddingLeft: '18px', color: '#ff6b35', opacity: 0.85, fontFamily: '"Inter", sans-serif', fontSize: '11px', fontStyle: 'italic' }}>
-                                Ciclo: {cicloFormateado}
-                              </div>
-                            )}
                           </li>
                         );
                       })
                     ) : (
                       (() => {
                         const descLower = (movimientoParaRecibo.descripcion || '').toLowerCase();
-                        const tieneCicloDesc = descLower.includes('mensualidad') && movimientoParaRecibo.ciclo_inicio && movimientoParaRecibo.ciclo_fin;
-                        const cicloFormateadoDesc = tieneCicloDesc ? formatCicloCompleto(movimientoParaRecibo.ciclo_inicio, movimientoParaRecibo.ciclo_fin) : null;
+                        const cicloFormateadoDesc = descLower.includes('mensualidad')
+                          ? formatCicloWhatsApp(movimientoParaRecibo.ciclo_inicio, movimientoParaRecibo.ciclo_fin)
+                          : null;
 
                         return (
                           <li style={{ display: 'flex', flexDirection: 'column', gap: '2px', width: '100%' }}>
@@ -1957,18 +1986,15 @@ const CajasBancos: React.FC = () => {
                               <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                                 <div style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#ff6b35' }} />
                                 <span style={{ color: '#e5e2e1', fontFamily: '"Inter", sans-serif', fontSize: '13px' }}>
-                                  {movimientoParaRecibo.descripcion || 'Cobro registrado'}
+                                  {cicloFormateadoDesc
+                                    ? `${movimientoParaRecibo.descripcion || 'Mensualidad'} (${cicloFormateadoDesc})`
+                                    : movimientoParaRecibo.descripcion || 'Cobro registrado'}
                                 </span>
                               </div>
                               <span style={{ color: '#e5e2e1', fontFamily: '"Inter", sans-serif', fontSize: '13px', fontWeight: '500' }}>
                                 {fmtMonto(movimientoParaRecibo.debe)}
                               </span>
                             </div>
-                            {cicloFormateadoDesc && (
-                              <div style={{ paddingLeft: '18px', color: '#ff6b35', opacity: 0.85, fontFamily: '"Inter", sans-serif', fontSize: '11px', fontStyle: 'italic' }}>
-                                Ciclo: {cicloFormateadoDesc}
-                              </div>
-                            )}
                           </li>
                         );
                       })()

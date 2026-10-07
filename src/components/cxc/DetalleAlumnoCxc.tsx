@@ -18,7 +18,7 @@ import ModalVerNotaCxC from './ModalVerNotaCxC';
 import ModalEditarMovimiento from '../cajas-bancos/ModalEditarMovimiento';
 import ModalDetalleMovimiento from '../cajas-bancos/ModalDetalleMovimiento';
 import FichaAnticiposCxC from './FichaAnticiposCxC';
-import { getHoraLocal, getHoyISO, formatFecha, formatFechaCorta, ordenarMesesCalendario, formatCicloMensualidad, formatearMesCorto, FECHA_MINIMA_MOVIMIENTO_FINANCIERO, validarFechaMovimientoFinanciero } from '../../lib/dateUtils';
+import { getHoraLocal, getHoyISO, formatFecha, formatFechaCorta, ordenarMesesCalendario, formatCicloMensualidad, formatCicloWhatsApp, formatearMesCorto, FECHA_MINIMA_MOVIMIENTO_FINANCIERO, validarFechaMovimientoFinanciero } from '../../lib/dateUtils';
 import { useCobroMultiple } from './useCobroMultiple';
 import { can } from '../../config/roles';
 import { esObservacionAnticipoAutomatica } from '../../lib/cxcUtils';
@@ -43,6 +43,9 @@ type DetalleItemCobranza = {
   item_nombre?: string | null;
   periodo_meses?: string[] | null;
   periodo_estadistico?: string | null;
+  ciclo_inicio?: string | null;
+  ciclo_fin?: string | null;
+  detalle_extra?: string | null;
 };
 
 const formatearPeriodoCobranza = (periodo: string): string => {
@@ -65,6 +68,21 @@ const obtenerDescripcionCobranza = (
     item.item_nombre?.toLowerCase().includes('mensualidad')
   );
   if (detallesMensualidad.length === 0) return descripcion;
+
+  const ciclos = detallesMensualidad.map(item => {
+    const tieneCicloDetalle = Boolean(item.ciclo_inicio && item.ciclo_fin);
+    const ciclo = formatCicloWhatsApp(
+      tieneCicloDetalle ? item.ciclo_inicio : cxc.ciclo_inicio,
+      tieneCicloDetalle ? item.ciclo_fin : cxc.ciclo_fin,
+    );
+    return ciclo || (item.detalle_extra?.trim() && /\d/.test(item.detalle_extra) && /\b(?:a|al)\b/i.test(item.detalle_extra) ? item.detalle_extra.trim() : null);
+  }).filter((ciclo): ciclo is string => Boolean(ciclo));
+  if (ciclos.length > 0) {
+    const ciclosUnicos = [...new Set(ciclos)];
+    return descripcion.toLowerCase().includes('mensualidad')
+      ? `${descripcion.replace(/\s*\([^)]*\)\s*$/, '')} (${ciclosUnicos.join(', ')})`
+      : `${descripcion} (${ciclosUnicos.join(', ')})`;
+  }
 
   const periodos = detallesMensualidad.flatMap(item => item.periodo_meses || []);
   if (periodos.length === 0 && cxc.periodo) periodos.push(cxc.periodo);

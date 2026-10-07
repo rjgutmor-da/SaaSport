@@ -487,13 +487,20 @@ export const cargarDetalleMovimiento = async (mov: MovimientoFinanciero): Promis
   for (let desde = 0; desde < ids.length; desde += 50) {
     const { data, error } = await supabase.from('cobros_aplicados').select(`
       id, cuentas_cobrar (alumnos (nombres, apellidos, telefono_padre, telefono_madre, telefono_deportista, whatsapp_preferido),
-        cxc_detalle (id, catalogo_item_id, cantidad, precio_unitario, periodo_meses, detalle_extra,
+        ciclo_inicio, ciclo_fin,
+        cxc_detalle (id, cuenta_cobrar_id, catalogo_item_id, cantidad, precio_unitario, periodo_meses, detalle_extra,
           ciclo_inicio, ciclo_fin, catalogo_items (nombre)))
     `).eq('caja_id', mov.cuenta_id).in('id', ids.slice(desde, desde + 50)).limit(50);
     if (error) throw error;
     if (data?.length !== ids.slice(desde, desde + 50).length) throw new Error('El recibo cambio. Actualice el historial.');
     for (const fila of (data || []) as any[]) {
-      detalles.push(...(fila.cuentas_cobrar?.cxc_detalle || []));
+      const cicloNotaInicio = fila.cuentas_cobrar?.ciclo_inicio || null;
+      const cicloNotaFin = fila.cuentas_cobrar?.ciclo_fin || null;
+      detalles.push(...(fila.cuentas_cobrar?.cxc_detalle || []).map((detalle: any) => ({
+        ...detalle,
+        ciclo_nota_inicio: cicloNotaInicio,
+        ciclo_nota_fin: cicloNotaFin,
+      })));
       const alumnoFila = Array.isArray(fila.cuentas_cobrar?.alumnos)
         ? fila.cuentas_cobrar?.alumnos[0]
         : fila.cuentas_cobrar?.alumnos;
