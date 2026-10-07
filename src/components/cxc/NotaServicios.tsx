@@ -342,12 +342,13 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
         const lineasNormalizadas = (cxcEditar.lineas || []).map((l: any) => {
           if (l.nombre === 'Mensualidad' && Array.isArray(l.periodo_meses)) {
             const inicio = l.ciclo_inicio || cxcEditar.ciclo_inicio || cxcEditar.fecha_emision || getHoyISO();
+            const fin = l.ciclo_fin || cxcEditar.ciclo_fin || finDeCicloMensual(inicio);
             return {
               ...l,
               periodo_meses: l.periodo_meses,
               ciclo_inicio: inicio,
-              ciclo_fin: l.ciclo_fin || cxcEditar.ciclo_fin || finDeCicloMensual(inicio),
-              periodo_estadistico: l.periodo_estadistico || calcularPeriodoEstadistico(inicio),
+              ciclo_fin: fin,
+              periodo_estadistico: l.periodo_estadistico || calcularPeriodoEstadistico(inicio, fin),
             };
           }
           return l;
@@ -390,6 +391,12 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
               }
               const cant = Number(d.cantidad) || 1;
               const precio = Number(d.precio_unitario) || 0;
+              const fInicio = itemNombre === 'Mensualidad'
+                ? (d.ciclo_inicio || periodoNota?.ciclo_inicio || cxcEditar.fecha_emision || getHoyISO())
+                : undefined;
+              const fFin = itemNombre === 'Mensualidad'
+                ? (d.ciclo_fin || periodoNota?.ciclo_fin || finDeCicloMensual(fInicio || getHoyISO()))
+                : undefined;
               return {
                 catalogo_item_id: d.catalogo_item_id || '',
                 nombre: itemNombre,
@@ -397,19 +404,15 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
                 cantidad: cant,
                 precio_unitario: precio,
                 periodo_meses: pMeses,
-                ciclo_inicio: itemNombre === 'Mensualidad'
-                  ? (d.ciclo_inicio || periodoNota?.ciclo_inicio || cxcEditar.fecha_emision || getHoyISO())
-                  : undefined,
-                ciclo_fin: itemNombre === 'Mensualidad'
-                  ? (d.ciclo_fin || periodoNota?.ciclo_fin || finDeCicloMensual(d.ciclo_inicio || periodoNota?.ciclo_inicio || cxcEditar.fecha_emision || getHoyISO()))
-                  : undefined,
-                periodo_estadistico: itemNombre === 'Mensualidad'
-                  ? (d.periodo_estadistico || calcularPeriodoEstadistico(d.ciclo_inicio || periodoNota?.ciclo_inicio || cxcEditar.fecha_emision || getHoyISO()))
-                  : undefined,
-                detalle_personalizado: d.detalle_extra || '',
-                subtotal: Number(d.subtotal) || (cant * precio),
-                cuenta_ingreso_id: null,
-              };
+                  ciclo_inicio: fInicio,
+                  ciclo_fin: fFin,
+                  periodo_estadistico: itemNombre === 'Mensualidad'
+                    ? (d.periodo_estadistico || calcularPeriodoEstadistico(fInicio || '', fFin))
+                    : undefined,
+                  detalle_personalizado: d.detalle_extra || '',
+                  subtotal: Number(d.subtotal) || (cant * precio),
+                  cuenta_ingreso_id: null,
+                };
             });
             setLineas(lineasCargadas);
           }
@@ -526,7 +529,7 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
       const periodosMensualidad = new Set<string>();
       for (const l of lineasValidas) {
         if (l.nombre === 'Mensualidad') {
-          const periodo = calcularPeriodoEstadistico(l.ciclo_inicio || '');
+          const periodo = calcularPeriodoEstadistico(l.ciclo_inicio || '', l.ciclo_fin || '');
           if (!l.ciclo_inicio || !l.ciclo_fin || l.ciclo_fin < l.ciclo_inicio || !periodo) {
             setError('Cada mensualidad debe tener un rango de ciclo válido.');
             return;
@@ -1058,7 +1061,7 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
                         setLineas(actuales => actuales.map(lineaActual => {
                           if (lineaActual.nombre !== 'Mensualidad') return lineaActual;
                           const siguienteFin = finDeCicloMensual(siguienteInicio);
-                          const siguientePeriodo = calcularPeriodoEstadistico(siguienteInicio);
+                          const siguientePeriodo = calcularPeriodoEstadistico(siguienteInicio, siguienteFin);
                           const siguienteMes = periodoMesLegacy(siguientePeriodo);
                           const actualizada = {
                             ...lineaActual,
@@ -1158,7 +1161,7 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
                             }
 
                             const finPredeterminado = finDeCicloMensual(inicioPredeterminado);
-                            const periodoPredeterminado = calcularPeriodoEstadistico(inicioPredeterminado);
+                            const periodoPredeterminado = calcularPeriodoEstadistico(inicioPredeterminado, finPredeterminado);
                             const mesPredeterminado = periodoMesLegacy(periodoPredeterminado);
 
                             // Precargar mensualidad del alumno si el concepto es 'Mensualidad'
@@ -1230,7 +1233,7 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
                                  onChange={e => {
                                    const nuevoInicio = e.target.value;
                                    const nuevoFin = finDeCicloMensual(nuevoInicio);
-                                   const nuevoPeriodo = calcularPeriodoEstadistico(nuevoInicio);
+                                   const nuevoPeriodo = calcularPeriodoEstadistico(nuevoInicio, nuevoFin || linea.ciclo_fin);
                                    const nuevoMes = periodoMesLegacy(nuevoPeriodo);
                                    const nuevas = [...lineas];
                                    nuevas[idx] = {
@@ -1256,8 +1259,16 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
                                  onChange={e => {
                                    const nuevoFin = e.target.value;
                                    if (!nuevoFin || !linea.ciclo_inicio || nuevoFin >= linea.ciclo_inicio) {
+                                     const nuevoPeriodo = calcularPeriodoEstadistico(linea.ciclo_inicio || '', nuevoFin);
+                                     const nuevoMes = periodoMesLegacy(nuevoPeriodo);
                                      const nuevas = [...lineas];
-                                     nuevas[idx] = { ...nuevas[idx], ciclo_fin: nuevoFin, resumen_asistencia: null };
+                                     nuevas[idx] = {
+                                       ...nuevas[idx],
+                                       ciclo_fin: nuevoFin,
+                                       periodo_estadistico: nuevoPeriodo,
+                                       periodo_meses: nuevoMes ? [nuevoMes] : [],
+                                       resumen_asistencia: null,
+                                     };
                                      setLineas(nuevas);
                                    }
                                  }}
@@ -1269,7 +1280,7 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
                               <label>Mes estadístico</label>
                               <input
                                 type="text"
-                                value={formatPeriodoEstadistico(calcularPeriodoEstadistico(linea.ciclo_inicio || ''))}
+                                value={formatPeriodoEstadistico(calcularPeriodoEstadistico(linea.ciclo_inicio || '', linea.ciclo_fin || ''))}
                                 readOnly
                                 aria-readonly="true"
                                 style={{ cursor: 'not-allowed', opacity: 0.85 }}

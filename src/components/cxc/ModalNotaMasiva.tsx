@@ -158,8 +158,8 @@ const ModalNotaMasiva: React.FC<ModalNotaMasivaProps> = ({
 
   // Período estadístico calculado automáticamente (igual que NotaServicios)
   const periodoEstadistico = useMemo(
-    () => calcularPeriodoEstadistico(cicloInicio),
-    [cicloInicio],
+    () => calcularPeriodoEstadistico(cicloInicio, cicloFin),
+    [cicloInicio, cicloFin],
   );
 
   const cargarCatalogoYTorneos = async () => {

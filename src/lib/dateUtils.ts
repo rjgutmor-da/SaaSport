@@ -41,11 +41,13 @@ export const validarFechaMovimientoFinanciero = (fecha: string | null | undefine
 };
 
 /**
- * Calcula el mes estadistico desde la fecha de inicio de un ciclo.
- * Del dia 1 al 16 usa el mes de inicio; desde el 17 usa el mes siguiente.
+ * Calcula el mes estadistico desde la fecha de inicio de un ciclo (y opcionalmente fecha de fin).
+ * Si el ciclo inicia y termina dentro del mismo mes calendario (prorrateo de fin de mes),
+ * pertenece exclusivamente a ese mes calendario.
+ * En otros casos: del dia 1 al 16 usa el mes de inicio; desde el 17 usa el mes siguiente.
  * Retorna siempre el primer dia del mes en formato YYYY-MM-DD.
  */
-export const calcularPeriodoEstadistico = (fechaInicio: string): string => {
+export const calcularPeriodoEstadistico = (fechaInicio: string, fechaFin?: string | null): string => {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(fechaInicio);
   if (!match) return '';
 
@@ -60,6 +62,15 @@ export const calcularPeriodoEstadistico = (fechaInicio: string): string => {
     || fechaValidacion.getMonth() !== month - 1
     || fechaValidacion.getDate() !== day
   ) return '';
+
+  // Si inicio y fin caen en el mismo mes calendario, pertenece a ese mismo mes
+  if (fechaFin) {
+    const matchFin = /^(\d{4})-(\d{2})-(\d{2})$/.exec(fechaFin);
+    if (matchFin && matchFin[1] === match[1] && matchFin[2] === match[2]) {
+      return `${year}-${String(month).padStart(2, '0')}-01`;
+    }
+  }
+
   if (day >= 17) {
     month += 1;
     if (month === 13) {
