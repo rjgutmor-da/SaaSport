@@ -9,7 +9,12 @@
  */
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../../../../lib/supabaseClient';
-import { ordenarMesesCalendario, obtenerOrdenMes } from '../../../../lib/dateUtils';
+import {
+  ordenarMesesCalendario,
+  obtenerOrdenMes,
+  formatearMesesConAnio,
+  formatearMesConAnio,
+} from '../../../../lib/dateUtils';
 import { calcularRango, type IntervaloPredefinido } from '../utils/estadisticasUtils';
 
 export interface AlumnoPorItem {
@@ -335,9 +340,19 @@ export function useAlumnosPorItem(
 
           let detalleStr = '';
           if (Array.isArray(detInteres.periodo_meses) && detInteres.periodo_meses.length > 0) {
-            detalleStr = ordenarMesesCalendario(detInteres.periodo_meses as string[]).join(', ');
+            const anioRef = detInteres.periodo_estadistico || cxc.periodo_estadistico || fechaEmision || (anioMensualidad ? String(anioMensualidad) : null);
+            const mesesConAnio = formatearMesesConAnio(detInteres.periodo_meses as string[], anioRef);
+            detalleStr = ordenarMesesCalendario(mesesConAnio).join(', ');
           } else if (detInteres.detalle_extra) {
-            detalleStr = String(detInteres.detalle_extra);
+            const anioRef = detInteres.periodo_estadistico || cxc.periodo_estadistico || fechaEmision || (anioMensualidad ? String(anioMensualidad) : null);
+            if (obtenerOrdenMes(detInteres.detalle_extra) > 0) {
+              detalleStr = formatearMesConAnio(detInteres.detalle_extra, anioRef);
+            } else {
+              detalleStr = String(detInteres.detalle_extra);
+            }
+          } else if (conceptoNombre?.toLowerCase().includes('mensualidad') && fechaEstadistica) {
+            const anioRef = detInteres.periodo_estadistico || cxc.periodo_estadistico || fechaEmision || (anioMensualidad ? String(anioMensualidad) : null);
+            detalleStr = formatearMesConAnio(fechaEstadistica, anioRef);
           }
 
           const proporcion = Number(detInteres.subtotal || 0) / montoTotalNota;

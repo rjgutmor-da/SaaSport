@@ -9,6 +9,8 @@ import {
   calcularPeriodoEstadistico,
   formatPeriodoEstadistico,
   getHoyISO,
+  formatearMesConAnio,
+  formatearMesesConAnio,
 } from '../../lib/dateUtils';
 import { obtenerSaldosPorSucursal, validarAperturaInventario } from '../../lib/inventario';
 import {
@@ -468,7 +470,11 @@ const ModalNotaMasiva: React.FC<ModalNotaMasivaProps> = ({
             catalogo_item_id: l.catalogo_item_id,
             cantidad: l.cantidad,
             precio_unitario: l.precio_unitario,
-            periodo_meses: l.periodo_meses.length > 0 ? l.periodo_meses : null,
+            periodo_meses: l.periodo_meses.length > 0
+              ? formatearMesesConAnio(l.periodo_meses, periodoEstadistico)
+              : esLineaMensualidad(l) && periodoEstadistico
+                ? [formatearMesConAnio(periodoEstadistico)]
+                : null,
             detalle_extra: l.detalle_personalizado || null,
             ciclo_inicio: esLineaMensualidad(l) ? cicloInicio : null,
             ciclo_fin: esLineaMensualidad(l) ? cicloFin : null,

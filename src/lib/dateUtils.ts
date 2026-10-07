@@ -282,6 +282,72 @@ export const formatearMesCorto = (mes: string | null | undefined): string => {
   return mes.trim().replace(/-[0-9]{4}$/, '');
 };
 
+/**
+ * Unifica el formato de un mes para que siempre incluya su año (ej: "Sep-2026").
+ * Si el valor ya tiene año (ej: "Sep-2026", "2026-09", "09-2026"), lo normaliza a "Sep-2026".
+ * Si no tiene año, utiliza anioFallback (o el año de una fecha ISO / año actual).
+ */
+export const formatearMesConAnio = (
+  mes: string | null | undefined,
+  anioFallback?: number | string | null
+): string => {
+  if (!mes) return '';
+  const str = mes.trim();
+
+  // 1. Formato ISO YYYY-MM o YYYY-MM-DD (ej: "2026-09", "2026-09-01")
+  const isoMatch = /^(\d{4})-(\d{1,2})(?:-\d{1,2})?$/.exec(str);
+  if (isoMatch) {
+    const y = isoMatch[1];
+    const m = formatearMesCorto(isoMatch[2]);
+    return m ? `${m}-${y}` : str;
+  }
+
+  // 2. Formato MM-YYYY (ej: "09-2026")
+  const mmYyyyMatch = /^(\d{1,2})-(\d{4})$/.exec(str);
+  if (mmYyyyMatch) {
+    const m = formatearMesCorto(mmYyyyMatch[1]);
+    const y = mmYyyyMatch[2];
+    return m ? `${m}-${y}` : str;
+  }
+
+  // 3. Formato Mes-YYYY o Mes YYYY (ej: "Sep-2026", "Septiembre 2026")
+  const mesAnioMatch = /^(.+?)[-\s](\d{4})$/.exec(str);
+  if (mesAnioMatch) {
+    const m = formatearMesCorto(mesAnioMatch[1]);
+    const y = mesAnioMatch[2];
+    return m ? `${m}-${y}` : str;
+  }
+
+  // 4. Mes sin año: normalizar a nombre corto y adjuntar año
+  const mesCorto = formatearMesCorto(str);
+  if (!mesCorto) return str;
+
+  let anioStr = '';
+  if (anioFallback) {
+    const rawAnio = String(anioFallback).trim();
+    const matchYear = rawAnio.match(/\b(20\d\d)\b/);
+    if (matchYear) {
+      anioStr = matchYear[1];
+    }
+  }
+  if (!anioStr) {
+    anioStr = String(new Date().getFullYear());
+  }
+
+  return `${mesCorto}-${anioStr}`;
+};
+
+/**
+ * Normaliza y formatea un arreglo de meses para que todos incluyan su año.
+ */
+export const formatearMesesConAnio = (
+  meses: string[] | null | undefined,
+  anioFallback?: number | string | null
+): string[] => {
+  if (!meses || meses.length === 0) return [];
+  return meses.map(m => formatearMesConAnio(m, anioFallback)).filter(Boolean);
+};
+
 export const ordenarMesesCalendario = (meses: string[] | null | undefined): string[] =>
   [...(meses || [])].sort((a, b) => {
     const anioA = Number(/^(\d{4})-/.exec(a.trim())?.[1] || /-([0-9]{4})$/.exec(a.trim())?.[1] || 0);

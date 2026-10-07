@@ -19,6 +19,7 @@ import {
   FECHA_MINIMA_MOVIMIENTO_FINANCIERO,
   validarFechaMovimientoFinanciero,
   diferenciaEnMeses,
+  formatearMesesConAnio,
 } from '../../lib/dateUtils';
 import { useAuthSaaSport } from '../../lib/authHelper';
 import { useConfiguracionFacturacion } from '../../hooks/useConfiguracionFacturacion';
@@ -345,7 +346,7 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
             const fin = l.ciclo_fin || cxcEditar.ciclo_fin || finDeCicloMensual(inicio);
             return {
               ...l,
-              periodo_meses: l.periodo_meses,
+              periodo_meses: formatearMesesConAnio(l.periodo_meses, (inicio || getHoyISO()).slice(0, 4)),
               ciclo_inicio: inicio,
               ciclo_fin: fin,
               periodo_estadistico: l.periodo_estadistico || calcularPeriodoEstadistico(inicio, fin),
@@ -387,7 +388,8 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
               const itemNombre = d.catalogo_items?.nombre || '';
               let pMeses: string[] = [];
               if (Array.isArray(d.periodo_meses)) {
-                pMeses = d.periodo_meses.map((m: string) => (m.includes('-') ? m.split('-')[0] : m));
+                const anioRef = (d.periodo_estadistico || d.ciclo_inicio || periodoNota?.ciclo_inicio || cxcEditar.fecha_emision || getHoyISO()).slice(0, 4);
+                pMeses = formatearMesesConAnio(d.periodo_meses, anioRef);
               }
               const cant = Number(d.cantidad) || 1;
               const precio = Number(d.precio_unitario) || 0;

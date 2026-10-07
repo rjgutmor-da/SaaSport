@@ -18,7 +18,7 @@ import ModalVerNotaCxC from './ModalVerNotaCxC';
 import ModalEditarMovimiento from '../cajas-bancos/ModalEditarMovimiento';
 import ModalDetalleMovimiento from '../cajas-bancos/ModalDetalleMovimiento';
 import FichaAnticiposCxC from './FichaAnticiposCxC';
-import { getHoraLocal, getHoyISO, formatFecha, formatFechaCorta, ordenarMesesCalendario, formatCicloMensualidad, formatCicloWhatsApp, formatearMesCorto, FECHA_MINIMA_MOVIMIENTO_FINANCIERO, validarFechaMovimientoFinanciero } from '../../lib/dateUtils';
+import { getHoraLocal, getHoyISO, formatFecha, formatFechaCorta, ordenarMesesCalendario, formatCicloMensualidad, formatCicloWhatsApp, formatearMesCorto, formatearMesConAnio, FECHA_MINIMA_MOVIMIENTO_FINANCIERO, validarFechaMovimientoFinanciero } from '../../lib/dateUtils';
 import { useCobroMultiple } from './useCobroMultiple';
 import { can } from '../../config/roles';
 import { esObservacionAnticipoAutomatica } from '../../lib/cxcUtils';
@@ -49,14 +49,7 @@ type DetalleItemCobranza = {
 };
 
 const formatearPeriodoCobranza = (periodo: string): string => {
-  const valor = periodo.trim();
-  const isoMatch = /^(\d{4})-(\d{1,2})(?:-\d{1,2})?$/.exec(valor);
-  if (isoMatch) return formatearMesCorto(isoMatch[2]) + '-' + isoMatch[1];
-
-  const mesAnioMatch = /^(.+?)-(\d{4})$/.exec(valor);
-  if (mesAnioMatch) return formatearMesCorto(mesAnioMatch[1]) + '-' + mesAnioMatch[2];
-
-  return valor;
+  return formatearMesConAnio(periodo);
 };
 
 const obtenerDescripcionCobranza = (

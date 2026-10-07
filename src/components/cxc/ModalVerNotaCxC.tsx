@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import ModalEditarCobroCxC from './ModalEditarCobroCxC';
 import type { CajaBanco } from '../../types/finanzas';
-import { formatFecha, formatFechaHora, ordenarMesesCalendario, formatCicloMensualidad, formatearMesCorto } from '../../lib/dateUtils';
+import { formatFecha, formatFechaHora, ordenarMesesCalendario, formatCicloMensualidad, formatearMesConAnio } from '../../lib/dateUtils';
 import { can } from '../../config/roles';
 import { esObservacionAnticipoAutomatica } from '../../lib/cxcUtils';
 
@@ -337,7 +337,7 @@ const ModalVerNotaCxC: React.FC<Props> = ({ visible, cxcId, onCerrar, onEditar, 
                                   fontSize: '0.7rem',
                                   fontWeight: 600
                                 }}>
-                                  {formatearMesCorto(mes)}
+                                  {formatearMesConAnio(mes, item.ciclo_inicio || nota?.fecha_emision)}
                                 </span>
                               ))}
                             </div>

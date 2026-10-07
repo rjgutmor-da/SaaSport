@@ -6,7 +6,12 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../../../../lib/supabaseClient';
 import { calcularRango, type IntervaloPredefinido } from '../utils/estadisticasUtils';
-import { ordenarMesesCalendario } from '../../../../lib/dateUtils';
+import {
+  ordenarMesesCalendario,
+  formatearMesesConAnio,
+  formatearMesConAnio,
+  obtenerOrdenMes,
+} from '../../../../lib/dateUtils';
 
 export interface CuentaPorCobrarRow {
   detalle_id: string;
@@ -123,18 +128,26 @@ export function useCuentasPorCobrar(
           let itemOtrosDetalles: string[] = [];
           let itemOtrosConceptos: string[] = [];
 
+          const anioReferencia = d.periodo_estadistico || cxc.periodo_estadistico || cxc.fecha_emision;
+
           if (esMensualidad) {
             if (Array.isArray(d.periodo_meses) && d.periodo_meses.length > 0) {
-              itemMeses = [...d.periodo_meses];
+              itemMeses = formatearMesesConAnio(d.periodo_meses, anioReferencia);
             } else if (d.detalle_extra) {
-              itemOtrosDetalles = [d.detalle_extra];
+              if (obtenerOrdenMes(d.detalle_extra) > 0) {
+                itemMeses = [formatearMesConAnio(d.detalle_extra, anioReferencia)];
+              } else {
+                itemOtrosDetalles = [d.detalle_extra];
+              }
+            } else if (anioReferencia) {
+              itemMeses = [formatearMesConAnio(anioReferencia, anioReferencia)];
             } else {
               itemOtrosDetalles = ['Mensualidad'];
             }
           } else {
             let conceptoStr = d.catalogo_items?.nombre || 'Desconocido';
             if (Array.isArray(d.periodo_meses) && d.periodo_meses.length > 0) {
-              const meses = ordenarMesesCalendario(d.periodo_meses);
+              const meses = ordenarMesesCalendario(formatearMesesConAnio(d.periodo_meses, anioReferencia));
               conceptoStr += ` (${meses.join(', ')})`;
             } else if (d.detalle_extra) {
               conceptoStr += ` (${d.detalle_extra})`;
