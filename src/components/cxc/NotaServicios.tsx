@@ -35,6 +35,7 @@ import {
   type OperacionIncierta,
 } from '../../lib/idempotenciaNotas';
 import { useSucursales } from '../../hooks/useMasterData';
+import '../notas/notas_movil.css';
 
 type CatalogoNota = Pick<
   CatalogoItem,
@@ -927,12 +928,12 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
 
   return (
     <div className="cxc-modal-overlay">
-      <div className="cxc-modal" style={{ maxWidth: '700px' }} onClick={e => e.stopPropagation()}>
+      <div className="cxc-modal nota-modal-movil" style={{ maxWidth: '700px' }} onClick={e => e.stopPropagation()}>
         <div className="cxc-modal-header">
           <h2><FileText size={20} style={{ marginRight: '0.5rem' }} /> {esAnticipo ? 'Cobro Anticipado' : (cxcEditar ? 'Editar Nota de Servicio' : 'Nueva Nota de Servicio')}</h2>
           <button onClick={onCerrar} disabled={guardando}><X size={20} /></button>
         </div>
-        <div style={{ padding: '1.5rem' }}>
+        <div className="nota-cuerpo-movil" style={{ padding: '1.5rem' }}>
           <form onSubmit={guardarNota}>
             {avisoRecuperacion && (
               <div style={{
@@ -1098,7 +1099,7 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
 
                   return (
                     <div key={idx} style={{ marginBottom: '1rem', paddingBottom: '1rem', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 60px 100px 100px 30px', gap: '0.5rem', alignItems: 'center' }}>
+                      <div className="nota-linea-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 60px 100px 100px 30px', gap: '0.5rem', alignItems: 'center' }}>
                         <select value={linea.catalogo_item_id} onChange={async e => {
                           const itemId = e.target.value;
                           const it = catalogo.find(c => c.id === itemId);
@@ -1226,7 +1227,7 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
                       {esMensualidad && (
                         <div style={{ marginTop: '0.75rem', padding: '0.75rem', background: 'rgba(255,255,255,0.02)', borderRadius: '8px' }}>
                           <p style={{ fontSize: '0.7rem', fontWeight: 700, color: '#94a3b8', marginBottom: '0.5rem', textTransform: 'uppercase' }}>Ciclo y periodo estadístico</p>
-                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1.15fr', gap: '0.65rem', marginBottom: '0.75rem' }}>
+                          <div className="nota-ciclo-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1.15fr', gap: '0.65rem', marginBottom: '0.75rem' }}>
                             <div className="form-campo">
                               <label>Inicio del ciclo</label>
                               <input
@@ -1452,7 +1453,7 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
                         /* Pago no conciliado: monto, fecha y referencia editables */
                         <>
                           <DollarSign size={14} style={{ color: '#4ade80', flexShrink: 0 }} />
-                          <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1.2fr 1.2fr 1.6fr auto', gap: '0.5rem', alignItems: 'flex-end' }}>
+                          <div className="nota-cobro-grid" style={{ flex: 1, display: 'grid', gridTemplateColumns: '1.2fr 1.2fr 1.6fr auto', gap: '0.5rem', alignItems: 'flex-end' }}>
                             <div>
                               <label style={{ fontSize: '0.7rem', color: '#94a3b8', display: 'block', marginBottom: '0.2rem', textTransform: 'uppercase' }}>
                                 Monto (Bs)
@@ -1544,7 +1545,7 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
               )}
 
               {pagarAlCrear && (
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                <div className="nota-pago-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
                   <div className="form-campo">
                     <label>Monto</label>
                     <input 
@@ -1578,7 +1579,7 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
               )}
             </div>
 
-            <div style={{ marginTop: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div className="nota-pie-movil" style={{ marginTop: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div style={{ fontSize: '1.5rem', fontWeight: 800 }}>Total: Bs {fmtMonto(total)}</div>
               <div style={{ display: 'flex', gap: '0.75rem' }}>
                 <button type="button" onClick={onCerrar} className="btn-refrescar" style={{ width: 'auto' }}>Cancelar</button>

@@ -1,0 +1,82 @@
+/* =========================================================
+   AJUSTES RESPONSIVOS SOLO PARA MÓVIL
+   Modales de creación de notas: Nota de Proveedor (NotaPago)
+   y Nota de Cliente (NotaServicios).
+   Evita que los componentes desborden el ancho de la pantalla.
+   En escritorio no se aplica ningún cambio.
+   ========================================================= */
+
+@media (max-width: 768px) {
+  /* Evita cualquier desplazamiento horizontal dentro del modal */
+  .nota-modal-movil {
+    overflow-x: hidden !important;
+  }
+
+  .nota-modal-movil .cxc-modal-header {
+    padding: 1rem !important;
+  }
+
+  .nota-modal-movil .cxc-modal-header h2 {
+    font-size: 1.1rem !important;
+  }
+
+  .nota-modal-movil .nota-cuerpo-movil {
+    padding: 1rem !important;
+  }
+
+  /* Los controles nunca deben imponer un ancho mínimo mayor al disponible */
+  .nota-modal-movil input,
+  .nota-modal-movil select,
+  .nota-modal-movil textarea {
+    min-width: 0 !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  .nota-modal-movil .form-campo {
+    min-width: 0 !important;
+  }
+
+  /* Líneas de ítems: el selector ocupa toda la fila,
+     cantidad / precio / subtotal / eliminar quedan debajo */
+  .nota-modal-movil .nota-linea-grid {
+    grid-template-columns: 64px minmax(0, 1fr) auto 32px !important;
+  }
+
+  .nota-modal-movil .nota-linea-grid > select {
+    grid-column: 1 / -1 !important;
+    width: 100% !important;
+  }
+
+  .nota-modal-movil .nota-linea-grid > div {
+    white-space: nowrap;
+  }
+
+  /* Sección de pago y ciclo de mensualidad: una sola columna */
+  .nota-modal-movil .nota-pago-grid,
+  .nota-modal-movil .nota-ciclo-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  /* Pagos existentes (modo edición): dos columnas */
+  .nota-modal-movil .nota-cobro-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  /* Pie: total arriba y botones a lo ancho */
+  .nota-modal-movil .nota-pie-movil {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 1rem !important;
+  }
+
+  .nota-modal-movil .nota-pie-movil > div:first-child {
+    font-size: 1.25rem !important;
+    text-align: center;
+  }
+
+  .nota-modal-movil .nota-pie-movil > div:last-child > button {
+    flex: 1 !important;
+    padding: 0 1rem !important;
+  }
+}

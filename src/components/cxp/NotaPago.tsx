@@ -24,6 +24,7 @@ import {
 } from '../../lib/idempotenciaNotas';
 import { useAuthSaaSport } from '../../lib/authHelper';
 import { useSucursales } from '../../hooks/useMasterData';
+import '../notas/notas_movil.css';
 
 interface LineaNotaPago {
   catalogo_item_id: string;
@@ -617,12 +618,12 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, esAnticipo = false, o
 
   return (
     <div className="cxc-modal-overlay">
-      <div className="cxc-modal" style={{ maxWidth: '700px' }} onClick={e => e.stopPropagation()}>
+      <div className="cxc-modal nota-modal-movil" style={{ maxWidth: '700px' }} onClick={e => e.stopPropagation()}>
         <div className="cxc-modal-header">
           <h2><Package size={20} style={{ marginRight: '0.5rem' }} /> {esAnticipo ? 'Registrar Anticipo' : 'Nueva Nota de Deuda'}</h2>
           <button onClick={onCerrar} disabled={guardando}><X size={20} /></button>
         </div>
-        <div style={{ padding: '1.5rem' }}>
+        <div className="nota-cuerpo-movil" style={{ padding: '1.5rem' }}>
           <form onSubmit={guardarNota}>
             {avisoRecuperacion && (
               <div style={{
@@ -760,7 +761,7 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, esAnticipo = false, o
                 <p style={{ fontSize: '0.8rem', fontWeight: 700, color: '#94a3b8', marginBottom: '0.75rem' }}>ÍTÉMS / GASTOS</p>
                 {lineas.map((linea, idx) => (
                   <div key={idx} style={{ marginBottom: '0.75rem', paddingBottom: '0.75rem', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 60px 100px 100px 30px', gap: '0.5rem', alignItems: 'center' }}>
+                    <div className="nota-linea-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 60px 100px 100px 30px', gap: '0.5rem', alignItems: 'center' }}>
                       <select value={linea.catalogo_item_id} onChange={e => {
                         const it = catalogo.find(c => c.id === e.target.value);
                         if (it) {
@@ -838,7 +839,7 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, esAnticipo = false, o
               </label>
 
               {pagarAlCrear && (
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.75rem' }}>
+                <div className="nota-pago-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.75rem' }}>
                   <div className="form-campo">
                     <label>Fecha Pago</label>
                     <input type="date" value={fechaPago} min={FECHA_MINIMA_MOVIMIENTO_FINANCIERO} onChange={e => setFechaPago(e.target.value)} required />
@@ -872,7 +873,7 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, esAnticipo = false, o
               )}
             </div>
 
-            <div style={{ marginTop: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div className="nota-pie-movil" style={{ marginTop: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div style={{ fontSize: '1.5rem', fontWeight: 800 }}>Total: Bs {fmtMonto(total)}</div>
               <div style={{ display: 'flex', gap: '0.75rem' }}>
                 <button type="button" onClick={onCerrar} className="btn-refrescar" style={{ width: 'auto' }}>Cancelar</button>
