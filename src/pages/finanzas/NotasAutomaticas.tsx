@@ -8,6 +8,8 @@ import { useNavigate } from 'react-router-dom';
 import { useAuthSaaSport } from '../../lib/authHelper';
 import NotaServicios from '../../components/cxc/NotaServicios';
 import { useActualizarNotasAutomaticasPendientes } from '../../hooks/useNotasAutomaticasPendientes';
+import { contarAsistenciasCiclos, tieneCicloValido } from '../../services/asistenciasCiclo';
+import type { ConteoAsistencias } from '../../services/asistenciasCiclo';
 
 interface Alumno {
   id: string;
@@ -50,6 +52,7 @@ const NotasAutomaticas: React.FC = () => {
   const [cargando, setCargando] = useState(true);
   const [procesandoAccion, setProcesandoAccion] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [asistencias, setAsistencias] = useState<Record<string, ConteoAsistencias>>({});
 
   // Filtros
   const [busqueda, setBusqueda] = useState('');
@@ -136,6 +139,24 @@ const NotasAutomaticas: React.FC = () => {
       return matchSucursal && matchBusqueda;
     });
   }, [notas, busqueda, filtroSucursalEfectivo]);
+
+  useEffect(() => {
+    const controlador = new AbortController();
+    setAsistencias({});
+    if (!cargando && escuelaId) {
+      void contarAsistenciasCiclos(supabase, notasFiltradas, controlador.signal)
+        .then(resultado => {
+          if (!controlador.signal.aborted) setAsistencias(resultado);
+        })
+        .catch(() => {
+          if (!controlador.signal.aborted) {
+            setAsistencias(Object.fromEntries(notasFiltradas.map(nota =>
+              [nota.id, tieneCicloValido(nota) ? 'error' : null])));
+          }
+        });
+    }
+    return () => controlador.abort();
+  }, [notasFiltradas, cargando, escuelaId]);
 
   const formatFechaBonita = (iso: string | null) => {
     if (!iso) return '—';
@@ -450,7 +471,7 @@ const NotasAutomaticas: React.FC = () => {
                 <tr style={{ background: 'rgba(255, 255, 255, 0.02)', borderBottom: '1px solid var(--border)' }}>
                   <th style={{ padding: '1rem', color: 'var(--text-secondary)', fontWeight: 600 }}>Alumno</th>
                   <th style={{ padding: '1rem', color: 'var(--text-secondary)', fontWeight: 600 }}>Sucursal</th>
-                  <th style={{ padding: '1rem', color: 'var(--text-secondary)', fontWeight: 600 }}>Concepto</th>
+                  <th style={{ padding: '1rem', textAlign: 'center', color: 'var(--text-secondary)', fontWeight: 600 }}>Asistencias</th>
                   <th style={{ padding: '1rem', color: 'var(--text-secondary)', fontWeight: 600 }}>Ciclo Facturado</th>
                   <th style={{ padding: '1rem', color: 'var(--text-secondary)', fontWeight: 600 }}>F. Emisión</th>
                   <th style={{ padding: '1rem', textAlign: 'right', color: 'var(--text-secondary)', fontWeight: 600 }}>Modalidad / Monto</th>
@@ -471,8 +492,10 @@ const NotasAutomaticas: React.FC = () => {
                       <td style={{ padding: '1rem', color: 'var(--text-secondary)' }}>
                         {nota.sucursales?.nombre || 'Sin sucursal'}
                       </td>
-                      <td style={{ padding: '1rem', color: 'var(--text-primary)' }}>
-                        {nota.descripcion}
+                      <td style={{ padding: '1rem', textAlign: 'center', color: 'var(--text-primary)' }} title="Registros Presente dentro del ciclo facturado (normales y arqueros)">
+                        {!tieneCicloValido(nota) ? '—'
+                          : asistencias[nota.id] === 'error' ? 'Error'
+                          : asistencias[nota.id] ?? '…'}
                       </td>
                       <td style={{ padding: '1rem', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
                         {nota.ciclo_inicio && nota.ciclo_fin ? (
