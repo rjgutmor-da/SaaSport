@@ -278,6 +278,25 @@ select option {
   font-weight: 700;
 }
 
+.sidebar-notas-aviso {
+  position: relative;
+  display: inline-flex;
+  flex: 0 0 16px;
+  margin-left: auto;
+  color: var(--text-primary);
+}
+
+.sidebar-notas-aviso-punto {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--primary);
+  box-shadow: 0 0 0 1px var(--bg-card);
+}
+
 .sidebar-footer {
   margin-top: auto;
   padding-top: 1rem;

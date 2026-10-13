@@ -7,6 +7,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { useAuthSaaSport } from '../../lib/authHelper';
 import NotaServicios from '../../components/cxc/NotaServicios';
+import { useActualizarNotasAutomaticasPendientes } from '../../hooks/useNotasAutomaticasPendientes';
 
 interface Alumno {
   id: string;
@@ -42,6 +43,7 @@ interface CuentaCobrar {
 const NotasAutomaticas: React.FC = () => {
   const navigate = useNavigate();
   const { escuelaId, perfil, sucursalId } = useAuthSaaSport();
+  const actualizarAviso = useActualizarNotasAutomaticasPendientes();
   
   const [notas, setNotas] = useState<CuentaCobrar[]>([]);
   const [sucursales, setSucursales] = useState<Sucursal[]>([]);
@@ -76,6 +78,7 @@ const NotasAutomaticas: React.FC = () => {
   // Cargar las notas generadas automáticamente en borrador (pendientes de aprobación)
   const cargarNotas = async () => {
     if (!escuelaId) return;
+    void actualizarAviso();
     setCargando(true);
     setError(null);
     try {
@@ -182,6 +185,7 @@ const NotasAutomaticas: React.FC = () => {
         alert('Esta nota automática fue descartada porque el alumno ya cuenta con una mensualidad registrada para ese período.');
       }
       setNotas(prev => prev.filter(n => n.id !== id));
+      void actualizarAviso();
     } catch (err: any) {
       alert('Error al aprobar la nota: ' + (err.message || err));
     } finally {
@@ -261,6 +265,7 @@ const NotasAutomaticas: React.FC = () => {
       }
 
       setNotas(prev => prev.filter(n => n.id !== id));
+      void actualizarAviso();
     } catch (err: any) {
       alert('Error al eliminar la nota: ' + (err.message || err));
     } finally {

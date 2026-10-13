@@ -12,12 +12,13 @@ import { BrowserRouter, Routes, Route, NavLink, Navigate } from 'react-router-do
 import {
   Settings, Sun, Moon, Monitor, LogOut,
   HandCoins, PieChart, Landmark, BookOpen,
-  School, Activity, BarChart2, Users, Camera, FileText
+  School, Activity, BarChart2, Users, Camera, FileText, Bell
 } from 'lucide-react';
 import { supabase } from './lib/supabaseClient';
 import { AuthProviderSaaSport, useAuthSaaSport } from './lib/authHelper';
 import { getAsisportUrl } from './lib/navegacion';
 import { useIsMobile } from './hooks/useIsMobile';
+import { useNotasAutomaticasPendientes } from './hooks/useNotasAutomaticasPendientes';
 import { MobileNav } from './components/MobileNav';
 import { MobileHeader } from './components/MobileHeader';
 import { can } from './config/roles';
@@ -67,6 +68,7 @@ interface SidebarProps {
 
 const Sidebar: React.FC<SidebarProps> = ({ onLogout, theme, onCycleTheme, extra }) => {
   const { esSuperAdmin, escuela, perfil } = useAuthSaaSport();
+  const hayNotasPendientes = useNotasAutomaticasPendientes();
 
   const getThemeIcon = () => {
     if (theme === 'light') return <Sun size={18} />;
@@ -115,6 +117,14 @@ const Sidebar: React.FC<SidebarProps> = ({ onLogout, theme, onCycleTheme, extra 
             <NavLink to="/finanzas/notas-automaticas" className={({ isActive }) => (isActive ? 'sidebar-link active' : 'sidebar-link')}>
               <FileText size={20} strokeWidth={1.5} />
               <span>Notas Automáticas</span>
+              {hayNotasPendientes && (
+                <span className="sidebar-notas-aviso" role="img"
+                  aria-label="Hay notas automáticas por gestionar"
+                  title="Hay notas automáticas por gestionar">
+                  <Bell size={16} strokeWidth={1.8} aria-hidden="true" />
+                  <span className="sidebar-notas-aviso-punto" aria-hidden="true" />
+                </span>
+              )}
             </NavLink>
           </div>
         )}
