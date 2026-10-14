@@ -149,7 +149,7 @@ const FotosAsistencia: React.FC = () => {
           fecha,
           foto_url,
           created_at,
-          grupo:grupos!inner(id, nombre, sucursal_id),
+          grupo:grupos!fotos_asistencia_grupal_grupo_id_fkey!inner(id, nombre, sucursal_id),
           horario:horarios(id, hora),
           entrenador:usuarios!fotos_asistencia_grupal_entrenador_id_fkey(nombres, apellidos, email)
         `)
