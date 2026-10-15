@@ -229,9 +229,12 @@ select option {
   position: sticky;
   top: 0;
   height: 100vh;
+  max-height: 100vh;
   z-index: 100;
   transition: var(--transition);
   flex-shrink: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .sidebar-brand {
@@ -304,6 +307,32 @@ select option {
   display: flex;
   flex-direction: column;
   gap: 0.4rem;
+}
+
+/* --- LOGO / BRANDING DE LA ESCUELA EN LA BARRA LATERAL --- */
+.sidebar-branding {
+  margin-top: auto;
+  padding: 0.75rem 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  border-top: 1px solid var(--border);
+  width: 100%;
+}
+
+.sidebar-school-logo {
+  width: 100%;
+  max-width: 210px;
+  height: auto;
+  max-height: 190px;
+  object-fit: contain;
+  transition: transform 0.3s ease;
+}
+
+.sidebar-school-logo:hover {
+  transform: scale(1.02);
 }
 
 /* --- ASISPORT PREMIUM SIDEBAR BUTTON --- */

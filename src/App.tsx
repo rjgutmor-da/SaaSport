@@ -171,23 +171,12 @@ const Sidebar: React.FC<SidebarProps> = ({ onLogout, theme, onCycleTheme, extra 
             {extra}
           </div>
         )}
-        <div className="sidebar-branding" style={{ 
-          marginTop: 'auto', 
-          padding: '1.5rem 0', 
-          display: 'flex', 
-          flexDirection: 'column', 
-          alignItems: 'center', 
-          textAlign: 'center',
-          gap: '0.5rem',
-          borderTop: '1px solid rgba(255,255,255,0.05)'
-        }}>
+        <div className="sidebar-branding">
           <img 
             src={escuela?.logo_url || LogoPorDefecto} 
             alt={escuela?.nombre || "Logo Escuela"} 
-            style={{ width: '160px', height: 'auto', maxHeight: '120px', objectFit: 'contain', transition: 'transform 0.3s ease' }} 
-            className="hover-scale"
+            className="sidebar-school-logo"
           />
-
         </div>
       </nav>
 
