@@ -40,7 +40,7 @@ const ModalCobroRapido: React.FC<Props> = ({ alumnoInicial, visible, onCerrar, o
     sucursalId: sucursalEfectiva,
   }, {
     sucursalId: sucursalEfectiva,
-    filtroEstadoAlumno: 'activos',
+    filtroEstadoAlumno: 'todos',
     soloConDeuda: false,
     busqueda: busquedaAlumnoDebounced.trim().length >= 2 ? busquedaAlumnoDebounced : '',
     pagina: 1,

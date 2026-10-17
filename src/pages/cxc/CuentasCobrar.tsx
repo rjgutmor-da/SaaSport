@@ -135,7 +135,6 @@ const CuentasCobrar: React.FC = () => {
   const [mostrarNotaMasiva, setMostrarNotaMasiva] = useState(false);
 
   const toggleMarcarAlumno = (alumno: AlumnoDeuda) => {
-    if (alumno.archivado) return;
     setAlumnosMarcados(prev => {
       const yaMarcado = prev.some(a => a.alumno_id === alumno.alumno_id);
       if (yaMarcado) {
@@ -150,7 +149,7 @@ const CuentasCobrar: React.FC = () => {
   };
 
   const toggleMarcarTodos = (actuales: AlumnoDeuda[]) => {
-    const seleccionables = actuales.filter(alumno => !alumno.archivado);
+    const seleccionables = actuales;
     if (alumnosMarcados.length === seleccionables.length && seleccionables.length > 0) {
       setAlumnosMarcados([]);
     } else {
@@ -180,7 +179,6 @@ const CuentasCobrar: React.FC = () => {
   // Abrir nota para un alumno específico
   const abrirNotaParaAlumno = (e: React.MouseEvent, alumno: AlumnoDeuda) => {
     e.stopPropagation();
-    if (alumno.archivado) return;
     setAlumnoParaNota({ id: alumno.alumno_id, nombre: `${alumno.nombres} ${alumno.apellidos}` });
     setMostrarNota(true);
   };
@@ -188,7 +186,6 @@ const CuentasCobrar: React.FC = () => {
   // Abrir cobro rápido para un alumno
   const abrirCobroRapido = (e: React.MouseEvent, alumno: AlumnoDeuda) => {
     e.stopPropagation();
-    if (alumno.archivado) return;
     setAlumnoParaCobro(alumno);
     setMostrarCobroRapido(true);
   };
@@ -516,7 +513,7 @@ const CuentasCobrar: React.FC = () => {
                     <input 
                       type="checkbox" 
                       onChange={() => toggleMarcarTodos(alumnosDeuda)}
-                      checked={alumnosMarcados.length > 0 && alumnosMarcados.length === Math.min(alumnosDeuda.filter(alumno => !alumno.archivado).length, 30)}
+                      checked={alumnosMarcados.length > 0 && alumnosMarcados.length === Math.min(alumnosDeuda.length, 30)}
                       style={{ cursor: 'pointer' }}
                       title="Marcar todos (Max 30)"
                     />
@@ -546,14 +543,12 @@ const CuentasCobrar: React.FC = () => {
                   >
                     {!isMobile && (
                       <td className="cxc-td cxc-td-center" onClick={e => e.stopPropagation()}>
-                        {esArchivado ? <span className="cxc-td-dash" title="Los alumnos archivados son solo de consulta">—</span> : (
-                          <input
-                            type="checkbox"
-                            checked={alumnosMarcados.some(a => a.alumno_id === alumno.alumno_id)}
-                            onChange={() => toggleMarcarAlumno(alumno)}
-                            style={{ cursor: 'pointer', transform: 'scale(1.2)' }}
-                          />
-                        )}
+                        <input
+                          type="checkbox"
+                          checked={alumnosMarcados.some(a => a.alumno_id === alumno.alumno_id)}
+                          onChange={() => toggleMarcarAlumno(alumno)}
+                          style={{ cursor: 'pointer', transform: 'scale(1.2)' }}
+                        />
                       </td>
                     )}
                     <td className="cxc-td cxc-td-alumno">
@@ -585,33 +580,22 @@ const CuentasCobrar: React.FC = () => {
                     {!isMobile && (
                       <td className="cxc-td cxc-td-acciones" onClick={e => e.stopPropagation()}>
                         <div className="cxc-acciones-wrap">
-                          {esArchivado ? (
-                            <button
-                              className="cxc-accion-btn cxc-accion-btn--historial"
-                              onClick={() => setAlumnoSeleccionado(alumno)}
-                              title="Ver movimientos históricos"
-                            >
-                              <Eye size={13} />
-                              <span>Movimientos</span>
-                            </button>
-                          ) : <>
-                            <button
-                              className="cxc-accion-btn cxc-accion-btn--nota"
-                              onClick={e => abrirNotaParaAlumno(e, alumno)}
-                              title="Crear Nota de Servicio"
-                            >
-                              <FileText size={13} />
-                              <span>Nota</span>
-                            </button>
-                            <button
-                              className="cxc-accion-btn cxc-accion-btn--cobro"
-                              onClick={e => abrirCobroRapido(e, alumno)}
-                              title="Registrar Pago"
-                            >
-                              <CreditCard size={13} />
-                              <span>Cobrar</span>
-                            </button>
-                          </>}
+                          <button
+                            className="cxc-accion-btn cxc-accion-btn--nota"
+                            onClick={e => abrirNotaParaAlumno(e, alumno)}
+                            title="Crear Nota de Servicio"
+                          >
+                            <FileText size={13} />
+                            <span>Nota</span>
+                          </button>
+                          <button
+                            className="cxc-accion-btn cxc-accion-btn--cobro"
+                            onClick={e => abrirCobroRapido(e, alumno)}
+                            title="Registrar Pago"
+                          >
+                            <CreditCard size={13} />
+                            <span>Cobrar</span>
+                          </button>
                         </div>
                       </td>
                     )}

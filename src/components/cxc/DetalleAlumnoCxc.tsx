@@ -119,8 +119,6 @@ const obtenerUrlCobranzaWhatsApp = (
   cxcs: CuentaCobrar[],
   detallesPorCuenta: Record<string, DetalleItemCobranza[]>,
 ): string | null => {
-  if (alumno.archivado) return null;
-
   const contacto = obtenerContactoCobranza(alumno);
   const deudasCobrables = cxcs.filter(cxc =>
     !cxc.anulada &&
@@ -163,7 +161,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
   alumno, visible, onCerrar, onActualizar
 }) => {
   const isMobile = useIsMobile();
-  const soloHistorial = !!alumno?.archivado;
+  const esArchivado = !!alumno?.archivado;
   const [cxcs, setCxcs] = useState<CuentaCobrar[]>([]);
   const cobroMultiple = useCobroMultiple(cxcs);
   const [detalles, setDetalles] = useState<Record<string, CxcDetalle[]>>({});
@@ -333,7 +331,6 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
   }, [visible, alumno, refreshKey]);
 
   const abrirCobroMultiple = () => {
-    if (soloHistorial) return;
     setCobroError(null);
     setCobroExito(null);
     setCobroInfoAnticipo(null);
@@ -350,7 +347,6 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
 
   const registrarCobro = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (soloHistorial) return;
     if (!cobroCxcId || !alumno) return;
     setCobroError(null); setCobroExito(null); setCobroInfoAnticipo(null);
 
@@ -555,7 +551,6 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
 
   const registrarDevolucion = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (soloHistorial) return;
     if (!devolucionCxcId || !alumno) return;
     setDevolucionError(null); setDevolucionExito(null);
 
@@ -624,7 +619,6 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
   };
 
   const anularNota = async (cxcId: string) => {
-    if (soloHistorial) return;
     if (!confirm('¿Estás seguro de anular esta nota de servicios? Se anularán y revertirán todos los cobros asociados.')) return;
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -701,7 +695,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                   <h2 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 800, color: '#ffffff' }}>
                     {alumno.nombres} {alumno.apellidos}
                   </h2>
-                  {soloHistorial && <span style={{ alignSelf: 'flex-start', padding: '0.2rem 0.55rem', borderRadius: '999px', background: 'rgba(249, 115, 22, 0.16)', border: '1px solid rgba(249, 115, 22, 0.45)', color: '#fb923c', fontSize: '0.7rem', fontWeight: 800, textTransform: 'uppercase' }}>Archivado · solo historial</span>}
+                  {esArchivado && <span style={{ alignSelf: 'flex-start', padding: '0.2rem 0.55rem', borderRadius: '999px', background: 'rgba(249, 115, 22, 0.16)', border: '1px solid rgba(249, 115, 22, 0.45)', color: '#fb923c', fontSize: '0.7rem', fontWeight: 800, textTransform: 'uppercase' }}>Archivado</span>}
                   <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', color: '#94a3b8', fontSize: '0.8rem', flexWrap: 'wrap' }}>
                     <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
                       <MapPin size={12} style={{ color: '#f87171' }} /> {alumno.sucursal_nombre || 'Sede'}
@@ -728,7 +722,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
               </div>
 
               {/* Botones de acción lado a lado */}
-              {!soloHistorial && <div style={{ display: 'flex', gap: '0.75rem', width: '100%' }}>
+              <div style={{ display: 'flex', gap: '0.75rem', width: '100%' }}>
                 {(() => {
                   const totalDeudaNum = cxcs.reduce((s, c) => s + (!(c as any).es_anticipo && Number(c.saldo_pendiente) > 0 && !c.anulada ? Number(c.saldo_pendiente) : 0), 0);
                   return (
@@ -777,10 +771,10 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                 >
                   <Plus size={16} /> + NUEVA NOTA
                 </button>
-              </div>}
+              </div>
 
               {/* Botón WhatsApp — solo móvil */}
-              {!soloHistorial && (() => {
+              {(() => {
                 const url = obtenerUrlCobranzaWhatsApp(alumno, cxcs, detallesItems);
                 if (!url) return null;
                 return (
@@ -817,7 +811,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                 <h2 style={{ margin: 0, fontSize: '1.75rem', fontWeight: 800, letterSpacing: '-0.025em', color: 'var(--text-primary)' }}>
                   {alumno.nombres} {alumno.apellidos}
                 </h2>
-                {soloHistorial && <span style={{ alignSelf: 'flex-start', padding: '0.2rem 0.6rem', borderRadius: '999px', background: 'rgba(249, 115, 22, 0.12)', border: '1px solid rgba(249, 115, 22, 0.45)', color: '#ea580c', fontSize: '0.7rem', fontWeight: 800, textTransform: 'uppercase' }}>Archivado · solo historial</span>}
+                {esArchivado && <span style={{ alignSelf: 'flex-start', padding: '0.2rem 0.6rem', borderRadius: '999px', background: 'rgba(249, 115, 22, 0.12)', border: '1px solid rgba(249, 115, 22, 0.45)', color: '#ea580c', fontSize: '0.7rem', fontWeight: 800, textTransform: 'uppercase' }}>Archivado</span>}
                 <div style={{ display: 'flex', gap: '1.25rem', alignItems: 'center', color: 'var(--text-secondary)', fontSize: '0.85rem', flexWrap: 'wrap' }}>
                   <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                     <MapPin size={14} style={{ color: '#f87171' }} /> {alumno.sucursal_nombre || 'Sede'}
@@ -876,7 +870,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                 </div>
               </div>
               <div style={{ display: 'flex', gap: '0.85rem', alignItems: 'center' }}>
-                {!soloHistorial && (() => {
+                {(() => {
                   const totalDeudaNum = cxcs.reduce((s, c) => s + (!(c as any).es_anticipo && Number(c.saldo_pendiente) > 0 && !c.anulada ? Number(c.saldo_pendiente) : 0), 0);
                   if (totalDeudaNum > 0) {
                     return (
@@ -894,7 +888,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                   }
                   return null;
                 })()}
-                {!soloHistorial && <button
+                <button
                   onClick={() => setMostrarNuevaNotaManual(true)}
                   className="btn-premium"
                   style={{ 
@@ -903,8 +897,8 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                   }}
                 >
                   <Plus size={18} /> NUEVA NOTA
-                </button>}
-                {!soloHistorial && <button
+                </button>
+                <button
                   className="btn-premium"
                   onClick={() => setMostrarFichaAnticipos(true)}
                   style={{ 
@@ -913,7 +907,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                   }}
                 >
                   <CreditCard size={18} /> ANTICIPOS
-                </button>}
+                </button>
                 <button onClick={onCerrar} className="btn-close-circle" style={{ borderRadius: '10px' }}><X size={20}/></button>
               </div>
             </div>
@@ -1343,7 +1337,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                             <td style={{ padding: '0.5rem 0.75rem', textAlign: 'center', verticalAlign: 'middle', border: '1px solid var(--border)' }}>
                               <div style={{ display: 'flex', gap: '0.35rem', justifyContent: 'center' }}>
                                 <button onClick={() => setVerNotaId(cxc.id)} className="btn-compact-action" title="Ver"><Eye size={14} /></button>
-                                {!soloHistorial && !cxc.anulada && puedeEditar() && (
+                                {!cxc.anulada && puedeEditar() && (
                                   <button onClick={() => { 
                                     const lines = detallesItems[cxc.id] || [];
                                     setCxcParaEditar({ 
@@ -1363,10 +1357,10 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                                     setModalNotaVisible(true); 
                                   }} className="btn-compact-action action-blue" title="Editar"><Pencil size={14} /></button>
                                 )}
-                                {!soloHistorial && !cxc.anulada && Number(cxc.saldo_pendiente) > 0 && !isAnticipo && (
+                                {!cxc.anulada && Number(cxc.saldo_pendiente) > 0 && !isAnticipo && (
                                   <button onClick={() => { setCobroError(null); setCobroExito(null); setCobroInfoAnticipo(null); setCobroCxcId(cxc.id); setCobroMonto(String(cxc.saldo_pendiente)); setDevolucionCxcId(null); }} className="btn-compact-action action-green" title="Cobrar"><DollarSign size={14} /></button>
                                 )}
-                                {!soloHistorial && !cxc.anulada && cobrado > 0 && !isAnticipo && puedeEditar() && (
+                                {!cxc.anulada && cobrado > 0 && !isAnticipo && puedeEditar() && (
                                   <button onClick={() => { 
                                     setDevolucionCxcId(cxc.id); 
                                     setDevolucionMonto(String(cobrado)); 
@@ -1377,7 +1371,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                                     setCobroCxcId(null);
                                   }} className="btn-compact-action action-orange" title="Devolución"><RotateCcw size={14} /></button>
                                 )}
-                                {!soloHistorial && puedeAnular() && !cxc.anulada && (
+                                {puedeAnular() && !cxc.anulada && (
                                   <button onClick={() => anularNota(cxc.id)} className="btn-compact-action action-red" title="Anular"><Ban size={14} /></button>
                                 )}
                               </div>
@@ -1385,7 +1379,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                           )}
                         </tr>
 
-                        {!soloHistorial && isCobro && (
+                        {isCobro && (
                           <tr>
                             <td colSpan={isMobile ? 5 : 6} style={{ padding: '1rem', background: 'rgba(59, 130, 246, 0.05)', borderBottom: '1px solid rgba(59, 130, 246, 0.2)' }}>
                               <form onSubmit={registrarCobro}>
@@ -1458,7 +1452,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                           </tr>
                         )}
 
-                        {!soloHistorial && devolucionCxcId === cxc.id && (
+                        {devolucionCxcId === cxc.id && (
                           <tr>
                             <td colSpan={isMobile ? 5 : 7} style={{ padding: '1rem', background: 'rgba(245, 158, 11, 0.05)', borderBottom: '1px solid rgba(245, 158, 11, 0.2)' }}>
                               <form onSubmit={registrarDevolucion}>
@@ -1499,7 +1493,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
         </div>
       </div>
 
-      {!soloHistorial && <NotaServicios
+      <NotaServicios
         visible={mostrarNuevaNotaManual} 
         onCerrar={() => setMostrarNuevaNotaManual(false)} 
         onCreada={() => { 
@@ -1508,10 +1502,10 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
           triggerRefresh();
         }} 
         alumnoPreseleccionado={{ id: alumno.alumno_id, nombre: `${alumno.nombres} ${alumno.apellidos}` }} 
-      />}
+      />
 
       {/* Modal Editar Nota */}
-      {!soloHistorial && modalNotaVisible && cxcParaEditar && (
+      {modalNotaVisible && cxcParaEditar && (
         <NotaServicios
           visible={modalNotaVisible}
           onCerrar={() => { setModalNotaVisible(false); setCxcParaEditar(null); }}
@@ -1527,7 +1521,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
         />
       )}
 
-      {!soloHistorial && <FichaAnticiposCxC
+      <FichaAnticiposCxC
         visible={mostrarFichaAnticipos}
         alumnoId={alumno.alumno_id}
         alumnoNombre={`${alumno.nombres} ${alumno.apellidos}`}
@@ -1540,30 +1534,30 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
           setMostrarFichaAnticipos(false);
           setMostrarNotaAnticipo(true);
         }}
-      />}
+      />
 
-      {!soloHistorial && <NotaServicios
+      <NotaServicios
         visible={mostrarNotaAnticipo}
         onCerrar={() => setMostrarNotaAnticipo(false)}
-        onCreada={() => {
-          setMostrarNotaAnticipo(false);
-          onActualizar();
+        onCreada={() => { 
+          setMostrarNotaAnticipo(false); 
+          onActualizar(); 
           triggerRefresh();
-        }}
-        alumnoPreseleccionado={{ id: alumno.alumno_id, nombre: `${alumno.nombres} ${alumno.apellidos}` }}
+        }} 
+        alumnoPreseleccionado={{ id: alumno.alumno_id, nombre: `${alumno.nombres} ${alumno.apellidos}` }} 
         esAnticipo={true}
-      />}
+      />
 
       <ModalVerNotaCxC
         visible={!!verNotaId}
         cxcId={verNotaId}
         onCerrar={() => setVerNotaId(null)}
-        soloLectura={soloHistorial}
+        soloLectura={false}
         onActualizar={() => {
           onActualizar();
           triggerRefresh();
         }}
-        onEditar={soloHistorial ? undefined : () => {
+        onEditar={() => {
           const cxc = cxcs.find(c => c.id === verNotaId);
           if (cxc) {
             setVerNotaId(null);

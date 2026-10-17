@@ -280,7 +280,18 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
         supabase.from('catalogo_items').select('id, nombre, tipo, categoria, precio_venta, cuenta_ingreso_id, tipo_movimiento').eq('activo', true).or('tipo_movimiento.eq.ingreso,tipo_movimiento.eq.ambos').order('nombre'),
         supabase.from('cajas_bancos').select('id, nombre, saldo_actual, es_predeterminada').eq('activo', true).eq('escuela_id', escuelaId).order('nombre'),
       ]);
-      setAlumnos(resAlum.data ?? []);
+      let listaAlumnos = resAlum.data ?? [];
+      const alumnoRequeridoId = alumnoPreseleccionado?.id || cxcEditar?.alumno_id;
+      if (alumnoRequeridoId && !listaAlumnos.some(a => a.id === alumnoRequeridoId)) {
+        const { data: alumExtra } = await supabase.from('alumnos')
+          .select('id, nombres, apellidos, mensualidad, sucursal_id')
+          .eq('id', alumnoRequeridoId)
+          .single();
+        if (alumExtra) {
+          listaAlumnos = [alumExtra, ...listaAlumnos];
+        }
+      }
+      setAlumnos(listaAlumnos);
       
       const catalogoData = resCat.data ?? [];
       const orderPriorities: Record<string, number> = {
