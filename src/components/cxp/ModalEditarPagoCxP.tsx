@@ -3,6 +3,7 @@
  * Modal para editar un pago de CxP con el mismo estilo que el formulario de creación.
  * Muestra: fecha, monto, caja/banco de salida y nro. comprobante.
  */
+import { simboloMoneda } from '../../lib/moneda';
 import React, { useState, useEffect } from 'react';
 import ReactDOM from 'react-dom';
 import { X, Check, AlertCircle, CreditCard, RefreshCw } from 'lucide-react';
@@ -188,7 +189,7 @@ const ModalEditarPagoCxP: React.FC<Props> = ({ visible, pago, cajas, fechaEmisio
             </div>
             <div style={{ flex: 1 }}>
               <label style={{ fontSize: '0.75rem', color: 'var(--text-tertiary, #94a3b8)', display: 'block', marginBottom: '0.3rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                Monto (Bs)
+                Monto ({simboloMoneda()})
               </label>
               <input
                 type="number"

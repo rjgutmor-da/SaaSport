@@ -1,3 +1,4 @@
+import { simboloMoneda } from '../../lib/moneda';
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import type { CajaBanco } from '../../types/finanzas';
@@ -269,7 +270,7 @@ const ModalPagoRapidoCxP: React.FC<Props> = ({ entidadInicial, entidades, visibl
                 <option value="">— Seleccionar —</option>
                 {entidades.map(a => (
                   <option key={a.id} value={a.id}>
-                    {a.nombre} ({a.tipo === 'proveedor' ? 'Prov' : 'Pers'}) — Saldo: Bs {fmtMonto(a.saldo_pendiente)}
+                    {a.nombre} ({a.tipo === 'proveedor' ? 'Prov' : 'Pers'}) — Saldo: ${simboloMoneda()} ${fmtMonto(a.saldo_pendiente)}
                   </option>
                 ))}
               </select>
@@ -289,7 +290,7 @@ const ModalPagoRapidoCxP: React.FC<Props> = ({ entidadInicial, entidades, visibl
                 <div style={{ fontWeight: 800, fontSize: '1.15rem' }}>{entidadSel?.nombre}</div>
                 <div style={{ display: 'flex', gap: '1rem', marginTop: '0.2rem' }}>
                     <span style={{ color: 'var(--text-tertiary)', fontSize: '0.85rem' }}>{entidadSel?.tipo === 'proveedor' ? 'Proveedor' : 'Trabajador'}</span>
-                    <span style={{ color: 'var(--warning)', fontWeight: 700, fontSize: '0.85rem' }}>Deuda Total: Bs {fmtMonto(entidadSel?.saldo_pendiente || 0)}</span>
+                    <span style={{ color: 'var(--warning)', fontWeight: 700, fontSize: '0.85rem' }}>Deuda Total: {simboloMoneda()} {fmtMonto(entidadSel?.saldo_pendiente || 0)}</span>
                 </div>
               </div>
             </div>
@@ -306,7 +307,7 @@ const ModalPagoRapidoCxP: React.FC<Props> = ({ entidadInicial, entidades, visibl
                 {cxpsPendientes.length > 0 && <optgroup label="Deudas Pendientes">
                   {cxpsPendientes.map(c => (
                     <option key={c.id} value={c.id}>
-                      {c.numero_documento || c.descripcion} — Saldo: Bs {fmtMonto(Number(c.deuda_restante))}
+                      {c.numero_documento || c.descripcion} — Saldo: ${simboloMoneda()} ${fmtMonto(Number(c.deuda_restante))}
                     </option>
                   ))}
                 </optgroup>}

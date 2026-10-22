@@ -4,6 +4,7 @@
  * Permite ver todos los anticipos disponibles de un alumno específico
  * y aplicarlos a notas de servicio pendientes.
  */
+import { simboloMoneda } from '../../lib/moneda';
 import React, { useEffect, useState, useMemo } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import {
@@ -150,12 +151,12 @@ const FichaAnticiposCxC: React.FC<Props> = ({
     const mp = parseFloat(montoAplicar);
     if (!mp || mp <= 0) { setMensajeError('Ingresa un monto válido.'); return; }
     if (mp > anticipo.saldo_pendiente) {
-      setMensajeError(`El monto supera el saldo disponible (Bs ${fmtMonto(anticipo.saldo_pendiente)}).`);
+      setMensajeError(`El monto supera el saldo disponible (${simboloMoneda()} ${fmtMonto(anticipo.saldo_pendiente)}).`);
       return;
     }
     const nota = notasPendientes.find(n => n.id === notaSelId);
     if (nota && mp > nota.saldo_pendiente) {
-      setMensajeError(`El monto supera la deuda de la nota (Bs ${fmtMonto(nota.saldo_pendiente)}).`);
+      setMensajeError(`El monto supera la deuda de la nota (${simboloMoneda()} ${fmtMonto(nota.saldo_pendiente)}).`);
       return;
     }
 
@@ -186,7 +187,7 @@ const FichaAnticiposCxC: React.FC<Props> = ({
       return;
     }
 
-    setMensajeExito(`✅ Bs ${fmtMonto(mp)} aplicados correctamente a la nota.`);
+    setMensajeExito(`✅ ${simboloMoneda()} ${fmtMonto(mp)} aplicados correctamente a la nota.`);
     setNotaSelId('');
     setMontoAplicar('');
 
@@ -256,7 +257,7 @@ const FichaAnticiposCxC: React.FC<Props> = ({
                 Total disponible para aplicar
               </div>
               <div style={{ fontSize: '1.4rem', fontWeight: 700, color: 'var(--secondary)' }}>
-                Bs {fmtMonto(stats.totalSaldo)}
+                {simboloMoneda()} {fmtMonto(stats.totalSaldo)}
               </div>
             </div>
           </div>
@@ -326,10 +327,10 @@ const FichaAnticiposCxC: React.FC<Props> = ({
                       <div style={{ textAlign: 'right', flexShrink: 0 }}>
                         <div style={{ fontSize: '0.72rem', color: 'var(--text-tertiary)' }}>Disponible</div>
                         <div style={{ fontWeight: 700, color: 'var(--secondary)', fontSize: '1.05rem' }}>
-                          Bs {fmtMonto(anticipo.saldo_pendiente)}
+                          {simboloMoneda()} {fmtMonto(anticipo.saldo_pendiente)}
                         </div>
                         <div style={{ fontSize: '0.7rem', color: '#64748b' }}>
-                          de Bs {fmtMonto(anticipo.monto_total)}
+                          de {simboloMoneda()} {fmtMonto(anticipo.monto_total)}
                         </div>
                       </div>
                     </div>
@@ -386,7 +387,7 @@ const FichaAnticiposCxC: React.FC<Props> = ({
                                   <option key={n.id} value={n.id}>
                                     {formatFecha(n.fecha_emision)}
                                     {' · '}{n.descripcion || 'Nota de Servicio'}
-                                    {' · Saldo: Bs '}{fmtMonto(n.saldo_pendiente)}
+                                    {' · Saldo: '}{simboloMoneda()} {fmtMonto(n.saldo_pendiente)}
                                   </option>
                                 ))}
                               </select>
@@ -404,7 +405,7 @@ const FichaAnticiposCxC: React.FC<Props> = ({
                                   Saldo nota:
                                 </span>
                                 <span style={{ color: '#f87171', fontWeight: 600 }}>
-                                  Bs {fmtMonto(notaSel.saldo_pendiente)}
+                                  {simboloMoneda()} {fmtMonto(notaSel.saldo_pendiente)}
                                 </span>
                               </div>
                             )}
@@ -413,7 +414,7 @@ const FichaAnticiposCxC: React.FC<Props> = ({
                             <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-end' }}>
                               <div style={{ flex: 1 }}>
                                 <label style={{ fontSize: '0.78rem', color: 'var(--text-tertiary)', display: 'block', marginBottom: '0.3rem' }}>
-                                  Monto a aplicar (Bs):
+                                  Monto a aplicar ({simboloMoneda()}):
                                 </label>
                                 <input
                                   type="number"

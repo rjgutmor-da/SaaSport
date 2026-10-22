@@ -1,3 +1,4 @@
+import { simboloMoneda } from '../../../../lib/moneda';
 import React, { useState } from 'react';
 import { fmtMonto } from '../utils/estadisticasUtils';
 import type { ItemResumen } from '../hooks/useResumenFinanciero';
@@ -148,7 +149,7 @@ const GraficoDistribucion: React.FC<Props> = ({ items, total, titulo, isIngreso 
         </h2>
         <div style={{ textAlign: 'right' }}>
           <span style={{ fontSize: '2.8rem', fontWeight: 900, color: isIngreso ? 'var(--success)' : 'var(--danger)', lineHeight: 1, letterSpacing: '-0.04em' }}>
-            Bs {fmtMonto(total)}
+            {simboloMoneda()} {fmtMonto(total)}
           </span>
         </div>
       </div>
@@ -277,7 +278,7 @@ const GraficoDistribucion: React.FC<Props> = ({ items, total, titulo, isIngreso 
                     </span>
                   </div>
                   <span style={{ color: 'var(--text-primary)', fontWeight: 800, fontSize: '0.95rem' }}>
-                    Bs {fmtMonto(item.monto)}
+                    {simboloMoneda()} {fmtMonto(item.monto)}
                   </span>
                 </div>
 

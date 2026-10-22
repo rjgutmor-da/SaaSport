@@ -1,3 +1,4 @@
+import { simboloMoneda } from '../../lib/moneda';
 import React, { useState } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import { X, ArrowRightLeft, DollarSign, Calendar, Hash, AlignLeft, Building2, AlertCircle, Save, RefreshCw, Clock } from 'lucide-react';
@@ -205,7 +206,7 @@ const ModalTransferencia: React.FC<Props> = ({ visible, cajas, onCerrar, onCread
             </div>
 
             <div className="form-campo">
-              <label><DollarSign size={14} /> Monto a Transferir (Bs) *</label>
+              <label><DollarSign size={14} /> Monto a Transferir ({simboloMoneda()}) *</label>
               <input 
                 type="number" 
                 step="0.01" 

@@ -3,6 +3,7 @@
  * Modal flotante que muestra todas las deudas de un alumno.
  * Versión simplificada sin lógica contable.
  */
+import { simboloMoneda } from '../../lib/moneda';
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import type { AlumnoDeuda, CuentaCobrar, CxcDetalle, LineaNota } from '../../types/cxc';
@@ -134,7 +135,7 @@ const obtenerUrlCobranzaWhatsApp = (
     ? `${contacto.tratamiento} ${nombreContacto}`
     : 'Estimado/a padre/madre';
   const listadoDeudas = deudasCobrables
-    .map(cxc => `• ${obtenerDescripcionCobranza(cxc, detallesPorCuenta)}: Bs ${fmtMonto(Number(cxc.saldo_pendiente))}`)
+    .map(cxc => `• ${obtenerDescripcionCobranza(cxc, detallesPorCuenta)}: ${simboloMoneda()} ${fmtMonto(Number(cxc.saldo_pendiente))}`)
     .join('\n');
   const mensaje = [
     `${saludo}, le informamos que actualmente registra los siguientes pagos pendientes correspondientes a *${alumno.nombres.trim()}*:`,
@@ -518,7 +519,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
         }
       }
 
-      setCobroExito(`✅ Cobro de Bs ${fmtMonto(monto)} registrado correctamente.`);
+      setCobroExito(`✅ Cobro de ${simboloMoneda()} ${fmtMonto(monto)} registrado correctamente.`);
       
       // WhatsApp Logic
       const esPadre = alumno.whatsapp_preferido === 'padre';
@@ -526,7 +527,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
       if (telefono) {
           const telLimpio = telefono.replace(/\D/g, '');
           const telFinal = telLimpio.length === 8 ? `591${telLimpio}` : telLimpio;
-          setMensajePagoWA({ texto: `Gracias por el pago de Bs ${fmtMonto(monto)}.`, telefono: telFinal });
+          setMensajePagoWA({ texto: `Gracias por el pago de ${simboloMoneda()} ${fmtMonto(monto)}.`, telefono: telFinal });
       }
 
       onActualizar(); 
@@ -571,7 +572,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
 
     const cobrado = Number(cxcActual.monto_total) - Number(cxcActual.saldo_pendiente);
     if (monto > cobrado) {
-      setDevolucionError(`El monto a devolver no puede exceder el total cobrado (Bs ${fmtMonto(cobrado)}).`);
+      setDevolucionError(`El monto a devolver no puede exceder el total cobrado (${simboloMoneda()} ${fmtMonto(cobrado)}).`);
       return;
     }
 
@@ -598,7 +599,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
       });
       if (rpcErr) throw rpcErr;
 
-      setDevolucionExito(`✅ Devolución de Bs ${fmtMonto(monto)} registrada correctamente.`);
+      setDevolucionExito(`✅ Devolución de ${simboloMoneda()} ${fmtMonto(monto)} registrada correctamente.`);
 
       onActualizar(); 
       triggerRefresh();
@@ -832,7 +833,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                     return (
                       <>
                         <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#a855f7' }}>
-                          <Calendar size={14} /> Mensualidad: {(montoMensualidad !== null && montoMensualidad !== undefined) ? `Bs ${fmtMonto(montoMensualidad)}` : 'N/A'}
+                          <Calendar size={14} /> Mensualidad: {(montoMensualidad !== null && montoMensualidad !== undefined) ? `${simboloMoneda()} ${fmtMonto(montoMensualidad)}` : 'N/A'}
                         </span>
                         {telefonoPrincipal && (urlCobranzaWhatsApp ? (
                           <a
@@ -923,7 +924,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                   <div className="resumen-card" style={{ border: esSaldoAFavor ? '1px solid rgba(74,222,128,0.2)' : '1px solid rgba(248,113,113,0.2)' }}>
                     <span className="resumen-label">{esSaldoAFavor ? 'SALDO A FAVOR' : 'TOTAL DEUDA'}</span>
                     <span className={`resumen-valor ${esSaldoAFavor ? 'color-ingreso' : 'color-deuda'}`} style={{ fontSize: '1.8rem' }}>
-                      Bs {fmtMonto(Math.abs(totalDeuda))}
+                      {simboloMoneda()} {fmtMonto(Math.abs(totalDeuda))}
                     </span>
                     <div className="resumen-icon-bg" style={{ opacity: 0.15 }}>
                       {esSaldoAFavor ? <Check size={28} className="color-ingreso" /> : <AlertCircle size={28} className="color-deuda" />}
@@ -934,7 +935,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
 
               <div className="resumen-card" style={{ border: '1px solid rgba(74,222,128,0.2)' }}>
                 <span className="resumen-label">TOTAL INGRESOS</span>
-                <span className="resumen-valor color-ingreso" style={{ fontSize: '1.8rem' }}>Bs {fmtMonto(alumno.total_ingresos_historico || 0)}</span>
+                <span className="resumen-valor color-ingreso" style={{ fontSize: '1.8rem' }}>{simboloMoneda()} {fmtMonto(alumno.total_ingresos_historico || 0)}</span>
                 <div className="resumen-icon-bg" style={{ opacity: 0.15 }}><Wallet size={28} className="color-ingreso" /></div>
               </div>
 
@@ -963,7 +964,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
                           <span style={{ fontWeight: 800, color: '#10b981', fontSize: '0.9rem' }}>PAGO MÚLTIPLE DE DEUDA</span>
                           <span style={{ fontWeight: 800, color: '#10b981', fontSize: '1.05rem', background: 'rgba(16, 185, 129, 0.1)', padding: '0.35rem 0.5rem', borderRadius: '6px', alignSelf: 'flex-start' }}>
-                            Total a Pagar: Bs {fmtMonto(cobroMultiple.obtenerTotalCobrado())}
+                            Total a Pagar: {simboloMoneda()} {fmtMonto(cobroMultiple.obtenerTotalCobrado())}
                           </span>
                         </div>
 
@@ -986,7 +987,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                                       {cxc.descripcion || 'Nota'}
                                     </span>
                                     <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>
-                                      Saldo: <strong style={{ color: '#38bdf8' }}>Bs {fmtMonto(cxc.saldo_pendiente)}</strong>
+                                      Saldo: <strong style={{ color: '#38bdf8' }}>{simboloMoneda()} {fmtMonto(cxc.saldo_pendiente)}</strong>
                                     </span>
                                   </div>
                                 </div>
@@ -1028,7 +1029,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                         <input type="date" value={cobroFecha} min={FECHA_MINIMA_MOVIMIENTO_FINANCIERO} onChange={e => setCobroFecha(e.target.value)} className="detalle-cobro-input" style={{ width: '100%' }} />
                         <div style={{ display: 'flex', gap: '0.5rem' }}>
                           <button type="submit" disabled={guardandoCobro || cobroMultiple.obtenerTotalCobrado() <= 0} className="btn-guardar-cuenta" style={{ flex: 1, padding: '0.6rem 1rem', background: '#10b981', fontWeight: 700 }}>
-                            {guardandoCobro ? '...' : `Cobrar Bs ${fmtMonto(cobroMultiple.obtenerTotalCobrado())}`}
+                            {guardandoCobro ? '...' : `Cobrar ${simboloMoneda()} ${fmtMonto(cobroMultiple.obtenerTotalCobrado())}`}
                           </button>
                           <button type="button" onClick={cerrarCobro} className="btn-refrescar" style={{ padding: '0.6rem' }}>Cancelar</button>
                         </div>
@@ -1125,7 +1126,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                               </div>
                             </td>
                             <td style={{ padding: '0.6rem 0.5rem', textAlign: 'right', fontWeight: 700, color: isDeudor ? '#ef4444' : '#10b981', whiteSpace: 'nowrap' }}>
-                              Bs {fmtMonto(saldoVal)}
+                              {simboloMoneda()} {fmtMonto(saldoVal)}
                             </td>
                           </tr>
                         );
@@ -1158,7 +1159,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                               <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
                                 <span style={{ fontWeight: 800, color: '#10b981', fontSize: '0.95rem' }}>PAGO MÚLTIPLE DE DEUDA</span>
                                 <span style={{ fontWeight: 800, color: '#10b981', fontSize: '1.1rem', background: 'rgba(16, 185, 129, 0.1)', padding: '0.35rem 0.75rem', borderRadius: '6px' }}>
-                                  Total a Cobrar: Bs {fmtMonto(cobroMultiple.obtenerTotalCobrado())}
+                                  Total a Cobrar: {simboloMoneda()} {fmtMonto(cobroMultiple.obtenerTotalCobrado())}
                                 </span>
                               </div>
                               <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
@@ -1194,7 +1195,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                                           {cxc.descripcion || 'Nota'}
                                         </span>
                                         <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>
-                                          Saldo: <strong style={{ color: '#38bdf8' }}>Bs {fmtMonto(cxc.saldo_pendiente)}</strong>
+                                          Saldo: <strong style={{ color: '#38bdf8' }}>{simboloMoneda()} {fmtMonto(cxc.saldo_pendiente)}</strong>
                                         </span>
                                       </div>
                                     </div>
@@ -1312,10 +1313,10 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                             </div>
                           </td>
                           <td style={{ padding: '0.5rem 0.75rem', verticalAlign: 'middle', border: '1px solid var(--border)', fontWeight: 600, whiteSpace: 'nowrap' }}>
-                            Bs {fmtMonto(Number(cxc.monto_total))}
+                            {simboloMoneda()} {fmtMonto(Number(cxc.monto_total))}
                           </td>
                           <td style={{ padding: '0.5rem 0.75rem', verticalAlign: 'middle', border: '1px solid var(--border)', color: '#4ade80', fontWeight: 600, whiteSpace: 'nowrap' }}>
-                            Bs {fmtMonto(isAnticipo ? (Number(cxc.monto_total) - Number(cxc.saldo_pendiente)) : cobrado)}
+                            {simboloMoneda()} {fmtMonto(isAnticipo ? (Number(cxc.monto_total) - Number(cxc.saldo_pendiente)) : cobrado)}
                           </td>
                           <td style={{ 
                             padding: '0.5rem 0.75rem', verticalAlign: 'middle', border: '1px solid var(--border)',
@@ -1326,7 +1327,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                               : (Number(cxc.saldo_pendiente) > 0 ? '#38bdf8' : '#4ade80') 
                           }}>
                             {isAnticipo && Number(cxc.saldo_pendiente) > 0 ? '- ' : ''}
-                            Bs {fmtMonto(Number(cxc.saldo_pendiente))}
+                            {simboloMoneda()} {fmtMonto(Number(cxc.saldo_pendiente))}
                           </td>
                           {!isMobile && (
                             <td style={{ padding: '0.5rem 0.75rem', verticalAlign: 'middle', border: '1px solid var(--border)', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
@@ -1391,7 +1392,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                                   {usarAnticipo ? (
                                     <select value={anticipoId} onChange={e => setAnticipoId(e.target.value)} required className="detalle-cobro-select" style={{ flex: 1 }}>
                                       <option value="">— Seleccionar —</option>
-                                      {anticiposDisponibles.map(a => <option key={a.id} value={a.id}>{formatFecha(a.fecha_emision)} - Bs {fmtMonto(a.saldo_pendiente)}</option>)}
+                                      {anticiposDisponibles.map(a => <option key={a.id} value={a.id}>{formatFecha(a.fecha_emision)} - ${simboloMoneda()} ${fmtMonto(a.saldo_pendiente)}</option>)}
                                     </select>
                                   ) : (
                                     <select value={cobroCuentaId} onChange={e => setCobroCuentaId(e.target.value)} required className="detalle-cobro-select" style={{ flex: 1 }}>
@@ -1428,7 +1429,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                                       padding: '0.4rem 0.7rem',
                                       display: 'flex', alignItems: 'center', gap: '0.4rem'
                                     }}>
-                                      ⚠ Exceso de <strong>Bs {fmtMonto(exc)}</strong> — se guardará automáticamente como anticipo a favor del cliente.
+                                      ⚠ Exceso de <strong>{simboloMoneda()} {fmtMonto(exc)}</strong> — se guardará automáticamente como anticipo a favor del cliente.
                                     </p>
                                   ) : null;
                                 })()}
@@ -1443,7 +1444,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                                     padding: '0.4rem 0.7rem',
                                     display: 'flex', alignItems: 'center', gap: '0.4rem'
                                   }}>
-                                    ✓ Bs {fmtMonto(cobroInfoAnticipo.monto)} guardados como anticipo exitosamente.
+                                    ✓ {simboloMoneda()} {fmtMonto(cobroInfoAnticipo.monto)} guardados como anticipo exitosamente.
                                   </p>
                                 )}
                                 {cobroError && <p style={{ color: '#f87171', fontSize: '0.75rem', marginTop: '0.5rem' }}>{cobroError}</p>}

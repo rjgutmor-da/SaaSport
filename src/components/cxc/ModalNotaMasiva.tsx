@@ -1,3 +1,4 @@
+import { simboloMoneda } from '../../lib/moneda';
 import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import type { CatalogoItem } from '../../types/cuentas';
@@ -773,7 +774,7 @@ const ModalNotaMasiva: React.FC<ModalNotaMasivaProps> = ({
 
                       {/* Subtotal */}
                       <div style={{ textAlign: 'right', fontWeight: 700, fontSize: '0.9rem' }}>
-                        {esMensualidad ? 'Ficha' : `Bs ${fmtMonto(linea.subtotal)}`}
+                        {esMensualidad ? 'Ficha' : `${simboloMoneda()} ${fmtMonto(linea.subtotal)}`}
                       </div>
 
                       {/* Eliminar */}
@@ -996,7 +997,7 @@ const ModalNotaMasiva: React.FC<ModalNotaMasivaProps> = ({
 
             <div style={{ marginTop: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div style={{ fontSize: '1.2rem', fontWeight: 800 }}>
-                Total por Alumno: {tieneMensualidad ? 'según ficha del alumno' : `Bs ${fmtMonto(total)}`}
+                Total por Alumno: {tieneMensualidad ? 'según ficha del alumno' : `${simboloMoneda()} ${fmtMonto(total)}`}
               </div>
               <div style={{ display: 'flex', gap: '0.75rem' }}>
                 <button

@@ -3,6 +3,7 @@
  * Modal para editar un movimiento existente de Cajas y Bancos.
  * Solo permite edición si el movimiento NO está conciliado.
  */
+import { simboloMoneda } from '../../lib/moneda';
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import { X, Pencil, DollarSign, Calendar, Hash, AlignLeft, Building2, AlertCircle, Save, RefreshCw, Check, Clock, Tag } from 'lucide-react';
@@ -187,7 +188,7 @@ const ModalEditarMovimiento: React.FC<Props> = ({ visible, movimiento, cajas, on
 
             {/* Monto */}
             <div className="form-campo">
-              <label><DollarSign size={14} /> Monto (Bs) *</label>
+              <label><DollarSign size={14} /> Monto ({simboloMoneda()}) *</label>
               <input
                 type="number" step="0.01" min="0.01"
                 value={monto}

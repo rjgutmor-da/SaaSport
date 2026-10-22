@@ -1,3 +1,4 @@
+import { simboloMoneda } from '../../lib/moneda';
 import React, { useState } from 'react';
 import ReactDOM from 'react-dom';
 import { X, Check, AlertCircle } from 'lucide-react';
@@ -144,7 +145,7 @@ const ModalEditarItemCxP: React.FC<Props> = ({ visible, item, notaId, onCerrar, 
               />
             </div>
             <div className="form-campo">
-              <label>Precio Unit. (Bs)</label>
+              <label>Precio Unit. ({simboloMoneda()})</label>
               <input
                 type="number"
                 step="0.01"
@@ -174,7 +175,7 @@ const ModalEditarItemCxP: React.FC<Props> = ({ visible, item, notaId, onCerrar, 
           }}>
             <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary, #94a3b8)' }}>Subtotal:</span>
             <span style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--primary, #f59e0b)' }}>
-              Bs {(cantidad * (parseFloat(precioUnitario) || 0)).toLocaleString('es-BO', { minimumFractionDigits: 2 })}
+              {simboloMoneda()} {(cantidad * (parseFloat(precioUnitario) || 0)).toLocaleString('es-BO', { minimumFractionDigits: 2 })}
             </span>
           </div>
 

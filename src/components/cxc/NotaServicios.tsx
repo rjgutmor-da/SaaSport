@@ -3,6 +3,7 @@
  * Modal flotante para crear/editar una "Nota de Servicios" (cuenta por cobrar).
  * Versión simplificada sin campos contables.
  */
+import { simboloMoneda } from '../../lib/moneda';
 import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import type { CatalogoItem } from '../../types/cuentas';
@@ -512,7 +513,7 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
         return;
       }
 
-      const resumen = `${calculo.presentes} presentes de ${calculo.registros} registros · ${calculo.estado === 'completo' ? '100%' : calculo.estado === 'parcial' ? `${calculo.porcentaje_parcial}%` : '0%'} · Bs ${fmtMonto(Number(calculo.monto))}`;
+      const resumen = `${calculo.presentes} presentes de ${calculo.registros} registros · ${calculo.estado === 'completo' ? '100%' : calculo.estado === 'parcial' ? `${calculo.porcentaje_parcial}%` : '0%'} · ${simboloMoneda()} ${fmtMonto(Number(calculo.monto))}`;
       setLineas(actuales => actuales.map((actual, actualIdx) => actualIdx === idx
         ? {
             ...actual,
@@ -562,7 +563,7 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
       const totalCobrosEditados = cobrosExistentes.reduce((s, c) => s + c.monto_editado, 0);
       const nuevoPago = pagarAlCrear ? (parseFloat(montoPago) || 0) : 0;
       if ((totalCobrosEditados + nuevoPago) > total) {
-        setError(`El total de los pagos (Bs ${fmtMonto(totalCobrosEditados + nuevoPago)}) excede el total de la nota (Bs ${fmtMonto(total)}).`);
+        setError(`El total de los pagos (${simboloMoneda()} ${fmtMonto(totalCobrosEditados + nuevoPago)}) excede el total de la nota (${simboloMoneda()} ${fmtMonto(total)}).`);
         return;
       }
     }
@@ -583,11 +584,11 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
       for (const cobro of cobrosExistentes) {
         const fCobro = cobro.fecha_editada;
         if (fechaEmision > fCobro) {
-          setError(`La fecha de emisión de la Nota de Servicio no puede ser posterior a la fecha del pago registrado (Bs ${fmtMonto(cobro.monto_aplicado)} el ${fCobro}).`);
+          setError(`La fecha de emisión de la Nota de Servicio no puede ser posterior a la fecha del pago registrado (${simboloMoneda()} ${fmtMonto(cobro.monto_aplicado)} el ${fCobro}).`);
           return;
         }
         if (fCobro < fechaEmision) {
-          setError(`La fecha del pago registrado (Bs ${fmtMonto(cobro.monto_editado || cobro.monto_aplicado)}) no puede ser anterior a la fecha de emisión de la Nota de Servicio (${fechaEmision}).`);
+          setError(`La fecha del pago registrado (${simboloMoneda()} ${fmtMonto(cobro.monto_editado || cobro.monto_aplicado)}) no puede ser anterior a la fecha de emisión de la Nota de Servicio (${fechaEmision}).`);
           return;
         }
       }
@@ -896,7 +897,7 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
           detalle: {
             alumno: alumnoNombre ? `${alumnoNombre.nombres} ${alumnoNombre.apellidos}` : 'N/A',
             monto: total,
-            descripcion: `${cxcEditar ? 'Factura Actualizada' : (esAnticipo ? 'Anticipo' : 'Factura')} por Bs ${total} para ${alumnoNombre ? alumnoNombre.nombres : 'alumno'}.`
+            descripcion: `${cxcEditar ? 'Factura Actualizada' : (esAnticipo ? 'Anticipo' : 'Factura')} por ${simboloMoneda()} ${total} para ${alumnoNombre ? alumnoNombre.nombres : 'alumno'}.`
           }
         });
       } catch (e) { console.error(e); }
@@ -1224,7 +1225,7 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
                           nuevas[idx] = { ...nuevas[idx], precio_unitario: prec, subtotal: prec * nuevas[idx].cantidad };
                           setLineas(nuevas);
                         }} disabled={guardando} title="Precio Unitario" />
-                        <div style={{ textAlign: 'right', fontWeight: 700, fontSize: '0.9rem' }}>Bs {fmtMonto(linea.subtotal)}</div>
+                        <div style={{ textAlign: 'right', fontWeight: 700, fontSize: '0.9rem' }}>{simboloMoneda()} {fmtMonto(linea.subtotal)}</div>
                         <button type="button" onClick={() => setLineas(lineas.filter((_, i) => i !== idx))} disabled={lineas.length === 1} style={{ color: '#f87171' }}><Trash2 size={16} /></button>
                       </div>
 
@@ -1447,7 +1448,7 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
                         <>
                           <Lock size={14} style={{ color: '#94a3b8', flexShrink: 0 }} />
                           <span style={{ flex: 1, fontSize: '0.85rem', color: '#94a3b8' }}>
-                            Bs {fmtMonto(cobro.monto_aplicado)}
+                            {simboloMoneda()} {fmtMonto(cobro.monto_aplicado)}
                           </span>
                           <span style={{ fontSize: '0.8rem', color: '#94a3b8', marginRight: '0.5rem' }}>
                             ({cobro.fecha ? cobro.fecha.split('T')[0] : ''})
@@ -1467,7 +1468,7 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
                           <div className="nota-cobro-grid" style={{ flex: 1, display: 'grid', gridTemplateColumns: '1.2fr 1.2fr 1.6fr auto', gap: '0.5rem', alignItems: 'flex-end' }}>
                             <div>
                               <label style={{ fontSize: '0.7rem', color: '#94a3b8', display: 'block', marginBottom: '0.2rem', textTransform: 'uppercase' }}>
-                                Monto (Bs)
+                                Monto ({simboloMoneda()})
                               </label>
                               <input
                                 type="number" step="0.01" min="0.01"
@@ -1591,7 +1592,7 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
             </div>
 
             <div className="nota-pie-movil" style={{ marginTop: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div style={{ fontSize: '1.5rem', fontWeight: 800 }}>Total: Bs {fmtMonto(total)}</div>
+              <div style={{ fontSize: '1.5rem', fontWeight: 800 }}>Total: {simboloMoneda()} {fmtMonto(total)}</div>
               <div style={{ display: 'flex', gap: '0.75rem' }}>
                 <button type="button" onClick={onCerrar} className="btn-refrescar" style={{ width: 'auto' }}>Cancelar</button>
                 <button type="submit" disabled={guardando} className="btn-guardar-cuenta" style={{ width: 'auto', padding: '0 2rem' }}>{guardando ? '...' : (cxcEditar ? 'Guardar Cambios' : 'Confirmar')}</button>

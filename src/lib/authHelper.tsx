@@ -17,6 +17,7 @@ import type { Role } from '../config/roles';
 import { supabase } from './supabaseClient';
 import type { Session } from '@supabase/supabase-js';
 import { registerCurrentSaaSportSession } from './sessionLimit';
+import { definirSimboloMoneda } from './moneda';
 
 export interface PerfilUsuario {
   id: string;
@@ -36,6 +37,7 @@ export interface EscuelaInfo {
   activa: boolean;
   logo_url: string | null;
   slogan: string | null;
+  simbolo_moneda?: string | null;
 }
 
 interface AuthContextValue {
@@ -95,6 +97,7 @@ export const AuthProviderSaaSport = ({ children }: { children: ReactNode }) => {
         console.error('Error al cargar perfil:', error);
         setPerfil(null);
         setEscuela(null);
+        definirSimboloMoneda('Bs');
         return;
       }
 
@@ -112,16 +115,20 @@ export const AuthProviderSaaSport = ({ children }: { children: ReactNode }) => {
         if (escuelaError) {
           console.error('Error al cargar datos de la escuela:', escuelaError);
           setEscuela(null);
+          definirSimboloMoneda('Bs');
         } else {
+          definirSimboloMoneda(escuelaData?.simbolo_moneda);
           setEscuela(escuelaData as EscuelaInfo);
         }
       } else {
         setEscuela(null);
+        definirSimboloMoneda('Bs');
       }
     } catch (err) {
       console.error('Error inesperado al cargar perfil:', err);
       setPerfil(null);
       setEscuela(null);
+      definirSimboloMoneda('Bs');
     }
   };
 
@@ -157,11 +164,13 @@ export const AuthProviderSaaSport = ({ children }: { children: ReactNode }) => {
           setSession(null);
           setPerfil(null);
           setEscuela(null);
+          definirSimboloMoneda('Bs');
           procesandoId.current = null;
         }
       } else {
         setPerfil(null);
         setEscuela(null);
+        definirSimboloMoneda('Bs');
         procesandoId.current = null;
       }
 
@@ -201,6 +210,7 @@ export const AuthProviderSaaSport = ({ children }: { children: ReactNode }) => {
     await supabase.auth.signOut({ scope: 'local' });
     setPerfil(null);
     setEscuela(null);
+    definirSimboloMoneda('Bs');
     setSession(null);
   };
 

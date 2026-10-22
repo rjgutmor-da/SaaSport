@@ -3,6 +3,7 @@
  * Modal para registrar saldos iniciales de deuda a proveedores o personal.
  * Versión simplificada sin contabilidad de doble partida.
  */
+import { simboloMoneda } from '../../lib/moneda';
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import { X, DollarSign, Users, AlignLeft, AlertCircle, Check, RefreshCw, BookOpen } from 'lucide-react';
@@ -172,7 +173,7 @@ const ModalSaldoInicialCxP: React.FC<Props> = ({ visible, onCerrar, onCreado, ed
         detalle: { monto: valorMonto, descripcion: descripcion.trim(), es_anticipo: esAnticipo },
       });
 
-      setExito(`✅ Saldo inicial de Bs ${fmtMonto(valorMonto)} registrado correctamente.`);
+      setExito(`✅ Saldo inicial de ${simboloMoneda()} ${fmtMonto(valorMonto)} registrado correctamente.`);
       setTimeout(() => { onCreado(); }, 1500);
     } catch (err: any) {
       setError(err.message);
@@ -272,7 +273,7 @@ const ModalSaldoInicialCxP: React.FC<Props> = ({ visible, onCerrar, onCreado, ed
 
             <div style={{ display: 'flex', gap: '1rem' }} className="full-width">
               <div className="form-campo" style={{ flex: 1 }}>
-                <label><DollarSign size={14} /> Monto del Saldo Inicial (Bs) *</label>
+                <label><DollarSign size={14} /> Monto del Saldo Inicial ({simboloMoneda()}) *</label>
                 <input
                   type="number" step="0.01" min="0.01"
                   value={monto}

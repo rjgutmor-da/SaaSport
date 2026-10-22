@@ -1,3 +1,4 @@
+import { simboloMoneda } from '../../lib/moneda';
 import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import {
@@ -470,7 +471,7 @@ const CajasBancos: React.FC = () => {
 
     const saldo = Number((mov as any).saldo_historico || 0);
     const ok = window.confirm(
-      `Conciliar ${pendientes.length} movimiento(s) de ${mov.cuenta_nombre} de esta pagina, desde la fila seleccionada hacia atras?\n\nSaldo verificado: Bs ${fmtMonto(saldo)}`
+      `Conciliar ${pendientes.length} movimiento(s) de ${mov.cuenta_nombre} de esta pagina, desde la fila seleccionada hacia atras?\n\nSaldo verificado: ${simboloMoneda()} ${fmtMonto(saldo)}`
     );
     if (!ok) return;
 
@@ -683,7 +684,7 @@ const CajasBancos: React.FC = () => {
       {isMobile ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', width: '100%', boxSizing: 'border-box', overflow: 'hidden' }}>
           <div aria-label="Saldo consolidado de las cuentas" style={{ display: 'flex', justifyContent: 'space-between', padding: '0.5rem' }}>
-            <span>Saldo consolidado</span><strong>Bs {fmtMonto(saldoTotal)}</strong>
+            <span>Saldo consolidado</span><strong>{simboloMoneda()} {fmtMonto(saldoTotal)}</strong>
           </div>
           {/* Tarjetas de Cajas/Bancos — scroll horizontal */}
           <div style={{
@@ -742,7 +743,7 @@ const CajasBancos: React.FC = () => {
                     {c.nombre}
                   </span>
                   <span style={{ fontSize: '0.95rem', fontWeight: 900, color: saldoCaja >= 0 ? 'var(--success)' : '#ef4444', marginTop: '2px' }}>
-                    Bs {fmtMonto(saldoCaja)}
+                    {simboloMoneda()} {fmtMonto(saldoCaja)}
                   </span>
                 </div>
               );
@@ -828,7 +829,7 @@ const CajasBancos: React.FC = () => {
                           </span>
                         </div>
                         <span style={{ fontWeight: 900, fontSize: '0.9rem', color: (Number(cajaActiva.saldo_actual) || 0) >= 0 ? '#10b981' : '#ef4444' }}>
-                          Bs {fmtMonto(Number(cajaActiva.saldo_actual) || 0)}
+                          {simboloMoneda()} {fmtMonto(Number(cajaActiva.saldo_actual) || 0)}
                         </span>
                       </div>
                     )}
@@ -842,7 +843,7 @@ const CajasBancos: React.FC = () => {
                           Seleccione una cuenta
                         </span>
                         <span style={{ fontWeight: 900, fontSize: '0.9rem', color: 'var(--primary)' }}>
-                          Bs {fmtMonto(saldoTotal)}
+                          {simboloMoneda()} {fmtMonto(saldoTotal)}
                         </span>
                       </div>
                     )}
@@ -932,7 +933,7 @@ const CajasBancos: React.FC = () => {
                                 color: esIngreso ? '#10b981' : '#ef4444',
                                 whiteSpace: 'nowrap', flexShrink: 0
                               }}>
-                                {esIngreso ? '+' : '-'} Bs {fmtMonto(esIngreso ? mov.debe : mov.haber)}
+                                {esIngreso ? '+' : '-'} {simboloMoneda()} {fmtMonto(esIngreso ? mov.debe : mov.haber)}
                               </div>
                             </div>
                           );
@@ -1221,7 +1222,7 @@ const CajasBancos: React.FC = () => {
                     Saldo Consolidado
                   </span>
                   <span style={{ fontSize: '1rem', color: 'var(--primary)', fontWeight: 900, marginTop: '2px' }}>
-                    Bs {fmtMonto(saldoTotal)}
+                    {simboloMoneda()} {fmtMonto(saldoTotal)}
                   </span>
                 </div>
 
@@ -1286,7 +1287,7 @@ const CajasBancos: React.FC = () => {
                         {c.nombre}
                       </span>
                       <span style={{ fontSize: '1rem', color: 'var(--success)', fontWeight: 900, marginTop: '2px' }}>
-                        Bs {fmtMonto(Number(c.saldo_actual) || 0)}
+                        {simboloMoneda()} {fmtMonto(Number(c.saldo_actual) || 0)}
                       </span>
                       {esSuperAdmin && !esPred && (
                         <button
@@ -1644,10 +1645,10 @@ const CajasBancos: React.FC = () => {
                                         opacity: puedeConciliar ? 1 : 0.6
                                       }}
                                       title={mov.conciliado
-                                        ? `Conciliado. Saldo verificado: Bs ${fmtMonto(Number((mov as any).saldo_historico || 0))}. Click para desmarcar con motivo.`
+                                        ? `Conciliado. Saldo verificado: ${simboloMoneda()} ${fmtMonto(Number((mov as any).saldo_historico || 0))}. Click para desmarcar con motivo.`
                                         : (puedeConciliar
                                           ? (modoConciliacion
-                                            ? `Conciliar desde esta fila al final de esta pagina. Saldo verificado: Bs ${fmtMonto(Number((mov as any).saldo_historico || 0))}`
+                                            ? `Conciliar desde esta fila al final de esta pagina. Saldo verificado: ${simboloMoneda()} ${fmtMonto(Number((mov as any).saldo_historico || 0))}`
                                             : "Marcar solo este movimiento como conciliado")
                                           : "Sin permiso para conciliar")}
                                       disabled={!puedeConciliar || conciliandoId === mov.id}
@@ -1904,7 +1905,7 @@ const CajasBancos: React.FC = () => {
                     TOTAL RECIBIDO
                   </p>
                   <div style={{ display: 'flex', alignItems: 'baseline', zIndex: 10 }}>
-                    <span style={{ fontSize: '16px', color: '#ff6b35', fontWeight: 'bold', marginRight: '4px', fontFamily: '"Inter", sans-serif' }}>Bs</span>
+                    <span style={{ fontSize: '16px', color: '#ff6b35', fontWeight: 'bold', marginRight: '4px', fontFamily: '"Inter", sans-serif' }}>{simboloMoneda()}</span>
                     <h2 style={{
                       color: '#ff6b35',
                       fontFamily: '"Inter", sans-serif',

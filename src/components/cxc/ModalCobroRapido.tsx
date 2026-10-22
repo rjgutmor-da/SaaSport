@@ -3,6 +3,7 @@
  * Modal de cobro rápido accesible desde la lista principal de alumnos.
  * Versión simplificada sin contabilidad de doble partida.
  */
+import { simboloMoneda } from '../../lib/moneda';
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import type { AlumnoDeuda, CuentaCobrar } from '../../types/cxc';
@@ -451,7 +452,7 @@ const ModalCobroRapido: React.FC<Props> = ({ alumnoInicial, visible, onCerrar, o
                     {[...alumnos].sort((a, b) => `${a.nombres} ${a.apellidos}`.localeCompare(`${b.nombres} ${b.apellidos}`))
                       .map(a => (
                         <option key={a.alumno_id} value={a.alumno_id}>
-                          {a.nombres} {a.apellidos} — Pendiente: Bs {fmtMonto(Number(a.saldo_pendiente))}
+                          {a.nombres} {a.apellidos} — Pendiente: {simboloMoneda()} {fmtMonto(Number(a.saldo_pendiente))}
                         </option>
                       ))}
                   </select>
@@ -465,7 +466,7 @@ const ModalCobroRapido: React.FC<Props> = ({ alumnoInicial, visible, onCerrar, o
                     <div style={{ fontWeight: 800, fontSize: '1.15rem' }}>{alumnoSel?.nombres} {alumnoSel?.apellidos}</div>
                     <div style={{ display: 'flex', gap: '1rem', marginTop: '0.2rem' }}>
                         <span style={{ color: 'var(--text-tertiary)', fontSize: '0.85rem' }}>Deudor del sistema</span>
-                        <span style={{ color: 'var(--warning)', fontWeight: 700, fontSize: '0.85rem' }}>Saldo Total: Bs {fmtMonto(Number(alumnoSel?.saldo_pendiente))}</span>
+                        <span style={{ color: 'var(--warning)', fontWeight: 700, fontSize: '0.85rem' }}>Saldo Total: {simboloMoneda()} {fmtMonto(Number(alumnoSel?.saldo_pendiente))}</span>
                     </div>
                   </div>
                 </div>
@@ -480,12 +481,12 @@ const ModalCobroRapido: React.FC<Props> = ({ alumnoInicial, visible, onCerrar, o
                     style={{ background: 'var(--bg-glass)', fontWeight: 600 }}
                   >
                     {notasDeuda.length > 1 && (
-                      <option value="multiple">Pago múltiple de deuda — Bs {fmtMonto(notasDeuda.reduce((s, c) => s + Number(c.saldo_pendiente), 0))}</option>
+                      <option value="multiple">Pago múltiple de deuda — {simboloMoneda()} {fmtMonto(notasDeuda.reduce((s, c) => s + Number(c.saldo_pendiente), 0))}</option>
                     )}
                     {notasDeuda.length > 0 && <optgroup label="Notas Pendientes">
                       {notasDeuda.map(c => (
                         <option key={c.id} value={c.id}>
-                          {c.descripcion || 'Servicio'} — Saldo: Bs {fmtMonto(Number(c.saldo_pendiente))}
+                          {c.descripcion || 'Servicio'} — Saldo: {simboloMoneda()} {fmtMonto(Number(c.saldo_pendiente))}
                         </option>
                       ))}
                     </optgroup>}
@@ -505,7 +506,7 @@ const ModalCobroRapido: React.FC<Props> = ({ alumnoInicial, visible, onCerrar, o
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', marginBottom: '0.75rem' }}>
                           <span style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>Selecciona las notas y ajusta los montos a asignar.</span>
                           <span style={{ color: '#10b981', fontWeight: 800, background: 'rgba(16,185,129,0.10)', border: '1px solid rgba(16,185,129,0.22)', borderRadius: '6px', padding: '0.35rem 0.6rem', whiteSpace: 'nowrap' }}>
-                            Total: Bs {fmtMonto(totalCobroMultiple)}
+                            Total: {simboloMoneda()} {fmtMonto(totalCobroMultiple)}
                           </span>
                         </div>
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '0.65rem', maxHeight: '210px', overflowY: 'auto', padding: '0.75rem', background: 'var(--bg-main)', border: '1px solid var(--border)', borderRadius: '8px' }}>
@@ -518,7 +519,7 @@ const ModalCobroRapido: React.FC<Props> = ({ alumnoInicial, visible, onCerrar, o
                                 <div style={{ minWidth: 0 }}>
                                   <div style={{ fontWeight: 800, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{cxc.descripcion || 'Nota'}</div>
                                   <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
-                                    Saldo: <strong style={{ color: '#38bdf8' }}>Bs {fmtMonto(Number(cxc.saldo_pendiente))}</strong>
+                                    Saldo: <strong style={{ color: '#38bdf8' }}>{simboloMoneda()} {fmtMonto(Number(cxc.saldo_pendiente))}</strong>
                                   </div>
                                 </div>
                                 <input type="number" step="0.01" min="0" max={Number(cxc.saldo_pendiente)} value={montoCxc} onChange={(e) => cobroMultiple.cambiarMonto(cxc.id, e.target.value, Number(cxc.saldo_pendiente))} disabled={guardando || !seleccionado} placeholder="0.00" style={{ width: '92px', padding: '0.4rem 0.45rem', borderRadius: '5px', border: '1px solid var(--border)', background: 'var(--bg-glass)', color: 'var(--text-primary)', fontWeight: 800, textAlign: 'right' }} />
@@ -555,8 +556,8 @@ const ModalCobroRapido: React.FC<Props> = ({ alumnoInicial, visible, onCerrar, o
                         }}>
                           <Info size={14} style={{ marginTop: '1px', flexShrink: 0 }} />
                           <span>
-                            El pago excede el saldo en <strong>Bs {fmtMonto(excesoCalculado)}</strong>.
-                            Se cobrará <strong>Bs {fmtMonto(saldoCxc)}</strong> a la nota y el exceso
+                            El pago excede el saldo en <strong>{simboloMoneda()} {fmtMonto(excesoCalculado)}</strong>.
+                            Se cobrará <strong>{simboloMoneda()} {fmtMonto(saldoCxc)}</strong> a la nota y el exceso
                             se guardará como <strong>anticipo</strong> a favor del cliente.
                           </span>
                         </div>
@@ -578,7 +579,7 @@ const ModalCobroRapido: React.FC<Props> = ({ alumnoInicial, visible, onCerrar, o
                         }}>
                           <Check size={14} style={{ marginTop: '1px', flexShrink: 0 }} />
                           <span>
-                            <strong>Bs {fmtMonto(infoAnticipo.monto)}</strong> guardados como anticipo exitosamente.
+                            <strong>{simboloMoneda()} {fmtMonto(infoAnticipo.monto)}</strong> guardados como anticipo exitosamente.
                           </span>
                         </div>
                       )}

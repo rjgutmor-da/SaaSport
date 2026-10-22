@@ -4,6 +4,7 @@
  * Muestra el historial de Notas de Pago del proveedor y permite
  * registrar pagos o crear nuevas notas, similar a DetalleAlumnoCxc.
  */
+import { simboloMoneda } from '../../lib/moneda';
 import React, { useEffect, useState, useMemo } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import { esNotaVencida } from '../../lib/vencimientoUtils';
@@ -447,7 +448,7 @@ const DetalleProveedorCxP: React.FC<Props> = ({ entidad, visible, onCerrar, onAc
                 <div className="resumen-card" style={{ border: esSaldoAFavor ? '1px solid rgba(74,222,128,0.2)' : '1px solid rgba(248,113,113,0.2)' }}>
                   <span className="resumen-label">{esSaldoAFavor ? 'SALDO A FAVOR' : 'DEUDA PENDIENTE'}</span>
                   <span className={`resumen-valor ${esSaldoAFavor ? 'color-ingreso' : 'color-deuda'}`}>
-                    Bs {fmtMonto(Math.abs(stats.montoPendiente))}
+                    {simboloMoneda()} {fmtMonto(Math.abs(stats.montoPendiente))}
                   </span>
                   <div className="resumen-footer">
                     {esSaldoAFavor ? <Check size={12} /> : <AlertCircle size={12} />} 
@@ -462,7 +463,7 @@ const DetalleProveedorCxP: React.FC<Props> = ({ entidad, visible, onCerrar, onAc
 
             <div className="resumen-card" style={{ border: '1px solid rgba(74,222,128,0.2)' }}>
               <span className="resumen-label">TOTAL PAGADO</span>
-              <span className="resumen-valor color-ingreso">Bs {fmtMonto(stats.montoPagado)}</span>
+              <span className="resumen-valor color-ingreso">{simboloMoneda()} {fmtMonto(stats.montoPagado)}</span>
               <div className="resumen-footer">
                 <CheckCircle2 size={12} /> Histórico desembolsado
               </div>
@@ -497,7 +498,7 @@ const DetalleProveedorCxP: React.FC<Props> = ({ entidad, visible, onCerrar, onAc
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
                   <span style={{ fontWeight: 800, color: '#10b981', fontSize: '0.85rem' }}>PAGO MÚLTIPLE (SALIDA)</span>
                   <span style={{ fontWeight: 800, color: '#10b981', fontSize: '1.05rem', background: 'rgba(16, 185, 129, 0.1)', padding: '0.35rem 0.75rem', borderRadius: '6px', textAlign: 'center' }}>
-                    Total a Pagar: Bs {fmtMonto(pagoMultiple.obtenerTotalPagado())}
+                    Total a Pagar: {simboloMoneda()} {fmtMonto(pagoMultiple.obtenerTotalPagado())}
                   </span>
                 </div>
                 <select value={pagoCuentaId} onChange={e => setPagoCuentaId(e.target.value)} required className="detalle-cobro-select" style={{ width: '100%' }}>
@@ -525,7 +526,7 @@ const DetalleProveedorCxP: React.FC<Props> = ({ entidad, visible, onCerrar, onAc
                               {nota.descripcion || 'Nota'}{nota.periodo ? ` — ${new Intl.DateTimeFormat('es-BO', { month: 'long', year: 'numeric' }).format(new Date(`${nota.periodo}-01T12:00:00`))}` : ''}
                             </span>
                             <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)' }}>
-                              Saldo: <strong style={{ color: '#38bdf8' }}>Bs {fmtMonto(nota.deuda_restante)}</strong>
+                              Saldo: <strong style={{ color: '#38bdf8' }}>{simboloMoneda()} {fmtMonto(nota.deuda_restante)}</strong>
                             </span>
                           </div>
                         </div>
@@ -625,9 +626,9 @@ const DetalleProveedorCxP: React.FC<Props> = ({ entidad, visible, onCerrar, onAc
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.4rem', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
                       <div>Fecha: <strong>{fmtFecha(nota.fecha_emision || nota.created_at)}</strong></div>
-                      <div style={{ textAlign: 'right' }}>Total: <strong>Bs {fmtMonto(isAnticipo ? 0 : nota.monto_total)}</strong></div>
-                      <div>Abonado: <strong style={{ color: '#4ade80' }}>Bs {fmtMonto(isAnticipo ? nota.monto_pagado : (Number(nota.monto_total) - Number(nota.deuda_restante)))}</strong></div>
-                      <div style={{ textAlign: 'right' }}>Saldo: <strong style={{ color: isAnticipo ? '#a855f7' : (tieneSaldo ? '#38bdf8' : '#4ade80') }}>Bs {fmtMonto(nota.deuda_restante)}</strong></div>
+                      <div style={{ textAlign: 'right' }}>Total: <strong>{simboloMoneda()} {fmtMonto(isAnticipo ? 0 : nota.monto_total)}</strong></div>
+                      <div>Abonado: <strong style={{ color: '#4ade80' }}>{simboloMoneda()} {fmtMonto(isAnticipo ? nota.monto_pagado : (Number(nota.monto_total) - Number(nota.deuda_restante)))}</strong></div>
+                      <div style={{ textAlign: 'right' }}>Saldo: <strong style={{ color: isAnticipo ? '#a855f7' : (tieneSaldo ? '#38bdf8' : '#4ade80') }}>{simboloMoneda()} {fmtMonto(nota.deuda_restante)}</strong></div>
                     </div>
                     <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end', marginTop: '0.25rem', paddingTop: '0.5rem', borderTop: '1px solid var(--border)' }}>
                       <button className="btn-compact-action" style={{ padding: '0.25rem 0.5rem' }} onClick={() => setVerNotaId(nota.id)}><Eye size={12}/> Ver</button>
@@ -662,7 +663,7 @@ const DetalleProveedorCxP: React.FC<Props> = ({ entidad, visible, onCerrar, onAc
                             <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
                               <span style={{ fontWeight: 800, color: '#10b981', fontSize: '0.95rem' }}>PAGO MÚLTIPLE DE DEUDA</span>
                               <span style={{ fontWeight: 800, color: '#10b981', fontSize: '1.1rem', background: 'rgba(16, 185, 129, 0.1)', padding: '0.35rem 0.75rem', borderRadius: '6px' }}>
-                                Total a Pagar: Bs {fmtMonto(pagoMultiple.obtenerTotalPagado())}
+                                Total a Pagar: {simboloMoneda()} {fmtMonto(pagoMultiple.obtenerTotalPagado())}
                               </span>
                             </div>
                             <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
@@ -697,7 +698,7 @@ const DetalleProveedorCxP: React.FC<Props> = ({ entidad, visible, onCerrar, onAc
                                         {nota.descripcion || 'Nota'}{nota.periodo ? ` — ${new Intl.DateTimeFormat('es-BO', { month: 'long', year: 'numeric' }).format(new Date(`${nota.periodo}-01T12:00:00`))}` : ''}
                                       </span>
                                       <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>
-                                        Saldo: <strong style={{ color: '#38bdf8' }}>Bs {fmtMonto(nota.deuda_restante)}</strong>
+                                        Saldo: <strong style={{ color: '#38bdf8' }}>{simboloMoneda()} {fmtMonto(nota.deuda_restante)}</strong>
                                       </span>
                                     </div>
                                   </div>
@@ -771,13 +772,13 @@ const DetalleProveedorCxP: React.FC<Props> = ({ entidad, visible, onCerrar, onAc
                         </span>
                       </td>
                       <td style={{ padding: '0.5rem 0.75rem', border: '1px solid var(--border)', textAlign: 'right', fontWeight: 700 }}>
-                        Bs {fmtMonto(isAnticipo ? 0 : nota.monto_total)}
+                        {simboloMoneda()} {fmtMonto(isAnticipo ? 0 : nota.monto_total)}
                       </td>
                       <td style={{ padding: '0.5rem 0.75rem', border: '1px solid var(--border)', textAlign: 'right', color: '#4ade80', fontWeight: 700 }}>
-                        Bs {fmtMonto(isAnticipo ? nota.monto_pagado : (Number(nota.monto_total) - Number(nota.deuda_restante)))}
+                        {simboloMoneda()} {fmtMonto(isAnticipo ? nota.monto_pagado : (Number(nota.monto_total) - Number(nota.deuda_restante)))}
                       </td>
                       <td style={{ padding: '0.5rem 0.75rem', border: '1px solid var(--border)', textAlign: 'right', fontWeight: 800, color: isAnticipo ? '#a855f7' : (tieneSaldo ? '#38bdf8' : '#4ade80') }}>
-                        Bs {fmtMonto(nota.deuda_restante)}
+                        {simboloMoneda()} {fmtMonto(nota.deuda_restante)}
                       </td>
                       <td style={{ padding: '0.5rem 0.75rem', border: '1px solid var(--border)', fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>
                         {ultimoPago ? fmtFecha(ultimoPago.fecha) : '—'}

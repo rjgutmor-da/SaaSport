@@ -2,6 +2,7 @@
  * ModalEntidadCxP.tsx
  * Modal premium para el registro y edición de Proveedores y Personal (Trabajadores).
  */
+import { simboloMoneda } from '../../lib/moneda';
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import { 
@@ -260,7 +261,7 @@ const ModalEntidadCxP: React.FC<Props> = ({
                   />
                 </div>
                 <div className="form-campo">
-                   <label><CreditCard size={14} /> Salario Base (Bs)</label>
+                   <label><CreditCard size={14} /> Salario Base ({simboloMoneda()})</label>
                    <input 
                      type="number" step="0.01"
                      value={formPers.salario_base || ''} 

@@ -3,6 +3,7 @@
  * Modal para crear una Nota de Pago (CxP).
  * Versión simplificada sin campos contables.
  */
+import { simboloMoneda } from '../../lib/moneda';
 import React, { useEffect, useState, useMemo } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import type { CatalogoItem } from '../../types/cuentas';
@@ -557,7 +558,7 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, esAnticipo = false, o
           detalle: {
             proveedor: beneficiario,
             monto: total,
-            descripcion: esAnticipo ? `Anticipo de Bs ${total}` : `Nota de CxP por Bs ${total} (${descripcionFinal})`
+            descripcion: esAnticipo ? `Anticipo de ${simboloMoneda()} ${total}` : `Nota de CxP por ${simboloMoneda()} ${total} (${descripcionFinal})`
           }
         });
 
@@ -572,7 +573,7 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, esAnticipo = false, o
             detalle: {
               proveedor: beneficiario,
               monto: esAnticipo ? parseFloat(montoAnticipo) : parseFloat(montoPago),
-              descripcion: `Pago de Bs ${esAnticipo ? montoAnticipo : montoPago} para ${beneficiario}.`
+              descripcion: `Pago de ${simboloMoneda()} ${esAnticipo ? montoAnticipo : montoPago} para ${beneficiario}.`
             }
           });
         }
@@ -799,7 +800,7 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, esAnticipo = false, o
                         nuevas[idx] = { ...nuevas[idx], precio_unitario: prec, subtotal: prec * nuevas[idx].cantidad };
                         setLineas(nuevas);
                       }} disabled={guardando} title="Costo Unitario" />
-                      <div style={{ textAlign: 'right', fontWeight: 700, fontSize: '0.9rem' }}>Bs {fmtMonto(linea.subtotal)}</div>
+                      <div style={{ textAlign: 'right', fontWeight: 700, fontSize: '0.9rem' }}>{simboloMoneda()} {fmtMonto(linea.subtotal)}</div>
                       <button type="button" onClick={() => setLineas(lineas.filter((_, i) => i !== idx))} disabled={lineas.length === 1 || esConceptoSueldos(linea.nombre)} style={{ color: '#f87171' }}><Trash2 size={16} /></button>
                     </div>
                     {catalogo.find(c => c.id === linea.catalogo_item_id)?.categoria === 'producto' && linea.catalogo_item_id && (
@@ -874,7 +875,7 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, esAnticipo = false, o
             </div>
 
             <div className="nota-pie-movil" style={{ marginTop: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div style={{ fontSize: '1.5rem', fontWeight: 800 }}>Total: Bs {fmtMonto(total)}</div>
+              <div style={{ fontSize: '1.5rem', fontWeight: 800 }}>Total: {simboloMoneda()} {fmtMonto(total)}</div>
               <div style={{ display: 'flex', gap: '0.75rem' }}>
                 <button type="button" onClick={onCerrar} className="btn-refrescar" style={{ width: 'auto' }}>Cancelar</button>
                 <button type="submit" disabled={guardando} className="btn-guardar-cuenta" style={{ width: 'auto', padding: '0 2rem', background: '#f59e0b', borderColor: '#f59e0b' }}>{guardando ? '...' : 'Confirmar'}</button>

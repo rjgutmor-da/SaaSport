@@ -1,3 +1,4 @@
+import { simboloMoneda } from '../../lib/moneda';
 import React, { useState } from 'react';
 import { X, Check, AlertCircle } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
@@ -36,7 +37,7 @@ const ModalEditarCabeceraCxP: React.FC<Props> = ({ visible, nota, onCerrar, onAc
         for (const p of pagos) {
           const fPago = p.fecha ? p.fecha.split('T')[0] : '';
           if (fPago && fechaEmision > fPago) {
-            setError(`La fecha de emisión no puede ser posterior a la fecha del pago registrado (Bs ${p.monto_aplicado.toLocaleString('es-BO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} el ${fPago}).`);
+            setError(`La fecha de emisión no puede ser posterior a la fecha del pago registrado (${simboloMoneda()} ${p.monto_aplicado.toLocaleString('es-BO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} el ${fPago}).`);
             setGuardando(false);
             return;
           }

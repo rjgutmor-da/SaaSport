@@ -2,6 +2,7 @@
  * FiltroMonto.tsx
  * Dropdown elegante para filtrar por rango o montos exactos de mensualidad.
  */
+import { simboloMoneda } from '../../../../lib/moneda';
 import React, { useState, useRef, useEffect } from 'react';
 import { ChevronDown, DollarSign, X } from 'lucide-react';
 import { fmtMonto } from '../utils/estadisticasUtils';
@@ -45,13 +46,13 @@ const FiltroMonto: React.FC<FiltroMontoProps> = ({
   const obtenerEtiquetaBoton = () => {
     if (montosExactos.length > 0) {
       if (montosExactos.length === 1) {
-        return `Bs ${fmtMonto(montosExactos[0])}`;
+        return `${simboloMoneda()} ${fmtMonto(montosExactos[0])}`;
       }
       return `${montosExactos.length} montos sel.`;
     }
     if (montoRangoDesde || montoRangoHasta) {
-      const min = montoRangoDesde ? `Bs ${montoRangoDesde}` : 'Min';
-      const max = montoRangoHasta ? `Bs ${montoRangoHasta}` : 'Max';
+      const min = montoRangoDesde ? `${simboloMoneda()} ${montoRangoDesde}` : 'Min';
+      const max = montoRangoHasta ? `${simboloMoneda()} ${montoRangoHasta}` : 'Max';
       return `${min} - ${max}`;
     }
     return 'Todos';
@@ -149,7 +150,7 @@ const FiltroMonto: React.FC<FiltroMontoProps> = ({
                   className={`est-monto-chip ${estaSeleccionado ? 'est-monto-chip--activo' : ''}`}
                   onClick={() => toggleMontoExacto(monto)}
                 >
-                  Bs {fmtMonto(monto)}
+                  {simboloMoneda()} {fmtMonto(monto)}
                 </button>
               );
             })}
@@ -162,7 +163,7 @@ const FiltroMonto: React.FC<FiltroMontoProps> = ({
           <div className="est-monto-panel-divider" />
 
           <div className="est-monto-rango-seccion">
-            <span className="est-monto-rango-titulo">Rango personalizado (Bs)</span>
+            <span className="est-monto-rango-titulo">Rango personalizado ({simboloMoneda()})</span>
             <div className="est-monto-rango-inputs">
               <input
                 type="number"

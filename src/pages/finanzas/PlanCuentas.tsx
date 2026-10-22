@@ -3,6 +3,7 @@
  * Pantalla principal del Plan de Cuentas contable.
  * Rediseño v3: Estilo Excel escalonado con tarjetas de resumen.
  */
+import { simboloMoneda } from '../../lib/moneda';
 import React, { useEffect, useState, useMemo } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import type { CuentaContable, NodoCuenta, TipoCuenta } from '../../types/finanzas';
@@ -457,7 +458,7 @@ const PlanCuentas: React.FC = () => {
                 <span style={{ color: colores.texto }}>{ICONOS_TIPO[tipo]}</span>
                 <span className="cxc-mini-label" style={{ fontSize: '0.75rem' }}>{ETIQUETAS_TIPO[tipo]}</span>
               </div>
-              <span className="cxc-mini-num" style={{ fontSize: '1.1rem' }}>Bs {fmtMonto(total)}</span>
+              <span className="cxc-mini-num" style={{ fontSize: '1.1rem' }}>{simboloMoneda()} {fmtMonto(total)}</span>
               <span style={{ fontSize: '0.65rem', color: 'var(--text-tertiary)' }}>{cantidad} cuentas</span>
             </div>
           );
@@ -481,7 +482,7 @@ const PlanCuentas: React.FC = () => {
               <th className="excel-th">Nombre de la Cuenta</th>
               <th className="excel-th excel-cell-tipo">Tipo</th>
               <th className="excel-th excel-cell-trans">Transaccional</th>
-              <th className="excel-th" style={{ textAlign: 'right' }}>Saldo (Bs)</th>
+              <th className="excel-th" style={{ textAlign: 'right' }}>Saldo ({simboloMoneda()})</th>
               <th className="excel-th" style={{ textAlign: 'center', width: '100px' }}>Acciones</th>
             </tr>
           </thead>

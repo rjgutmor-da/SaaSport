@@ -1,3 +1,4 @@
+import { simboloMoneda } from '../../lib/moneda';
 import React, { useEffect, useState, useMemo } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import { 
@@ -511,7 +512,7 @@ const NotasAutomaticas: React.FC = () => {
                       <td style={{ padding: '1rem', textAlign: 'right' }}>
                         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.25rem' }}>
                           <span style={{ fontWeight: 700, fontSize: '0.95rem', color: 'var(--text-primary)' }}>
-                            Bs {formatMonto(nota.monto_total)}
+                            {simboloMoneda()} {formatMonto(nota.monto_total)}
                           </span>
                           <div style={{ display: 'flex', gap: '0.25rem' }}>
                             <button

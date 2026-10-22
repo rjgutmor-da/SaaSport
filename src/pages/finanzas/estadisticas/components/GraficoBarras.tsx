@@ -1,3 +1,4 @@
+import { simboloMoneda } from '../../../../lib/moneda';
 import React from 'react';
 import { fmtMonto } from '../utils/estadisticasUtils';
 import type { ItemResumen } from '../hooks/useResumenFinanciero';
@@ -232,7 +233,7 @@ const GraficoBarras: React.FC<Props> = ({ items, total, titulo, isIngreso }) => 
             Total {isIngreso ? 'Ingresado' : 'Egresado'}
           </span>
           <span style={{ fontSize: '1.8rem', fontWeight: 800, color: isIngreso ? '#10b981' : '#ef4444', lineHeight: 1 }}>
-            Bs {fmtMonto(total)}
+            {simboloMoneda()} {fmtMonto(total)}
           </span>
         </div>
 
@@ -277,7 +278,7 @@ const GraficoBarras: React.FC<Props> = ({ items, total, titulo, isIngreso }) => 
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
                     <span style={{ color: 'var(--text-primary)', fontWeight: 800, fontSize: '0.9rem' }}>
-                      Bs {fmtMonto(item.monto)}
+                      {simboloMoneda()} {fmtMonto(item.monto)}
                     </span>
                     <span style={{ color: 'var(--text-secondary)', fontSize: '0.7rem', fontWeight: 500 }}>
                       {item.porcentaje.toFixed(1)}%

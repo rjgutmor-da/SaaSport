@@ -20,6 +20,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../../lib/supabaseClient';
 import LogoPorDefecto from '../../assets/LogoPorDefecto.png';
 import { useAuthSaaSport } from '../../lib/authHelper';
+import { OPCIONES_MONEDA } from '../../lib/moneda';
 import {
   configuracionFacturacionKey,
   configuracionFacturacionManual,
@@ -34,6 +35,7 @@ interface EscuelaInfo {
   activa: boolean;
   logo_url?: string | null;
   slogan?: string | null;
+  simbolo_moneda?: string | null;
 }
 
 interface SucursalStats {
@@ -70,6 +72,7 @@ const PanelEscuela: React.FC = () => {
   // Estados para el Modal de Edición
   const [isEditing, setIsEditing] = useState(false);
   const [editNombre, setEditNombre] = useState('');
+  const [editSimbolo, setEditSimbolo] = useState<string>('Bs');
 
   const [editLogoUrl, setEditLogoUrl] = useState<string | null>(null);
   const [logoFile, setLogoFile] = useState<File | null>(null);
@@ -119,7 +122,7 @@ const PanelEscuela: React.FC = () => {
         { count: entrenadoresCount },
         { data: sucursalesData },
       ] = await Promise.all([
-        supabase.from('escuelas').select('id, nombre, zona_horaria, activa, logo_url, slogan').eq('id', escuela_id).single(),
+        supabase.from('escuelas').select('id, nombre, zona_horaria, activa, logo_url, slogan, simbolo_moneda').eq('id', escuela_id).single(),
         supabase.from('alumnos').select('id, sucursal_id')
           .eq('escuela_id', escuela_id).eq('archivado', false),
         supabase.from('usuarios').select('id', { count: 'exact', head: true })
@@ -220,6 +223,7 @@ const PanelEscuela: React.FC = () => {
         .update({
           nombre: editNombre.trim(),
           logo_url: finalLogoUrl,
+          simbolo_moneda: editSimbolo,
           updated_at: new Date().toISOString()
         })
         .eq('id', escuela.id);
@@ -315,14 +319,20 @@ const PanelEscuela: React.FC = () => {
               <h1 className="pe-hero-nombre">{escuela.nombre}</h1>
               <p className="pe-hero-label">ID de Escuela</p>
               <p className="pe-hero-id">{escuela.id}</p>
-              {escuela.zona_horaria && (
-                <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', marginTop: '0.25rem' }}>
-                  🕐 {escuela.zona_horaria}
+              <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', marginTop: '0.25rem' }}>
+                {escuela.zona_horaria && (
+                  <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', margin: 0 }}>
+                    🕐 {escuela.zona_horaria}
+                  </p>
+                )}
+                <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', margin: 0 }}>
+                  🪙 Moneda: <strong>{escuela.simbolo_moneda || 'Bs'}</strong>
                 </p>
-              )}
+              </div>
               <button 
                 onClick={() => {
                   setEditNombre(escuela.nombre);
+                  setEditSimbolo(escuela.simbolo_moneda || 'Bs');
                   setEditLogoUrl(escuela.logo_url || null);
                   setLogoFile(null);
                   setLogoPreview(null);
@@ -548,6 +558,32 @@ const PanelEscuela: React.FC = () => {
             </div>
             
             <form onSubmit={handleGuardar} className="cxc-modal-form">
+              <div className="form-campo">
+                <label>Moneda de la Escuela</label>
+                <select
+                  value={editSimbolo}
+                  onChange={(e) => setEditSimbolo(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '0.6rem 0.75rem',
+                    borderRadius: '6px',
+                    border: '1px solid var(--border)',
+                    background: '#141414',
+                    color: '#fff',
+                    fontSize: '0.9rem'
+                  }}
+                >
+                  {OPCIONES_MONEDA.map(opt => (
+                    <option key={opt.simbolo} value={opt.simbolo}>
+                      {opt.etiqueta}
+                    </option>
+                  ))}
+                </select>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', marginTop: '0.25rem', display: 'block' }}>
+                  Define el símbolo mostrado en deudas, cobros, gastos y reportes financieros.
+                </span>
+              </div>
+
               <div className="form-campo">
                 <label>Nombre de la Escuela</label>
                 <input 

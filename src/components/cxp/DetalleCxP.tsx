@@ -4,6 +4,7 @@
  * Versión simplificada — saldos simples, sin contabilidad de doble partida.
  * Distribución copiada de CxC (Total / Pagado / Saldo Pendiente).
  */
+import { simboloMoneda } from '../../lib/moneda';
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import { useAuthSaaSport } from '../../lib/authHelper';
@@ -198,7 +199,7 @@ const DetalleCxP: React.FC<Props> = ({ nota, visible, onCerrar, onActualizar }) 
     if (!usarAnticipo && !cuentaPagoId) { setErrorPago('Selecciona la caja/banco de pago.'); return; }
     const errorFecha = validarFechaMovimientoFinanciero(fechaPago);
     if (errorFecha) { setErrorPago(errorFecha); return; }
-    if (mp > notaActual.deuda_restante) { setErrorPago(`El monto supera la deuda restante de Bs ${fmtMonto(notaActual.deuda_restante)}.`); return; }
+    if (mp > notaActual.deuda_restante) { setErrorPago(`El monto supera la deuda restante de ${simboloMoneda()} ${fmtMonto(notaActual.deuda_restante)}.`); return; }
 
     const fNotaSoloFecha = notaActual.fecha_emision ? notaActual.fecha_emision.split('T')[0] : '';
     if (fNotaSoloFecha && fechaPago < fNotaSoloFecha) {
@@ -250,7 +251,7 @@ const DetalleCxP: React.FC<Props> = ({ nota, visible, onCerrar, onActualizar }) 
         if (errRpc) throw errRpc;
       }
 
-      setExitoPago(`✅ Aplicación de Bs ${fmtMonto(mp)} registrada correctamente.`);
+      setExitoPago(`✅ Aplicación de ${simboloMoneda()} ${fmtMonto(mp)} registrada correctamente.`);
       setRegistrandoPago(false);
 
       setTimeout(() => {
@@ -369,11 +370,11 @@ const DetalleCxP: React.FC<Props> = ({ nota, visible, onCerrar, onActualizar }) 
                 <div style={{ display: 'flex', gap: '1.5rem' }}>
                   <div style={{ display: 'flex', flexDirection: 'column' }}>
                     <span style={{ fontSize: '0.7rem', color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total</span>
-                    <span style={{ fontSize: '1rem', fontWeight: 700 }}>Bs {fmtMonto(notaActual.monto_total)}</span>
+                    <span style={{ fontSize: '1rem', fontWeight: 700 }}>{simboloMoneda()} {fmtMonto(notaActual.monto_total)}</span>
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column' }}>
                     <span style={{ fontSize: '0.7rem', color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Pagado</span>
-                    <span style={{ fontSize: '1rem', fontWeight: 700, color: '#4ade80' }}>Bs {fmtMonto(notaActual.monto_pagado)}</span>
+                    <span style={{ fontSize: '1rem', fontWeight: 700, color: '#4ade80' }}>{simboloMoneda()} {fmtMonto(notaActual.monto_pagado)}</span>
                   </div>
                 </div>
                 <div style={{ 
@@ -385,7 +386,7 @@ const DetalleCxP: React.FC<Props> = ({ nota, visible, onCerrar, onActualizar }) 
                 }}>
                   <span style={{ fontSize: '0.75rem', color: notaActual.deuda_restante > 0 ? '#f87171' : '#4ade80', display: 'block', fontWeight: 600 }}>SALDO PENDIENTE</span>
                   <span style={{ fontSize: '1.4rem', fontWeight: 900, color: notaActual.deuda_restante > 0 ? '#f87171' : '#4ade80' }}>
-                    Bs {fmtMonto(notaActual.deuda_restante)}
+                    {simboloMoneda()} {fmtMonto(notaActual.deuda_restante)}
                   </span>
                 </div>
               </div>
@@ -418,12 +419,12 @@ const DetalleCxP: React.FC<Props> = ({ nota, visible, onCerrar, onActualizar }) 
                         <div>
                           <span style={{ fontWeight: 700, fontSize: '1.05rem', color: 'var(--text-primary)' }}>{item.nombre}</span>
                           <span style={{ color: 'var(--text-tertiary)', fontSize: '0.85rem', marginLeft: '0.6rem' }}>
-                            × {item.cantidad} @ Bs {fmtMonto(item.precio_unitario)}
+                            × {item.cantidad} @ {simboloMoneda()} {fmtMonto(item.precio_unitario)}
                           </span>
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
                           <span style={{ fontWeight: 800, color: 'var(--text-primary)', fontSize: '1.1rem' }}>
-                            Bs {fmtMonto(item.subtotal)}
+                            {simboloMoneda()} {fmtMonto(item.subtotal)}
                           </span>
                           {!notaActual.anulada && !pagosRealizados.some(p => p.conciliado) && (
                             <button 
@@ -454,7 +455,7 @@ const DetalleCxP: React.FC<Props> = ({ nota, visible, onCerrar, onActualizar }) 
                     fontSize: '1rem'
                   }}>
                     <span>TOTAL</span>
-                    <span>Bs {fmtMonto(notaActual.monto_total)}</span>
+                    <span>{simboloMoneda()} {fmtMonto(notaActual.monto_total)}</span>
                   </div>
                 </div>
               </div>
@@ -517,7 +518,7 @@ const DetalleCxP: React.FC<Props> = ({ nota, visible, onCerrar, onActualizar }) 
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
                         <span style={{ color: '#4ade80', fontWeight: 700, fontSize: '0.9rem' }}>
-                          Bs {fmtMonto(Number(p.monto_aplicado))}
+                          {simboloMoneda()} {fmtMonto(Number(p.monto_aplicado))}
                         </span>
                         <div style={{ display: 'flex', gap: '0.3rem' }}>
                           {!p.conciliado ? (
@@ -576,7 +577,7 @@ const DetalleCxP: React.FC<Props> = ({ nota, visible, onCerrar, onActualizar }) 
                     <div style={{ marginBottom: '0.75rem' }}>
                       <select value={anticipoId} onChange={e => { setAnticipoId(e.target.value); const ant = anticiposDisponibles.find((a: any) => a.id === e.target.value); if (ant) setMontoPago(String(Math.min(notaActual.deuda_restante, Number(ant.deuda_restante)))); }} className="nota-pago-select" style={{ width: '100%', borderColor: '#a855f7' }} required>
                         <option value="">— Seleccionar Anticipo —</option>
-                        {anticiposDisponibles.map((a: any) => <option key={a.id} value={a.id}>{formatFecha(a.fecha_emision)} — Bs {fmtMonto(a.deuda_restante)}</option>)}
+                        {anticiposDisponibles.map((a: any) => <option key={a.id} value={a.id}>{formatFecha(a.fecha_emision)} — ${simboloMoneda()} ${fmtMonto(a.deuda_restante)}</option>)}
                       </select>
                     </div>
                   )}

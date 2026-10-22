@@ -1,3 +1,4 @@
+import { simboloMoneda } from '../../lib/moneda';
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import { X, ArrowDownRight, ArrowUpRight, DollarSign, Calendar, Hash, AlignLeft, Building2, Tag, AlertCircle, Save, RefreshCw, Clock } from 'lucide-react';
@@ -256,7 +257,7 @@ const ModalMovimientoDirecto: React.FC<Props> = ({ visible, tipo, cajas, onCerra
             </p>
 
             <div className="form-campo">
-              <label><DollarSign size={14} /> Monto (Bs) *</label>
+              <label><DollarSign size={14} /> Monto ({simboloMoneda()}) *</label>
               <input 
                 type="number" 
                 step="0.01" 

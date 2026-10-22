@@ -8,6 +8,7 @@
  * 3. Barra de búsqueda
  * 4. Tabla tipo hoja de cálculo con acciones por alumno
  */
+import { simboloMoneda } from '../../lib/moneda';
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import type { AlumnoDeuda } from '../../types/cxc';
@@ -258,7 +259,7 @@ const CuentasCobrar: React.FC = () => {
                 }}>
                   <span style={{ fontSize: '0.65rem', fontWeight: 800, color: badgeColor, letterSpacing: '0.05em' }}>{badgeText}</span>
                   <span style={{ fontSize: '0.95rem', fontWeight: 800, color: badgeColor }}>
-                    Bs {fmtMonto(Math.abs(totalDeudaVal))}
+                    {simboloMoneda()} {fmtMonto(Math.abs(totalDeudaVal))}
                   </span>
                 </div>
               );
@@ -289,7 +290,7 @@ const CuentasCobrar: React.FC = () => {
                         {alumno.nombres} {alumno.apellidos}
                       </td>
                       <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontWeight: 700, color: isDeudor ? '#38bdf8' : (isAnticipo ? '#a855f7' : '#10b981') }}>
-                        Bs {fmtMonto(saldoVal)}
+                        {simboloMoneda()} {fmtMonto(saldoVal)}
                       </td>
                     </tr>
                   );
@@ -494,7 +495,7 @@ const CuentasCobrar: React.FC = () => {
                 <div className="cxc-stat-pill" style={{ borderColor: stats.totalPendiente < 0 ? '#a855f7' : undefined }}>
                   <span className="cxc-pill-label">{stats.totalPendiente < 0 ? 'Saldo a Favor' : 'Pendiente'}</span>
                   <span className="cxc-pill-value" style={{ color: stats.totalPendiente < 0 ? '#a855f7' : undefined }}>
-                    {stats.totalPendiente < 0 ? '- ' : ''}Bs {fmtMonto(Math.abs(stats.totalPendiente))}
+                    {stats.totalPendiente < 0 ? '- ' : ''}{simboloMoneda()} {fmtMonto(Math.abs(stats.totalPendiente))}
                   </span>
                 </div>
                 <span className="cxc-divider-mini" />
@@ -571,7 +572,7 @@ const CuentasCobrar: React.FC = () => {
                     <td className="cxc-td cxc-td-right">
                       {Number(alumno.saldo_pendiente) !== 0
                         ? <span className="cxc-monto-deuda" style={{ color: Number(alumno.saldo_pendiente) < 0 ? '#a855f7' : undefined }}>
-                            {Number(alumno.saldo_pendiente) < 0 ? '- ' : ''}Bs {fmtMonto(Math.abs(Number(alumno.saldo_pendiente)))}
+                            {Number(alumno.saldo_pendiente) < 0 ? '- ' : ''}{simboloMoneda()} {fmtMonto(Math.abs(Number(alumno.saldo_pendiente)))}
                           </span>
                         : <span className="cxc-al-dia">✓ Al día</span>
                       }

@@ -1,3 +1,4 @@
+import { simboloMoneda } from '../../lib/moneda';
 import React from 'react';
 import { X, Calendar, Hash, User, CreditCard, ArrowDownRight, ArrowUpRight } from 'lucide-react';
 import { formatFecha } from '../../lib/dateUtils';
@@ -83,7 +84,7 @@ const ModalDetalleMovimiento: React.FC<ModalDetalleMovimientoProps> = ({ visible
                   {movimiento.movimientos_agrupados.map((detalle, indice) => (
                     <div key={detalle.id} style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', padding: '0.7rem 1rem', borderBottom: indice < movimiento.movimientos_agrupados!.length - 1 ? '1px solid var(--border)' : 'none' }}>
                       <span>{detalle.descripcion}{detalle.ciclo_inicio ? ` · ${formatFecha(detalle.ciclo_inicio)}` : ''}</span>
-                      <strong>Bs {fmtMonto(detalle.monto)}</strong>
+                      <strong>{simboloMoneda()} {fmtMonto(detalle.monto)}</strong>
                     </div>
                   ))}
                 </div>
@@ -103,7 +104,7 @@ const ModalDetalleMovimiento: React.FC<ModalDetalleMovimientoProps> = ({ visible
           }}>
             <span style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-secondary)' }}>Monto Total Transaccionado</span>
             <div style={{ fontSize: '2.5rem', fontWeight: 800, color: esIngreso ? '#10b981' : '#ef4444' }}>
-              Bs {fmtMonto(montoValor)}
+              {simboloMoneda()} {fmtMonto(montoValor)}
             </div>
           </div>
 

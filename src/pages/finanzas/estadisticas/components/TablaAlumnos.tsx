@@ -5,6 +5,7 @@
  * - Lista seleccionable (toda la tabla o filas individuales para copiar a Excel)
  * - Columnas: Alumno, Entrenador, Concepto, Sub, Monto, Saldo Pendiente, Fecha de Emision
  */
+import { simboloMoneda } from '../../../../lib/moneda';
 import React, { useState, useMemo } from 'react';
 import { Search, Copy, Check, RefreshCw } from 'lucide-react';
 import type { AlumnoPorItem } from '../hooks/useAlumnosPorItem';
@@ -97,7 +98,7 @@ const TablaAlumnos: React.FC<Props> = ({
             {alumnosFiltrados.length} alumno{alumnosFiltrados.length !== 1 ? 's' : ''}
           </span>
           <span className="est-tabla-total">
-            Total: <strong>Bs {fmtMonto(totalMonto)}</strong>
+            Total: <strong>{simboloMoneda()} {fmtMonto(totalMonto)}</strong>
           </span>
           <button
             className={`est-tabla-copiar ${copiado ? 'est-tabla-copiar--ok' : ''}`}

@@ -4,5 +4,5 @@ export const esObservacionAnticipoAutomatica = (observacion: string | null | und
 
   return observacion === 'Cobro Anticipado - Saldo a Favor'
     || observacion === 'SIA-'
-    || observacion.startsWith('Generado automáticamente por pago de Bs ');
+    || observacion.startsWith('Generado automáticamente por pago de ');
 };

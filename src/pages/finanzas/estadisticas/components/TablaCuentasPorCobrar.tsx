@@ -2,6 +2,7 @@
  * TablaCuentasPorCobrar.tsx
  * Tabla de deudas pendientes por concepto.
  */
+import { simboloMoneda } from '../../../../lib/moneda';
 import React, { useState, useMemo } from 'react';
 import { Search, Copy, Check, RefreshCw } from 'lucide-react';
 import type { CuentaPorCobrarRow } from '../hooks/useCuentasPorCobrar';
@@ -82,7 +83,7 @@ const TablaCuentasPorCobrar: React.FC<Props> = ({ datos, cargando, error }) => {
             {datosFiltrados.length} registro{datosFiltrados.length !== 1 ? 's' : ''}
           </span>
           <span className="est-tabla-total">
-            Total Adeudado: <strong>Bs {fmtMonto(totalAdeudado)}</strong>
+            Total Adeudado: <strong>{simboloMoneda()} {fmtMonto(totalAdeudado)}</strong>
           </span>
           <button
             className={`est-tabla-copiar ${copiado ? 'est-tabla-copiar--ok' : ''}`}

@@ -6,6 +6,7 @@
  * Requisito: no depende de recharts ni chart.js — es SVG vanilla para máxima
  * compatibilidad y rendimiento en la app.
  */
+import { simboloMoneda } from '../../../../lib/moneda';
 import React, { useState } from 'react';
 import { COLORES_TORTA, fmtMonto } from '../utils/estadisticasUtils';
 import type { ItemResumen } from '../hooks/useResumenFinanciero';
@@ -110,7 +111,7 @@ const TortaIngresos: React.FC<Props> = ({ items, total, titulo, colorBase }) => 
             {titulo.toUpperCase()}
           </text>
           <text x={CX} y={CY + 10} textAnchor="middle" fill="var(--text-primary)" fontSize="13" fontWeight="700" fontFamily="inherit">
-            Bs {fmtMonto(total)}
+            {simboloMoneda()} {fmtMonto(total)}
           </text>
 
           {/* Tooltip (segmento en hover) */}
@@ -130,7 +131,7 @@ const TortaIngresos: React.FC<Props> = ({ items, total, titulo, colorBase }) => 
                 {segmentos[hover].nombre}
               </text>
               <text x={CX} y={38} textAnchor="middle" fill="var(--text-primary)" fontSize="10.5" fontWeight="600" fontFamily="inherit">
-                {segmentos[hover].porcentaje.toFixed(1)}% — Bs {fmtMonto(segmentos[hover].monto)}
+                {segmentos[hover].porcentaje.toFixed(1)}% — ${simboloMoneda()} ${fmtMonto(segmentos[hover].monto)}
               </text>
             </g>
           )}
@@ -155,7 +156,7 @@ const TortaIngresos: React.FC<Props> = ({ items, total, titulo, colorBase }) => 
               />
             </span>
             <span className="est-leyenda-pct">{seg.porcentaje.toFixed(1)}%</span>
-            <span className="est-leyenda-monto">Bs {fmtMonto(seg.monto)}</span>
+            <span className="est-leyenda-monto">{simboloMoneda()} {fmtMonto(seg.monto)}</span>
           </div>
         ))}
       </div>

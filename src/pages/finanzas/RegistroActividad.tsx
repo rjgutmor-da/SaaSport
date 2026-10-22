@@ -3,6 +3,7 @@
  * Pantalla de registro de actividad (Auditoría) con diseño de reporte premium.
  * Basado en el diseño solicitado por el usuario.
  */
+import { simboloMoneda } from '../../lib/moneda';
 import React, { useEffect, useState, useMemo } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import { 
@@ -232,7 +233,7 @@ const RegistroActividad: React.FC = () => {
                       <td style={{ padding: '0.6rem 0.75rem', verticalAlign: 'middle', color: 'var(--text-secondary)' }}>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
                           <div style={{ fontWeight: '500', color: 'var(--text-primary)', fontSize: '0.85rem' }}>
-                            {reg.detalle?.descripcion || (reg.accion === 'cobro' ? `Cobro de Bs ${reg.detalle?.monto || 0} (${reg.detalle?.metodo_pago || 'efectivo'})` : reg.accion)}
+                            {reg.detalle?.descripcion || (reg.accion === 'cobro' ? `Cobro de ${simboloMoneda()} ${reg.detalle?.monto || 0} (${reg.detalle?.metodo_pago || 'efectivo'})` : reg.accion)}
                           </div>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                             <span style={{ 

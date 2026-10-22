@@ -1,3 +1,4 @@
+import { simboloMoneda } from '../../../lib/moneda';
 import React, { useEffect, useState, useMemo } from 'react';
 import { supabase } from '../../../lib/supabaseClient';
 import { 
@@ -295,7 +296,7 @@ const HistorialFacturacionAutomatica: React.FC = () => {
                             {d.ciclo_inicio ? `${formatFecha(d.ciclo_inicio)} al ${formatFecha(d.ciclo_fin)}` : 'Ciclo no especificado'}
                           </td>
                           <td style={{ padding: '0.75rem', textAlign: 'right', fontWeight: 600, color: 'var(--text-primary)' }}>
-                            Bs. {d.monto_total.toLocaleString('es-BO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            {simboloMoneda()} {d.monto_total.toLocaleString('es-BO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                           </td>
                         </tr>
                       ))}

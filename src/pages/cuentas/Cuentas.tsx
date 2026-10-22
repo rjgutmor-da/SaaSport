@@ -3,6 +3,7 @@
  * Módulo de Cuentas (ex-Inventarios): gestión de catálogo de ítems (productos, servicios, gastos, otros).
  * Permite definir si un ítem es de Ingreso, Egreso o Ambos.
  */
+import { simboloMoneda } from '../../lib/moneda';
 import React, { useState, useMemo, useEffect } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import {
@@ -716,8 +717,8 @@ const Cuentas: React.FC = () => {
                 <th className="cxc-th" style={{ width: '30%' }}>Nombre del Ítem</th>
                 <th className="cxc-th" style={{ width: '20%' }}>Categoría</th>
                 <th className="cxc-th" style={{ width: '20%' }}>Movimiento</th>
-                <th className="cxc-th cxc-th-center" style={{ width: '15%' }}>Precio (Bs)</th>
-                <th className="cxc-th cxc-th-center" style={{ width: '15%' }}>Costo (Bs)</th>
+                <th className="cxc-th cxc-th-center" style={{ width: '15%' }}>Precio ({simboloMoneda()})</th>
+                <th className="cxc-th cxc-th-center" style={{ width: '15%' }}>Costo ({simboloMoneda()})</th>
                 <th className="cxc-th cxc-th-center" style={{ width: '120px' }}>Acción</th>
               </tr>
             </thead>
@@ -1064,8 +1065,8 @@ const Cuentas: React.FC = () => {
                     <th className="cxc-th">Nombre de Ítem</th>
                     <th className="cxc-th">Categoría</th>
                     <th className="cxc-th">Movimiento</th>
-                    <th className="cxc-th cxc-th-center">Precio (Bs)</th>
-                    <th className="cxc-th cxc-th-center">Costo (Bs)</th>
+                    <th className="cxc-th cxc-th-center">Precio ({simboloMoneda()})</th>
+                    <th className="cxc-th cxc-th-center">Costo ({simboloMoneda()})</th>
                     <th className="cxc-th cxc-th-center" title={esSuperAdmin ? 'Suma de todas las sucursales de la escuela' : 'Saldo de tu sucursal autorizada'}>Inventario {esSuperAdmin ? 'consolidado' : 'de sucursal'}</th>
                   </tr>
                 </thead>

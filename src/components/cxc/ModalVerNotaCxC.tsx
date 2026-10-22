@@ -4,6 +4,7 @@
  * Incluye: datos generales, ítems con detalle (meses, torneos), observaciones,
  * historial de cobros, barra de progreso y datos de auditoría.
  */
+import { simboloMoneda } from '../../lib/moneda';
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import { useAuthSaaSport } from '../../lib/authHelper';
@@ -273,7 +274,7 @@ const ModalVerNotaCxC: React.FC<Props> = ({ visible, cxcId, onCerrar, onEditar, 
                   }}>
                     <span style={{ fontSize: '0.65rem', color: saldoPendiente > 0 ? '#f87171' : '#4ade80', display: 'block', fontWeight: 600 }}>SALDO PENDIENTE</span>
                     <span style={{ fontSize: '1rem', fontWeight: 700, color: saldoPendiente > 0 ? '#f87171' : '#4ade80' }}>
-                      Bs {fmtMonto(saldoPendiente)}
+                      {simboloMoneda()} {fmtMonto(saldoPendiente)}
                     </span>
                   </div>
                 </div>
@@ -314,7 +315,7 @@ const ModalVerNotaCxC: React.FC<Props> = ({ visible, cxcId, onCerrar, onEditar, 
                           <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.4rem', width: '100%' }}>
                             <span style={{ fontWeight: 700, fontSize: '1.05rem', color: 'var(--text-primary)' }}>{item.nombre}</span>
                             <span style={{ color: 'var(--text-tertiary)', fontSize: '0.85rem', whiteSpace: 'nowrap' }}>
-                              × {item.cantidad} @ Bs {fmtMonto(item.precio_unitario)}
+                              × {item.cantidad} @ {simboloMoneda()} {fmtMonto(item.precio_unitario)}
                             </span>
                           </div>
                           {/* Para ciclos parciales se muestra el rango real en lugar del mes genérico. */}
@@ -378,7 +379,7 @@ const ModalVerNotaCxC: React.FC<Props> = ({ visible, cxcId, onCerrar, onEditar, 
                         </div>
                         {/* Subtotal: alineado a la derecha, no se encoge */}
                         <span style={{ fontWeight: 800, color: 'var(--text-primary)', fontSize: '1.1rem', whiteSpace: 'nowrap', flexShrink: 0 }}>
-                          Bs {fmtMonto(item.subtotal)}
+                          {simboloMoneda()} {fmtMonto(item.subtotal)}
                         </span>
                       </div>
                     </div>
@@ -393,7 +394,7 @@ const ModalVerNotaCxC: React.FC<Props> = ({ visible, cxcId, onCerrar, onEditar, 
                     fontSize: '1rem'
                   }}>
                     <span>TOTAL</span>
-                    <span>Bs {fmtMonto(montoTotal)}</span>
+                    <span>{simboloMoneda()} {fmtMonto(montoTotal)}</span>
                   </div>
                 </div>
               )}
@@ -489,7 +490,7 @@ const ModalVerNotaCxC: React.FC<Props> = ({ visible, cxcId, onCerrar, onEditar, 
                             fontWeight: 700,
                             fontSize: '0.9rem'
                           }}>
-                            Bs {fmtMonto(Number(cobro.monto_aplicado))}
+                            {simboloMoneda()} {fmtMonto(Number(cobro.monto_aplicado))}
                           </span>
 
                           {!soloLectura && !nota.anulada && (puedeEditar || puedeEliminar) && (

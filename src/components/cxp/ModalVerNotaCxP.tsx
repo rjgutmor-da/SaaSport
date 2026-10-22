@@ -4,6 +4,7 @@
  * Incluye: datos generales, ítems con detalle, observaciones,
  * historial de pagos, barra de progreso y datos de auditoría.
  */
+import { simboloMoneda } from '../../lib/moneda';
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import { useAuthSaaSport } from '../../lib/authHelper';
@@ -291,11 +292,11 @@ const ModalVerNotaCxP: React.FC<Props> = ({ visible, cxpId, onCerrar, onEditar, 
                 <div style={{ display: 'flex', gap: '1.5rem' }}>
                   <div style={{ display: 'flex', flexDirection: 'column' }}>
                     <span style={{ fontSize: '0.7rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total</span>
-                    <span style={{ fontSize: '1rem', fontWeight: 700 }}>Bs {fmtMonto(montoTotal)}</span>
+                    <span style={{ fontSize: '1rem', fontWeight: 700 }}>{simboloMoneda()} {fmtMonto(montoTotal)}</span>
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column' }}>
                     <span style={{ fontSize: '0.7rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Pagado</span>
-                    <span style={{ fontSize: '1rem', fontWeight: 700, color: '#4ade80' }}>Bs {fmtMonto(montoPagado)}</span>
+                    <span style={{ fontSize: '1rem', fontWeight: 700, color: '#4ade80' }}>{simboloMoneda()} {fmtMonto(montoPagado)}</span>
                   </div>
                 </div>
                 <div style={{ 
@@ -307,7 +308,7 @@ const ModalVerNotaCxP: React.FC<Props> = ({ visible, cxpId, onCerrar, onEditar, 
                 }}>
                   <span style={{ fontSize: '0.75rem', color: deudaRestante > 0 ? '#f87171' : '#4ade80', display: 'block', fontWeight: 600 }}>SALDO PENDIENTE</span>
                   <span style={{ fontSize: '1.4rem', fontWeight: 900, color: deudaRestante > 0 ? '#f87171' : '#4ade80' }}>
-                    Bs {fmtMonto(deudaRestante)}
+                    {simboloMoneda()} {fmtMonto(deudaRestante)}
                   </span>
                 </div>
               </div>
@@ -342,11 +343,11 @@ const ModalVerNotaCxP: React.FC<Props> = ({ visible, cxpId, onCerrar, onEditar, 
                         <div>
                           <span style={{ fontWeight: 600, fontSize: '0.9rem' }}>{item.nombre}</span>
                           <span style={{ color: '#64748b', fontSize: '0.8rem', marginLeft: '0.5rem' }}>
-                            × {item.cantidad} @ Bs {fmtMonto(item.precio_unitario)}
+                            × {item.cantidad} @ {simboloMoneda()} {fmtMonto(item.precio_unitario)}
                           </span>
                         </div>
                         <span style={{ fontWeight: 700, color: '#e2e8f0', fontSize: '0.9rem' }}>
-                          Bs {fmtMonto(item.subtotal)}
+                          {simboloMoneda()} {fmtMonto(item.subtotal)}
                         </span>
                       </div>
                       {item.descripcion && (
@@ -366,7 +367,7 @@ const ModalVerNotaCxP: React.FC<Props> = ({ visible, cxpId, onCerrar, onEditar, 
                     fontSize: '1rem'
                   }}>
                     <span>TOTAL</span>
-                    <span>Bs {fmtMonto(montoTotal)}</span>
+                    <span>{simboloMoneda()} {fmtMonto(montoTotal)}</span>
                   </div>
                 </div>
               )}
@@ -452,7 +453,7 @@ const ModalVerNotaCxP: React.FC<Props> = ({ visible, cxpId, onCerrar, onEditar, 
                             fontWeight: 700,
                             fontSize: '0.9rem'
                           }}>
-                            Bs {fmtMonto(Number(pago.monto_aplicado))}
+                            {simboloMoneda()} {fmtMonto(Number(pago.monto_aplicado))}
                           </span>
                           
                           {!nota.anulada && (

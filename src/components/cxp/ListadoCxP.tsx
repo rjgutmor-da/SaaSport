@@ -4,6 +4,7 @@
  * proveedores, personal (trabajadores) o gastos corrientes.
  * Permite ver el estado de cada nota y registrar pagos.
  */
+import { simboloMoneda } from '../../lib/moneda';
 import React, { useEffect, useState, useMemo } from 'react';
 import { esNotaVencida } from '../../lib/vencimientoUtils';
 import { supabase } from '../../lib/supabaseClient';
@@ -184,7 +185,7 @@ const ListadoCxP: React.FC<Props> = ({ titulo, tipoGasto, iconoTitulo, colorAcce
             </h1>
             <p className="pc-subtitulo">
               {stats.total} notas — <strong style={{ color: '#facc15' }}>{stats.pendiente} pendientes</strong>
-              {' '} — Por pagar: <strong style={{ color: '#f87171' }}>Bs {fmtMonto(stats.montoPendiente)}</strong>
+              {' '} — Por pagar: <strong style={{ color: '#f87171' }}>{simboloMoneda()} {fmtMonto(stats.montoPendiente)}</strong>
             </p>
           </div>
         </div>
@@ -222,7 +223,7 @@ const ListadoCxP: React.FC<Props> = ({ titulo, tipoGasto, iconoTitulo, colorAcce
           <AlertTriangle size={18} style={{ color: '#f87171' }} />
           <div>
             <span className="cxc-stat-num" style={{ color: '#f87171' }}>
-              Bs {fmtMonto(stats.montoPendiente)}
+              {simboloMoneda()} {fmtMonto(stats.montoPendiente)}
             </span>
             <span className="cxc-stat-label">Monto por pagar</span>
           </div>
@@ -231,7 +232,7 @@ const ListadoCxP: React.FC<Props> = ({ titulo, tipoGasto, iconoTitulo, colorAcce
           <CheckCircle2 size={18} style={{ color: '#4ade80' }} />
           <div>
             <span className="cxc-stat-num" style={{ color: '#4ade80' }}>
-              Bs {fmtMonto(stats.montoPagado)}
+              {simboloMoneda()} {fmtMonto(stats.montoPagado)}
             </span>
             <span className="cxc-stat-label">Ya pagado</span>
           </div>
@@ -348,13 +349,13 @@ const ListadoCxP: React.FC<Props> = ({ titulo, tipoGasto, iconoTitulo, colorAcce
                   </span>
                 </span>
                 <span className="cxc-col-right" style={{ color: '#94a3b8' }}>
-                  Bs {fmtMonto(nota.monto_total)}
+                  {simboloMoneda()} {fmtMonto(nota.monto_total)}
                 </span>
                 <span className="cxc-col-right" style={{ color: '#4ade80' }}>
-                  Bs {fmtMonto(nota.monto_pagado)}
+                  {simboloMoneda()} {fmtMonto(nota.monto_pagado)}
                 </span>
                 <span className={`cxc-col-right ${tieneSaldo ? 'cxc-deuda-monto cxc-deuda-monto--activa' : ''}`}>
-                  {tieneSaldo ? `Bs ${fmtMonto(nota.deuda_restante)}` : <span style={{ color: '#4ade80' }}>✓ Pagada</span>}
+                  {tieneSaldo ? `${simboloMoneda()} ${fmtMonto(nota.deuda_restante)}` : <span style={{ color: '#4ade80' }}>✓ Pagada</span>}
                 </span>
                 <span>
                   <button

@@ -8,6 +8,7 @@
  * 3. Barra de búsqueda de proveedor
  * 4. Lista tipo hoja de cálculo de proveedores con acciones inline
  */
+import { simboloMoneda } from '../../lib/moneda';
 import React, { useState, useMemo, useCallback } from 'react';
 import {
   RefreshCw, Plus, Search,
@@ -184,7 +185,7 @@ const CuentasPagar: React.FC = () => {
               }}>
                 <span style={{ fontSize: '0.6rem', fontWeight: 800, color: statsGlobales.totalPendiente > 0 ? '#ef4444' : '#10b981', letterSpacing: '0.05em' }}>DEUDAS</span>
                 <span style={{ fontSize: '0.9rem', fontWeight: 800, color: statsGlobales.totalPendiente > 0 ? '#ef4444' : '#10b981' }}>
-                  Bs {fmtMonto(statsGlobales.totalPendiente)}
+                  {simboloMoneda()} {fmtMonto(statsGlobales.totalPendiente)}
                 </span>
               </div>
               {/* Casilla de Anticipos */}
@@ -201,7 +202,7 @@ const CuentasPagar: React.FC = () => {
                 }}>
                   <span style={{ fontSize: '0.6rem', fontWeight: 800, color: '#10b981', letterSpacing: '0.05em' }}>ANTICIPOS</span>
                   <span style={{ fontSize: '0.9rem', fontWeight: 800, color: '#10b981' }}>
-                    Bs {fmtMonto(statsGlobales.totalAnticipos)}
+                    {simboloMoneda()} {fmtMonto(statsGlobales.totalAnticipos)}
                   </span>
                 </div>
               )}
@@ -232,7 +233,7 @@ const CuentasPagar: React.FC = () => {
                         {entidad.nombre}
                       </td>
                       <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontWeight: 700, color: isDeudor ? '#ef4444' : (isAnticipo ? '#10b981' : '#10b981') }}>
-                        Bs {fmtMonto(saldoVal)}
+                        {simboloMoneda()} {fmtMonto(saldoVal)}
                       </td>
                     </tr>
                   );
@@ -314,12 +315,12 @@ const CuentasPagar: React.FC = () => {
               </div>
               <div className="cxc-stat-pill cxc-stat-pill--danger">
                 <span className="cxc-pill-label">Pendiente</span>
-                <span className="cxc-pill-value">Bs {fmtMonto(statsGlobales.totalPendiente)}</span>
+                <span className="cxc-pill-value">{simboloMoneda()} {fmtMonto(statsGlobales.totalPendiente)}</span>
               </div>
               {statsGlobales.totalAnticipos > 0 && (
                 <div className="cxc-stat-pill" style={{ background: 'rgba(16, 185, 129, 0.08)', border: '1px solid rgba(16, 185, 129, 0.18)' }}>
                   <span className="cxc-pill-label" style={{ color: '#10b981' }}>Anticipos</span>
-                  <span className="cxc-pill-value" style={{ color: '#10b981' }}>Bs {fmtMonto(statsGlobales.totalAnticipos)}</span>
+                  <span className="cxc-pill-value" style={{ color: '#10b981' }}>{simboloMoneda()} {fmtMonto(statsGlobales.totalAnticipos)}</span>
                 </div>
               )}
               <span className="cxc-divider-mini" />
@@ -427,7 +428,7 @@ const CuentasPagar: React.FC = () => {
                         <td className="cxc-td cxc-td-right">
                           {Math.abs(entidad.saldo_pendiente) > 0.01
                             ? <span style={{ fontWeight: 800, color: entidad.saldo_pendiente > 0 ? '#ef4444' : '#10b981' }}>
-                                {entidad.saldo_pendiente < 0 ? '- ' : ''}Bs {fmtMonto(Math.abs(entidad.saldo_pendiente))}
+                                {entidad.saldo_pendiente < 0 ? '- ' : ''}{simboloMoneda()} {fmtMonto(Math.abs(entidad.saldo_pendiente))}
                               </span>
                             : <span className="cxc-al-dia">✓ Al día</span>
                           }

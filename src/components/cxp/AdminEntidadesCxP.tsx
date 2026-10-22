@@ -7,6 +7,7 @@
  *  - Teléfono
  *  - Contacto (persona de contacto del proveedor o cónyuge/emergencia del trabajador)
  */
+import { simboloMoneda } from '../../lib/moneda';
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import {
@@ -244,7 +245,7 @@ const AdminEntidadesCxP: React.FC<Props> = ({ onVolver }) => {
                     Personal
                 </span>
                 <span className="cxc-alumno-meta" style={{ fontWeight: 700, color: 'var(--success)' }}>
-                  {p.salario_base ? `Bs ${p.salario_base.toLocaleString()}` : '—'}
+                  {p.salario_base ? `${simboloMoneda()} ${p.salario_base.toLocaleString()}` : '—'}
                 </span>
                 <span className="cxc-alumno-meta">{p.telefono || '—'}</span>
                 <span className="cxc-col-center">
