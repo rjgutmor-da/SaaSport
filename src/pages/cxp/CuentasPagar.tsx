@@ -12,7 +12,7 @@ import { simboloMoneda } from '../../lib/moneda';
 import React, { useState, useMemo, useCallback } from 'react';
 import {
   RefreshCw, Plus, Search,
-  Truck, CreditCard, FileText, UserPlus, BookOpen
+  Truck, CreditCard, FileText, UserPlus, BookOpen, Wallet
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
@@ -81,6 +81,7 @@ const CuentasPagar: React.FC = () => {
   // ── Modales ──
   const [mostrarNota, setMostrarNota]                   = useState(false);
   const [tipoNotaInicial, setTipoNotaInicial]           = useState<'proveedor' | 'personal'>('proveedor');
+  const [esAnticipoNota, setEsAnticipoNota]             = useState(false);
   const [entidadSeleccionada, setEntidadSeleccionada]   = useState<EntidadCxP | null>(null);
   const [mostrarAdmin, setMostrarAdmin]                 = useState(false);
 
@@ -116,6 +117,15 @@ const CuentasPagar: React.FC = () => {
     e.stopPropagation();
     setEntidadParaNota(entidad);
     setTipoNotaInicial(entidad.tipo === 'proveedor' ? 'proveedor' : 'personal');
+    setEsAnticipoNota(false);
+    setMostrarNota(true);
+  };
+
+  /** Abrir registro de anticipo (proveedor o personal) */
+  const abrirRegistroAnticipo = (entidad?: EntidadCxP | null) => {
+    setEntidadParaNota(entidad || null);
+    setTipoNotaInicial(entidad?.tipo === 'personal' ? 'personal' : 'proveedor');
+    setEsAnticipoNota(true);
     setMostrarNota(true);
   };
 
@@ -209,6 +219,70 @@ const CuentasPagar: React.FC = () => {
             </div>
           </div>
 
+          {/* Botones de acción rápida móvil */}
+          <div style={{ display: 'flex', gap: '0.5rem', width: '100%' }}>
+            <button
+              onClick={() => abrirRegistroAnticipo(null)}
+              style={{
+                flex: 1,
+                background: '#8b5cf6',
+                color: '#ffffff',
+                border: 'none',
+                borderRadius: '10px',
+                padding: '0.65rem 0.5rem',
+                fontWeight: 800,
+                fontSize: '0.8rem',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '0.35rem',
+                cursor: 'pointer'
+              }}
+            >
+              <Wallet size={15} /> + Anticipo
+            </button>
+            <button
+              onClick={() => { setEntidadParaNota(null); setTipoNotaInicial('proveedor'); setEsAnticipoNota(false); setMostrarNota(true); }}
+              style={{
+                flex: 1,
+                background: '#3b82f6',
+                color: '#ffffff',
+                border: 'none',
+                borderRadius: '10px',
+                padding: '0.65rem 0.5rem',
+                fontWeight: 800,
+                fontSize: '0.8rem',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '0.35rem',
+                cursor: 'pointer'
+              }}
+            >
+              <Plus size={15} /> + Nota
+            </button>
+            <button
+              onClick={() => { setEntidadParaPagoRapido(null); setMostrarPagoRapido(true); }}
+              style={{
+                flex: 1,
+                background: '#10b981',
+                color: '#ffffff',
+                border: 'none',
+                borderRadius: '10px',
+                padding: '0.65rem 0.5rem',
+                fontWeight: 800,
+                fontSize: '0.8rem',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '0.35rem',
+                cursor: 'pointer'
+              }}
+            >
+              <CreditCard size={15} /> Pago
+            </button>
+          </div>
+
           {/* Tabla Simple: 2 Columnas (PROVEEDOR y DEUDA TOTAL) */}
           <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: '10px', overflow: 'hidden' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
@@ -265,10 +339,18 @@ const CuentasPagar: React.FC = () => {
                 </button>
                 <button
                   className="btn-excel btn-nota"
-                  onClick={() => { setEntidadParaNota(null); setTipoNotaInicial('proveedor'); setMostrarNota(true); }}
+                  onClick={() => { setEntidadParaNota(null); setTipoNotaInicial('proveedor'); setEsAnticipoNota(false); setMostrarNota(true); }}
                   title="Nueva Nota"
                 >
                   <Plus size={14} /> <span>Nota</span>
+                </button>
+                <button
+                  className="btn-excel btn-cobro"
+                  onClick={() => abrirRegistroAnticipo(null)}
+                  title="Nuevo Anticipo"
+                  style={{ background: 'rgba(139, 92, 246, 0.15)', color: '#a855f7', borderColor: 'rgba(139, 92, 246, 0.3)' }}
+                >
+                  <Wallet size={14} /> <span>Anticipo</span>
                 </button>
                 <button
                   className="btn-excel-icon"
@@ -476,10 +558,11 @@ const CuentasPagar: React.FC = () => {
       <NotaPago
         visible={mostrarNota}
         tipoInicial={tipoNotaInicial}
+        esAnticipo={esAnticipoNota}
         proveedorIdInicial={entidadParaNota?.tipo === 'proveedor' ? entidadParaNota.id : undefined}
         personalIdInicial={entidadParaNota?.tipo === 'personal' ? entidadParaNota.id : undefined}
-        onCerrar={() => { setMostrarNota(false); setEntidadParaNota(null); }}
-        onCreada={() => { setMostrarNota(false); setEntidadParaNota(null); manejarActualizacion(); }}
+        onCerrar={() => { setMostrarNota(false); setEntidadParaNota(null); setEsAnticipoNota(false); }}
+        onCreada={() => { setMostrarNota(false); setEntidadParaNota(null); setEsAnticipoNota(false); manejarActualizacion(); }}
       />
 
       {/* ─── Modal: Pago Rápido ─── */}

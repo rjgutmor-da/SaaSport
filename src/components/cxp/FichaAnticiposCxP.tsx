@@ -293,6 +293,19 @@ const FichaAnticiposCxP: React.FC<Props> = ({
             }}>
               <Wallet size={40} style={{ opacity: 0.3, marginBottom: '0.75rem' }} />
               <p style={{ margin: 0 }}>No hay anticipos disponibles.</p>
+              {onRegistrar && (
+                <button 
+                  onClick={onRegistrar}
+                  className="btn-guardar-cuenta"
+                  style={{ 
+                    background: '#a855f7', borderColor: '#a855f7',
+                    display: 'inline-flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem',
+                    padding: '0.6rem 1.2rem', marginTop: '1rem', width: 'auto'
+                  }}
+                >
+                  <Plus size={15} /> Registrar Anticipo
+                </button>
+              )}
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
@@ -485,7 +498,7 @@ const FichaAnticiposCxP: React.FC<Props> = ({
           )}
 
           {/* Botón actualizar */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '1.25rem', gap: '0.5rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1.25rem', gap: '0.5rem', flexWrap: 'wrap' }}>
             <div>
               {onRegistrar && (
                 <button 

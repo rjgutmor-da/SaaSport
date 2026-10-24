@@ -436,6 +436,16 @@ const DetalleProveedorCxP: React.FC<Props> = ({ entidad, visible, onCerrar, onAc
             >
               <Plus size={15} /> + NUEVA NOTA
             </button>
+            <button 
+              onClick={() => setMostrarFichaAnticipos(true)}
+              style={{
+                flex: 1, background: '#8b5cf6', color: '#ffffff', border: 'none',
+                borderRadius: '10px', padding: '0.6rem', fontWeight: 800, fontSize: '0.85rem',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem', cursor: 'pointer'
+              }}
+            >
+              <Wallet size={15} /> ANTICIPOS
+            </button>
           </div>
         )}
 

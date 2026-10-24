@@ -64,7 +64,7 @@ const fmtMonto = (n: number) =>
   n.toLocaleString('es-BO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 const esConceptoSueldos = (nombre: string) =>
-  nombre.trim().toLocaleLowerCase('es-BO') === 'sueldos y salarios';
+  Boolean(nombre) && nombre.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '') === 'sueldos y salarios';
 
 const NotaPago: React.FC<Props> = ({ visible, tipoInicial, esAnticipo = false, onCerrar, onCreada, cxpEditar, proveedorIdInicial, personalIdInicial }) => {
   const { perfil, escuelaId } = useAuthSaaSport();
@@ -235,9 +235,16 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, esAnticipo = false, o
         setFechaEmision(getHoyISO()); setVencimiento(getHoyISO()); setObservaciones(''); setPeriodo('');
         setLineas([lineaVacia()]); setPagarAlCrear(esAnticipo);
         setFechaPago(getHoyISO()); setMontoPago(''); setNroComprobante('');
-        setCuentaAnticipoId('');
+        const tipoBenef = personalIdInicial ? 'personal' : (proveedorIdInicial ? 'proveedor' : tipoInicial);
+        setTipoGasto(tipoBenef);
+        if (esAnticipo && tipoBenef === 'personal') {
+          const itemSueldos = catData.find(c => esConceptoSueldos(c.nombre));
+          setCuentaAnticipoId(itemSueldos?.id || '');
+        } else {
+          setCuentaAnticipoId('');
+        }
 
-        verificarOperacionPendiente(tipoGasto, proveedorIdInicial || personalIdInicial);
+        verificarOperacionPendiente(tipoBenef, proveedorIdInicial || personalIdInicial);
       }
       if (cxpEditar) {
         verificarOperacionPendiente(cxpEditar.tipo_gasto || 'proveedor', cxpEditar.proveedor_id || cxpEditar.personal_id);
@@ -246,6 +253,18 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, esAnticipo = false, o
     };
     cargar();
   }, [visible, esAnticipo, cxpEditar]);
+
+  // Precargar automáticamente 'Sueldos y Salarios' para anticipos de tipo Personal
+  useEffect(() => {
+    if (visible && esAnticipo && tipoGasto === 'personal' && catalogo.length > 0 && !cxpEditar) {
+      if (!cuentaAnticipoId) {
+        const itemSueldos = catalogo.find(c => esConceptoSueldos(c.nombre));
+        if (itemSueldos) {
+          setCuentaAnticipoId(itemSueldos.id);
+        }
+      }
+    }
+  }, [visible, esAnticipo, tipoGasto, catalogo, cxpEditar, cuentaAnticipoId]);
 
   const total = useMemo(() => {
     if (esAnticipo) return parseFloat(montoAnticipo) || 0;
@@ -340,7 +359,8 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, esAnticipo = false, o
       // 1. Guardar o Actualizar Nota de forma atómica
       let notaId = cxpEditar?.id;
       const descripcionFinal = esAnticipo ? 'Anticipo' : lineasValidas.map(l => l.nombre).join(', ');
-      const itemAnticipo = esAnticipo ? (cuentaAnticipoId || catalogo[0]?.id) : null;
+      const itemSueldos = catalogo.find(c => esConceptoSueldos(c.nombre));
+      const itemAnticipo = esAnticipo ? (cuentaAnticipoId || (tipoGasto === 'personal' ? itemSueldos?.id : null) || catalogo[0]?.id) : null;
       const lineasPayload = esAnticipo
         ? [{
             catalogo_item_id: itemAnticipo,
@@ -701,8 +721,8 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, esAnticipo = false, o
               <div className="form-campo full-width">
                 <label>Tipo de Beneficiario</label>
                 <div style={{ display: 'flex', gap: '0.5rem' }}>
-                  <button type="button" onClick={() => { setTipoGasto('proveedor'); verificarOperacionPendiente('proveedor', proveedorId); }} className={`nota-mes-btn ${tipoGasto === 'proveedor' ? 'nota-mes-btn--activo' : ''}`} style={{ flex: 1 }} disabled={!!(proveedorIdInicial || personalIdInicial)}>🏭 Proveedor</button>
-                  <button type="button" onClick={() => { setTipoGasto('personal'); verificarOperacionPendiente('personal', personalId); }} className={`nota-mes-btn ${tipoGasto === 'personal' ? 'nota-mes-btn--activo' : ''}`} style={{ flex: 1 }} disabled={!!(proveedorIdInicial || personalIdInicial)}>👤 Personal</button>
+                  <button type="button" onClick={() => { setTipoGasto('proveedor'); verificarOperacionPendiente('proveedor', proveedorId); if (esAnticipo) { const itS = catalogo.find(c => esConceptoSueldos(c.nombre)); if (cuentaAnticipoId === itS?.id) setCuentaAnticipoId(''); } }} className={`nota-mes-btn ${tipoGasto === 'proveedor' ? 'nota-mes-btn--activo' : ''}`} style={{ flex: 1 }} disabled={!!(proveedorIdInicial || personalIdInicial)}>🏭 Proveedor</button>
+                  <button type="button" onClick={() => { setTipoGasto('personal'); verificarOperacionPendiente('personal', personalId); if (esAnticipo) { const itS = catalogo.find(c => esConceptoSueldos(c.nombre)); if (itS) setCuentaAnticipoId(itS.id); } }} className={`nota-mes-btn ${tipoGasto === 'personal' ? 'nota-mes-btn--activo' : ''}`} style={{ flex: 1 }} disabled={!!(proveedorIdInicial || personalIdInicial)}>👤 Personal</button>
                 </div>
               </div>
               <div className="form-campo full-width">
@@ -713,7 +733,7 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, esAnticipo = false, o
                     {proveedores.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
                   </select>
                 ) : (
-                  <select value={personalId} onChange={e => { setPersonalId(e.target.value); if (esNotaSueldo) actualizarMontoSueldo(e.target.value); verificarOperacionPendiente('personal', e.target.value); }} required disabled={!!personalIdInicial}>
+                  <select value={personalId} onChange={e => { setPersonalId(e.target.value); if (esNotaSueldo) actualizarMontoSueldo(e.target.value); if (esAnticipo && !cuentaAnticipoId) { const itS = catalogo.find(c => esConceptoSueldos(c.nombre)); if (itS) setCuentaAnticipoId(itS.id); } verificarOperacionPendiente('personal', e.target.value); }} required disabled={!!personalIdInicial}>
                     <option value="">— Seleccionar —</option>
                     {personal.map(p => <option key={p.id} value={p.id}>{p.nombres} {p.apellidos}</option>)}
                   </select>
