@@ -65,13 +65,14 @@ export function useCuentasPorCobrar(
     try {
       // Usamos la VISTA v_cuentas_cobrar que ya tiene saldo_pendiente calculado
       // y unimos con cxc_detalle para desglosar por concepto.
-      let query = supabase
+      const crearConsulta = () => supabase
         .from('v_cuentas_cobrar')
         .select(`
           *,
-          cxc_detalle (
+          cxc_detalle!inner (
             id,
             subtotal,
+            periodo_estadistico,
             periodo_meses,
             detalle_extra,
             catalogo_items ( nombre )
@@ -79,19 +80,56 @@ export function useCuentasPorCobrar(
         `)
         .eq('escuela_id', eid)
         .eq('es_anticipo', false)
-        .gt('saldo_pendiente', 0)
-        .gte('fecha_emision', desde)
-        .lte('fecha_emision', hasta);
+        .gt('saldo_pendiente', 0);
+
+      // La cabecera cubre las notas antiguas; el detalle recupera ciclos de
+      // otro mes aunque la nota se haya emitido fuera del rango.
+      let query = crearConsulta().or(
+        `and(periodo_estadistico.gte.${desde},periodo_estadistico.lte.${hasta}),and(periodo_estadistico.is.null,fecha_emision.gte.${desde},fecha_emision.lte.${hasta})`,
+      );
+      let queryDetalle = crearConsulta()
+        .gte('cxc_detalle.periodo_estadistico', desde)
+        .lte('cxc_detalle.periodo_estadistico', hasta);
 
       // Filtros opcionales (basados en las columnas de la vista)
-      if (sucursalId) query = query.eq('alumno_sucursal_id', sucursalId);
-      if (entrenadorId) query = query.eq('alumno_entrenador_id', entrenadorId);
-      if (grupoId) query = query.eq('alumno_grupo_id', grupoId);
-      if (horarioId) query = query.eq('alumno_horario_id', horarioId);
+      if (sucursalId) {
+        query = query.eq('alumno_sucursal_id', sucursalId);
+        queryDetalle = queryDetalle.eq('alumno_sucursal_id', sucursalId);
+      }
+      if (entrenadorId) {
+        query = query.eq('alumno_entrenador_id', entrenadorId);
+        queryDetalle = queryDetalle.eq('alumno_entrenador_id', entrenadorId);
+      }
+      if (grupoId) {
+        query = query.eq('alumno_grupo_id', grupoId);
+        queryDetalle = queryDetalle.eq('alumno_grupo_id', grupoId);
+      }
+      if (horarioId) {
+        query = query.eq('alumno_horario_id', horarioId);
+        queryDetalle = queryDetalle.eq('alumno_horario_id', horarioId);
+      }
 
-      const { data, error: err } = await query;
-
-      if (err) throw new Error(err.message);
+      // Paginar con orden estable evita truncar silenciosamente las deudas.
+      async function consultarPaginado(consulta: typeof query) {
+        const filas: any[] = [];
+        const lote = 500;
+        for (let inicio = 0; ; inicio += lote) {
+          const { data, error } = await consulta.order('id').range(inicio, inicio + lote - 1);
+          if (error) throw new Error(error.message);
+          filas.push(...(data || []));
+          if (!data || data.length < lote) return filas;
+        }
+      }
+      const resultados = await Promise.all([consultarPaginado(query), consultarPaginado(queryDetalle)]);
+      const notas = new Map<string, any>();
+      for (const nota of resultados.flat()) {
+        const anterior = notas.get(nota.id);
+        const detalles = new Map<string, any>(
+          [...(anterior?.cxc_detalle || []), ...(nota.cxc_detalle || [])].map(d => [d.id, d]),
+        );
+        notas.set(nota.id, { ...nota, cxc_detalle: [...detalles.values()] });
+      }
+      const data = [...notas.values()];
 
       // Agrupamos las deudas por alumno (cliente) para consolidar su deuda total
       interface CuentaPorCobrarAcumulador {
@@ -117,6 +155,10 @@ export function useCuentasPorCobrar(
         const detalles = cxc.cxc_detalle || [];
         
         detalles.forEach((d: any) => {
+          // Cada línea pertenece a su período, aunque la nota agrupe varios ciclos.
+          const fechaPeriodo = String(d.periodo_estadistico || cxc.periodo_estadistico || cxc.fecha_emision || '').slice(0, 10);
+          if (!fechaPeriodo || fechaPeriodo < desde || fechaPeriodo > hasta) return;
+
           // Calcular proporción del saldo pendiente para este ítem
           const proporcion = Number(d.subtotal || 0) / Number(cxc.monto_total || 1);
           const montoAdeudadoItem = Number(cxc.saldo_pendiente || 0) * proporcion;
