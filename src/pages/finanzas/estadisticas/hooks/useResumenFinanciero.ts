@@ -5,23 +5,21 @@
  * Fuente de datos: la RPC resume exclusivamente los movimientos de las
  * cajas/bancos activas. Incluye saldos iniciales, movimientos directos,
  * ajustes y devoluciones; excluye transferencias internas emparejadas.
- * En periodos parciales arrastra el saldo anterior como "Saldo inicial".
+ * El saldo del periodo anterior se muestra separado de los movimientos.
  */
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../../../../lib/supabaseClient';
 import { calcularRango, type IntervaloPredefinido } from '../utils/estadisticasUtils';
 
-export interface ItemResumen {
-  nombre: string;
-  monto: number;
-  porcentaje: number;
-}
+import { separarResumenFinanciero, type ItemResumen } from '../utils/resumenFinancieroUtils';
+export type { ItemResumen } from '../utils/resumenFinancieroUtils';
 
 export interface ResumenFinanciero {
   ingresos: ItemResumen[];
   egresos: ItemResumen[];
   totalIngresos: number;
   totalEgresos: number;
+  saldoPeriodoAnterior: number;
   cargando: boolean;
   error: string | null;
   recargar: () => void;
@@ -37,6 +35,7 @@ export function useResumenFinanciero(
   const [egresos, setEgresos] = useState<ItemResumen[]>([]);
   const [totalIngresos, setTotalIngresos] = useState(0);
   const [totalEgresos, setTotalEgresos] = useState(0);
+  const [saldoPeriodoAnterior, setSaldoPeriodoAnterior] = useState(0);
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [tick, setTick] = useState(0);
@@ -64,30 +63,12 @@ export function useResumenFinanciero(
 
       if (rpcErr) throw new Error(rpcErr.message);
 
-      const ingresosData: ItemResumen[] = (data || [])
-        .filter((r: any) => r.tipo === 'ingreso')
-        .map((r: any) => ({
-          nombre: String(r.nombre),
-          monto: Number(r.monto || 0),
-          porcentaje: Number(r.porcentaje || 0),
-        }));
-
-      const egresosData: ItemResumen[] = (data || [])
-        .filter((r: any) => r.tipo === 'egreso')
-        .map((r: any) => ({
-          nombre: String(r.nombre),
-          monto: Number(r.monto || 0),
-          porcentaje: Number(r.porcentaje || 0),
-        }));
-
-      setIngresos(ingresosData);
-      setEgresos(egresosData);
-
-      const totalIng = ingresosData.reduce((sum, item) => sum + item.monto, 0);
-      const totalEgr = egresosData.reduce((sum, item) => sum + item.monto, 0);
-
-      setTotalIngresos(totalIng);
-      setTotalEgresos(totalEgr);
+      const resumen = separarResumenFinanciero(data || []);
+      setIngresos(resumen.ingresos);
+      setEgresos(resumen.egresos);
+      setSaldoPeriodoAnterior(resumen.saldoPeriodoAnterior);
+      setTotalIngresos(resumen.totalIngresos);
+      setTotalEgresos(resumen.totalEgresos);
     } catch (e: any) {
       setError(e.message ?? 'Error desconocido');
     } finally {
@@ -95,5 +76,5 @@ export function useResumenFinanciero(
     }
   }
 
-  return { ingresos, egresos, totalIngresos, totalEgresos, cargando, error, recargar };
+  return { ingresos, egresos, totalIngresos, totalEgresos, saldoPeriodoAnterior, cargando, error, recargar };
 }

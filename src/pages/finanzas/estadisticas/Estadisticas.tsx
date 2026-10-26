@@ -44,7 +44,8 @@ import { useCuentasPorCobrar } from './hooks/useCuentasPorCobrar';
 
 // Utilidades
 import type { IntervaloPredefinido } from './utils/estadisticasUtils';
-import { NOMBRES_MESES } from './utils/estadisticasUtils';
+import { NOMBRES_MESES, fmtMonto } from './utils/estadisticasUtils';
+import { simboloMoneda } from '../../../lib/moneda';
 
 
 
@@ -314,6 +315,15 @@ const Estadisticas: React.FC = () => {
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', padding: '1.25rem 2rem', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: '16px' }}>
+                  <div>
+                    <strong>Saldo periodo anterior</strong>
+                    <p style={{ margin: '0.25rem 0 0', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>Saldo acumulado antes del período seleccionado.</p>
+                  </div>
+                  <strong style={{ fontSize: '1.4rem', color: resumen.saldoPeriodoAnterior < 0 ? 'var(--danger)' : 'var(--text-primary)' }}>
+                    {simboloMoneda()} {fmtMonto(resumen.saldoPeriodoAnterior)}
+                  </strong>
+                </div>
                 {/* Ingresos */}
                 <GraficoDistribucion
                   items={resumen.ingresos}
