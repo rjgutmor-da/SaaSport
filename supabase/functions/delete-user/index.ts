@@ -12,8 +12,17 @@ type RelationCheck = { table: string; column: string; label: string };
 // silently removing or detaching operational and financial records.
 const relationChecks: RelationCheck[] = [
   { table: 'alumnos', column: 'created_by', label: 'alumnos creados' },
+  { table: 'alumnos', column: 'archivado_por', label: 'alumnos archivados' },
   { table: 'alumnos', column: 'profesor_asignado_id', label: 'alumnos asignados' },
   { table: 'alumnos_entrenadores', column: 'entrenador_id', label: 'asignaciones de alumnos' },
+  { table: 'alumnos_grupos', column: 'creado_por', label: 'asignaciones de alumnos a grupos' },
+  { table: 'entrenadores_grupos', column: 'entrenador_id', label: 'asignaciones a grupos' },
+  { table: 'entrenadores_grupos', column: 'creado_por', label: 'asignaciones de entrenadores creadas' },
+  { table: 'gestiones_deportivas', column: 'creada_por', label: 'gestiones creadas' },
+  { table: 'gestiones_deportivas', column: 'activada_por', label: 'gestiones activadas' },
+  { table: 'inventario_aperturas', column: 'abierto_por', label: 'aperturas de inventario' },
+  { table: 'inventario_cambios_cupo', column: 'cambiado_por', label: 'cambios de cupo de inventario' },
+  { table: 'inventario_movimientos', column: 'creado_por', label: 'movimientos de inventario' },
   { table: 'asistencias_arqueros', column: 'entrenador_id', label: 'asistencias de arqueros' },
   { table: 'asistencias_normales', column: 'entrenador_id', label: 'asistencias' },
   { table: 'audit_log', column: 'usuario_id', label: 'registros de auditoría' },
@@ -94,31 +103,33 @@ Deno.serve(async (request) => {
 
   const blockingRelations: string[] = [];
   for (const relation of relationChecks) {
-    const { count, error } = await admin
+    const { data, error } = await admin
       .from(relation.table)
-      .select('id', { count: 'exact', head: true })
-      .eq(relation.column, targetId);
-    if (error) return json({ error: 'No se pudo verificar el historial del usuario.' }, 500);
-    if ((count || 0) > 0) blockingRelations.push(relation.label);
+      // Join tables such as alumnos_entrenadores have no generic id column.
+      .select(relation.column)
+      .eq(relation.column, targetId)
+      .limit(1);
+    if (error) {
+      console.error('delete-user: relation check failed', { table: relation.table, column: relation.column, code: error.code });
+      return json({ error: `No se pudo verificar el historial del usuario (${relation.label}). Intenta nuevamente.` }, 500);
+    }
+    if (data?.length) blockingRelations.push(relation.label);
   }
-
-  const { count: ownedFiles, error: storageError } = await admin
-    .schema('storage')
-    .from('objects')
-    .select('id', { count: 'exact', head: true })
-    .eq('owner_id', targetId);
-  if (storageError) return json({ error: 'No se pudo verificar los archivos del usuario.' }, 500);
-  if ((ownedFiles || 0) > 0) blockingRelations.push('archivos almacenados');
 
   if (blockingRelations.length > 0) {
     return json({
-      error: 'No se puede eliminar porque tiene historial o asignaciones. Desactiva el usuario o reasigna primero.',
+      error: `No se puede eliminar porque tiene historial o asignaciones: ${blockingRelations.join(', ')}. Desactiva el usuario o reasigna primero.`,
       blockingRelations,
     }, 409);
   }
 
+  // Auth itself refuses deletion when the user owns Storage objects. Do not
+  // query the private storage schema through PostgREST or delete their files.
   const { error: deleteError } = await admin.auth.admin.deleteUser(targetId);
-  if (deleteError) return json({ error: 'No se pudo eliminar la cuenta de acceso. Intenta nuevamente.' }, 500);
+  if (deleteError) {
+    console.error('delete-user: auth deletion failed', { code: deleteError.code, status: deleteError.status });
+    return json({ error: 'No se pudo eliminar la cuenta de acceso. Puede tener archivos almacenados u otras relaciones. Desactiva el usuario o contacta al administrador.' }, 409);
+  }
 
   return json({ success: true });
 });
