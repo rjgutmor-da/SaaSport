@@ -29,12 +29,12 @@ import {
 import { supabase } from '../../../lib/supabaseClient';
 
 // Sub-componentes
-import SelectorFechas from './components/SelectorFechas';
 import GraficoDistribucion from './components/GraficoDistribucion';
 import TablaAlumnos from './components/TablaAlumnos';
 import TablaCuentasPorCobrar from './components/TablaCuentasPorCobrar';
 import FiltrosCxc from '../../../components/cxc/FiltrosCxc';
 import FiltroMonto from './components/FiltroMonto';
+import FiltroPeriodoMeses from './components/FiltroPeriodoMeses';
 
 // Hooks
 import { useEscuelaId } from './hooks/useEscuelaId';
@@ -44,7 +44,7 @@ import { useCuentasPorCobrar } from './hooks/useCuentasPorCobrar';
 
 // Utilidades
 import type { IntervaloPredefinido } from './utils/estadisticasUtils';
-import { NOMBRES_MESES, fmtMonto } from './utils/estadisticasUtils';
+import { NOMBRES_MESES, fmtMonto, calcularRangoMeses } from './utils/estadisticasUtils';
 import { simboloMoneda } from '../../../lib/moneda';
 
 
@@ -66,10 +66,10 @@ const Estadisticas: React.FC = () => {
   // ─── Escuela del usuario logueado ───
   const { escuelaId } = useEscuelaId();
 
-  // ─── Estado compartido: filtro de fechas ───
-  const [intervalo, setIntervalo] = useState<IntervaloPredefinido>('este-mes');
-  const [fechaDesde, setFechaDesde] = useState('');
-  const [fechaHasta, setFechaHasta] = useState('');
+  // ─── Filtro de fechas fijo (se eliminó el selector superior de intervalos) ───
+  const intervalo: IntervaloPredefinido = 'este-mes';
+  const fechaDesde = '';
+  const fechaHasta = '';
 
   // ─── Pestaña activa (Alumnos por Ítem primero como en la vista principal) ───
   const [pestaña, setPestaña] = useState<Pestaña>('alumnos');
@@ -141,11 +141,19 @@ const Estadisticas: React.FC = () => {
   }, [esMensualidad, esTorneo, mesesSeleccionados, torneoEfectivo]);
 
   // ─── Hooks de datos ───
+  // Periodo para "Ingresos y Egresos" y "Cuentas x Cobrar" (meses + año)
+  const [mesesPeriodo, setMesesPeriodo] = useState<string[]>([mesActualNombre]);
+  const [anioPeriodo, setAnioPeriodo] = useState<number>(anioActual);
+  const rangoPeriodo = useMemo(
+    () => calcularRangoMeses(mesesPeriodo, anioPeriodo),
+    [mesesPeriodo, anioPeriodo],
+  );
+
   const resumen = useResumenFinanciero(
     escuelaId,
-    intervalo,
-    fechaDesde,
-    fechaHasta
+    'personalizado',
+    rangoPeriodo.desde,
+    rangoPeriodo.hasta
   );
 
   const alumnosResult = useAlumnosPorItem(
@@ -168,9 +176,9 @@ const Estadisticas: React.FC = () => {
 
   const cxcResult = useCuentasPorCobrar(
     escuelaId,
-    intervalo,
-    fechaDesde,
-    fechaHasta,
+    'personalizado',
+    rangoPeriodo.desde,
+    rangoPeriodo.hasta,
     sucursalId,
     entrenadorId,
     grupoId,
@@ -243,39 +251,8 @@ const Estadisticas: React.FC = () => {
     );
   };
 
-  const cambiarIntervalo = (nuevoIntervalo: IntervaloPredefinido) => {
-    setIntervalo(nuevoIntervalo);
-
-    if (nuevoIntervalo === 'año-pasado') {
-      setAnioMensualidad(anioActual - 1);
-      setMesesSeleccionados([]);
-    } else if (nuevoIntervalo === 'mes-pasado') {
-      const mesPasado = new Date(anioActual, new Date().getMonth() - 1, 1);
-      setAnioMensualidad(mesPasado.getFullYear());
-      setMesesSeleccionados([NOMBRES_MESES[mesPasado.getMonth()]]);
-    } else if (nuevoIntervalo === 'este-mes') {
-      setAnioMensualidad(anioActual);
-      setMesesSeleccionados([NOMBRES_MESES[new Date().getMonth()]]);
-    } else if (nuevoIntervalo === 'este-año') {
-      setAnioMensualidad(anioActual);
-      setMesesSeleccionados([]);
-    } else if (nuevoIntervalo === 'personalizado') {
-      setMesesSeleccionados([]);
-    }
-  };
-
   return (
     <main className="main-content cxc-main">
-
-      {/* ─── Selector de Fechas Omnipresente ─── */}
-      <SelectorFechas
-        intervalo={intervalo}
-        onCambiarIntervalo={cambiarIntervalo}
-        fechaDesde={fechaDesde}
-        fechaHasta={fechaHasta}
-        onChangeFechaDesde={setFechaDesde}
-        onChangeFechaHasta={setFechaHasta}
-      />
 
       {/* ─── Pestañas ─── */}
       <div className="est-tabs-bar">
@@ -305,6 +282,15 @@ const Estadisticas: React.FC = () => {
         {/* ══════ PESTAÑA RESUMEN (INGRESOS Y EGRESOS) ══════ */}
         {pestaña === 'resumen' && (
           <div className="est-panel">
+            <div className="est-filtros-alumnos-v3">
+              <FiltroPeriodoMeses
+                mesesSeleccionados={mesesPeriodo}
+                onChangeMeses={setMesesPeriodo}
+                anio={anioPeriodo}
+                onChangeAnio={setAnioPeriodo}
+                anios={aniosMensualidad}
+              />
+            </div>
             {resumen.error && (
               <div className="est-error-banner">⚠️ {resumen.error}</div>
             )}
@@ -568,23 +554,32 @@ const Estadisticas: React.FC = () => {
         {/* ══════ PESTAÑA CUENTAS POR COBRAR ══════ */}
         {pestaña === 'cxc' && (
           <div className="est-panel">
-            <div style={{ marginBottom: '1rem' }}>
-              <FiltrosCxc
-                sucursalId={sucursalId}
-                entrenadorId={entrenadorId}
-                grupoId={grupoId}
-                horarioId={horarioId}
-                onChangeSucursal={setSucursalId}
-                onChangeEntrenador={setEntrenadorId}
-                onChangeGrupo={setGrupoId}
-                onChangeHorario={setHorarioId}
-                onLimpiar={() => {
-                  setSucursalId('');
-                  setEntrenadorId('');
-                  setGrupoId('');
-                  setHorarioId('');
-                }}
-                compact
+            <div className="est-filtros-alumnos-v3" style={{ marginBottom: '1rem' }}>
+              <div className="est-filtros-cxc-wrap">
+                <FiltrosCxc
+                  sucursalId={sucursalId}
+                  entrenadorId={entrenadorId}
+                  grupoId={grupoId}
+                  horarioId={horarioId}
+                  onChangeSucursal={setSucursalId}
+                  onChangeEntrenador={setEntrenadorId}
+                  onChangeGrupo={setGrupoId}
+                  onChangeHorario={setHorarioId}
+                  onLimpiar={() => {
+                    setSucursalId('');
+                    setEntrenadorId('');
+                    setGrupoId('');
+                    setHorarioId('');
+                  }}
+                  compact
+                />
+              </div>
+              <FiltroPeriodoMeses
+                mesesSeleccionados={mesesPeriodo}
+                onChangeMeses={setMesesPeriodo}
+                anio={anioPeriodo}
+                onChangeAnio={setAnioPeriodo}
+                anios={aniosMensualidad}
               />
             </div>
 

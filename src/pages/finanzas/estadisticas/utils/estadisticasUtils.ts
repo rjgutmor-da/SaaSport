@@ -105,6 +105,32 @@ export const NOMBRES_MESES = [
   'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
 ];
 
+/**
+ * Convierte una selección de meses (por nombre) y un año en un rango de fechas.
+ * - Sin meses seleccionados: devuelve el año completo (consulta siempre acotada a un año).
+ * - Con meses: desde el primer día del mes más temprano hasta el último día del mes más tardío.
+ */
+export function calcularRangoMeses(meses: string[], anio: number): RangoFechas {
+  const indices = meses
+    .map(m => NOMBRES_MESES.indexOf(m))
+    .filter(i => i >= 0)
+    .sort((a, b) => a - b);
+
+  if (indices.length === 0) {
+    return { desde: `${anio}-01-01`, hasta: `${anio}-12-31` };
+  }
+
+  const mesInicio = indices[0];
+  const mesFin = indices[indices.length - 1];
+  const ultimoDia = new Date(anio, mesFin + 1, 0).getDate();
+  const pad = (n: number) => String(n).padStart(2, '0');
+
+  return {
+    desde: `${anio}-${pad(mesInicio + 1)}-01`,
+    hasta: `${anio}-${pad(mesFin + 1)}-${pad(ultimoDia)}`,
+  };
+}
+
 /** Etiqueta legible para un intervalo predefinido */
 export function etiquetaIntervalo(intervalo: IntervaloPredefinido): string {
   const mapa: Record<IntervaloPredefinido, string> = {
