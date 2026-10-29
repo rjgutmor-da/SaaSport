@@ -1,4 +1,4 @@
-import { simboloMoneda } from '../../lib/moneda';
+﻿import { simboloMoneda } from '../../lib/moneda';
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import type { CajaBanco } from '../../types/finanzas';
@@ -270,7 +270,7 @@ const ModalPagoRapidoCxP: React.FC<Props> = ({ entidadInicial, entidades, visibl
                 <option value="">— Seleccionar —</option>
                 {entidades.map(a => (
                   <option key={a.id} value={a.id}>
-                    {a.nombre} ({a.tipo === 'proveedor' ? 'Prov' : 'Pers'}) — Saldo: ${simboloMoneda()} ${fmtMonto(a.saldo_pendiente)}
+                    {a.nombre} ({a.tipo === 'proveedor' ? 'Prov' : 'Pers'}) — Saldo: {simboloMoneda()} {fmtMonto(a.saldo_pendiente)}
                   </option>
                 ))}
               </select>
@@ -307,7 +307,7 @@ const ModalPagoRapidoCxP: React.FC<Props> = ({ entidadInicial, entidades, visibl
                 {cxpsPendientes.length > 0 && <optgroup label="Deudas Pendientes">
                   {cxpsPendientes.map(c => (
                     <option key={c.id} value={c.id}>
-                      {c.numero_documento || c.descripcion} — Saldo: ${simboloMoneda()} ${fmtMonto(Number(c.deuda_restante))}
+                      {c.numero_documento || c.descripcion} — Saldo: {simboloMoneda()} {fmtMonto(Number(c.deuda_restante))}
                     </option>
                   ))}
                 </optgroup>}
