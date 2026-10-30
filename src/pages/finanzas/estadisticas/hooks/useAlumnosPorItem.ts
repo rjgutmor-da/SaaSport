@@ -72,16 +72,8 @@ export function useAlumnosPorItem(
       return;
     }
     const rangoIntervalo = calcularRango(intervalo, desdePersonalizado, hastaPersonalizado);
-    // Si hay subfiltros específicos (ej. meses o torneos seleccionados a mano),
-    // ampliamos la búsqueda al año completo de anioMensualidad para que no se trunque por el mes del intervalo general
-    const tieneSubfiltroManual = filtroSubItems && filtroSubItems.length > 0;
     const rango = anioMensualidad
-      ? tieneSubfiltroManual && intervalo !== 'personalizado'
-        ? { desde: `${anioMensualidad}-01-01`, hasta: `${anioMensualidad}-12-31` }
-        : {
-            desde: rangoIntervalo.desde > `${anioMensualidad}-01-01` ? rangoIntervalo.desde : `${anioMensualidad}-01-01`,
-            hasta: rangoIntervalo.hasta < `${anioMensualidad}-12-31` ? rangoIntervalo.hasta : `${anioMensualidad}-12-31`,
-          }
+      ? { desde: `${anioMensualidad}-01-01`, hasta: `${anioMensualidad}-12-31` }
       : rangoIntervalo;
 
     if (rango.desde > rango.hasta) {
@@ -308,34 +300,37 @@ export function useAlumnosPorItem(
           const fechaEstadistica = detInteres.periodo_estadistico || cxc.periodo_estadistico || fechaEmision;
           if (!fechaEstadistica || fechaEstadistica < desde || fechaEstadistica > hasta) continue;
 
-          // Filtro de sub-ítems (Meses para mensualidad o Torneo/texto en detalle_extra)
+          // Filtro de sub-ítems (Meses y/o Torneo/texto en detalle_extra)
           if (filtroSubItems && filtroSubItems.length > 0) {
-            let cumpleSub = false;
             const ordenesFiltro = filtroSubItems.map(f => obtenerOrdenMes(f)).filter(o => o > 0);
-            const esFiltroMeses = ordenesFiltro.length > 0;
+            const textosFiltro = filtroSubItems.filter(f => obtenerOrdenMes(f) === 0);
 
-            if (esFiltroMeses) {
-              const mesPeriodoEstadistico = /^\d{4}-(\d{2})-(\d{2})$/.exec(
-                detInteres.periodo_estadistico || cxc.periodo_estadistico || '',
+            if (ordenesFiltro.length > 0) {
+              let cumpleMes = false;
+              const mesFechaEstadistica = /^\d{4}-(\d{2})-(\d{2})$/.exec(
+                fechaEstadistica || '',
               )?.[1];
-              if (mesPeriodoEstadistico && ordenesFiltro.includes(Number(mesPeriodoEstadistico))) {
-                cumpleSub = true;
+              if (mesFechaEstadistica && ordenesFiltro.includes(Number(mesFechaEstadistica))) {
+                cumpleMes = true;
               } else if (Array.isArray(detInteres.periodo_meses)) {
-                cumpleSub = (detInteres.periodo_meses as string[]).some(m => {
+                cumpleMes = (detInteres.periodo_meses as string[]).some(m => {
                   const ordenM = obtenerOrdenMes(m);
                   return filtroSubItems.includes(m) || (ordenM > 0 && ordenesFiltro.includes(ordenM));
                 });
               }
-            } else {
+              if (!cumpleMes) continue;
+            }
+
+            if (textosFiltro.length > 0) {
               // Subfiltro por texto (ej. nombre del torneo en detalle_extra o descripción)
               const detalleExtra = String(detInteres.detalle_extra || '').toLowerCase();
               const descripcionNota = String(cxc.descripcion || '').toLowerCase();
-              cumpleSub = filtroSubItems.some(f => {
+              const cumpleTexto = textosFiltro.some(f => {
                 const querySub = f.toLowerCase();
                 return detalleExtra.includes(querySub) || descripcionNota.includes(querySub);
               });
+              if (!cumpleTexto) continue;
             }
-            if (!cumpleSub) continue;
           }
 
           let detalleStr = '';

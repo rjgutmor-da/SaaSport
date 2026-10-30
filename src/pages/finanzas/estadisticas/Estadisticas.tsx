@@ -126,7 +126,6 @@ const Estadisticas: React.FC = () => {
   const [cargandoTorneos, setCargandoTorneos] = useState(false);
 
   // ─── Determinar si el ítem seleccionado tiene subfiltro ───
-  const esMensualidad = itemSeleccionado?.nombre?.toLowerCase().includes('mensualidad') ?? false;
   const esTorneo = itemSeleccionado?.nombre?.toLowerCase().includes('torneo') ?? false;
 
   /** Torneo efectivo para filtrar */
@@ -136,10 +135,10 @@ const Estadisticas: React.FC = () => {
 
   /** Subfiltros activos para el hook */
   const subfiltrosActivos: string[] = useMemo(() => {
-    if (esMensualidad) return mesesSeleccionados;
-    if (esTorneo && torneoEfectivo) return [torneoEfectivo];
-    return [];
-  }, [esMensualidad, esTorneo, mesesSeleccionados, torneoEfectivo]);
+    const activos = [...mesesSeleccionados];
+    if (esTorneo && torneoEfectivo) activos.push(torneoEfectivo);
+    return activos;
+  }, [esTorneo, mesesSeleccionados, torneoEfectivo]);
 
   // ─── Hooks de datos ───
   // Periodo para "Ingresos y Egresos" y "Cuentas x Cobrar" (meses + año)
@@ -414,33 +413,31 @@ const Estadisticas: React.FC = () => {
               {/* Fila de subfiltros y controles (Meses/Torneo + Pagado, Año y Monto unificados para todos los conceptos) */}
               {itemSeleccionado && (
                 <div className="est-filtro-meses-row" style={{ alignItems: 'flex-end' }}>
-                  {/* Selector de Meses para Mensualidad */}
-                  {esMensualidad && (
-                    <div className="est-filtro-meses-col-meses">
-                      <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 500, paddingLeft: '2px', display: 'block', marginBottom: '0.2rem' }}>
-                        Meses <span className="est-filtro-hint">(opcional — deja vacío para ver todos)</span>
-                      </span>
-                      <div className="est-meses-grid">
-                        {NOMBRES_MESES.map(mes => (
-                          <button
-                            key={mes}
-                            className={`est-mes-chip ${mesesSeleccionados.includes(mes) ? 'est-mes-chip--activo' : ''}`}
-                            onClick={() => toggleMes(mes)}
-                          >
-                            {mes}
-                          </button>
-                        ))}
-                        {mesesSeleccionados.length > 0 && (
-                          <button
-                            className="est-limpiar-subfiltro-chip"
-                            onClick={() => setMesesSeleccionados([])}
-                          >
-                            <X size={12} /> Limpiar
-                          </button>
-                        )}
-                      </div>
+                  {/* Selector de Meses para todos los conceptos */}
+                  <div className="est-filtro-meses-col-meses">
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 500, paddingLeft: '2px', display: 'block', marginBottom: '0.2rem' }}>
+                      Meses <span className="est-filtro-hint">(opcional — deja vacío para ver todos)</span>
+                    </span>
+                    <div className="est-meses-grid">
+                      {NOMBRES_MESES.map(mes => (
+                        <button
+                          key={mes}
+                          className={`est-mes-chip ${mesesSeleccionados.includes(mes) ? 'est-mes-chip--activo' : ''}`}
+                          onClick={() => toggleMes(mes)}
+                        >
+                          {mes}
+                        </button>
+                      ))}
+                      {mesesSeleccionados.length > 0 && (
+                        <button
+                          className="est-limpiar-subfiltro-chip"
+                          onClick={() => setMesesSeleccionados([])}
+                        >
+                          <X size={12} /> Limpiar
+                        </button>
+                      )}
                     </div>
-                  )}
+                  </div>
 
                   {/* Selector de Torneos para Torneos */}
                   {esTorneo && (
@@ -496,7 +493,7 @@ const Estadisticas: React.FC = () => {
                   )}
 
                   {/* Bloque inline: Pagado, Año y Monto (común para TODOS los conceptos) */}
-                  <div className="est-filtros-meses-inline" style={{ marginLeft: !esMensualidad && !esTorneo ? '0' : 'auto' }}>
+                  <div className="est-filtros-meses-inline" style={{ marginLeft: 'auto' }}>
                     <div className="est-filtro-item-label est-filtro-pagado">
                       <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 500, paddingLeft: '2px' }}>Pagado</span>
                       <select 
