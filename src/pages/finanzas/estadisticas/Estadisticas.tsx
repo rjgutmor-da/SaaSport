@@ -24,7 +24,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   ChevronLeft, RefreshCw, TrendingUp, TrendingDown, Users,
-  ChevronDown, X
+  ChevronDown, X, Wallet
 } from 'lucide-react';
 import { supabase } from '../../../lib/supabaseClient';
 
@@ -35,6 +35,7 @@ import TablaCuentasPorCobrar from './components/TablaCuentasPorCobrar';
 import FiltrosCxc from '../../../components/cxc/FiltrosCxc';
 import FiltroMonto from './components/FiltroMonto';
 import FiltroPeriodoMeses from './components/FiltroPeriodoMeses';
+import PanelMensualidades from './components/PanelMensualidades';
 
 // Hooks
 import { useEscuelaId } from './hooks/useEscuelaId';
@@ -58,7 +59,7 @@ interface CatalogoItem {
   activo: boolean;
 }
 
-type Pestaña = 'resumen' | 'alumnos' | 'cxc';
+type Pestaña = 'resumen' | 'alumnos' | 'cxc' | 'mensualidades';
 
 const Estadisticas: React.FC = () => {
   const navigate = useNavigate();
@@ -273,6 +274,12 @@ const Estadisticas: React.FC = () => {
           onClick={() => setPestaña('resumen')}
         >
           <TrendingUp size={16} /> Ingresos y Egresos
+        </button>
+        <button
+          className={`est-tab ${pestaña === 'mensualidades' ? 'est-tab--activo est-tab--ingreso' : ''}`}
+          onClick={() => setPestaña('mensualidades')}
+        >
+          <Wallet size={16} /> Mensualidades
         </button>
       </div>
 
@@ -589,6 +596,26 @@ const Estadisticas: React.FC = () => {
               error={cxcResult.error}
             />
           </div>
+        )}
+        {/* ══════ PESTAÑA MENSUALIDADES ══════ */}
+        {pestaña === 'mensualidades' && (
+          <PanelMensualidades
+            escuelaId={escuelaId}
+            sucursalId={sucursalId}
+            entrenadorId={entrenadorId}
+            grupoId={grupoId}
+            horarioId={horarioId}
+            onChangeSucursal={setSucursalId}
+            onChangeEntrenador={setEntrenadorId}
+            onChangeGrupo={setGrupoId}
+            onChangeHorario={setHorarioId}
+            onLimpiarFiltros={() => {
+              setSucursalId('');
+              setEntrenadorId('');
+              setGrupoId('');
+              setHorarioId('');
+            }}
+          />
         )}
       </div>
     </main>

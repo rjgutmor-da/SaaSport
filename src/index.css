@@ -3745,3 +3745,137 @@ input[type=number] {
   }
 
 }
+
+/* --- Estadísticas: pestaña Mensualidades --- */
+.est-mens-resumen {
+  display: flex;
+  align-items: stretch;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.est-mens-indicador {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.5rem 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  min-width: 170px;
+}
+
+.est-mens-label {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.est-mens-valor {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--primary);
+}
+
+.est-mens-nota {
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+}
+
+.est-mens-rango {
+  flex: 1;
+  min-width: 260px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.35rem;
+}
+
+.est-mens-rango-cabecera {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.est-mens-rango-valores {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.est-mens-slider {
+  position: relative;
+  height: 22px;
+}
+
+.est-mens-slider-pista,
+.est-mens-slider-franja {
+  position: absolute;
+  top: 50%;
+  height: 4px;
+  transform: translateY(-50%);
+  border-radius: 4px;
+}
+
+.est-mens-slider-pista {
+  left: 0;
+  right: 0;
+  background: var(--border);
+}
+
+.est-mens-slider-franja {
+  background: var(--primary);
+}
+
+.est-mens-slider input[type='range'] {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  margin: 0;
+  background: none;
+  pointer-events: none;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.est-mens-slider input[type='range']::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  pointer-events: auto;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid var(--primary);
+  cursor: pointer;
+}
+
+.est-mens-slider input[type='range']::-moz-range-thumb {
+  pointer-events: auto;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid var(--primary);
+  cursor: pointer;
+}
+
+.est-mens-slider--deshabilitado {
+  opacity: 0.5;
+}
+
+.est-mens-rango-limites {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+}
+
+.est-mens-th-orden {
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+
+@media (max-width: 650px) {
+  .est-mens-indicador { flex: 1 1 140px; min-width: 0; }
+}
