@@ -2,24 +2,31 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { contarAsistenciasCicloAnterior, obtenerCicloAnterior } from './asistenciasCiclo.ts';
 
-const nota = (id = 'n1', inicio = '2026-09-14', fin = '2026-10-13') => ({
-  id, alumnos: { id: 'a1' }, ciclo_inicio: inicio, ciclo_fin: fin,
+const nota = (id = 'n1', inicio = '2026-09-14', fin = '2026-10-13', alumno = 'a1') => ({
+  id, alumnos: { id: alumno }, ciclo_inicio: inicio, ciclo_fin: fin,
 });
 
-function clientePrueba(filas = {}, fallo = false) {
+/** Simula el cliente de Supabase; `limiteServidor` imita el máximo de filas por respuesta. */
+function clientePrueba(filas = {}, { fallo = false, limiteServidor = Infinity } = {}) {
   const metricas = { activas: 0, maximo: 0, consultas: 0 };
   const cliente = {
     from(tabla) {
       const filtros = [];
+      let conteo = false;
+      let desde = 0;
+      let hasta = Infinity;
       return {
-        select(columna, opciones) {
-          assert.equal(columna, 'id');
-          assert.deepEqual(opciones, { count: 'exact', head: true });
+        select(columnas, opciones) {
+          assert.equal(columnas, 'alumno_id, fecha');
+          conteo = opciones?.count === 'exact';
           return this;
         },
+        in(campo, valores) { filtros.push(fila => valores.includes(fila[campo])); return this; },
         eq(campo, valor) { filtros.push(fila => fila[campo] === valor); return this; },
         gte(campo, valor) { filtros.push(fila => fila[campo] >= valor); return this; },
         lte(campo, valor) { filtros.push(fila => fila[campo] <= valor); return this; },
+        order() { return this; },
+        range(inicio, fin) { desde = inicio; hasta = fin; return this; },
         async abortSignal(signal) {
           metricas.consultas++;
           metricas.activas++;
@@ -27,9 +34,12 @@ function clientePrueba(filas = {}, fallo = false) {
           try {
             await new Promise(resolve => setTimeout(resolve, 5));
             signal.throwIfAborted();
-            return fallo && tabla === 'asistencias_arqueros'
-              ? { error: new Error('Sin acceso'), count: null }
-              : { error: null, count: (filas[tabla] || []).filter(fila => filtros.every(f => f(fila))).length };
+            if (fallo && tabla === 'asistencias_arqueros') return { error: new Error('Sin acceso'), data: null, count: null };
+            const coincidentes = (filas[tabla] || []).filter(fila => filtros.every(f => f(fila)))
+              .sort((a, b) => a.alumno_id.localeCompare(b.alumno_id) || a.fecha.localeCompare(b.fecha));
+            const pagina = coincidentes.slice(desde, Math.min(hasta + 1, desde + limiteServidor));
+            return { error: null, data: pagina.map(({ alumno_id, fecha }) => ({ alumno_id, fecha })),
+              count: conteo ? coincidentes.length : null };
           } finally {
             metricas.activas--;
           }
@@ -40,8 +50,9 @@ function clientePrueba(filas = {}, fallo = false) {
   return { cliente, metricas };
 }
 
+const fila = (fecha, estado = 'Presente', alumno_id = 'a1') => ({ fecha, estado, alumno_id });
+
 test('cuenta el ciclo anterior en ambas tablas; excluye el facturado, otros alumnos y estados', async () => {
-  const fila = (fecha, estado = 'Presente', alumno_id = 'a1') => ({ fecha, estado, alumno_id });
   const { cliente } = clientePrueba({
     asistencias_normales: [fila('2026-10-03'), fila('2026-11-02'), fila('2026-10-02'),
       fila('2026-11-03'), fila('2026-12-02'), fila('2026-10-20', 'Licencia'),
@@ -76,20 +87,39 @@ test('ciclos incompletos o inválidos y alumno ausente no generan consultas', as
 });
 
 test('un error en una tabla no se presenta como cero ni como conteo parcial', async () => {
-  const { cliente } = clientePrueba({}, true);
+  const { cliente } = clientePrueba({ asistencias_normales: [fila('2026-08-20')] }, { fallo: true });
   assert.deepEqual(await contarAsistenciasCicloAnterior(cliente, [nota()], new AbortController().signal), { n1: 'error' });
 });
 
-test('limita a veinte solicitudes incluso con cargas solapadas y descarta la carga cancelada', async () => {
-  const { cliente, metricas } = clientePrueba();
-  const anterior = new AbortController();
-  const notas = Array.from({ length: 45 }, (_, i) => nota(`n${i}`));
-  const cargaAnterior = contarAsistenciasCicloAnterior(cliente, notas, anterior.signal);
-  const rechazo = assert.rejects(cargaAnterior, { name: 'AbortError' });
-  anterior.abort();
+test('agrupa cientos de notas en pocas consultas y respeta el límite de concurrencia', async () => {
+  const { cliente, metricas } = clientePrueba({
+    asistencias_normales: [fila('2026-10-10', 'Presente', 'a7'), fila('2026-10-11', 'Presente', 'a7')],
+  });
+  const notas = Array.from({ length: 450 }, (_, i) => nota(`n${i}`, '2026-11-03', '2026-12-02', `a${i}`));
   const resultado = await contarAsistenciasCicloAnterior(cliente, notas, new AbortController().signal);
-  await rechazo;
-  assert.equal(Object.keys(resultado).length, 45);
-  assert.ok(Object.values(resultado).every(valor => valor === 0));
-  assert.equal(metricas.maximo, 20);
+  assert.equal(Object.keys(resultado).length, 450);
+  assert.equal(resultado.n7, 2);
+  assert.equal(resultado.n8, 0);
+  // 450 alumnos / 80 por lote = 6 lotes × 2 tablas = 12 consultas (antes eran 900).
+  assert.equal(metricas.consultas, 12);
+  assert.ok(metricas.maximo <= 6);
+});
+
+test('pagina correctamente aunque el servidor devuelva menos filas que las solicitadas', async () => {
+  const fechas = Array.from({ length: 25 }, (_, i) => `2026-10-${String(i + 3).padStart(2, '0')}`);
+  const { cliente } = clientePrueba({
+    asistencias_normales: [...fechas.map(f => fila(f)), ...fechas.map(f => fila(f, 'Presente', 'a2'))],
+  }, { limiteServidor: 7 });
+  const resultado = await contarAsistenciasCicloAnterior(cliente,
+    [nota('n1', '2026-11-03', '2026-12-02'), nota('n2', '2026-11-03', '2026-12-02', 'a2')],
+    new AbortController().signal);
+  assert.deepEqual(resultado, { n1: 25, n2: 25 });
+});
+
+test('descarta la carga cancelada', async () => {
+  const { cliente } = clientePrueba();
+  const anterior = new AbortController();
+  const carga = contarAsistenciasCicloAnterior(cliente, [nota()], anterior.signal);
+  anterior.abort();
+  await assert.rejects(carga, { name: 'AbortError' });
 });

@@ -141,23 +141,25 @@ const NotasAutomaticas: React.FC = () => {
     });
   }, [notas, busqueda, filtroSucursalEfectivo]);
 
+  // Se cuentan las asistencias de todas las notas cargadas (no solo las filtradas),
+  // así la búsqueda y el filtro de sucursal no vuelven a disparar las consultas.
   useEffect(() => {
     const controlador = new AbortController();
     setAsistencias({});
     if (!cargando && escuelaId) {
-      void contarAsistenciasCicloAnterior(supabase, notasFiltradas, controlador.signal)
+      void contarAsistenciasCicloAnterior(supabase, notas, controlador.signal)
         .then(resultado => {
           if (!controlador.signal.aborted) setAsistencias(resultado);
         })
         .catch(() => {
           if (!controlador.signal.aborted) {
-            setAsistencias(Object.fromEntries(notasFiltradas.map(nota =>
+            setAsistencias(Object.fromEntries(notas.map(nota =>
               [nota.id, tieneCicloValido(nota) ? 'error' : null])));
           }
         });
     }
     return () => controlador.abort();
-  }, [notasFiltradas, cargando, escuelaId]);
+  }, [notas, cargando, escuelaId]);
 
   const formatFechaBonita = (iso: string | null) => {
     if (!iso) return '—';
