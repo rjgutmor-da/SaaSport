@@ -18,6 +18,7 @@ import { getSucursales } from '../../services/sucursales';
 import type { Sucursal } from '../../services/sucursales';
 import { getUsuarios } from '../../services/usuarios';
 import type { Usuario } from '../../services/usuarios';
+import './ConfiguracionGrupos.css';
 
 const ConfiguracionGrupos: React.FC = () => {
   const navigate = useNavigate();
@@ -267,7 +268,7 @@ const ConfiguracionGrupos: React.FC = () => {
   };
 
   return (
-    <main className="main-content">
+    <main className="main-content configuracion-grupos">
       {/* Cabecera */}
       <div className="pc-header">
         <div className="pc-header-izq">
@@ -429,8 +430,16 @@ const ConfiguracionGrupos: React.FC = () => {
           </div>
 
           {/* Tabla de Grupos */}
-          <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+          <div className="grupos-tabla-scroll" role="region" aria-label="Grupos: tabla con desplazamiento horizontal" tabIndex={0}>
+            <table className="grupos-tabla">
+              <colgroup>
+                <col style={{ width: '11rem' }} />
+                <col />
+                <col style={{ width: '11rem' }} />
+                <col />
+                <col style={{ width: '7rem' }} />
+                <col style={{ width: '14rem' }} />
+              </colgroup>
               <thead>
                 <tr style={{ background: 'rgba(255,255,255,0.02)', borderBottom: '1px solid var(--border)' }}>
                   <th style={{ padding: '1rem', color: 'var(--text-secondary)', fontWeight: 700, fontSize: '0.85rem' }}>Nombre</th>
@@ -457,7 +466,7 @@ const ConfiguracionGrupos: React.FC = () => {
                             type="text"
                             value={editGrupoName}
                             onChange={(e) => setEditGrupoName(e.target.value)}
-                            style={{ padding: '0.4rem 0.6rem', background: 'var(--bg-input)', border: '1px solid var(--border)', color: 'var(--text-primary)', borderRadius: '4px', width: '180px' }}
+                            style={{ padding: '0.4rem 0.6rem', background: 'var(--bg-input)', border: '1px solid var(--border)', color: 'var(--text-primary)', borderRadius: '4px' }}
                             autoFocus
                           />
                         ) : (

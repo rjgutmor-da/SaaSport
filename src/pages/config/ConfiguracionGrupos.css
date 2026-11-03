@@ -1,0 +1,57 @@
+.configuracion-grupos {
+  min-width: 0;
+}
+
+.grupos-tabla-scroll {
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+
+.grupos-tabla-scroll:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.grupos-tabla {
+  width: 100%;
+  min-width: 64rem;
+  table-layout: fixed;
+  border-collapse: separate;
+  border-spacing: 0;
+  text-align: left;
+}
+
+.grupos-tabla td {
+  overflow-wrap: anywhere;
+}
+
+/* Los nombres largos de las opciones no deben ensanchar la tabla al editar. */
+.grupos-tabla input,
+.grupos-tabla select {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* Mantener las acciones al alcance mientras se desplazan los demás campos. */
+.grupos-tabla th:last-child,
+.grupos-tabla td:last-child {
+  position: sticky;
+  right: 0;
+  z-index: 1;
+  background: var(--bg-card);
+  box-shadow: inset 1px 0 var(--border);
+}
+
+.grupos-tabla td:last-child > div {
+  flex-wrap: wrap;
+}
+
+.grupos-tabla td:last-child button {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
