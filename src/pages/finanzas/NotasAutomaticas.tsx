@@ -9,7 +9,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuthSaaSport } from '../../lib/authHelper';
 import NotaServicios from '../../components/cxc/NotaServicios';
 import { useActualizarNotasAutomaticasPendientes } from '../../hooks/useNotasAutomaticasPendientes';
-import { contarAsistenciasCiclos, tieneCicloValido } from '../../services/asistenciasCiclo';
+import { contarAsistenciasCicloAnterior, obtenerCicloAnterior, tieneCicloValido } from '../../services/asistenciasCiclo';
 import type { ConteoAsistencias } from '../../services/asistenciasCiclo';
 
 interface Alumno {
@@ -145,7 +145,7 @@ const NotasAutomaticas: React.FC = () => {
     const controlador = new AbortController();
     setAsistencias({});
     if (!cargando && escuelaId) {
-      void contarAsistenciasCiclos(supabase, notasFiltradas, controlador.signal)
+      void contarAsistenciasCicloAnterior(supabase, notasFiltradas, controlador.signal)
         .then(resultado => {
           if (!controlador.signal.aborted) setAsistencias(resultado);
         })
@@ -472,7 +472,10 @@ const NotasAutomaticas: React.FC = () => {
                 <tr style={{ background: 'rgba(255, 255, 255, 0.02)', borderBottom: '1px solid var(--border)' }}>
                   <th style={{ padding: '1rem', color: 'var(--text-secondary)', fontWeight: 600 }}>Alumno</th>
                   <th style={{ padding: '1rem', color: 'var(--text-secondary)', fontWeight: 600 }}>Sucursal</th>
-                  <th style={{ padding: '1rem', textAlign: 'center', color: 'var(--text-secondary)', fontWeight: 600 }}>Asistencias</th>
+                  <th style={{ padding: '1rem', textAlign: 'center', color: 'var(--text-secondary)', fontWeight: 600 }}>
+                    Asistencias
+                    <span style={{ display: 'block', fontSize: '0.75rem', fontWeight: 400 }}>Ciclo anterior</span>
+                  </th>
                   <th style={{ padding: '1rem', color: 'var(--text-secondary)', fontWeight: 600 }}>Ciclo Facturado</th>
                   <th style={{ padding: '1rem', color: 'var(--text-secondary)', fontWeight: 600 }}>F. Emisión</th>
                   <th style={{ padding: '1rem', textAlign: 'right', color: 'var(--text-secondary)', fontWeight: 600 }}>Modalidad / Monto</th>
@@ -484,6 +487,7 @@ const NotasAutomaticas: React.FC = () => {
                   const mensualidadBase = Number(nota.alumnos?.mensualidad || 0);
                   const esParcial = mensualidadBase > 0 && nota.monto_total < mensualidadBase;
                   const estaCargando = procesandoAccion === nota.id;
+                  const cicloAnterior = obtenerCicloAnterior(nota);
 
                   return (
                     <tr key={nota.id} className="table-row-hover" style={{ borderBottom: '1px solid var(--border)' }}>
@@ -493,10 +497,15 @@ const NotasAutomaticas: React.FC = () => {
                       <td style={{ padding: '1rem', color: 'var(--text-secondary)' }}>
                         {nota.sucursales?.nombre || 'Sin sucursal'}
                       </td>
-                      <td style={{ padding: '1rem', textAlign: 'center', color: 'var(--text-primary)' }} title="Registros Presente dentro del ciclo facturado (normales y arqueros)">
-                        {!tieneCicloValido(nota) ? '—'
+                      <td style={{ padding: '1rem', textAlign: 'center', color: 'var(--text-primary)' }} title="Registros Presente del ciclo anterior al facturado (normales y arqueros)">
+                        {!cicloAnterior ? '—'
                           : asistencias[nota.id] === 'error' ? 'Error'
                           : asistencias[nota.id] ?? '…'}
+                        {cicloAnterior && (
+                          <span style={{ display: 'block', marginTop: '0.25rem', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                            {formatFechaBonita(cicloAnterior.inicio)} al {formatFechaBonita(cicloAnterior.fin)}
+                          </span>
+                        )}
                       </td>
                       <td style={{ padding: '1rem', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
                         {nota.ciclo_inicio && nota.ciclo_fin ? (

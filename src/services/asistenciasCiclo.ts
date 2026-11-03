@@ -23,6 +23,22 @@ export function tieneCicloValido(nota: NotaConCiclo): boolean {
     && fechaValida(nota.ciclo_fin) && nota.ciclo_inicio <= nota.ciclo_fin);
 }
 
+/** Mes previo al inicio del ciclo; ajusta el día si el mes anterior es más corto. */
+export function obtenerCicloAnterior(nota: NotaConCiclo): { inicio: string; fin: string } | null {
+  if (!tieneCicloValido(nota)) return null;
+  const inicioFacturado = new Date(`${nota.ciclo_inicio}T00:00:00Z`);
+  const inicio = new Date(inicioFacturado);
+  const dia = inicio.getUTCDate();
+  inicio.setUTCDate(1);
+  inicio.setUTCMonth(inicio.getUTCMonth() - 1);
+  const ultimoDiaMes = new Date(inicioFacturado);
+  ultimoDiaMes.setUTCDate(0);
+  inicio.setUTCDate(Math.min(dia, ultimoDiaMes.getUTCDate()));
+  const fin = new Date(inicioFacturado);
+  fin.setUTCDate(fin.getUTCDate() - 1);
+  return { inicio: inicio.toISOString().slice(0, 10), fin: fin.toISOString().slice(0, 10) };
+}
+
 async function limitarSolicitud<T>(signal: AbortSignal, consultar: () => Promise<T>): Promise<T> {
   while (solicitudesActivas.size >= MAX_CONSULTAS_SIMULTANEAS) {
     await Promise.race(solicitudesActivas);
@@ -40,8 +56,8 @@ async function limitarSolicitud<T>(signal: AbortSignal, consultar: () => Promise
   }
 }
 
-/** Cuenta registros (no días únicos), respetando la sesión y RLS del cliente. */
-export async function contarAsistenciasCiclos(
+/** Cuenta registros Presente del ciclo anterior, respetando la sesión y RLS del cliente. */
+export async function contarAsistenciasCicloAnterior(
   cliente: SupabaseClient,
   notas: readonly NotaConCiclo[],
   signal: AbortSignal,
@@ -51,7 +67,8 @@ export async function contarAsistenciasCiclos(
   async function trabajador() {
     while (siguiente < notas.length && !signal.aborted) {
       const nota = notas[siguiente++];
-      if (!tieneCicloValido(nota)) {
+      const cicloAnterior = obtenerCicloAnterior(nota);
+      if (!cicloAnterior) {
         resultados[nota.id] = null;
         continue;
       }
@@ -63,8 +80,8 @@ export async function contarAsistenciasCiclos(
             .select('id', { count: 'exact', head: true })
             .eq('alumno_id', nota.alumnos!.id)
             .eq('estado', 'Presente')
-            .gte('fecha', nota.ciclo_inicio!)
-            .lte('fecha', nota.ciclo_fin!)
+            .gte('fecha', cicloAnterior.inicio)
+            .lte('fecha', cicloAnterior.fin)
             .abortSignal(signal));
           if (respuesta.error || respuesta.count === null) throw new Error('No se pudo contar las asistencias');
           total += respuesta.count;
