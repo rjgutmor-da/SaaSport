@@ -2724,6 +2724,13 @@ input[type=number] {
   gap: 0.85rem;
 }
 
+.est-filtro-torneo-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  width: 100%;
+}
+
 .est-filtro-meses-row {
   display: flex;
   align-items: flex-end;

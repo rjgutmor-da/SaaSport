@@ -410,7 +410,60 @@ const Estadisticas: React.FC = () => {
                 </div>
               </div>
 
-              {/* Fila de subfiltros y controles (Meses/Torneo + Pagado, Año y Monto unificados para todos los conceptos) */}
+              {/* Fila exclusiva para Torneo (cuando el concepto seleccionado es Torneo) */}
+              {itemSeleccionado && esTorneo && (
+                <div className="est-filtro-torneo-row">
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 500, paddingLeft: '2px', display: 'block', marginBottom: '0.2rem' }}>
+                    Torneo <span className="est-filtro-hint">(opcional — sin selección muestra todos)</span>
+                  </span>
+                  <div className="est-fechas-chips" style={{ flexWrap: 'wrap', gap: '0.4rem', alignItems: 'center' }}>
+                    <button
+                      className={`est-chip ${torneoSeleccionado === '' ? 'est-chip--activo' : ''}`}
+                      onClick={() => { setTorneoSeleccionado(''); setTorneoPersonalizado(''); }}
+                    >
+                      Todos
+                    </button>
+                    {torneos.map(t => (
+                      <button
+                        key={t}
+                        className={`est-chip ${torneoSeleccionado === t ? 'est-chip--activo' : ''}`}
+                        onClick={() => { setTorneoSeleccionado(t); setTorneoPersonalizado(''); }}
+                      >
+                        {t}
+                      </button>
+                    ))}
+                    <button
+                      className={`est-chip ${torneoSeleccionado === 'Otro' ? 'est-chip--activo' : ''}`}
+                      onClick={() => setTorneoSeleccionado('Otro')}
+                    >
+                      Otro...
+                    </button>
+                  </div>
+
+                  {torneoSeleccionado === 'Otro' && (
+                    <div className="est-torneo-input-wrap" style={{ marginTop: '0.5rem' }}>
+                      <input
+                        type="text"
+                        className="est-input-torneo"
+                        placeholder="Escribe el nombre del torneo..."
+                        value={torneoPersonalizado}
+                        onChange={e => setTorneoPersonalizado(e.target.value)}
+                        autoFocus
+                      />
+                      {torneoPersonalizado && (
+                        <button
+                          className="est-torneo-limpiar"
+                          onClick={() => setTorneoPersonalizado('')}
+                        >
+                          <X size={14} />
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Fila de subfiltros de Meses y controles (Pagado, Año y Monto) */}
               {itemSeleccionado && (
                 <div className="est-filtro-meses-row" style={{ alignItems: 'flex-end' }}>
                   {/* Selector de Meses para todos los conceptos */}
@@ -438,59 +491,6 @@ const Estadisticas: React.FC = () => {
                       )}
                     </div>
                   </div>
-
-                  {/* Selector de Torneos para Torneos */}
-                  {esTorneo && (
-                    <div className="est-filtro-meses-col-meses" style={{ minWidth: '240px' }}>
-                      <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 500, paddingLeft: '2px', display: 'block', marginBottom: '0.2rem' }}>
-                        Torneo <span className="est-filtro-hint">(opcional — sin selección muestra todos)</span>
-                      </span>
-                      <div className="est-fechas-chips" style={{ flexWrap: 'wrap', gap: '0.4rem' }}>
-                        <button
-                          className={`est-chip ${torneoSeleccionado === '' ? 'est-chip--activo' : ''}`}
-                          onClick={() => { setTorneoSeleccionado(''); setTorneoPersonalizado(''); }}
-                        >
-                          Todos
-                        </button>
-                        {torneos.map(t => (
-                          <button
-                            key={t}
-                            className={`est-chip ${torneoSeleccionado === t ? 'est-chip--activo' : ''}`}
-                            onClick={() => { setTorneoSeleccionado(t); setTorneoPersonalizado(''); }}
-                          >
-                            {t}
-                          </button>
-                        ))}
-                        <button
-                          className={`est-chip ${torneoSeleccionado === 'Otro' ? 'est-chip--activo' : ''}`}
-                          onClick={() => setTorneoSeleccionado('Otro')}
-                        >
-                          Otro...
-                        </button>
-                      </div>
-
-                      {torneoSeleccionado === 'Otro' && (
-                        <div className="est-torneo-input-wrap" style={{ marginTop: '0.5rem' }}>
-                          <input
-                            type="text"
-                            className="est-input-torneo"
-                            placeholder="Escribe el nombre del torneo..."
-                            value={torneoPersonalizado}
-                            onChange={e => setTorneoPersonalizado(e.target.value)}
-                            autoFocus
-                          />
-                          {torneoPersonalizado && (
-                            <button
-                              className="est-torneo-limpiar"
-                              onClick={() => setTorneoPersonalizado('')}
-                            >
-                              <X size={14} />
-                            </button>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  )}
 
                   {/* Bloque inline: Pagado, Año y Monto (común para TODOS los conceptos) */}
                   <div className="est-filtros-meses-inline" style={{ marginLeft: 'auto' }}>
