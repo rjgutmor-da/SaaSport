@@ -125,6 +125,8 @@ const obtenerUrlCobranzaWhatsApp = (
   detallesPorCuenta: Record<string, DetalleItemCobranza[]>,
   parrafoFinal: string | null,
 ): string | null => {
+  // Nunca mezclar el destinatario actual con cuentas de otra ficha.
+  if (cxcs.some(cxc => cxc.alumno_id !== alumno.alumno_id || cxc.escuela_id !== alumno.escuela_id)) return null;
   const contacto = obtenerContactoCobranza(alumno);
   const deudasCobrables = cxcs.filter(cxc =>
     !cxc.anulada &&
@@ -160,7 +162,7 @@ const obtenerMensajeErrorCobro = (error: unknown): string => {
   return `Error: ${mensaje || 'No se pudo registrar el cobro.'}`;
 };
 
-const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
+const FichaAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
   alumno, visible, onCerrar, onActualizar
 }) => {
   const { escuelaId: escuelaCobranzaId } = useAuthSaaSport();
@@ -170,7 +172,8 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
   const [cxcs, setCxcs] = useState<CuentaCobrar[]>([]);
   const cobroMultiple = useCobroMultiple(cxcs);
   const [detalles, setDetalles] = useState<Record<string, CxcDetalle[]>>({});
-  const [cargando, setCargando] = useState(false);
+  const [cargando, setCargando] = useState(true);
+  const [cobranzaLista, setCobranzaLista] = useState(false);
   const [expandida, setExpandida] = useState<string | null>(null);
   const [modalNotaVisible, setModalNotaVisible] = useState(false);
   const [modoModal, setModoModal] = useState<'ver' | 'editar' | 'crear'>('crear');
@@ -225,15 +228,19 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
   useEffect(() => {
     if (!visible || !alumno) return;
 
+    let vigente = true;
     const cargar = async () => {
       setCargando(true);
+      setCobranzaLista(false);
       const { data: { user } } = await supabase.auth.getUser();
+      if (!vigente) return;
       let esAdmin = false;
       let userSucursal = '';
       let escuelaId = '';
       if (user) {
         const { data: usr } = await supabase.from('usuarios')
           .select('rol, sucursal_id, escuela_id').eq('id', user.id).single();
+        if (!vigente) return;
         setUserRol(usr?.rol || '');
         esAdmin = usr?.rol === 'SuperAdministrador';
         userSucursal = usr?.sucursal_id || '';
@@ -261,6 +268,8 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
           .order('nombre')
       ]);
 
+      if (!vigente) return;
+      if (resCxc.error) throw resCxc.error;
       const rawCxcs = (resCxc.data as unknown as CuentaCobrar[]) ?? [];
       // Mostrar primero la fecha de emisión más reciente, igual que en la tabla.
       const ordenadas = [...rawCxcs].sort((a, b) => {
@@ -286,6 +295,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
           .in('cuenta_cobrar_id', cxcIds)
           .order('fecha', { ascending: false });
 
+        if (!vigente) return;
         const historyMap: Record<string, any[]> = {};
         todosCobros?.forEach(cobro => {
           if (!historyMap[cobro.cuenta_cobrar_id]) historyMap[cobro.cuenta_cobrar_id] = [];
@@ -299,6 +309,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
           .select('cuenta_cobrar_id, catalogo_item_id, cantidad, precio_unitario, periodo_meses, detalle_extra, ciclo_inicio, ciclo_fin, periodo_estadistico, catalogo_items!inner(nombre)')
           .in('cuenta_cobrar_id', cxcIds);
 
+        if (!vigente) return;
         let todosItems: any[] | null = consultaItems.data as any[] | null;
         if (consultaItems.error) {
           // Compatibilidad durante el despliegue escalonado de las columnas de ciclo.
@@ -308,9 +319,9 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
             .select('cuenta_cobrar_id, catalogo_item_id, cantidad, precio_unitario, periodo_meses, detalle_extra, catalogo_items!inner(nombre)')
             .in('cuenta_cobrar_id', cxcIds);
 
+          if (!vigente) return;
           if (consultaItemsLegacy.error) {
-            console.error('No se pudieron cargar los detalles de las notas:', consultaItemsLegacy.error);
-            todosItems = null;
+            throw consultaItemsLegacy.error;
           } else {
             todosItems = consultaItemsLegacy.data as any[] | null;
           }
@@ -322,17 +333,28 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
           itemsMap[item.cuenta_cobrar_id].push({ ...item, item_nombre: item.catalogo_items?.nombre });
         });
         setDetallesItems(itemsMap);
+      } else {
+        setDetallesItems({});
+        setHistorialCobros({});
       }
+      setCobranzaLista(true);
 
       const { data: resAnt } = await supabase.from('v_cuentas_cobrar')
         .select('*').eq('alumno_id', alumno.alumno_id).eq('es_anticipo', true).gt('saldo_pendiente', 0);
+      if (!vigente) return;
       setAnticiposDisponibles(resAnt || []);
       setCargando(false);
     };
-    cargar();
+    void cargar().catch(error => {
+      if (!vigente) return;
+      console.error('No se pudo cargar la ficha de cobranza:', error);
+      setCobranzaLista(false);
+      setCargando(false);
+    });
 
     setUsarAnticipo(false); setAnticipoId('');
     setCobroCxcId(null); setDevolucionCxcId(null); setExpandida(null); setMensajePagoWA(null);
+    return () => { vigente = false; };
   }, [visible, alumno, refreshKey]);
 
   const abrirCobroMultiple = () => {
@@ -818,7 +840,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
               {configCobranza.isError && <p role="alert">No se pudo cargar el mensaje de cobranza. <button onClick={() => void configCobranza.refetch()}>Reintentar</button></p>}
               {/* Botón WhatsApp — solo móvil */}
               {(() => {
-                const url = configCobranza.isSuccess ? obtenerUrlCobranzaWhatsApp(alumno, cxcs, detallesItems, configCobranza.data) : null;
+                const url = cobranzaLista && configCobranza.isSuccess ? obtenerUrlCobranzaWhatsApp(alumno, cxcs, detallesItems, configCobranza.data) : null;
                 if (!url) return null;
                 return (
                   <a
@@ -871,7 +893,7 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                   {(() => {
                     const contactoPrincipal = obtenerContactoCobranza(alumno);
                     const telefonoPrincipal = contactoPrincipal?.telefono;
-                    const urlCobranzaWhatsApp = configCobranza.isSuccess ? obtenerUrlCobranzaWhatsApp(alumno, cxcs, detallesItems, configCobranza.data) : null;
+                    const urlCobranzaWhatsApp = cobranzaLista && configCobranza.isSuccess ? obtenerUrlCobranzaWhatsApp(alumno, cxcs, detallesItems, configCobranza.data) : null;
                     return (
                       <>
                         <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#a855f7' }}>
@@ -1628,5 +1650,12 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
     </>
   );
 };
+
+// La identidad de React impide reutilizar deudas, importes y formularios de otro alumno.
+// Al cerrar también se desmonta la ficha para descartar cualquier carga pendiente.
+const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = props =>
+  props.visible && props.alumno
+    ? <FichaAlumnoCxc key={`${props.alumno.escuela_id}:${props.alumno.alumno_id}`} {...props} />
+    : null;
 
 export default DetalleAlumnoCxc;
