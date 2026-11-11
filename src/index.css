@@ -804,6 +804,38 @@ input[type=number] {
   grid-column: 1 / -1;
 }
 
+.cobranza-parrafo-campo {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 0;
+  width: 100%;
+}
+
+.cobranza-parrafo-campo textarea {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 160px;
+  resize: vertical;
+  line-height: 1.5;
+  letter-spacing: normal;
+  word-spacing: normal;
+}
+
+.cobranza-parrafo-campo small {
+  display: block;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  letter-spacing: normal;
+  word-spacing: normal;
+  color: var(--text-secondary);
+}
+
+#cobranza-contador {
+  text-align: right;
+}
+
 .form-campo label {
   display: flex;
   align-items: center;

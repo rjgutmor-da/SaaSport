@@ -48,7 +48,7 @@ export default function ConfiguracionMensajesCobranza({ escuelaId }: { escuelaId
           {query.isPending && <p role="status">Cargando configuración…</p>}
           {query.isError && <p role="alert">No se pudo cargar la configuración. <button type="button" onClick={() => void query.refetch()}>Reintentar</button></p>}
           {query.isSuccess && <>
-            <div className="form-campo">
+            <div className="form-campo cobranza-parrafo-campo">
               <label htmlFor="cobranza-parrafo">Párrafo final de cobranza por WhatsApp</label>
               <textarea id="cobranza-parrafo" rows={6} value={texto} disabled={guardando} aria-describedby="cobranza-ayuda cobranza-contador"
                 onChange={e => { if (contarCaracteresCobranza(e.target.value) <= 600) setBorrador(e.target.value); }} />
