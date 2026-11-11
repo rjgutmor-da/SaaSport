@@ -2,15 +2,18 @@ import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../../lib/supabaseClient';
 import { configuracionCobranzaKey, useConfiguracionCobranza } from '../../hooks/useConfiguracionCobranza';
-import { contarCaracteresCobranza, normalizarParrafoCobranza, resolverParrafoCobranza } from '../../lib/cobranzaWhatsApp';
+import { contarCaracteresCobranza, normalizarParrafoCobranza, resolverParrafoCobranza, puedeConfigurarCobranza } from '../../lib/cobranzaWhatsApp';
+import { useAuthSaaSport } from '../../lib/authHelper';
 import { formatCicloWhatsApp, getHoyISO } from '../../lib/dateUtils';
 
 export default function ConfiguracionMensajesCobranza({ escuelaId }: { escuelaId: string }) {
+  const { perfil, escuelaId: escuelaActualId } = useAuthSaaSport();
+  const permitido = puedeConfigurarCobranza(perfil) && escuelaId === escuelaActualId;
   const [abierto, setAbierto] = useState(false);
   const [borrador, setBorrador] = useState<string | undefined>();
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const query = useConfiguracionCobranza(escuelaId, abierto);
+  const query = useConfiguracionCobranza(escuelaId, abierto && permitido);
   const queryClient = useQueryClient();
   const texto = borrador ?? query.data ?? '';
   const longitud = contarCaracteresCobranza(texto);
@@ -24,6 +27,8 @@ export default function ConfiguracionMensajesCobranza({ escuelaId }: { escuelaId
     resolverParrafoCobranza(texto),
   ].join('\n\n');
   const cerrar = () => { if (!guardando) setAbierto(false); };
+
+  if (!permitido) return null;
 
   return <>
     <button className="pe-acceso-card pe-acceso-green" onClick={() => { setBorrador(undefined); setError(null); setAbierto(true); }}>
@@ -41,7 +46,7 @@ export default function ConfiguracionMensajesCobranza({ escuelaId }: { escuelaId
         <div className="cxc-modal-header"><h2 id="cobranza-titulo">Mensajes de cobranza</h2><button onClick={cerrar} disabled={guardando} aria-label="Cerrar">✕</button></div>
         <form className="cxc-modal-form" onSubmit={async e => {
           e.preventDefault();
-          if (!query.isSuccess || guardando) return;
+          if (!permitido || !query.isSuccess || guardando) return;
           setError(null);
           try {
             const parrafo = normalizarParrafoCobranza(texto);

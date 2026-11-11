@@ -1,6 +1,6 @@
 import { useAuthSaaSport } from '../../lib/authHelper';
 import { useConfiguracionCobranza } from '../../hooks/useConfiguracionCobranza';
-import { resolverParrafoCobranza } from '../../lib/cobranzaWhatsApp';
+import { resolverParrafoCobranza, resolverSaludoCobranza } from '../../lib/cobranzaWhatsApp';
 /**
  * DetalleAlumnoCxc.tsx
  * Modal flotante que muestra todas las deudas de un alumno.
@@ -41,7 +41,7 @@ const fmtMonto = (n: number): string =>
 type ContactoCobranza = {
   telefono: string | null;
   nombre: string | null;
-  tratamiento: string;
+  parentesco: 'padre' | 'madre';
 };
 
 type DetalleItemCobranza = {
@@ -102,12 +102,12 @@ const obtenerContactoCobranza = (alumno: AlumnoDeuda): ContactoCobranza | null =
   const contactoPadre: ContactoCobranza = {
     telefono: alumno.telefono_padre,
     nombre: alumno.nombre_padre,
-    tratamiento: 'Estimado Señor'
+    parentesco: 'padre'
   };
   const contactoMadre: ContactoCobranza = {
     telefono: alumno.telefono_madre,
     nombre: alumno.nombre_madre,
-    tratamiento: 'Estimada Señora'
+    parentesco: 'madre'
   };
 
   if (alumno.whatsapp_preferido === 'padre') {
@@ -135,10 +135,7 @@ const obtenerUrlCobranzaWhatsApp = (
 
   const telLimpio = contacto.telefono.replace(/\D/g, '');
   const telFinal = telLimpio.length === 8 ? `591${telLimpio}` : telLimpio;
-  const nombreContacto = contacto.nombre?.trim();
-  const saludo = nombreContacto
-    ? `${contacto.tratamiento} ${nombreContacto}`
-    : 'Estimado/a padre/madre';
+  const saludo = resolverSaludoCobranza(contacto.nombre, contacto.parentesco);
   const listadoDeudas = deudasCobrables
     .map(cxc => `• ${obtenerDescripcionCobranza(cxc, detallesPorCuenta)}: ${simboloMoneda()} ${fmtMonto(Number(cxc.saldo_pendiente))}`)
     .join('\n');

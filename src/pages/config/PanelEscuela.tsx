@@ -11,6 +11,7 @@
  *   - Modal de Edición de Escuela (Nombre, Eslogan y Logotipo subido a Storage)
  */
 import ConfiguracionMensajesCobranza from '../../components/cxc/ConfiguracionMensajesCobranza';
+import { puedeConfigurarCobranza } from '../../lib/cobranzaWhatsApp';
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -445,7 +446,7 @@ const PanelEscuela: React.FC = () => {
       {/* ─── ACCESOS RÁPIDAS ─── */}
       <div style={{ marginTop: '2.5rem' }}>
         <div className="pe-accesos-grid">
-          {perfil?.rol === 'SuperAdministrador' && escuelaId && <ConfiguracionMensajesCobranza key={escuelaId} escuelaId={escuelaId} />}
+          {puedeConfigurarCobranza(perfil) && escuelaId && <ConfiguracionMensajesCobranza key={escuelaId} escuelaId={escuelaId} />}
 
           {/* Sucursales → ruta interna */}
           <button className="pe-acceso-card pe-acceso-orange" onClick={() => navigate('/panel-escuela/sucursales')}>

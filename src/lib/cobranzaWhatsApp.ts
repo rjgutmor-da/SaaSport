@@ -1,4 +1,6 @@
 export const MAX_CARACTERES_COBRANZA = 600;
+export const puedeConfigurarCobranza = (perfil: { rol: string; sucursal_id: string | null; activo: boolean } | null): boolean =>
+  !!perfil?.activo && (perfil.rol === 'SuperAdministrador' || (perfil.rol === 'Administrador' && perfil.sucursal_id === null));
 export const PARRAFO_COBRANZA_PREDETERMINADO = 'Si ya realizó alguno de estos pagos, por favor envíenos el comprobante por este medio para actualizar su estado. Muchas gracias. 🩶';
 
 export const contarCaracteresCobranza = (texto: string): number => Array.from(texto).length;
@@ -12,3 +14,10 @@ export const normalizarParrafoCobranza = (texto: string): string | null => {
 
 export const resolverParrafoCobranza = (texto?: string | null): string =>
   texto?.trim() || PARRAFO_COBRANZA_PREDETERMINADO;
+
+export const resolverSaludoCobranza = (nombre: string | null, parentesco: 'padre' | 'madre'): string => {
+  const nombreLimpio = nombre?.trim();
+  const sinNombre = !nombreLimpio || /^por\s+definir$/i.test(nombreLimpio);
+  if (sinNombre) return parentesco === 'padre' ? 'Estimado Papá' : 'Estimada Mamá';
+  return `${parentesco === 'padre' ? 'Estimado Señor' : 'Estimada Señora'} ${nombreLimpio}`;
+};

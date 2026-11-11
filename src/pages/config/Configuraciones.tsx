@@ -9,10 +9,12 @@ import {
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthSaaSport } from '../../lib/authHelper';
+import ConfiguracionMensajesCobranza from '../../components/cxc/ConfiguracionMensajesCobranza';
+import { puedeConfigurarCobranza } from '../../lib/cobranzaWhatsApp';
 
 const Configuraciones: React.FC = () => {
   const navigate = useNavigate();
-  const { esSuperAdmin } = useAuthSaaSport();
+  const { esSuperAdmin, perfil, escuelaId } = useAuthSaaSport();
 
   /** Opciones de configuración */
   const opcionesBase = [
@@ -58,6 +60,9 @@ const Configuraciones: React.FC = () => {
 
       {/* Grid de opciones */}
       <div className="config-grid">
+        {!esSuperAdmin && escuelaId && puedeConfigurarCobranza(perfil) && (
+          <ConfiguracionMensajesCobranza key={escuelaId} escuelaId={escuelaId} />
+        )}
         {opciones.map(op => (
           <button
             key={op.ruta}
