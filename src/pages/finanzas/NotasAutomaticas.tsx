@@ -1,5 +1,6 @@
 import { simboloMoneda } from '../../lib/moneda';
 import React, { useEffect, useState, useMemo } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../../lib/supabaseClient';
 import { 
   ChevronLeft, RefreshCw, Search, Pencil, FileText, Calendar, Landmark, AlertCircle,
@@ -45,6 +46,7 @@ interface CuentaCobrar {
 
 const NotasAutomaticas: React.FC = () => {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { escuelaId, perfil, sucursalId } = useAuthSaaSport();
   const actualizarAviso = useActualizarNotasAutomaticasPendientes();
   
@@ -210,6 +212,7 @@ const NotasAutomaticas: React.FC = () => {
       }
       setNotas(prev => prev.filter(n => n.id !== id));
       void actualizarAviso();
+      void queryClient.invalidateQueries({ queryKey: ['cxc-busqueda'] });
     } catch (err: any) {
       alert('Error al aprobar la nota: ' + (err.message || err));
     } finally {
@@ -243,6 +246,8 @@ const NotasAutomaticas: React.FC = () => {
       }
 
       cargarNotas();
+      void actualizarAviso();
+      void queryClient.invalidateQueries({ queryKey: ['cxc-busqueda'] });
     } catch (err: any) {
       alert('Error al aprobar las notas: ' + (err.message || err));
     } finally {
@@ -290,6 +295,7 @@ const NotasAutomaticas: React.FC = () => {
 
       setNotas(prev => prev.filter(n => n.id !== id));
       void actualizarAviso();
+      void queryClient.invalidateQueries({ queryKey: ['cxc-busqueda'] });
     } catch (err: any) {
       alert('Error al eliminar la nota: ' + (err.message || err));
     } finally {
@@ -328,6 +334,7 @@ const NotasAutomaticas: React.FC = () => {
       if (err2) throw err2;
 
       setNotas(prev => prev.map(n => n.id === nota.id ? { ...n, monto_total: nuevoMonto } : n));
+      void queryClient.invalidateQueries({ queryKey: ['cxc-busqueda'] });
     } catch (err: any) {
       alert('Error al cambiar el monto: ' + (err.message || err));
     } finally {
@@ -635,6 +642,8 @@ const NotasAutomaticas: React.FC = () => {
             setModalNotaVisible(false); 
             setCxcParaEditar(null); 
             cargarNotas(); 
+            void actualizarAviso();
+            void queryClient.invalidateQueries({ queryKey: ['cxc-busqueda'] });
           }}
           alumnoPreseleccionado={cxcParaEditar.alumnos ? { 
             id: cxcParaEditar.alumnos.id, 
