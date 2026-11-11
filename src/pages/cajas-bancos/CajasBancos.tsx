@@ -3,8 +3,8 @@ import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react'
 import { supabase } from '../../lib/supabaseClient';
 import {
   RefreshCw, Landmark, ArrowDownRight, ArrowUpRight, Search,
-  CheckCircle2, ArrowRightLeft, Square, Pencil, Trash2,
-  Star, GripVertical, MessageCircle, ShieldCheck, ShieldOff, LockKeyhole,
+  CheckCircle2, ArrowRightLeft, Pencil, Trash2,
+  Star, GripVertical, MessageCircle, ShieldCheck, LockKeyhole,
   Calendar, Copy, Check
 } from 'lucide-react';
 import { toBlob } from 'html-to-image';
@@ -19,7 +19,6 @@ import ModalPagoRapidoCxP from '../../components/cxp/ModalPagoRapidoCxP';
 import NotaServicios from '../../components/cxc/NotaServicios';
 import DropdownAcciones from '../../components/cajas-bancos/DropdownAcciones';
 import { formatFecha, formatCicloWhatsApp } from '../../lib/dateUtils';
-import { logActivity } from '../../lib/auditLogger';
 import { can } from '../../config/roles';
 
 import { useAuthSaaSport } from '../../lib/authHelper';
@@ -121,7 +120,6 @@ const CajasBancos: React.FC = () => {
   }, [busqueda]);
   const [navegacion, setNavegacion] = useState<{ contexto: string; cursores: Array<CursorMovimientos | null> }>({ contexto: '', cursores: [null] });
   const [busquedaCuenta, setBusquedaCuenta] = useState('');
-  const [modoConciliacion, setModoConciliacion] = useState(false);
   const [conciliandoId, setConciliandoId] = useState<string | null>(null);
   const [copiadoCajaId, setCopiadoCajaId] = useState<string | null>(null);
 
@@ -391,128 +389,66 @@ const CajasBancos: React.FC = () => {
   // La busqueda se aplica en el servidor antes de paginar.
   const movimientosFiltrados = movimientos;
 
-  const actualizarConciliadoMovimiento = async (mov: MovimientoFinanciero, conciliado: boolean) => {
-    const tabla = mov.tipo_origen === 'cobro' ? 'cobros_aplicados' : 'pagos_aplicados';
-    const isGrouped = (mov as any).is_grouped;
+  const conciliarHastaMovimiento = async (mov: MovimientoFinanciero, desdeCabecera = false) => {
+    if (!puedeConciliar || conciliandoId || (!desdeCabecera && mov.conciliado)) return;
 
-    if (isGrouped) {
-      const ids = (mov as any).original_ids || [];
-      const resultados = await Promise.all(ids.map((id: string) =>
-        supabase.from(tabla).update({ conciliado }).eq('id', id)
-      ));
-      const error = resultados.find(r => r.error)?.error;
-      if (error) throw error;
-      return;
-    }
-
-    const { error: errUpd } = await supabase
-      .from(tabla)
-      .update({ conciliado })
-      .eq('id', mov.id);
-
-    if (errUpd) throw errUpd;
-  };
-
-  const registrarConciliacion = (
-    accion: 'conciliar' | 'desconciliar' | 'conciliar_hasta' | 'conciliar_visibles',
-    entidadId: string,
-    detalle: Record<string, any>
-  ) => {
-    if (!escuelaId || !perfil) return;
-    logActivity({
-      escuela_id: escuelaId,
-      usuario_id: perfil.id,
-      usuario_nombre: `${perfil.nombres || ''} ${perfil.apellidos || ''}`.trim() || perfil.email,
-      accion,
-      modulo: 'cajas_bancos',
-      entidad_id: entidadId,
-      detalle
-    });
-  };
-
-  const toggleConciliar = async (mov: MovimientoFinanciero) => {
-    if (!puedeConciliar || conciliandoId) return;
-
-    try {
-      const siguienteEstado = !mov.conciliado;
-      let motivo: string | null = null;
-
-      if (!siguienteEstado) {
-        motivo = window.prompt('Motivo para desmarcar esta conciliacion:');
-        if (!motivo?.trim()) return;
-      }
-
-      setConciliandoId(mov.id);
-      await actualizarConciliadoMovimiento(mov, siguienteEstado);
-      registrarConciliacion(siguienteEstado ? 'conciliar' : 'desconciliar', mov.id, {
-        cuenta_id: mov.cuenta_id,
-        cuenta_nombre: mov.cuenta_nombre,
-        saldo_verificado: (mov as any).saldo_historico || 0,
-        fecha_movimiento: mov.fecha,
-        motivo: motivo?.trim() || null
-      });
-      manejarActualizacion();
-    } catch (err: any) {
-      alert("Error al actualizar estado: " + err.message);
-    } finally {
-      setConciliandoId(null);
-    }
-  };
-
-  const conciliarHastaMovimiento = async (mov: MovimientoFinanciero) => {
-    if (!puedeConciliar || conciliandoId || mov.conciliado) return;
-
-    const movimientosCuenta = movimientos.filter(m => m.cuenta_id === mov.cuenta_id);
-    const idx = movimientosCuenta.findIndex(m => m.id === mov.id);
-    if (idx < 0) return;
-
-    const pendientes = movimientosCuenta.slice(idx).filter(m => !m.conciliado);
-    if (pendientes.length === 0) return;
-
+    const nombreCaja = cajas.find(c => c.id === mov.cuenta_id)?.nombre || 'esta cuenta';
     const saldo = Number((mov as any).saldo_historico || 0);
+    const fechaStr = formatFecha(mov.fecha);
+
     const ok = window.confirm(
-      `Conciliar ${pendientes.length} movimiento(s) de ${mov.cuenta_nombre} de esta pagina, desde la fila seleccionada hacia atras?\n\nSaldo verificado: ${simboloMoneda()} ${fmtMonto(saldo)}`
+      `¿Conciliar todos los movimientos pendientes de ${nombreCaja} desde esta fila (${fechaStr}) hacia atrás en todo el historial?\n\nSaldo verificado en este punto: ${simboloMoneda()} ${fmtMonto(saldo)}`
     );
     if (!ok) return;
 
     try {
-      setConciliandoId(mov.id);
-      await Promise.all(pendientes.map(m => actualizarConciliadoMovimiento(m, true)));
-      registrarConciliacion('conciliar_hasta', mov.id, {
-        cuenta_id: mov.cuenta_id,
-        cuenta_nombre: mov.cuenta_nombre,
-        movimientos_marcados: pendientes.length,
-        saldo_verificado: saldo,
-        fecha_corte: mov.fecha
+      setConciliandoId(desdeCabecera ? `visibles-${mov.cuenta_id}` : mov.id);
+      const { error: errRpc } = await supabase.rpc('rpc_conciliar_hasta_movimiento', {
+        p_caja_id: mov.cuenta_id,
+        p_movimiento_id: mov.id,
+        p_tipo_origen: mov.tipo_origen
       });
+      if (errRpc) throw errRpc;
       manejarActualizacion();
     } catch (err: any) {
-      alert("Error al conciliar bloque: " + err.message);
+      alert('Error al conciliar movimientos: ' + (err.message || 'Error desconocido'));
     } finally {
       setConciliandoId(null);
     }
   };
 
-  const conciliarMovimientosVisibles = async (caja: CajaBanco, movsCaja: MovimientoFinanciero[]) => {
-    if (!puedeConciliar || conciliandoId) return;
-    const pendientes = movsCaja.filter(m => !m.conciliado);
-    if (pendientes.length === 0) return;
+  const desconciliarDesdeMovimiento = async (mov: MovimientoFinanciero) => {
+    if (!mov.conciliado || conciliandoId) return;
 
-    const ok = window.confirm(`Conciliar ${pendientes.length} movimiento(s) de esta página de ${caja.nombre}?`);
-    if (!ok) return;
+    if (!esSuperAdmin) {
+      alert('⛔ Solo el SuperAdministrador puede desmarcar o reabrir movimientos ya conciliados.');
+      return;
+    }
+
+    const nombreCaja = cajas.find(c => c.id === mov.cuenta_id)?.nombre || 'esta cuenta';
+    const fechaStr = formatFecha(mov.fecha);
+    const motivo = window.prompt(
+      `⚠️ Reabrir conciliación en ${nombreCaja} desde el ${fechaStr} hacia adelante.\n\nSe mantendrán conciliados los movimientos anteriores a esta fila y se desmarcarán automáticamente esta fila y los movimientos posteriores.\n\nIngresa el motivo obligatorio para desconciliar:`
+    );
+    if (motivo === null) return;
+    if (!motivo.trim()) {
+      alert('Debes ingresar un motivo obligatorio para desconciliar.');
+      return;
+    }
 
     try {
-      setConciliandoId(`visibles-${caja.id}`);
-      await Promise.all(pendientes.map(m => actualizarConciliadoMovimiento(m, true)));
-      registrarConciliacion('conciliar_visibles', caja.id, {
-        cuenta_id: caja.id,
-        cuenta_nombre: caja.nombre,
-        movimientos_marcados: pendientes.length,
-        filtro_busqueda: busqueda.trim() || null
+      setConciliandoId(mov.id);
+      const { error: errRpc } = await supabase.rpc('rpc_desconciliar_desde_fecha', {
+        p_caja_id: mov.cuenta_id,
+        p_desde_fecha: mov.fecha,
+        p_motivo: motivo.trim(),
+        p_movimiento_id: mov.id,
+        p_tipo_origen: mov.tipo_origen
       });
+      if (errRpc) throw errRpc;
       manejarActualizacion();
     } catch (err: any) {
-      alert("Error al conciliar visibles: " + err.message);
+      alert('Error al reabrir la conciliación: ' + (err.message || 'Error desconocido'));
     } finally {
       setConciliandoId(null);
     }
@@ -1062,29 +998,6 @@ const CajasBancos: React.FC = () => {
                   </button>
                 )}
 
-                {puedeConciliar && !isMobile && (
-                  <button
-                    className="cxc-accion-btn"
-                    onClick={() => setModoConciliacion(v => !v)}
-                    title={modoConciliacion
-                      ? 'Salir del modo conciliacion'
-                      : 'Activar modo conciliacion: el check de una fila concilia esa cuenta hasta el saldo mostrado'}
-                    style={{
-                      width: '38px',
-                      height: '34px',
-                      padding: 0,
-                      justifyContent: 'center',
-                      background: modoConciliacion ? 'var(--success-bg)' : '#E5E7EB',
-                      color: modoConciliacion ? 'var(--success)' : '#000',
-                      border: modoConciliacion ? '1px solid rgba(0,210,106,0.45)' : 'none',
-                      borderRadius: '8px',
-                      boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-                    }}
-                  >
-                    {modoConciliacion ? <ShieldOff size={17} /> : <ShieldCheck size={17} />}
-                  </button>
-                )}
-
                 <button className="btn-refrescar" onClick={manejarActualizacion} disabled={cargando}>
                   <RefreshCw size={18} className={cargando ? 'spin' : ''} />
                 </button>
@@ -1387,10 +1300,10 @@ const CajasBancos: React.FC = () => {
                             )}
                           </button>
                         )}
-                        {modoConciliacion && puedeConciliar && !isMobile && movsCaja.some(m => !m.conciliado) && (
+                        {puedeConciliar && !isMobile && movsCaja.some(m => !m.conciliado) && (
                           <button
                             type="button"
-                            onClick={() => conciliarMovimientosVisibles(caja, movsCaja)}
+                            onClick={() => conciliarHastaMovimiento(movsCaja[0], true)}
                             disabled={!!conciliandoId}
                             style={{
                               display: 'inline-flex',
@@ -1402,12 +1315,13 @@ const CajasBancos: React.FC = () => {
                               background: 'var(--success-bg)',
                               color: 'var(--success)',
                               fontWeight: 800,
-                              fontSize: '0.78rem'
+                              fontSize: '0.78rem',
+                              cursor: conciliandoId ? 'wait' : 'pointer'
                             }}
-                            title="Marcar como conciliados los movimientos de esta página"
+                            title="Conciliar todos los movimientos pendientes de esta cuenta desde el más reciente mostrado hacia atrás"
                           >
                             <CheckCircle2 size={15} />
-                            Conciliar esta página
+                            Conciliar todo hasta aquí
                           </button>
                         )}
                       </div>
@@ -1624,11 +1538,10 @@ const CajasBancos: React.FC = () => {
                                     <button 
                                       onClick={(e) => { 
                                         e.stopPropagation(); 
-                                        if (!puedeConciliar) return;
-                                        if (modoConciliacion && !mov.conciliado) {
+                                        if (mov.conciliado) {
+                                          desconciliarDesdeMovimiento(mov);
+                                        } else if (puedeConciliar) {
                                           conciliarHastaMovimiento(mov);
-                                        } else {
-                                          toggleConciliar(mov);
                                         }
                                       }}
                                       style={{ 
@@ -1638,22 +1551,22 @@ const CajasBancos: React.FC = () => {
                                         width: '34px',
                                         height: '30px',
                                         borderRadius: '8px',
-                                        border: `1px solid ${mov.conciliado ? 'rgba(0,210,106,0.32)' : (modoConciliacion ? 'rgba(10,132,255,0.35)' : 'var(--border)')}`,
-                                        background: mov.conciliado ? 'var(--success-bg)' : (modoConciliacion ? 'rgba(10,132,255,0.08)' : 'var(--bg-glass)'),
-                                        cursor: puedeConciliar ? 'pointer' : 'default', 
+                                        border: `1px solid ${mov.conciliado ? 'rgba(0,210,106,0.32)' : (puedeConciliar ? 'rgba(10,132,255,0.35)' : 'var(--border)')}`,
+                                        background: mov.conciliado ? 'var(--success-bg)' : (puedeConciliar ? 'rgba(10,132,255,0.08)' : 'var(--bg-glass)'),
+                                        cursor: (mov.conciliado ? esSuperAdmin : puedeConciliar) ? 'pointer' : 'default', 
                                         color: mov.conciliado ? 'var(--success)' : 'var(--text-tertiary)',
-                                        opacity: puedeConciliar ? 1 : 0.6
+                                        opacity: (mov.conciliado ? esSuperAdmin : puedeConciliar) ? 1 : 0.65
                                       }}
                                       title={mov.conciliado
-                                        ? `Conciliado. Saldo verificado: ${simboloMoneda()} ${fmtMonto(Number((mov as any).saldo_historico || 0))}. Click para desmarcar con motivo.`
+                                        ? (esSuperAdmin
+                                          ? `Conciliado. Saldo verificado: ${simboloMoneda()} ${fmtMonto(Number((mov as any).saldo_historico || 0))}. Clic para reabrir desde esta fila hacia adelante (con motivo).`
+                                          : `Conciliado. Saldo verificado: ${simboloMoneda()} ${fmtMonto(Number((mov as any).saldo_historico || 0))}. Solo el SuperAdministrador puede reabrir movimientos conciliados.`)
                                         : (puedeConciliar
-                                          ? (modoConciliacion
-                                            ? `Conciliar desde esta fila al final de esta pagina. Saldo verificado: ${simboloMoneda()} ${fmtMonto(Number((mov as any).saldo_historico || 0))}`
-                                            : "Marcar solo este movimiento como conciliado")
-                                          : "Sin permiso para conciliar")}
-                                      disabled={!puedeConciliar || conciliandoId === mov.id}
+                                          ? `Conciliar todos los movimientos pendientes desde esta fila hacia atrás. Saldo verificado: ${simboloMoneda()} ${fmtMonto(Number((mov as any).saldo_historico || 0))}`
+                                          : 'Sin permiso para conciliar')}
+                                      disabled={(mov.conciliado ? !esSuperAdmin : !puedeConciliar) || !!conciliandoId}
                                     >
-                                      {mov.conciliado ? <LockKeyhole size={17} /> : (modoConciliacion ? <ShieldCheck size={17} /> : <Square size={17} />)}
+                                      {mov.conciliado ? <LockKeyhole size={17} /> : <ShieldCheck size={17} />}
                                     </button>
                                   </td>
                                 )}
