@@ -1,3 +1,6 @@
+import { useAuthSaaSport } from '../../lib/authHelper';
+import { useConfiguracionCobranza } from '../../hooks/useConfiguracionCobranza';
+import { resolverParrafoCobranza } from '../../lib/cobranzaWhatsApp';
 /**
  * DetalleAlumnoCxc.tsx
  * Modal flotante que muestra todas las deudas de un alumno.
@@ -120,6 +123,7 @@ const obtenerUrlCobranzaWhatsApp = (
   alumno: AlumnoDeuda,
   cxcs: CuentaCobrar[],
   detallesPorCuenta: Record<string, DetalleItemCobranza[]>,
+  parrafoFinal: string | null,
 ): string | null => {
   const contacto = obtenerContactoCobranza(alumno);
   const deudasCobrables = cxcs.filter(cxc =>
@@ -141,7 +145,7 @@ const obtenerUrlCobranzaWhatsApp = (
   const mensaje = [
     `${saludo}, le informamos que actualmente registra los siguientes pagos pendientes correspondientes a *${alumno.nombres.trim()}*:`,
     listadoDeudas,
-    'Si ya realizó alguno de estos pagos, por favor envíenos el comprobante por este medio para actualizar su estado. Muchas gracias. 🩶'
+    resolverParrafoCobranza(parrafoFinal)
   ].join('\n\n');
 
   return `https://wa.me/${telFinal}?text=${encodeURIComponent(mensaje)}`;
@@ -162,6 +166,8 @@ const obtenerMensajeErrorCobro = (error: unknown): string => {
 const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
   alumno, visible, onCerrar, onActualizar
 }) => {
+  const { escuelaId: escuelaCobranzaId } = useAuthSaaSport();
+  const configCobranza = useConfiguracionCobranza(escuelaCobranzaId, visible);
   const isMobile = useIsMobile();
   const esArchivado = !!alumno?.archivado;
   const [cxcs, setCxcs] = useState<CuentaCobrar[]>([]);
@@ -811,9 +817,11 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                 </button>
               </div>
 
+              {configCobranza.isPending && <p role="status">Cargando mensaje de cobranza…</p>}
+              {configCobranza.isError && <p role="alert">No se pudo cargar el mensaje de cobranza. <button onClick={() => void configCobranza.refetch()}>Reintentar</button></p>}
               {/* Botón WhatsApp — solo móvil */}
               {(() => {
-                const url = obtenerUrlCobranzaWhatsApp(alumno, cxcs, detallesItems);
+                const url = configCobranza.isSuccess ? obtenerUrlCobranzaWhatsApp(alumno, cxcs, detallesItems, configCobranza.data) : null;
                 if (!url) return null;
                 return (
                   <a
@@ -866,12 +874,14 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
                   {(() => {
                     const contactoPrincipal = obtenerContactoCobranza(alumno);
                     const telefonoPrincipal = contactoPrincipal?.telefono;
-                    const urlCobranzaWhatsApp = obtenerUrlCobranzaWhatsApp(alumno, cxcs, detallesItems);
+                    const urlCobranzaWhatsApp = configCobranza.isSuccess ? obtenerUrlCobranzaWhatsApp(alumno, cxcs, detallesItems, configCobranza.data) : null;
                     return (
                       <>
                         <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#a855f7' }}>
                           <Calendar size={14} /> Mensualidad: {(montoMensualidad !== null && montoMensualidad !== undefined) ? `${simboloMoneda()} ${fmtMonto(montoMensualidad)}` : 'N/A'}
                         </span>
+                        {configCobranza.isPending && <span role="status">Cargando mensaje de cobranza…</span>}
+                        {configCobranza.isError && <span role="alert">No se pudo cargar el mensaje. <button onClick={() => void configCobranza.refetch()}>Reintentar</button></span>}
                         {telefonoPrincipal && (urlCobranzaWhatsApp ? (
                           <a
                             href={urlCobranzaWhatsApp}
