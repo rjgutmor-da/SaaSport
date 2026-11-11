@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../../lib/supabaseClient';
 import { configuracionCobranzaKey, useConfiguracionCobranza } from '../../hooks/useConfiguracionCobranza';
 import { contarCaracteresCobranza, normalizarParrafoCobranza, resolverParrafoCobranza } from '../../lib/cobranzaWhatsApp';
+import { formatCicloWhatsApp, getHoyISO } from '../../lib/dateUtils';
 
 export default function ConfiguracionMensajesCobranza({ escuelaId }: { escuelaId: string }) {
   const [abierto, setAbierto] = useState(false);
@@ -13,6 +14,15 @@ export default function ConfiguracionMensajesCobranza({ escuelaId }: { escuelaId
   const queryClient = useQueryClient();
   const texto = borrador ?? query.data ?? '';
   const longitud = contarCaracteresCobranza(texto);
+  const mesActual = getHoyISO().slice(0, 7);
+  const [anio, mes] = mesActual.split('-').map(Number);
+  const ultimoDia = new Date(anio, mes, 0).getDate();
+  const cicloEjemplo = formatCicloWhatsApp(`${mesActual}-01`, `${mesActual}-${ultimoDia}`);
+  const mensajeEjemplo = [
+    'Estimado Señor Víctor Hugo Pérez, le informamos que actualmente registra los siguientes pagos pendientes correspondientes a *Pepito Pérez Padilla*:',
+    `• Mensualidad (${cicloEjemplo}): Bs 300,00`,
+    resolverParrafoCobranza(texto),
+  ].join('\n\n');
   const cerrar = () => { if (!guardando) setAbierto(false); };
 
   return <>
@@ -56,8 +66,10 @@ export default function ConfiguracionMensajesCobranza({ escuelaId }: { escuelaId
               <small id="cobranza-ayuda">Si lo dejas vacío, se utilizará el mensaje predeterminado.</small>
             </div>
             <button type="button" disabled={guardando} onClick={() => setBorrador('')}>Restaurar predeterminado</button>
-            <p>Vista previa del cierre</p>
-            <div style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', padding: '1rem', border: '1px solid var(--border)', borderRadius: 8 }}>{resolverParrafoCobranza(texto)}</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+              <p style={{ margin: 0 }}>Vista previa del mensaje · Ejemplo</p>
+              <div style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', padding: '1rem', border: '1px solid var(--border)', borderRadius: 8, lineHeight: 1.5, letterSpacing: 'normal', wordSpacing: 'normal' }}>{mensajeEjemplo}</div>
+            </div>
           </>}
           {error && <p role="alert">{error}</p>}
           <div className="cxc-modal-footer" style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
