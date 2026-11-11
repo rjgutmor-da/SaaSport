@@ -22,6 +22,7 @@ import DetalleCxP from './DetalleCxP';
 import ModalVerNotaCxP from './ModalVerNotaCxP';
 import FichaAnticiposCxP from './FichaAnticiposCxP';
 import { CATEGORIAS_PROVEEDOR } from './FiltrosCxP';
+import { confirmarMovimientoEnPeriodoConciliado } from '../../lib/conciliacion';
 import type { EntidadCxP, NotaResumenCxP as NotaResumen } from '../../types/cxp';
 
 
@@ -223,10 +224,26 @@ const DetalleProveedorCxP: React.FC<Props> = ({ entidad, visible, onCerrar, onAc
 
       const { data: usr } = await supabase
         .from('usuarios')
-        .select('id, escuela_id, sucursal_id')
+        .select('id, escuela_id, sucursal_id, nombres, apellidos, email, rol')
         .eq('id', user.id)
         .single();
       if (!usr) throw new Error('Error al obtener contexto del usuario.');
+
+      const cuentaObj = cajasBancos.find(c => c.id === pagoCuentaId);
+      const puedeContinuar = await confirmarMovimientoEnPeriodoConciliado({
+        cajaId: pagoCuentaId,
+        cajaNombre: cuentaObj?.nombre || 'la cuenta seleccionada',
+        fechaISO: pFechaStr,
+        tipoMovimiento: 'un pago múltiple',
+        esSuperAdmin: usr.rol === 'SuperAdministrador',
+        escuelaId: usr.escuela_id,
+        usuarioId: usr.id,
+        usuarioNombre: `${usr.nombres || ''} ${usr.apellidos || ''}`.trim() || usr.email
+      });
+      if (!puedeContinuar) {
+        setGuardandoPago(false);
+        return;
+      }
 
       const pagosPayload = pagoMultiple.generarPayloadPagos();
 

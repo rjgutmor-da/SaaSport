@@ -11,6 +11,7 @@ import { X, Check, AlertCircle, DollarSign, RefreshCw } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import { getHoraLocal, buildTimestampLocal, FECHA_MINIMA_MOVIMIENTO_FINANCIERO, validarFechaMovimientoFinanciero } from '../../lib/dateUtils';
 import type { CajaBanco } from '../../types/finanzas';
+import { confirmarMovimientoEnPeriodoConciliado } from '../../lib/conciliacion';
 
 interface Props {
   visible: boolean;
@@ -90,6 +91,33 @@ const ModalEditarCobroCxC: React.FC<Props> = ({ visible, cobro, cajas, fechaEmis
     setError('');
 
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      let usrData: any = null;
+      let userRol = '';
+      if (user) {
+        const { data } = await supabase.from('usuarios').select('rol, escuela_id, nombres, apellidos, email').eq('id', user.id).single();
+        usrData = data;
+        userRol = usrData?.rol || '';
+      }
+
+      if (!esAnticipo && cajaId) {
+        const cuentaObj = cajas.find(c => c.id === cajaId);
+        const puedeContinuar = await confirmarMovimientoEnPeriodoConciliado({
+          cajaId,
+          cajaNombre: cuentaObj?.nombre || 'la cuenta seleccionada',
+          fechaISO: fecha,
+          tipoMovimiento: 'la edición de un cobro',
+          esSuperAdmin: userRol === 'SuperAdministrador',
+          escuelaId: usrData?.escuela_id,
+          usuarioId: user?.id,
+          usuarioNombre: `${usrData?.nombres || ''} ${usrData?.apellidos || ''}`.trim() || usrData?.email
+        });
+        if (!puedeContinuar) {
+          setGuardando(false);
+          return;
+        }
+      }
+
       const { data, error: rpcErr } = await supabase.rpc('rpc_editar_movimiento_simple', {
         p_payload: {
           movimiento_id: cobro.id,

@@ -63,9 +63,10 @@ const ModalTransferencia: React.FC<Props> = ({ visible, cajas, onCerrar, onCread
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('No hay sesión activa.');
       
-      const { data: perfil } = await supabase.from('usuarios').select('id, escuela_id, nombres, apellidos, email').eq('id', user.id).single();
+      const { data: perfil } = await supabase.from('usuarios').select('id, escuela_id, nombres, apellidos, email, rol').eq('id', user.id).single();
       const escuelaId = perfil?.escuela_id;
       if (!escuelaId) throw new Error('No se pudo determinar la escuela.');
+      const esSuperAdmin = perfil?.rol === 'SuperAdministrador';
       const usuarioNombre = `${perfil.nombres || ''} ${perfil.apellidos || ''}`.trim() || perfil.email;
       const origenNombre = cajas.find(c => c.id === origenId)?.nombre || 'cuenta origen';
       const destinoNombre = cajas.find(c => c.id === destinoId)?.nombre || 'cuenta destino';
@@ -74,6 +75,7 @@ const ModalTransferencia: React.FC<Props> = ({ visible, cajas, onCerrar, onCread
         cajaNombre: origenNombre,
         fechaISO: fecha,
         tipoMovimiento: 'una transferencia de salida',
+        esSuperAdmin,
         escuelaId,
         usuarioId: perfil.id,
         usuarioNombre
@@ -85,6 +87,7 @@ const ModalTransferencia: React.FC<Props> = ({ visible, cajas, onCerrar, onCread
         cajaNombre: destinoNombre,
         fechaISO: fecha,
         tipoMovimiento: 'una transferencia de entrada',
+        esSuperAdmin,
         escuelaId,
         usuarioId: perfil.id,
         usuarioNombre

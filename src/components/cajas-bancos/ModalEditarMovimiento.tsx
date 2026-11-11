@@ -11,6 +11,7 @@ import { getHoyISO, getHoraLocal, buildTimestampLocal, FECHA_MINIMA_MOVIMIENTO_F
 import type { CajaBanco } from '../../types/finanzas';
 import { type MovimientoFinanciero } from '../../hooks/useFinanzas';
 import type { CatalogoItem } from '../../types/cuentas';
+import { confirmarMovimientoEnPeriodoConciliado } from '../../lib/conciliacion';
 
 interface Props {
   visible: boolean;
@@ -111,9 +112,29 @@ const ModalEditarMovimiento: React.FC<Props> = ({ visible, movimiento, cajas, on
     try {
       const { data: { user } } = await supabase.auth.getUser();
       let userRol = '';
+      let usrData: any = null;
       if (user) {
-        const { data: usrData } = await supabase.from('usuarios').select('rol').eq('id', user.id).single();
+        const { data } = await supabase.from('usuarios').select('rol, escuela_id, nombres, apellidos, email').eq('id', user.id).single();
+        usrData = data;
         userRol = usrData?.rol || '';
+      }
+
+      if (cajaId) {
+        const cuentaObj = cajas.find(c => c.id === cajaId);
+        const puedeContinuar = await confirmarMovimientoEnPeriodoConciliado({
+          cajaId,
+          cajaNombre: cuentaObj?.nombre || 'la cuenta seleccionada',
+          fechaISO: fecha,
+          tipoMovimiento: 'la edición de un movimiento',
+          esSuperAdmin: userRol === 'SuperAdministrador',
+          escuelaId: usrData?.escuela_id,
+          usuarioId: user?.id,
+          usuarioNombre: `${usrData?.nombres || ''} ${usrData?.apellidos || ''}`.trim() || usrData?.email
+        });
+        if (!puedeContinuar) {
+          setGuardando(false);
+          return;
+        }
       }
 
       // Usar buildTimestampLocal para construir el timestamp con offset local correcto

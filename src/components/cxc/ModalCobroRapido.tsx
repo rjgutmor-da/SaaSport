@@ -179,7 +179,7 @@ const ModalCobroRapido: React.FC<Props> = ({ alumnoInicial, visible, onCerrar, o
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Error de autenticación.');
       const { data: ctx } = await supabase.from('usuarios')
-        .select('id, escuela_id, sucursal_id, nombres, apellidos, email')
+        .select('id, escuela_id, sucursal_id, nombres, apellidos, email, rol')
         .eq('id', user.id).single();
       if (!ctx) throw new Error('Error de contexto.');
       const cuentaNombre = cuentasCobro.find(c => c.id === cuentaId)?.nombre || 'la cuenta seleccionada';
@@ -188,6 +188,7 @@ const ModalCobroRapido: React.FC<Props> = ({ alumnoInicial, visible, onCerrar, o
         cajaNombre: cuentaNombre,
         fechaISO: fecha,
         tipoMovimiento: 'un cobro',
+        esSuperAdmin: ctx.rol === 'SuperAdministrador',
         escuelaId: ctx.escuela_id,
         usuarioId: ctx.id,
         usuarioNombre: `${ctx.nombres || ''} ${ctx.apellidos || ''}`.trim() || ctx.email

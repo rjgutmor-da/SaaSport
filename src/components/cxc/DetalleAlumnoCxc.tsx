@@ -23,6 +23,7 @@ import { getHoraLocal, getHoyISO, formatFecha, formatFechaCorta, ordenarMesesCal
 import { useCobroMultiple } from './useCobroMultiple';
 import { can } from '../../config/roles';
 import { esObservacionAnticipoAutomatica } from '../../lib/cxcUtils';
+import { confirmarMovimientoEnPeriodoConciliado } from '../../lib/conciliacion';
 
 interface DetalleAlumnoProps {
   alumno: AlumnoDeuda | null;
@@ -368,6 +369,24 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
       const { data: ctx } = await supabase.from('usuarios').select('*').eq('id', user.id).single();
       if (!ctx) throw new Error('Error de contexto.');
 
+      if (!usarAnticipo && cobroCuentaId) {
+        const cuentaNombre = cuentasCobro.find(c => c.id === cobroCuentaId)?.nombre || 'la cuenta seleccionada';
+        const puedeContinuar = await confirmarMovimientoEnPeriodoConciliado({
+          cajaId: cobroCuentaId,
+          cajaNombre: cuentaNombre,
+          fechaISO: cobroFecha,
+          tipoMovimiento: 'un cobro',
+          esSuperAdmin: ctx.rol === 'SuperAdministrador',
+          escuelaId: ctx.escuela_id,
+          usuarioId: ctx.id,
+          usuarioNombre: `${ctx.nombres || ''} ${ctx.apellidos || ''}`.trim() || ctx.email
+        });
+        if (!puedeContinuar) {
+          setGuardandoCobro(false);
+          return;
+        }
+      }
+
       const concatDoc = cobroNroDoc.trim() || null;
 
       if (esMultiple) {
@@ -582,6 +601,24 @@ const DetalleAlumnoCxc: React.FC<DetalleAlumnoProps> = ({
       if (!user) throw new Error('Error de autenticación.');
       const { data: ctx } = await supabase.from('usuarios').select('*').eq('id', user.id).single();
       if (!ctx) throw new Error('Error de contexto.');
+
+      if (devolucionCuentaId) {
+        const cuentaNombre = cuentasCobro.find(c => c.id === devolucionCuentaId)?.nombre || 'la cuenta seleccionada';
+        const puedeContinuar = await confirmarMovimientoEnPeriodoConciliado({
+          cajaId: devolucionCuentaId,
+          cajaNombre: cuentaNombre,
+          fechaISO: devolucionFecha,
+          tipoMovimiento: 'una devolución',
+          esSuperAdmin: ctx.rol === 'SuperAdministrador',
+          escuelaId: ctx.escuela_id,
+          usuarioId: ctx.id,
+          usuarioNombre: `${ctx.nombres || ''} ${ctx.apellidos || ''}`.trim() || ctx.email
+        });
+        if (!puedeContinuar) {
+          setGuardandoDevolucion(false);
+          return;
+        }
+      }
 
       const concatDoc = devolucionNroDoc.trim() || null;
 

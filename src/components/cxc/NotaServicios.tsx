@@ -26,6 +26,7 @@ import { useAuthSaaSport } from '../../lib/authHelper';
 import { useConfiguracionFacturacion } from '../../hooks/useConfiguracionFacturacion';
 import { esObservacionAnticipoAutomatica } from '../../lib/cxcUtils';
 import { validarAperturaInventario, obtenerSaldosPorSucursal } from '../../lib/inventario';
+import { confirmarMovimientoEnPeriodoConciliado } from '../../lib/conciliacion';
 import {
   esRespuestaIncierta,
   guardarOperacionIncierta,
@@ -780,6 +781,25 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
       };
 
       const mp = esAnticipo ? parseFloat(montoAnticipo) : parseFloat(montoPago);
+
+      if ((pagarAlCrear || esAnticipo) && mp > 0 && cuentaCobroId) {
+        const cuentaObj = cajasBancos.find(c => c.id === cuentaCobroId);
+        const puedeContinuar = await confirmarMovimientoEnPeriodoConciliado({
+          cajaId: cuentaCobroId,
+          cajaNombre: cuentaObj?.nombre || 'la cuenta seleccionada',
+          fechaISO: fechaPago,
+          tipoMovimiento: 'un cobro',
+          esSuperAdmin: ctx.rol === 'SuperAdministrador',
+          escuelaId: ctx.escuela_id,
+          usuarioId: ctx.id,
+          usuarioNombre: `${ctx.nombres || ''} ${ctx.apellidos || ''}`.trim() || ctx.email
+        });
+        if (!puedeContinuar) {
+          setGuardando(false);
+          return;
+        }
+      }
+
       const payloadOriginal = {
         rpcParams,
         pago: (pagarAlCrear || esAnticipo) ? {
@@ -819,6 +839,25 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
         for (const cobro of cobrosExistentes.filter(c => c.modificado && !c.conciliado)) {
           const errorFechaCobro = validarFechaMovimientoFinanciero(cobro.fecha_editada);
           if (errorFechaCobro) throw new Error(errorFechaCobro);
+
+          if (cobro.caja_id) {
+            const cuentaObj = cajasBancos.find(c => c.id === cobro.caja_id);
+            const puedeContinuar = await confirmarMovimientoEnPeriodoConciliado({
+              cajaId: cobro.caja_id,
+              cajaNombre: cuentaObj?.nombre || 'la cuenta seleccionada',
+              fechaISO: cobro.fecha_editada,
+              tipoMovimiento: 'la modificación de un cobro',
+              esSuperAdmin: ctx.rol === 'SuperAdministrador',
+              escuelaId: ctx.escuela_id,
+              usuarioId: ctx.id,
+              usuarioNombre: `${ctx.nombres || ''} ${ctx.apellidos || ''}`.trim() || ctx.email
+            });
+            if (!puedeContinuar) {
+              setGuardando(false);
+              return;
+            }
+          }
+
           const horaOriginal = cobro.fecha.includes('T') ? cobro.fecha.split('T')[1] : '12:00:00';
           const { data: rpcData, error: rpcEditErr } = await supabase.rpc('rpc_editar_movimiento_simple', {
             p_payload: {

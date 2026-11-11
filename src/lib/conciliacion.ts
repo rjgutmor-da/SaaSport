@@ -7,8 +7,16 @@ type MovimientoConciliado = {
   fecha: string;
 };
 
-const obtenerUltimoMovimientoConciliado = async (cajaId: string, fechaISO: string): Promise<MovimientoConciliado | null> => {
-  const desde = `${fechaISO}T00:00:00`;
+/**
+ * Obtiene el último movimiento conciliado detectado en la caja a partir de una fecha base.
+ */
+export const obtenerUltimoMovimientoConciliado = async (
+  cajaId: string,
+  fechaISO: string
+): Promise<MovimientoConciliado | null> => {
+  if (!cajaId) return null;
+  const fechaSolo = fechaISO.includes('T') ? fechaISO.split('T')[0] : fechaISO.split(' ')[0];
+  const desde = `${fechaSolo}T00:00:00`;
 
   const [cobros, pagos] = await Promise.all([
     supabase
@@ -40,50 +48,123 @@ const obtenerUltimoMovimientoConciliado = async (cajaId: string, fechaISO: strin
   return candidatos.sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime())[0] ?? null;
 };
 
+export interface ConfirmarPeriodoConciliadoParams {
+  cajaId: string;
+  cajaNombre?: string;
+  fechaISO: string;
+  tipoMovimiento: string;
+  esSuperAdmin?: boolean;
+  escuelaId?: string | null;
+  usuarioId?: string | null;
+  usuarioNombre?: string | null;
+}
+
+/**
+ * Valida si un movimiento a registrar/editar cae dentro de un periodo ya conciliado.
+ * Reglas de negocio (Opción 1):
+ * - Solo el SuperAdministrador puede registrar o mover pagos a fechas ya conciliadas.
+ * - Los demás roles son bloqueados con mensaje explicativo.
+ * - Si el SuperAdministrador confirma con motivo obligatorio, se desconcilian en cascada
+ *   automáticamente todos los movimientos de esa caja desde esa fecha hacia adelante.
+ */
 export const confirmarMovimientoEnPeriodoConciliado = async ({
   cajaId,
   cajaNombre,
   fechaISO,
   tipoMovimiento,
+  esSuperAdmin,
   escuelaId,
   usuarioId,
   usuarioNombre
-}: {
-  cajaId: string;
-  cajaNombre: string;
-  fechaISO: string;
-  tipoMovimiento: string;
-  escuelaId?: string | null;
-  usuarioId?: string | null;
-  usuarioNombre?: string | null;
-}): Promise<boolean> => {
-  const conciliado = await obtenerUltimoMovimientoConciliado(cajaId, fechaISO);
+}: ConfirmarPeriodoConciliadoParams): Promise<boolean> => {
+  if (!cajaId) return true;
+
+  const fechaSolo = fechaISO.includes('T') ? fechaISO.split('T')[0] : fechaISO.split(' ')[0];
+  const conciliado = await obtenerUltimoMovimientoConciliado(cajaId, fechaSolo);
   if (!conciliado) return true;
 
-  const continuar = window.confirm(
-    `Estas registrando ${tipoMovimiento} con fecha ${formatFecha(fechaISO)} dentro de un periodo ya conciliado de ${cajaNombre}.\n\n` +
-    `Ultimo movimiento conciliado detectado: ${formatFecha(conciliado.fecha)}.\n\n` +
-    'El movimiento se guardara como NO conciliado y puede cambiar saldos historicos verificados. Deseas continuar?'
-  );
+  // Determinar si es SuperAdministrador si no vino explícito
+  let superAdminEfectivo = esSuperAdmin;
+  if (superAdminEfectivo === undefined) {
+    if (usuarioId) {
+      const { data: u } = await supabase.from('usuarios').select('rol').eq('id', usuarioId).maybeSingle();
+      superAdminEfectivo = u?.rol === 'SuperAdministrador';
+    } else {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data: u } = await supabase.from('usuarios').select('rol').eq('id', user.id).maybeSingle();
+        superAdminEfectivo = u?.rol === 'SuperAdministrador';
+      }
+    }
+  }
 
-  if (continuar && escuelaId && usuarioId) {
+  // Resolver nombre de la caja si no se proporcionó
+  let nombreCuenta = cajaNombre;
+  if (!nombreCuenta) {
+    const { data: c } = await supabase.from('cajas_bancos').select('nombre').eq('id', cajaId).maybeSingle();
+    nombreCuenta = c?.nombre || 'la cuenta seleccionada';
+  }
+
+  const fechaCorte = formatFecha(conciliado.fecha);
+  const fechaMov = formatFecha(fechaSolo);
+
+  // 1. Si NO es SuperAdministrador, se bloquea la acción
+  if (!superAdminEfectivo) {
+    alert(
+      `⛔ Acción no permitida\n\n` +
+      `La cuenta "${nombreCuenta}" se encuentra conciliada hasta el ${fechaCorte}.\n\n` +
+      `Solo el SuperAdministrador tiene autorización para registrar o modificar pagos y cobros en fechas ya conciliadas.`
+    );
+    return false;
+  }
+
+  // 2. Si ES SuperAdministrador, solicitar confirmación y motivo obligatorio (Opción 1: reapertura en cascada)
+  const mensaje =
+    `⚠️ ATENCIÓN: Periodo ya conciliado\n\n` +
+    `Estás registrando ${tipoMovimiento} con fecha ${fechaMov} en la cuenta "${nombreCuenta}", la cual ya está conciliada hasta el ${fechaCorte}.\n\n` +
+    `Al registrar este movimiento anterior (Opción 1):\n` +
+    `• Se mantendrán conciliados los movimientos anteriores al ${fechaMov}.\n` +
+    `• Se reabrirán y desconciliarán automáticamente los movimientos posteriores desde el ${fechaMov} en adelante en esta cuenta para que sus saldos y registros vuelvan a ser auditados.\n\n` +
+    `Ingresa el MOTIVO OBLIGATORIO para continuar con este registro retroactivo:`;
+
+  const motivo = window.prompt(mensaje);
+  if (!motivo || !motivo.trim()) {
+    alert('Operación cancelada: Se requiere un motivo obligatorio para registrar movimientos en periodos ya conciliados.');
+    return false;
+  }
+
+  const desdeTimestamp = `${fechaSolo}T00:00:00`;
+  const { data: resRpc, error: errRpc } = await supabase.rpc('rpc_desconciliar_desde_fecha', {
+    p_caja_id: cajaId,
+    p_desde_fecha: desdeTimestamp,
+    p_motivo: motivo.trim()
+  });
+
+  if (errRpc) {
+    alert('Error al reabrir el periodo conciliado: ' + errRpc.message);
+    return false;
+  }
+
+  if (escuelaId && usuarioId) {
     logActivity({
       escuela_id: escuelaId,
       usuario_id: usuarioId,
-      usuario_nombre: usuarioNombre || 'Usuario',
-      accion: 'movimiento_en_periodo_conciliado',
+      usuario_nombre: usuarioNombre || 'SuperAdministrador',
+      accion: 'reapertura_periodo_conciliado',
       modulo: 'cajas_bancos',
       entidad_id: cajaId,
       detalle: {
         caja_id: cajaId,
-        caja_nombre: cajaNombre,
-        fecha_movimiento: fechaISO,
+        caja_nombre: nombreCuenta,
+        fecha_movimiento: fechaSolo,
         tipo_movimiento: tipoMovimiento,
         ultimo_conciliado_fecha: conciliado.fecha,
-        ultimo_conciliado_tabla: conciliado.tabla
+        motivo: motivo.trim(),
+        cobros_desconciliados: resRpc?.cobros_desconciliados || 0,
+        pagos_desconciliados: resRpc?.pagos_desconciliados || 0
       }
     });
   }
 
-  return continuar;
+  return true;
 };

@@ -98,7 +98,7 @@ const ModalMovimientoDirecto: React.FC<Props> = ({ visible, tipo, cajas, onCerra
       // 1. Sesión
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('No hay sesión activa.');
-      const { data: perfil } = await supabase.from('usuarios').select('id, escuela_id, nombres, apellidos, email').eq('id', user.id).single();
+      const { data: perfil } = await supabase.from('usuarios').select('id, escuela_id, nombres, apellidos, email, rol').eq('id', user.id).single();
       const escuelaId = perfil?.escuela_id;
       if (!escuelaId) throw new Error('No se pudo determinar la escuela.');
       const cajaSeleccionada = cajas.find(c => c.id === cajaId);
@@ -111,6 +111,7 @@ const ModalMovimientoDirecto: React.FC<Props> = ({ visible, tipo, cajas, onCerra
         cajaNombre,
         fechaISO: fecha,
         tipoMovimiento: isIngreso ? 'un ingreso' : 'una salida',
+        esSuperAdmin: perfil?.rol === 'SuperAdministrador',
         escuelaId,
         usuarioId: perfil.id,
         usuarioNombre: `${perfil.nombres || ''} ${perfil.apellidos || ''}`.trim() || perfil.email

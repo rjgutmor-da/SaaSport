@@ -25,6 +25,7 @@ import {
 } from '../../lib/idempotenciaNotas';
 import { useAuthSaaSport } from '../../lib/authHelper';
 import { useSucursales } from '../../hooks/useMasterData';
+import { confirmarMovimientoEnPeriodoConciliado } from '../../lib/conciliacion';
 import '../notas/notas_movil.css';
 
 interface LineaNotaPago {
@@ -484,6 +485,25 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, esAnticipo = false, o
       };
 
       const mp = esAnticipo ? parseFloat(montoAnticipo) : parseFloat(montoPago);
+
+      if (!cxpEditar && (pagarAlCrear || esAnticipo) && mp > 0 && cuentaPagoId) {
+        const cuentaObj = cajasBancos.find((c: any) => c.id === cuentaPagoId);
+        const puedeContinuar = await confirmarMovimientoEnPeriodoConciliado({
+          cajaId: cuentaPagoId,
+          cajaNombre: cuentaObj?.nombre || 'la cuenta seleccionada',
+          fechaISO: fechaPago,
+          tipoMovimiento: 'un pago',
+          esSuperAdmin,
+          escuelaId: ctx.escuela_id,
+          usuarioId: ctx.id,
+          usuarioNombre: `${ctx.nombres || ''} ${ctx.apellidos || ''}`.trim() || ctx.email
+        });
+        if (!puedeContinuar) {
+          guardandoRef.current = false;
+          setGuardando(false);
+          return;
+        }
+      }
       const payloadOriginal = {
         rpcParams,
         pago: (!cxpEditar && (pagarAlCrear || esAnticipo)) ? {

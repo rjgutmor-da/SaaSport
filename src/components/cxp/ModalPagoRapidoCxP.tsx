@@ -145,7 +145,7 @@ const ModalPagoRapidoCxP: React.FC<Props> = ({ entidadInicial, entidades, visibl
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Error de autenticación.');
       const { data: ctx } = await supabase.from('usuarios')
-        .select('id, escuela_id, sucursal_id, nombres, apellidos, email')
+        .select('id, escuela_id, sucursal_id, nombres, apellidos, email, rol')
         .eq('id', user.id).single();
       if (!ctx) throw new Error('Error de contexto.');
       const cuentaNombre = cuentasPago.find(c => c.id === cuentaId)?.nombre || 'la cuenta seleccionada';
@@ -154,6 +154,7 @@ const ModalPagoRapidoCxP: React.FC<Props> = ({ entidadInicial, entidades, visibl
         cajaNombre: cuentaNombre,
         fechaISO: fechaPago,
         tipoMovimiento: 'un pago',
+        esSuperAdmin: ctx.rol === 'SuperAdministrador',
         escuelaId: ctx.escuela_id,
         usuarioId: ctx.id,
         usuarioNombre: `${ctx.nombres || ''} ${ctx.apellidos || ''}`.trim() || ctx.email

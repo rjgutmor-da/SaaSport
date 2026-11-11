@@ -16,6 +16,7 @@ import { formatFecha, getHoyISO, getHoraLocal, FECHA_MINIMA_MOVIMIENTO_FINANCIER
 import ModalEditarPagoCxP from './ModalEditarPagoCxP';
 import ModalEditarItemCxP from './ModalEditarItemCxP';
 import ModalEditarCabeceraCxP from './ModalEditarCabeceraCxP';
+import { confirmarMovimientoEnPeriodoConciliado } from '../../lib/conciliacion';
 import type { CajaBanco } from '../../types/finanzas';
 
 interface CxPItem {
@@ -213,7 +214,7 @@ const DetalleCxP: React.FC<Props> = ({ nota, visible, onCerrar, onActualizar }) 
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Error de autenticación.');
       const { data: ctx } = await supabase.from('usuarios')
-        .select('id, escuela_id, sucursal_id').eq('id', user.id).single();
+        .select('id, escuela_id, sucursal_id, nombres, apellidos, email, rol').eq('id', user.id).single();
       if (!ctx) throw new Error('Error de contexto.');
 
       if (usarAnticipo) {
@@ -234,6 +235,22 @@ const DetalleCxP: React.FC<Props> = ({ nota, visible, onCerrar, onActualizar }) 
         if (rpcErr) throw rpcErr;
 
       } else {
+        const cuentaObj = cajasBancos.find((c: any) => c.id === cuentaPagoId);
+        const puedeContinuar = await confirmarMovimientoEnPeriodoConciliado({
+          cajaId: cuentaPagoId,
+          cajaNombre: cuentaObj?.nombre || 'la cuenta seleccionada',
+          fechaISO: fechaPago,
+          tipoMovimiento: 'un pago',
+          esSuperAdmin: ctx.rol === 'SuperAdministrador',
+          escuelaId: ctx.escuela_id,
+          usuarioId: ctx.id,
+          usuarioNombre: `${ctx.nombres || ''} ${ctx.apellidos || ''}`.trim() || ctx.email
+        });
+        if (!puedeContinuar) {
+          setRegistrandoPago(false);
+          return;
+        }
+
         // PAGO DIRECTO — Usar RPC para mantener consistencia
         const { error: errRpc } = await supabase.rpc('rpc_registrar_pago_cxp', {
           p_payload: {
