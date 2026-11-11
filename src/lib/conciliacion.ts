@@ -137,7 +137,9 @@ export const confirmarMovimientoEnPeriodoConciliado = async ({
   const { data: resRpc, error: errRpc } = await supabase.rpc('rpc_desconciliar_desde_fecha', {
     p_caja_id: cajaId,
     p_desde_fecha: desdeTimestamp,
-    p_motivo: motivo.trim()
+    p_motivo: motivo.trim(),
+    p_movimiento_id: null,
+    p_tipo_origen: null
   });
 
   if (errRpc) {

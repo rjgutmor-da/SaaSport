@@ -87,7 +87,9 @@ test('4. SuperAdministrador confirma con motivo: ejecuta reapertura en cascada (
   const res = await fakeRpc('rpc_desconciliar_desde_fecha', {
     p_caja_id: cajaId,
     p_desde_fecha: `${fechaISO}T00:00:00`,
-    p_motivo: motivoIngresado
+    p_motivo: motivoIngresado,
+    p_movimiento_id: null,
+    p_tipo_origen: null
   });
 
   assert.equal(rpcLlamado, true);
