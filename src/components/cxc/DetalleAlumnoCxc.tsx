@@ -1,6 +1,6 @@
 import { useAuthSaaSport } from '../../lib/authHelper';
 import { useConfiguracionCobranza } from '../../hooks/useConfiguracionCobranza';
-import { resolverParrafoCobranza, resolverSaludoCobranza } from '../../lib/cobranzaWhatsApp';
+import { resolverParrafoCobranza, resolverSaludoCobranza, ordenarDeudasCobranza } from '../../lib/cobranzaWhatsApp';
 /**
  * DetalleAlumnoCxc.tsx
  * Modal flotante que muestra todas las deudas de un alumno.
@@ -138,7 +138,8 @@ const obtenerUrlCobranzaWhatsApp = (
   const telLimpio = contacto.telefono.replace(/\D/g, '');
   const telFinal = telLimpio.length === 8 ? `591${telLimpio}` : telLimpio;
   const saludo = resolverSaludoCobranza(contacto.nombre, contacto.parentesco);
-  const listadoDeudas = deudasCobrables
+  const deudasOrdenadas = ordenarDeudasCobranza(deudasCobrables, detallesPorCuenta);
+  const listadoDeudas = deudasOrdenadas
     .map(cxc => `• ${obtenerDescripcionCobranza(cxc, detallesPorCuenta)}: ${simboloMoneda()} ${fmtMonto(Number(cxc.saldo_pendiente))}`)
     .join('\n');
   const mensaje = [

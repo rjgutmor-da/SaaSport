@@ -1,6 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { normalizarParrafoCobranza, resolverParrafoCobranza, contarCaracteresCobranza, PARRAFO_COBRANZA_PREDETERMINADO, puedeConfigurarCobranza, resolverSaludoCobranza } from '../cobranzaWhatsApp.ts';
+import {
+  normalizarParrafoCobranza,
+  resolverParrafoCobranza,
+  contarCaracteresCobranza,
+  PARRAFO_COBRANZA_PREDETERMINADO,
+  puedeConfigurarCobranza,
+  resolverSaludoCobranza,
+  ordenarDeudasCobranza,
+  obtenerFechaReferenciaDeuda
+} from '../cobranzaWhatsApp.ts';
 
 test('saluda a Papá o Mamá según el contacto elegido si el nombre está ausente o por definir', () => {
   for (const nombre of [null, '', '   ', 'Por Definir', ' POR DEFINIR ', 'por   definir']) {
@@ -43,4 +52,42 @@ test('límite de 600 puntos Unicode consistente con PostgreSQL', () => {
     assert.equal(normalizarParrafoCobranza(texto), texto);
     assert.throws(() => normalizarParrafoCobranza(texto + caracter), /600/);
   }
+});
+
+test('ordena deudas de la más antigua arriba a la más reciente abajo por ciclo de mensualidad', () => {
+  const deudaNov = { id: '3', ciclo_inicio: '2026-11-01', fecha_emision: '2026-11-01' };
+  const deudaOct = { id: '2', ciclo_inicio: '2026-10-01', fecha_emision: '2026-10-01' };
+  const deudaSep = { id: '1', ciclo_inicio: '2026-09-01', fecha_emision: '2026-09-01' };
+
+  // Entran en orden descendente (como vienen de la base de datos: la más reciente primero)
+  const resultado = ordenarDeudasCobranza([deudaNov, deudaOct, deudaSep]);
+  assert.deepEqual(resultado.map(d => d.id), ['1', '2', '3']);
+});
+
+test('ordena deudas por fecha_emision cuando no existe ciclo_inicio', () => {
+  const deudaTorneo = { id: 'torneo', fecha_emision: '2026-09-15' };
+  const deudaUniforme = { id: 'uniforme', fecha_emision: '2026-08-10' };
+
+  const resultado = ordenarDeudasCobranza([deudaTorneo, deudaUniforme]);
+  assert.deepEqual(resultado.map(d => d.id), ['uniforme', 'torneo']);
+});
+
+test('prioriza ciclo_inicio sobre fecha_emision si una mensualidad antigua se registró posteriormente', () => {
+  const mensualidadAgostoTardia = { id: 'ago', ciclo_inicio: '2026-08-01', fecha_emision: '2026-10-20' };
+  const mensualidadSeptiembre = { id: 'sep', ciclo_inicio: '2026-09-01', fecha_emision: '2026-09-05' };
+
+  const resultado = ordenarDeudasCobranza([mensualidadAgostoTardia, mensualidadSeptiembre]);
+  assert.deepEqual(resultado.map(d => d.id), ['ago', 'sep']);
+});
+
+test('detecta ciclo_inicio desde detallesPorCuenta si la cabecera no lo contiene', () => {
+  const deudaA = { id: 'cxc-1', fecha_emision: '2026-11-01' };
+  const deudaB = { id: 'cxc-2', fecha_emision: '2026-11-01' };
+  const detalles = {
+    'cxc-1': [{ ciclo_inicio: '2026-10-01' }],
+    'cxc-2': [{ ciclo_inicio: '2026-09-01' }],
+  };
+
+  const resultado = ordenarDeudasCobranza([deudaA, deudaB], detalles);
+  assert.deepEqual(resultado.map(d => d.id), ['cxc-2', 'cxc-1']);
 });

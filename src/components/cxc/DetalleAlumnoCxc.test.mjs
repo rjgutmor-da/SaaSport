@@ -75,6 +75,32 @@ test('rechaza el cruce Hadif/Gael y conserva monto y ciclo de Hadif', () => {
   assert.doesNotMatch(mensaje, /120,00|5 Dic/);
 });
 
+test('ordena las deudas de la más antigua arriba a la más reciente abajo en el mensaje de WhatsApp', () => {
+  const { modulo } = entorno();
+  const generar = modulo.obtenerUrlCobranzaWhatsApp;
+  // Entran con la más reciente primero (orden descendente habitual de cxcs en estado)
+  const deudaNov = { ...cuenta('Hadif', 140, '2026-11-01', '2026-11-30'), id: 'cxc-nov' };
+  const deudaOct = { ...cuenta('Hadif', 140, '2026-10-01', '2026-10-31'), id: 'cxc-oct' };
+  const deudaSep = { ...cuenta('Hadif', 140, '2026-09-01', '2026-09-30'), id: 'cxc-sep' };
+
+  const detalles = {
+    'cxc-nov': [{ item_nombre: 'Mensualidad', ciclo_inicio: '2026-11-01', ciclo_fin: '2026-11-30' }],
+    'cxc-oct': [{ item_nombre: 'Mensualidad', ciclo_inicio: '2026-10-01', ciclo_fin: '2026-10-31' }],
+    'cxc-sep': [{ item_nombre: 'Mensualidad', ciclo_inicio: '2026-09-01', ciclo_fin: '2026-09-30' }],
+  };
+
+  const mensaje = decodeURIComponent(generar(alumno('Hadif'), [deudaNov, deudaOct, deudaSep], detalles, null));
+  const posSep = mensaje.indexOf('1 Sep a 30 Sep de 2026');
+  const posOct = mensaje.indexOf('1 Oct a 31 Oct de 2026');
+  const posNov = mensaje.indexOf('1 Nov a 30 Nov de 2026');
+
+  assert.ok(posSep !== -1, 'Debe incluir la mensualidad de Septiembre');
+  assert.ok(posOct !== -1, 'Debe incluir la mensualidad de Octubre');
+  assert.ok(posNov !== -1, 'Debe incluir la mensualidad de Noviembre');
+  assert.ok(posSep < posOct, 'La deuda de Septiembre (más antigua) debe ir antes que Octubre');
+  assert.ok(posOct < posNov, 'La deuda de Octubre debe ir antes que Noviembre (más reciente)');
+});
+
 test('cambiar alumno cambia identidad de ficha; cerrar la desmonta', () => {
   const { modulo } = entorno();
   assert.notEqual(modulo.default(props('Hadif')).props.key, modulo.default(props('Gael')).props.key);
