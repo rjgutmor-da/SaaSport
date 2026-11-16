@@ -981,6 +981,46 @@ BEGIN
     RAISE NOTICE 'PRUEBA 16 PASADA: Nota mixta, periodos, duplicados, diferencias, precios y anulación.';
 
     RAISE NOTICE '=======================================================';
+    -- PRUEBA 17: Caso de edición de compra con pagos ya aplicados (Textilab).
+    SELECT cantidad_disponible INTO v_saldo_antes FROM public.inventario_saldos
+      WHERE sucursal_id = v_sucursal_1 AND catalogo_item_id = v_prod_1;
+    v_nota_compra_id := public.rpc_guardar_nota_cxp(
+      p_proveedor_id := v_proveedor_id, p_sucursal_id := v_sucursal_1,
+      p_monto_total := 5850, p_descripcion := 'Compra de 65 uniformes',
+      p_lineas := jsonb_build_array(jsonb_build_object(
+        'catalogo_item_id', v_prod_1, 'cantidad', 65, 'precio_unitario', 90)),
+      p_operacion_id := gen_random_uuid()
+    );
+    INSERT INTO public.pagos_aplicados (cuenta_pagar_id, escuela_id, monto_aplicado, usuario_id)
+      VALUES (v_nota_compra_id, v_escuela_id, 5820, v_usuario_super);
+    PERFORM public.rpc_guardar_nota_cxp(
+      p_nota_id := v_nota_compra_id, p_proveedor_id := v_proveedor_id,
+      p_sucursal_id := v_sucursal_1, p_monto_total := 8040,
+      p_lineas := jsonb_build_array(jsonb_build_object(
+        'catalogo_item_id', v_prod_1, 'cantidad', 67, 'precio_unitario', 120)),
+      p_operacion_id := gen_random_uuid()
+    );
+    ASSERT (SELECT cantidad_disponible = v_saldo_antes + 67 FROM public.inventario_saldos
+      WHERE sucursal_id = v_sucursal_1 AND catalogo_item_id = v_prod_1),
+      'FALLO 17: La edición de compra no agregó únicamente las dos unidades adicionales';
+    ASSERT (SELECT monto_total = 8040 AND estado = 'parcial' FROM public.cuentas_pagar WHERE id = v_nota_compra_id),
+      'FALLO 17: El total o estado de la compra no se actualizó';
+    ASSERT (SELECT sum(monto_aplicado) = 5820 AND count(*) = 1 FROM public.pagos_aplicados WHERE cuenta_pagar_id = v_nota_compra_id),
+      'FALLO 17: Se alteraron o duplicaron los pagos de la compra';
+    SELECT count(*) INTO v_cant_movs FROM public.inventario_movimientos WHERE referencia_id = v_nota_compra_id;
+    PERFORM public.rpc_guardar_nota_cxp(
+      p_nota_id := v_nota_compra_id, p_proveedor_id := v_proveedor_id,
+      p_sucursal_id := v_sucursal_1, p_monto_total := 5850,
+      p_lineas := jsonb_build_array(jsonb_build_object(
+        'catalogo_item_id', v_prod_1, 'cantidad', 67, 'precio_unitario', 5850.0 / 67)),
+      p_operacion_id := gen_random_uuid()
+    );
+    ASSERT (SELECT count(*) = v_cant_movs FROM public.inventario_movimientos WHERE referencia_id = v_nota_compra_id),
+      'FALLO 17: Cambiar solo el precio de compra generó movimientos de stock';
+    ASSERT (SELECT sum(monto_aplicado) = 5820 FROM public.pagos_aplicados WHERE cuenta_pagar_id = v_nota_compra_id),
+      'FALLO 17: Cambiar el precio alteró los pagos';
+    RAISE NOTICE 'PRUEBA 17 PASADA: Edición de compra ajusta solo el delta, total y estado, conservando los pagos.';
+
     RAISE NOTICE '¡TODAS LAS PRUEBAS DE ESTA SUITE SQL PASARON CON ÉXITO!';
     RAISE NOTICE '=======================================================';
 END $$;

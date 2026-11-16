@@ -16,6 +16,7 @@ import { formatFecha, getHoyISO, getHoraLocal, FECHA_MINIMA_MOVIMIENTO_FINANCIER
 import ModalEditarPagoCxP from './ModalEditarPagoCxP';
 import ModalEditarItemCxP from './ModalEditarItemCxP';
 import ModalEditarCabeceraCxP from './ModalEditarCabeceraCxP';
+import NotaPago from './NotaPago';
 import { confirmarMovimientoEnPeriodoConciliado } from '../../lib/conciliacion';
 import type { CajaBanco } from '../../types/finanzas';
 
@@ -70,6 +71,7 @@ interface Props {
 
 const fmtMonto = (n: number) =>
   n.toLocaleString('es-BO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const TAMANO_LOTE_ANTICIPOS = 50;
 const fmtPeriodo = (periodo?: string | null) => periodo
   ? new Intl.DateTimeFormat('es-BO', { month: 'long', year: 'numeric' }).format(new Date(`${periodo}-01T12:00:00`))
   : null;
@@ -86,6 +88,10 @@ const DetalleCxP: React.FC<Props> = ({ nota, visible, onCerrar, onActualizar }) 
   const [detalleItems, setDetalleItems] = useState<DetalleCxPItem[]>([]);
   const [cajasBancos, setCajasBancos] = useState<CajaBanco[]>([]);
   const [anticiposDisponibles, setAnticiposDisponibles] = useState<any[]>([]);
+  const [hayMasAnticipos, setHayMasAnticipos] = useState(false);
+  const [cargandoAnticipos, setCargandoAnticipos] = useState(false);
+  const solicitudAnticiposRef = React.useRef(0);
+  const solicitudDetalleRef = React.useRef(0);
   const [cargando, setCargando] = useState(true);
   const [notaActual, setNotaActual] = useState<CxPItem | null>(null);
 
@@ -93,6 +99,7 @@ const DetalleCxP: React.FC<Props> = ({ nota, visible, onCerrar, onActualizar }) 
   const [movEditar, setMovEditar] = useState<PagoRealizado | null>(null);
   const [itemEditar, setItemEditar] = useState<any>(null);
   const [cabeceraEditar, setCabeceraEditar] = useState<boolean>(false);
+  const [notaEditar, setNotaEditar] = useState(false);
   const [eliminandoId, setEliminandoId] = useState<string | null>(null);
   const { puedeEliminar } = useAuthSaaSport();
 
@@ -107,15 +114,52 @@ const DetalleCxP: React.FC<Props> = ({ nota, visible, onCerrar, onActualizar }) 
   const [errorPago, setErrorPago] = useState<string | null>(null);
   const [exitoPago, setExitoPago] = useState<string | null>(null);
 
+  const cargarAnticipos = async (ultimoId?: string) => {
+    if (!nota) return;
+    const solicitud = ++solicitudAnticiposRef.current;
+    setCargandoAnticipos(true);
+    try {
+      let consulta = supabase.from('v_estado_cuentas_pagar')
+        .select('id, fecha_emision, deuda_restante')
+        .eq('escuela_id', nota.escuela_id)
+        .eq('es_anticipo', true)
+        .gt('deuda_restante', 0)
+        .order('id')
+        .limit(TAMANO_LOTE_ANTICIPOS);
+      if (nota.proveedor_id) consulta = consulta.eq('proveedor_id', nota.proveedor_id);
+      else if (nota.personal_id) consulta = consulta.eq('personal_id', nota.personal_id);
+      else {
+        setAnticiposDisponibles([]);
+        setHayMasAnticipos(false);
+        return;
+      }
+      if (ultimoId) consulta = consulta.gt('id', ultimoId);
+      const { data, error } = await consulta;
+      if (solicitud !== solicitudAnticiposRef.current) return;
+      if (error) throw error;
+      const lote = data || [];
+      setAnticiposDisponibles(prev => ultimoId ? [...prev, ...lote] : lote);
+      setHayMasAnticipos(lote.length === TAMANO_LOTE_ANTICIPOS);
+    } catch (err: unknown) {
+      const mensaje = err && typeof err === 'object' && 'message' in err ? String(err.message) : 'Error de conexión';
+      if (solicitud === solicitudAnticiposRef.current) setErrorPago(`No se pudieron cargar los anticipos: ${mensaje}`);
+    } finally {
+      if (solicitud === solicitudAnticiposRef.current) setCargandoAnticipos(false);
+    }
+  };
+
   const cargarDetalle = async () => {
     if (!nota) return;
+    const solicitud = ++solicitudDetalleRef.current;
     setCargando(true);
     setErrorPago(null); setExitoPago(null);
 
     const { data: { user } } = await supabase.auth.getUser();
+    if (solicitud !== solicitudDetalleRef.current) return;
     if (!user) return;
     const { data: usr } = await supabase.from('usuarios')
       .select('escuela_id, sucursal_id').eq('id', user.id).single();
+    if (solicitud !== solicitudDetalleRef.current) return;
 
     const [resPagos, resItems, resCajas, resNota] = await Promise.all([
       supabase.from('pagos_aplicados')
@@ -124,7 +168,7 @@ const DetalleCxP: React.FC<Props> = ({ nota, visible, onCerrar, onActualizar }) 
         .order('fecha', { ascending: false }),
       supabase.from('cxp_detalle')
         .select(`id, cantidad, precio_unitario, subtotal, descripcion,
-                 catalogo_items!inner(nombre, tipo)`)
+                 catalogo_items!inner(nombre, tipo, categoria)`)
         .eq('cuenta_pagar_id', nota.id),
       supabase.from('cajas_bancos').select('*')
         .eq('escuela_id', usr?.escuela_id).eq('activo', true).order('nombre'),
@@ -133,6 +177,7 @@ const DetalleCxP: React.FC<Props> = ({ nota, visible, onCerrar, onActualizar }) 
         .eq('id', nota.id)
         .single()
     ]);
+    if (solicitud !== solicitudDetalleRef.current) return;
 
     setPagosRealizados((resPagos.data as any[])?.map(p => ({
         ...p,
@@ -142,7 +187,7 @@ const DetalleCxP: React.FC<Props> = ({ nota, visible, onCerrar, onActualizar }) 
     setDetalleItems((resItems.data as any[])?.map((d: any) => ({
       id: d.id,
       nombre: d.catalogo_items?.nombre || '—',
-      tipo: d.catalogo_items?.tipo || 'servicio',
+      tipo: d.catalogo_items?.categoria || d.catalogo_items?.tipo || 'servicio',
       cantidad: d.cantidad,
       precio_unitario: Number(d.precio_unitario),
       subtotal: Number(d.subtotal),
@@ -166,28 +211,28 @@ const DetalleCxP: React.FC<Props> = ({ nota, visible, onCerrar, onActualizar }) 
       setMontoPago(String(updatedNota.deuda_restante));
     }
 
-    let qAnticipos = supabase.from('v_estado_cuentas_pagar')
-      .select('*')
-      .eq('es_anticipo', true)
-      .gt('deuda_restante', 0);
-    if (nota.proveedor_id) qAnticipos = qAnticipos.eq('proveedor_id', nota.proveedor_id);
-    else if (nota.personal_id) qAnticipos = qAnticipos.eq('personal_id', nota.personal_id);
-    else qAnticipos = qAnticipos.is('id', null);
-    const { data: resAnt } = await qAnticipos;
-    setAnticiposDisponibles(resAnt || []);
-
+    await cargarAnticipos();
+    if (solicitud !== solicitudDetalleRef.current) return;
     setCargando(false);
   };
 
   useEffect(() => {
     if (!visible || !nota) return;
     setNotaActual(nota);
+    setNotaEditar(false);
+    setItemEditar(null);
+    setCabeceraEditar(false);
+    setAnticiposDisponibles([]);
+    setHayMasAnticipos(false);
     setMontoPago(String(nota.deuda_restante));
     setCuentaPagoId(''); setNroComprobante('');
     setFechaPago(getHoyISO());
     cargarDetalle();
     setUsarAnticipo(false);
     setAnticipoId('');
+    const anticipos = solicitudAnticiposRef;
+    const detalle = solicitudDetalleRef;
+    return () => { anticipos.current++; detalle.current++; };
   }, [visible, nota]);
 
   const registrarPago = async (e: React.FormEvent) => {
@@ -302,6 +347,24 @@ const DetalleCxP: React.FC<Props> = ({ nota, visible, onCerrar, onActualizar }) 
   const badge = BADGE_ESTADOS[notaActual.estado] ?? BADGE_ESTADOS.pendiente;
   const nombreEntidad = notaActual.proveedor_nombre || notaActual.personal_nombre || notaActual.descripcion || '(Sin asignar)';
   const yaPagada = notaActual.estado === 'pagada';
+  const tieneProductos = detalleItems.some(item => item.tipo === 'producto');
+
+  if (notaEditar) {
+    return (
+      <NotaPago
+        key={notaActual.id}
+        visible
+        tipoInicial={notaActual.tipo_gasto === 'personal' ? 'personal' : 'proveedor'}
+        cxpEditar={notaActual}
+        onCerrar={() => setNotaEditar(false)}
+        onCreada={() => {
+          setNotaEditar(false);
+          cargarDetalle();
+          onActualizar();
+        }}
+      />
+    );
+  }
 
   return (
     <div className="cxc-modal-overlay">
@@ -313,9 +376,10 @@ const DetalleCxP: React.FC<Props> = ({ nota, visible, onCerrar, onActualizar }) 
             </h2>
             {!notaActual.anulada && !pagosRealizados.some(p => p.conciliado) && (
               <button 
-                onClick={() => setCabeceraEditar(true)}
+                onClick={() => tieneProductos ? setNotaEditar(true) : setCabeceraEditar(true)}
+                disabled={cargando}
                 className="btn-compact-action action-blue"
-                title="Editar cabecera de la nota"
+                title={tieneProductos ? 'Editar nota de compra e inventario' : 'Editar cabecera de la nota'}
                 style={{ background: 'rgba(59, 130, 246, 0.1)', border: '1px solid rgba(59, 130, 246, 0.2)' }}
               >
                 <Pencil size={14} /> Editar
@@ -445,7 +509,7 @@ const DetalleCxP: React.FC<Props> = ({ nota, visible, onCerrar, onActualizar }) 
                           </span>
                           {!notaActual.anulada && !pagosRealizados.some(p => p.conciliado) && (
                             <button 
-                              onClick={() => setItemEditar(item)} 
+                              onClick={() => item.tipo === 'producto' ? setNotaEditar(true) : setItemEditar(item)}
                               className="cxc-accion-btn" 
                               style={{ background: 'var(--bg-glass)', color: 'var(--primary)', padding: '0.3rem 0.5rem', borderRadius: '4px' }} 
                               title="Editar Ítem"
@@ -596,6 +660,13 @@ const DetalleCxP: React.FC<Props> = ({ nota, visible, onCerrar, onActualizar }) 
                         <option value="">— Seleccionar Anticipo —</option>
                         {anticiposDisponibles.map((a: any) => <option key={a.id} value={a.id}>{formatFecha(a.fecha_emision)} — ${simboloMoneda()} ${fmtMonto(a.deuda_restante)}</option>)}
                       </select>
+                      {hayMasAnticipos && (
+                        <button type="button" className="btn-refrescar"
+                          disabled={cargandoAnticipos || registrandoPago}
+                          onClick={() => cargarAnticipos(anticiposDisponibles[anticiposDisponibles.length - 1]?.id)}>
+                          {cargandoAnticipos ? 'Cargando...' : 'Cargar más anticipos'}
+                        </button>
+                      )}
                     </div>
                   )}
 

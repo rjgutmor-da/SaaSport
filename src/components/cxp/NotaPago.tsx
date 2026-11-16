@@ -97,6 +97,7 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, esAnticipo = false, o
 
   const [saldosInventario, setSaldosInventario] = useState<Map<string, number>>(new Map());
   const [guardando, setGuardando] = useState(false);
+  const [datosCargados, setDatosCargados] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [exito, setExito] = useState<string | null>(null);
   const [operacionPendiente, setOperacionPendiente] = useState<OperacionIncierta | null>(null);
@@ -175,84 +176,109 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, esAnticipo = false, o
       }
       return;
     }
+    let cancelado = false;
+    setDatosCargados(false);
+    setError(null);
     const cargar = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-      const { data: usr } = await supabase.from('usuarios').select('escuela_id').eq('id', user.id).single();
-      if (!usr) return;
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (cancelado) return;
+        if (!user) throw new Error('No se pudo verificar la sesión. Cierra y vuelve a abrir la nota.');
+        const { data: usr } = await supabase.from('usuarios').select('escuela_id').eq('id', user.id).single();
+        if (cancelado) return;
+        if (!usr) throw new Error('No se pudo cargar el perfil de la sesión.');
 
-      const [resProv, persProv, resCat, resCajas] = await Promise.all([
-        supabase.from('proveedores').select('id, nombre').eq('escuela_id', usr.escuela_id).eq('activo', true).order('nombre'),
-        supabase.from('personal').select('id, nombres, apellidos, salario_base').eq('escuela_id', usr.escuela_id).eq('activo', true).order('nombres'),
-        supabase.from('catalogo_items').select('*').eq('activo', true).or('tipo_movimiento.eq.egreso,tipo_movimiento.eq.ambos').order('nombre'),
-        supabase.from('cajas_bancos').select('id, nombre, saldo_actual, es_predeterminada').eq('activo', true).eq('escuela_id', usr.escuela_id).order('orden'),
-      ]);
+        const [resProv, persProv, resCat, resCajas] = await Promise.all([
+          supabase.from('proveedores').select('id, nombre').eq('escuela_id', usr.escuela_id).eq('activo', true).order('nombre'),
+          supabase.from('personal').select('id, nombres, apellidos, salario_base').eq('escuela_id', usr.escuela_id).eq('activo', true).order('nombres'),
+          supabase.from('catalogo_items').select('*').eq('activo', true).or('tipo_movimiento.eq.egreso,tipo_movimiento.eq.ambos').order('nombre'),
+          supabase.from('cajas_bancos').select('id, nombre, saldo_actual, es_predeterminada').eq('activo', true).eq('escuela_id', usr.escuela_id).order('orden'),
+        ]);
+        if (cancelado) return;
+        for (const respuesta of [resProv, persProv, resCat, resCajas]) {
+          if (respuesta.error) throw respuesta.error;
+        }
 
-      setProveedores(resProv.data ?? []);
-      setPersonal(persProv.data ?? []);
-      const catData = resCat.data ?? [];
-      setCatalogo(catData);
-      const listaCajas = resCajas.data ?? [];
-      setCajasBancos(listaCajas);
-      // Preseleccionar caja predeterminada
-      if (!cuentaPagoId) {
-        const pred = (listaCajas as any[]).find((c: any) => c.es_predeterminada);
-        if (pred) setCuentaPagoId(pred.id);
-        else if (listaCajas.length > 0) setCuentaPagoId(listaCajas[0].id);
-      }
+        setProveedores(resProv.data ?? []);
+        setPersonal(persProv.data ?? []);
+        const catData = resCat.data ?? [];
+        const listaCajas = resCajas.data ?? [];
+        setCajasBancos(listaCajas);
+        // Preseleccionar caja predeterminada
+        if (!cuentaPagoId) {
+          const pred = (listaCajas as any[]).find((c: any) => c.es_predeterminada);
+          if (pred) setCuentaPagoId(pred.id);
+          else if (listaCajas.length > 0) setCuentaPagoId(listaCajas[0].id);
+        }
 
-      if (cxpEditar) {
-        setTipoGasto(cxpEditar.tipo_gasto || 'proveedor');
-        setSucursalId(cxpEditar.sucursal_id || perfil?.sucursal_id || '');
-        setProveedorId(cxpEditar.proveedor_id || '');
-        setPersonalId(cxpEditar.personal_id || '');
-        setFechaEmision(cxpEditar.fecha_emision ? cxpEditar.fecha_emision.split('T')[0] : getHoyISO());
-        setVencimiento(cxpEditar.fecha_vencimiento ? cxpEditar.fecha_vencimiento.split('T')[0] : '');
-        setObservaciones(cxpEditar.observaciones || '');
-        setPeriodo(cxpEditar.periodo || '');
+        if (cxpEditar) {
+          setPagarAlCrear(false);
+          setTipoGasto(cxpEditar.tipo_gasto || 'proveedor');
+          setSucursalId(cxpEditar.sucursal_id || perfil?.sucursal_id || '');
+          setProveedorId(cxpEditar.proveedor_id || '');
+          setPersonalId(cxpEditar.personal_id || '');
+          setFechaEmision(cxpEditar.fecha_emision ? cxpEditar.fecha_emision.split('T')[0] : getHoyISO());
+          setVencimiento(cxpEditar.fecha_vencimiento ? cxpEditar.fecha_vencimiento.split('T')[0] : '');
+          setObservaciones(cxpEditar.observaciones || '');
+          setPeriodo(cxpEditar.periodo || '');
         
-        const { data: detItems } = await supabase.from('cxp_detalle').select('*').eq('cuenta_pagar_id', cxpEditar.id);
-        if (detItems && detItems.length > 0) {
-          setLineas(detItems.map(d => {
-            const it = (catData || []).find(c => c.id === d.catalogo_item_id);
-            return {
-              catalogo_item_id: d.catalogo_item_id || '',
-              nombre: it?.nombre || d.descripcion || '',
-              tipo: it?.categoria === 'producto' ? 'producto' : 'servicio',
-              cantidad: d.cantidad || 1,
-              precio_unitario: Number(d.precio_unitario),
-              subtotal: (d.cantidad || 1) * Number(d.precio_unitario),
-              descripcion: d.descripcion || ''
-            };
-          }));
+          const { data: detItems, error: errorDetalle } = await supabase.from('cxp_detalle')
+            .select('*, catalogo_items(*)').eq('cuenta_pagar_id', cxpEditar.id);
+          if (cancelado) return;
+          if (errorDetalle) throw errorDetalle;
+          // Conservar los conceptos originales aunque se hayan desactivado después de la compra.
+          for (const detalle of detItems || []) {
+            const concepto = detalle.catalogo_items as unknown as CatalogoItem | null;
+            if (concepto && !catData.some(c => c.id === concepto.id)) catData.push(concepto);
+          }
+          if (detItems && detItems.length > 0) {
+            setLineas(detItems.map(d => {
+              const it = (catData || []).find(c => c.id === d.catalogo_item_id);
+              return {
+                catalogo_item_id: d.catalogo_item_id || '',
+                nombre: it?.nombre || d.descripcion || '',
+                tipo: it?.categoria === 'producto' ? 'producto' : 'servicio',
+                cantidad: d.cantidad || 1,
+                precio_unitario: Number(d.precio_unitario),
+                subtotal: (d.cantidad || 1) * Number(d.precio_unitario),
+                descripcion: d.descripcion || ''
+              };
+            }));
+          } else {
+            setLineas([lineaVacia()]);
+          }
         } else {
-          setLineas([lineaVacia()]);
-        }
-      } else {
-        // Precargar proveedor/personal si viene de la tarjeta de detalle
-        setProveedorId(proveedorIdInicial || '');
-        setPersonalId(personalIdInicial || '');
-        setSucursalId(perfil?.rol === 'SuperAdministrador' ? '' : (perfil?.sucursal_id || ''));
-        setFechaEmision(getHoyISO()); setVencimiento(getHoyISO()); setObservaciones(''); setPeriodo('');
-        setLineas([lineaVacia()]); setPagarAlCrear(esAnticipo);
-        setFechaPago(getHoyISO()); setMontoPago(''); setNroComprobante('');
-        const tipoBenef = personalIdInicial ? 'personal' : (proveedorIdInicial ? 'proveedor' : tipoInicial);
-        setTipoGasto(tipoBenef);
-        if (esAnticipo && tipoBenef === 'personal') {
-          const itemSueldos = catData.find(c => esConceptoSueldos(c.nombre));
-          setCuentaAnticipoId(itemSueldos?.id || '');
-        } else {
-          setCuentaAnticipoId('');
-        }
+          // Precargar proveedor/personal si viene de la tarjeta de detalle
+          setProveedorId(proveedorIdInicial || '');
+          setPersonalId(personalIdInicial || '');
+          setSucursalId(perfil?.rol === 'SuperAdministrador' ? '' : (perfil?.sucursal_id || ''));
+          setFechaEmision(getHoyISO()); setVencimiento(getHoyISO()); setObservaciones(''); setPeriodo('');
+          setLineas([lineaVacia()]); setPagarAlCrear(esAnticipo);
+          setFechaPago(getHoyISO()); setMontoPago(''); setNroComprobante('');
+          const tipoBenef = personalIdInicial ? 'personal' : (proveedorIdInicial ? 'proveedor' : tipoInicial);
+          setTipoGasto(tipoBenef);
+          if (esAnticipo && tipoBenef === 'personal') {
+            const itemSueldos = catData.find(c => esConceptoSueldos(c.nombre));
+            setCuentaAnticipoId(itemSueldos?.id || '');
+          } else {
+            setCuentaAnticipoId('');
+          }
 
-        verificarOperacionPendiente(tipoBenef, proveedorIdInicial || personalIdInicial);
+          verificarOperacionPendiente(tipoBenef, proveedorIdInicial || personalIdInicial);
+        }
+        if (cxpEditar) {
+          verificarOperacionPendiente(cxpEditar.tipo_gasto || 'proveedor', cxpEditar.proveedor_id || cxpEditar.personal_id);
+        }
+        setCatalogo(catData);
+        setError(null); setExito(null);
+        setDatosCargados(true);
+      } catch (err: unknown) {
+        const mensaje = err && typeof err === 'object' && 'message' in err ? String(err.message) : 'No se pudieron cargar los datos de la nota.';
+        if (!cancelado) setError(mensaje);
       }
-      if (cxpEditar) {
-        verificarOperacionPendiente(cxpEditar.tipo_gasto || 'proveedor', cxpEditar.proveedor_id || cxpEditar.personal_id);
-      }
-      setError(null); setExito(null);
     };
     cargar();
+    return () => { cancelado = true; };
   }, [visible, esAnticipo, cxpEditar]);
 
   // Precargar automáticamente 'Sueldos y Salarios' para anticipos de tipo Personal
@@ -296,6 +322,7 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, esAnticipo = false, o
 
   const guardarNota = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!datosCargados || guardandoRef.current) return;
     setError(null); setExito(null);
 
     let lineasValidas: LineaNotaPago[] = [];
@@ -303,7 +330,11 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, esAnticipo = false, o
       if (!montoAnticipo || parseFloat(montoAnticipo) <= 0) { setError('Ingresa un monto válido.'); return; }
       if (!cuentaPagoId) { setError('Selecciona la caja de salida.'); return; }
     } else {
-      lineasValidas = lineas.filter(l => l.catalogo_item_id && l.precio_unitario >= 0 && l.cantidad > 0);
+      lineasValidas = lineas.filter(l => l.catalogo_item_id);
+      if (lineasValidas.some(l => !Number.isInteger(l.cantidad) || l.cantidad <= 0 || !Number.isFinite(l.precio_unitario) || l.precio_unitario < 0)) {
+        setError('Revisa las cantidades y precios de los ítems. La cantidad debe ser un entero mayor a cero y el precio no puede ser negativo.');
+        return;
+      }
       if (lineasValidas.length === 0) { setError('Agrega al menos un ítem válido.'); return; }
       const lineaSueldo = lineasValidas.find(l => esConceptoSueldos(l.nombre));
       if (lineaSueldo) {
@@ -332,6 +363,16 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, esAnticipo = false, o
       if (!user) throw new Error('Auth error');
       const { data: ctx } = await supabase.from('usuarios').select('*').eq('id', user.id).single();
       if (!ctx) throw new Error('No se encontró el perfil de la sesión.');
+      if (cxpEditar) {
+        const { data: primerPago, error: errorPago } = await supabase.from('pagos_aplicados')
+          .select('fecha').eq('cuenta_pagar_id', cxpEditar.id)
+          .order('fecha').limit(1);
+        if (errorPago) throw errorPago;
+        const fechaPrimerPago = primerPago?.[0]?.fecha?.split('T')[0];
+        if (fechaPrimerPago && fechaEmision > fechaPrimerPago) {
+          throw new Error(`La fecha de emisión no puede ser posterior al primer pago registrado (${fechaPrimerPago}).`);
+        }
+      }
       const esSuperAdmin = ctx.rol === 'SuperAdministrador';
       const targetSucursalId = cxpEditar?.sucursal_id || (esSuperAdmin ? (sucursalId || null) : (sucursalId || ctx.sucursal_id));
 
@@ -661,7 +702,7 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, esAnticipo = false, o
     <div className="cxc-modal-overlay">
       <div className="cxc-modal nota-modal-movil" style={{ maxWidth: '700px' }} onClick={e => e.stopPropagation()}>
         <div className="cxc-modal-header">
-          <h2><Package size={20} style={{ marginRight: '0.5rem' }} /> {esAnticipo ? 'Registrar Anticipo' : 'Nueva Nota de Deuda'}</h2>
+          <h2><Package size={20} style={{ marginRight: '0.5rem' }} /> {cxpEditar ? 'Editar nota de compra' : (esAnticipo ? 'Registrar Anticipo' : 'Nueva Nota de Deuda')}</h2>
           <button onClick={onCerrar} disabled={guardando}><X size={20} /></button>
         </div>
         <div className="nota-cuerpo-movil" style={{ padding: '1.5rem' }}>
@@ -873,7 +914,7 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, esAnticipo = false, o
               />
             </div>
 
-            <div style={{ background: 'rgba(255,255,255,0.03)', padding: '1rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
+            {!cxpEditar && <div style={{ background: 'rgba(255,255,255,0.03)', padding: '1rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
               <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', marginBottom: '1rem' }}>
                 <input type="checkbox" checked={pagarAlCrear} onChange={e => setPagarAlCrear(e.target.checked)} disabled={esAnticipo} />
                 <span style={{ fontWeight: 700 }}>{esAnticipo ? 'Registro de Salida de Dinero' : '¿Registrar pago ahora?'}</span>
@@ -912,13 +953,13 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, esAnticipo = false, o
                   </div>
                 </div>
               )}
-            </div>
+            </div>}
 
             <div className="nota-pie-movil" style={{ marginTop: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div style={{ fontSize: '1.5rem', fontWeight: 800 }}>Total: {simboloMoneda()} {fmtMonto(total)}</div>
               <div style={{ display: 'flex', gap: '0.75rem' }}>
                 <button type="button" onClick={onCerrar} className="btn-refrescar" style={{ width: 'auto' }}>Cancelar</button>
-                <button type="submit" disabled={guardando} className="btn-guardar-cuenta" style={{ width: 'auto', padding: '0 2rem', background: '#f59e0b', borderColor: '#f59e0b' }}>{guardando ? '...' : 'Confirmar'}</button>
+                <button type="submit" disabled={guardando || !datosCargados} className="btn-guardar-cuenta" style={{ width: 'auto', padding: '0 2rem', background: '#f59e0b', borderColor: '#f59e0b' }}>{guardando ? 'Guardando...' : (!datosCargados ? 'Esperando datos...' : (cxpEditar ? 'Guardar cambios' : 'Confirmar'))}</button>
               </div>
             </div>
             {error && <p style={{ color: '#f87171', marginTop: '1rem' }}>{error}</p>}
