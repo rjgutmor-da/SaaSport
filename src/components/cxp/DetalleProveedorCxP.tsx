@@ -34,6 +34,9 @@ interface Props {
   onActualizar: () => void;
 }
 
+const TAMANO_LOTE_NOTAS = 50;
+const TAMANO_LOTE_PAGOS = 200;
+
 const fmtMonto = (n: number) =>
   n.toLocaleString('es-BO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
@@ -61,8 +64,11 @@ const DetalleProveedorCxP: React.FC<Props> = ({ entidad, visible, onCerrar, onAc
   const [notaSeleccionada, setNotaSeleccionada] = useState<any>(null);
   const [mostrarFichaAnticipos, setMostrarFichaAnticipos] = useState(false);
   const [verNotaId, setVerNotaId] = useState<string | null>(null);
-  const [detallesItems, setDetallesItems] = useState<Record<string, any[]>>({});
+  const [pagina, setPagina] = useState(0);
+  const [errorCarga, setErrorCarga] = useState<string | null>(null);
+  const solicitudRef = React.useRef(0);
   const [historialPagos, setHistorialPagos] = useState<Record<string, any[]>>({});
+  const [totalDesembolsado, setTotalDesembolsado] = useState<number | null>(null);
 
   // Pago Múltiple
   const isMobile = useIsMobile();
@@ -76,69 +82,93 @@ const DetalleProveedorCxP: React.FC<Props> = ({ entidad, visible, onCerrar, onAc
 
   const pagoMultiple = usePagoMultiple(notas);
 
-  /** Carga las notas del proveedor/personal */
+  /** Recorre el historial en consultas acotadas y publica los totales completos. */
   const cargarNotas = async () => {
     if (!entidad) return;
+    const solicitud = ++solicitudRef.current;
     setCargando(true);
+    setErrorCarga(null);
+    setNotas([]);
+    setPagina(0);
+    setTotalDesembolsado(null);
+    setHistorialPagos({});
 
-    let query = supabase
-      .from('v_estado_cuentas_pagar')
-      .select(`
-        id, fecha_emision, fecha_vencimiento, estado,
-        monto_total, monto_pagado, deuda_restante,
-        descripcion, tipo_gasto, proveedor_id, personal_id, es_anticipo, periodo,
-        observaciones
-      `)
-      .order('fecha_emision', { ascending: false });
-
-    if (entidad.tipo === 'proveedor') {
-      query = query.eq('proveedor_id', entidad.id);
-    } else {
-      query = query.eq('personal_id', entidad.id);
-    }
-
-    const { data } = await query;
-    setNotas(
-      (data ?? []).map((n: any) => ({
-        ...n,
-        monto_total:    Number(n.monto_total),
-        monto_pagado:   Number(n.monto_pagado),
-        deuda_restante: Number(n.deuda_restante),
-        proveedor_nombre: entidad.tipo === 'proveedor' ? entidad.nombre : undefined,
-        personal_nombre:  entidad.tipo === 'personal'  ? entidad.nombre : undefined,
-      }))
-    );
-
-    // Cargar ítems del detalle por nota
-    const notaIds = (data ?? []).map((n: any) => n.id);
-    if (notaIds.length > 0) {
-      const { data: todosItems } = await supabase
-        .from('cxp_detalle')
-        .select('cuenta_pagar_id, cantidad, precio_unitario, descripcion, catalogo_items!inner(nombre)')
-        .in('cuenta_pagar_id', notaIds);
-      const itemsMap: Record<string, any[]> = {};
-      todosItems?.forEach((item: any) => {
-        if (!itemsMap[item.cuenta_pagar_id]) itemsMap[item.cuenta_pagar_id] = [];
-        itemsMap[item.cuenta_pagar_id].push({ ...item, item_nombre: item.catalogo_items?.nombre });
-      });
-      setDetallesItems(itemsMap);
-
-      // Cargar historial de pagos por nota
-      const { data: todosPagos } = await supabase
-        .from('pagos_aplicados')
-        .select('id, cuenta_pagar_id, monto_aplicado, fecha, caja_id, cajas_bancos:caja_id(nombre)')
-        .in('cuenta_pagar_id', notaIds)
-        .order('fecha', { ascending: false });
-
+    try {
+      const notasCompletas: NotaResumen[] = [];
       const pagosMap: Record<string, any[]> = {};
-      todosPagos?.forEach((pago: any) => {
-        if (!pagosMap[pago.cuenta_pagar_id]) pagosMap[pago.cuenta_pagar_id] = [];
-        pagosMap[pago.cuenta_pagar_id].push({ ...pago, caja_nombre: pago.cajas_bancos?.nombre });
-      });
-      setHistorialPagos(pagosMap);
-    }
+      let desembolsadoCentavos = 0;
+      let ultimaNotaId: string | undefined;
 
-    setCargando(false);
+      while (solicitud === solicitudRef.current) {
+        let query = supabase.from('v_estado_cuentas_pagar')
+          .select(`
+            id, fecha_emision, fecha_vencimiento, estado,
+            monto_total, monto_pagado, deuda_restante,
+            descripcion, tipo_gasto, proveedor_id, personal_id, es_anticipo, periodo,
+            observaciones
+          `)
+          .eq(entidad.tipo === 'proveedor' ? 'proveedor_id' : 'personal_id', entidad.id)
+          .order('id')
+          .limit(TAMANO_LOTE_NOTAS);
+        if (ultimaNotaId) query = query.gt('id', ultimaNotaId);
+        const { data, error } = await query;
+        if (solicitud !== solicitudRef.current) return;
+        if (error) throw error;
+        const lote = data ?? [];
+        if (lote.length === 0) break;
+
+        notasCompletas.push(...lote.map((n: any) => ({
+          ...n,
+          monto_total: Number(n.monto_total),
+          monto_pagado: Number(n.monto_pagado),
+          deuda_restante: Number(n.deuda_restante),
+          proveedor_nombre: entidad.tipo === 'proveedor' ? entidad.nombre : undefined,
+          personal_nombre: entidad.tipo === 'personal' ? entidad.nombre : undefined,
+        })));
+
+        const notaIds = lote.map(n => n.id);
+        let ultimoPagoId: string | undefined;
+        while (solicitud === solicitudRef.current) {
+          let queryPagos = supabase.from('pagos_aplicados')
+            .select('id, cuenta_pagar_id, monto_aplicado, es_aplicacion_anticipo, fecha')
+            .in('cuenta_pagar_id', notaIds)
+            .order('id')
+            .limit(TAMANO_LOTE_PAGOS);
+          if (ultimoPagoId) queryPagos = queryPagos.gt('id', ultimoPagoId);
+          const { data: pagos, error: errorPagos } = await queryPagos;
+          if (solicitud !== solicitudRef.current) return;
+          if (errorPagos) throw errorPagos;
+          const lotePagos = pagos ?? [];
+          for (const pago of lotePagos) {
+            // La tabla solo necesita el último pago; no retener todo el historial.
+            const anterior = pagosMap[pago.cuenta_pagar_id]?.[0];
+            if (!anterior || new Date(pago.fecha).getTime() > new Date(anterior.fecha).getTime()) {
+              pagosMap[pago.cuenta_pagar_id] = [pago];
+            }
+            // El anticipo cuenta al desembolsarlo, no al aplicarlo a otra nota.
+            if (pago.es_aplicacion_anticipo !== true) {
+              desembolsadoCentavos += Math.round(Number(pago.monto_aplicado) * 100);
+            }
+          }
+          if (lotePagos.length < TAMANO_LOTE_PAGOS) break;
+          ultimoPagoId = lotePagos[lotePagos.length - 1].id;
+        }
+        if (lote.length < TAMANO_LOTE_NOTAS) break;
+        ultimaNotaId = lote[lote.length - 1].id;
+      }
+
+      if (solicitud !== solicitudRef.current) return;
+      notasCompletas.sort((a, b) => (b.fecha_emision ?? '').localeCompare(a.fecha_emision ?? '') || b.id.localeCompare(a.id));
+      setNotas(notasCompletas);
+      setHistorialPagos(pagosMap);
+      setTotalDesembolsado(desembolsadoCentavos / 100);
+    } catch {
+      if (solicitud === solicitudRef.current) {
+        setErrorCarga('No se pudo cargar el historial completo. Intenta nuevamente.');
+      }
+    } finally {
+      if (solicitud === solicitudRef.current) setCargando(false);
+    }
   };
 
   /** Anular nota */
@@ -278,6 +308,7 @@ const DetalleProveedorCxP: React.FC<Props> = ({ entidad, visible, onCerrar, onAc
       cargarCajasBancos();
       setPagoCxpId(null);
     }
+    return () => { solicitudRef.current++; };
   }, [visible, entidad]);
 
   /** Notas filtradas por estado y vencimiento */
@@ -294,13 +325,17 @@ const DetalleProveedorCxP: React.FC<Props> = ({ entidad, visible, onCerrar, onAc
     return lista;
   }, [notas, filtroEstado, filtroVencimiento]);
 
+  const totalPaginas = Math.max(1, Math.ceil(notasFiltradas.length / TAMANO_LOTE_NOTAS));
+  const paginaActual = Math.min(pagina, totalPaginas - 1);
+  const notasPagina = notasFiltradas.slice(paginaActual * TAMANO_LOTE_NOTAS, (paginaActual + 1) * TAMANO_LOTE_NOTAS);
+
   /** Estadísticas rápidas */
   const stats = useMemo(() => ({
     total:          notas.length,
     pendientes:     notas.filter(n => Number(n.deuda_restante) > 0).length,
     montoPendiente: notas.reduce((s, n) => s + ((n as any).es_anticipo ? -n.deuda_restante : n.deuda_restante), 0),
-    montoPagado:    notas.reduce((s, n) => s + n.monto_pagado, 0),
-  }), [notas]);
+    montoPagado:    totalDesembolsado,
+  }), [notas, totalDesembolsado]);
 
   /** Etiqueta de categoría */
   const labelCategoria = (cat?: string) =>
@@ -475,11 +510,11 @@ const DetalleProveedorCxP: React.FC<Props> = ({ entidad, visible, onCerrar, onAc
                 <div className="resumen-card" style={{ border: esSaldoAFavor ? '1px solid rgba(74,222,128,0.2)' : '1px solid rgba(248,113,113,0.2)' }}>
                   <span className="resumen-label">{esSaldoAFavor ? 'SALDO A FAVOR' : 'DEUDA PENDIENTE'}</span>
                   <span className={`resumen-valor ${esSaldoAFavor ? 'color-ingreso' : 'color-deuda'}`}>
-                    {simboloMoneda()} {fmtMonto(Math.abs(stats.montoPendiente))}
+                    {totalDesembolsado === null ? '—' : `${simboloMoneda()} ${fmtMonto(Math.abs(stats.montoPendiente))}`}
                   </span>
                   <div className="resumen-footer">
                     {esSaldoAFavor ? <Check size={12} /> : <AlertCircle size={12} />} 
-                    {esSaldoAFavor ? 'Crédito disponible' : `${stats.pendientes} notas por pagar`}
+                    {totalDesembolsado === null ? 'Resumen pendiente' : esSaldoAFavor ? 'Crédito disponible' : `${stats.pendientes} notas por pagar`}
                   </div>
                   <div className="resumen-icon-bg" style={{ opacity: 0.15 }}>
                     {esSaldoAFavor ? <CheckCircle2 size={28} className="color-ingreso" /> : <AlertCircle size={28} className="color-deuda" />}
@@ -490,16 +525,16 @@ const DetalleProveedorCxP: React.FC<Props> = ({ entidad, visible, onCerrar, onAc
 
             <div className="resumen-card" style={{ border: '1px solid rgba(74,222,128,0.2)' }}>
               <span className="resumen-label">TOTAL PAGADO</span>
-              <span className="resumen-valor color-ingreso">{simboloMoneda()} {fmtMonto(stats.montoPagado)}</span>
+              <span className="resumen-valor color-ingreso">{stats.montoPagado === null ? '—' : `${simboloMoneda()} ${fmtMonto(stats.montoPagado)}`}</span>
               <div className="resumen-footer">
-                <CheckCircle2 size={12} /> Histórico desembolsado
+                <CheckCircle2 size={12} /> {cargando ? 'Cargando pagos…' : stats.montoPagado === null ? 'No se pudo cargar el total' : 'Histórico desembolsado'}
               </div>
               <div className="resumen-icon-bg" style={{ opacity: 0.15 }}><Wallet size={28} className="color-ingreso" /></div>
             </div>
 
             <div className="resumen-card" style={{ border: '1px solid rgba(56,189,248,0.2)' }}>
               <span className="resumen-label">TOTAL NOTAS</span>
-              <span className="resumen-valor color-meses">{stats.total} <small style={{ fontSize: '0.9rem' }}>Docs</small></span>
+              <span className="resumen-valor color-meses">{totalDesembolsado === null ? '—' : stats.total} <small style={{ fontSize: '0.9rem' }}>Docs</small></span>
               <div className="resumen-footer">
                 <FileText size={12} /> Movimientos registrados
               </div>
@@ -508,7 +543,7 @@ const DetalleProveedorCxP: React.FC<Props> = ({ entidad, visible, onCerrar, onAc
 
             <div className="resumen-card" style={{ border: '1px solid rgba(168,85,247,0.2)' }}>
               <span className="resumen-label">ESTADO GENERAL</span>
-              <span className="resumen-valor" style={{ color: '#a855f7' }}>{stats.pendientes > 0 ? 'Con Deuda' : 'Al día'}</span>
+              <span className="resumen-valor" style={{ color: '#a855f7' }}>{totalDesembolsado === null ? '—' : stats.pendientes > 0 ? 'Con Deuda' : 'Al día'}</span>
               <div className="resumen-footer">
                 <Clock size={12} /> Situación financiera
               </div>
@@ -603,7 +638,7 @@ const DetalleProveedorCxP: React.FC<Props> = ({ entidad, visible, onCerrar, onAc
           <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.75rem', paddingTop: '0.75rem' }}>
             <select
               value={filtroEstado}
-              onChange={e => setFiltroEstado(e.target.value)}
+              onChange={e => { setFiltroEstado(e.target.value); setPagina(0); }}
               className="filtro-select"
               style={{ fontSize: '0.8rem', minWidth: '140px' }}
             >
@@ -616,7 +651,7 @@ const DetalleProveedorCxP: React.FC<Props> = ({ entidad, visible, onCerrar, onAc
             </select>
             <select
               value={filtroVencimiento}
-              onChange={e => setFiltroVencimiento(e.target.value)}
+              onChange={e => { setFiltroVencimiento(e.target.value); setPagina(0); }}
               className="filtro-select"
               style={{ fontSize: '0.8rem', minWidth: '140px' }}
             >
@@ -625,9 +660,15 @@ const DetalleProveedorCxP: React.FC<Props> = ({ entidad, visible, onCerrar, onAc
               <option value="no_vencidas">✓ No vencidas</option>
             </select>
           </div>
+          {cargando && <p role="status">Cargando historial y totales…</p>}
+          {errorCarga && <div role="alert">
+            <p>{errorCarga}</p>
+            <button type="button" className="btn-refrescar" onClick={() => cargarNotas()}>Reintentar</button>
+          </div>}
+          {!cargando && !errorCarga && notasFiltradas.length === 0 && <p>No hay notas con estos filtros.</p>}
           {isMobile ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-              {notasFiltradas.map(nota => {
+              {notasPagina.map(nota => {
                 const isAnticipo = (nota as any).es_anticipo;
                 const badge = isAnticipo 
                   ? { label: 'Anticipo', color: '#a855f7', bg: 'rgba(168,85,247,0.15)' }
@@ -764,7 +805,7 @@ const DetalleProveedorCxP: React.FC<Props> = ({ entidad, visible, onCerrar, onAc
                     </td>
                   </tr>
                 )}
-                {notasFiltradas.map(nota => {
+                {notasPagina.map(nota => {
                   const isAnticipo = (nota as any).es_anticipo;
                   const badge = isAnticipo 
                     ? { label: 'Anticipo', color: '#a855f7', bg: 'rgba(168,85,247,0.15)' }
@@ -822,6 +863,13 @@ const DetalleProveedorCxP: React.FC<Props> = ({ entidad, visible, onCerrar, onAc
                 })}
               </tbody>
             </table>
+          )}
+          {!cargando && !errorCarga && notasFiltradas.length > 0 && (
+            <nav aria-label="Páginas del historial" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem', flexWrap: 'wrap', paddingTop: '1rem' }}>
+              <button type="button" className="btn-refrescar" disabled={paginaActual === 0} onClick={() => setPagina(paginaActual - 1)}>Anterior</button>
+              <span role="status">Página {paginaActual + 1} de {totalPaginas} · {notasFiltradas.length} notas</span>
+              <button type="button" className="btn-refrescar" disabled={paginaActual + 1 >= totalPaginas} onClick={() => setPagina(paginaActual + 1)}>Siguiente</button>
+            </nav>
           )}
         </div>
 

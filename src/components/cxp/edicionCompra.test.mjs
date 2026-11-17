@@ -55,9 +55,21 @@ function entorno(archivo, opciones = {}) {
             : tabla === 'catalogo_items' ? (opciones.inactivo ? [] : [producto])
             : tabla === 'cxp_detalle' ? (opciones.detalles || [{ ...detalle, catalogo_items: { ...producto, activo: !opciones.inactivo } }])
             : tabla === 'pagos_aplicados' ? (opciones.pagos || [])
-            : tabla === 'v_estado_cuentas_pagar' ? (filtrada ? { ...nota, anulada: opciones.anulada } : (opciones.anticipos?.(operaciones) || [])) : [];
-          const error = tabla === opciones.fallar ? { message: 'Fallo de carga' } : null;
-          Promise.resolve({ data: error ? null : data, error }).then(resolve, reject);
+            : tabla === 'v_estado_cuentas_pagar' ? (filtrada ? { ...nota, anulada: opciones.anulada } : (opciones.notas || opciones.anticipos?.(operaciones) || [])) : [];
+          if (archivo === './DetalleProveedorCxP.tsx' && Array.isArray(data)) {
+            if (tabla === 'pagos_aplicados') {
+              const ids = operaciones.find(([m]) => m === 'in')?.[2];
+              data = data.filter(p => ids?.includes(p.cuenta_pagar_id));
+            }
+            data = [...data].sort((a, b) => String(a.id).localeCompare(String(b.id)));
+            const cursor = operaciones.find(([m, c]) => m === 'gt' && c === 'id')?.[2];
+            if (cursor) data = data.filter(f => f.id > cursor);
+            const limite = operaciones.find(([m]) => m === 'limit')?.[1];
+            if (limite) data = data.slice(0, limite);
+          }
+          const error = tabla === opciones.fallar || opciones.fallaConsulta?.(tabla, operaciones) ? { message: 'Fallo de carga' } : null;
+          const resultado = { data: error ? null : data, error };
+          Promise.resolve(opciones.responder ? opciones.responder(tabla, operaciones, resultado) : resultado).then(resolve, reject);
         };
         return (...args) => { operaciones.push([metodo, ...args]); return q; };
       } });
@@ -84,6 +96,8 @@ function entorno(archivo, opciones = {}) {
       if (nombre.endsWith('/inventario')) return { obtenerSaldosPorSucursal: async () => new Map(), validarAperturaInventario: async () => {} };
       if (nombre.endsWith('/idempotenciaNotas')) return new Proxy({}, { get: () => () => null });
       if (nombre.endsWith('/auditLogger')) return { logActivity() {} };
+      if (nombre === './FiltrosCxP') return { CATEGORIAS_PROVEEDOR: [] };
+      if (nombre === './usePagoMultiple') return { usePagoMultiple: () => ({}) };
       if (nombre.startsWith('./')) return { default: hijos[nombre] ??= function Hijo() {} , __esModule: true };
       return new Proxy({}, { get: () => () => null });
     },
@@ -107,6 +121,136 @@ const texto = tree => Array.isArray(tree) ? tree.map(texto).join(' ')
 const boton = (tree, nombre) => nodos(tree, n => n.type === 'button' && texto(n).includes(nombre))[0];
 const propsDetalle = { nota, visible: true, onCerrar() {}, onActualizar() {} };
 const propsEditor = { visible: true, tipoInicial: 'proveedor', cxpEditar: nota, onCerrar() {}, onCreada() {} };
+
+const propsProveedor = { visible: true, entidad: { id: 'proveedor', tipo: 'proveedor', nombre: 'Textilab' }, onCerrar() {}, onActualizar() {} };
+const tarjetaPagado = tree => nodos(tree, n => n.props?.className === 'resumen-card' && texto(n).includes('TOTAL PAGADO'))[0];
+const monto = valor => valor.toLocaleString('es-BO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+test('Total Pagado cuenta el desembolso del anticipo una vez aunque se aplique a compras', async () => {
+  // Caso agregado de Textilab: 79.500 desembolsados + 29.320 aplicados = 108.820 en la suma anterior.
+  const e = entorno('./DetalleProveedorCxP.tsx', {
+    notas: [
+      { ...nota, monto_total: 85955, monto_pagado: 79500, deuda_restante: 6455 },
+      { ...nota, id: 'anticipo', es_anticipo: true, monto_pagado: 29320, deuda_restante: 0 },
+    ],
+    pagos: [
+      { id: 'directo', cuenta_pagar_id: 'compra', monto_aplicado: '50180.00', es_aplicacion_anticipo: false },
+      { id: 'adelanto', cuenta_pagar_id: 'anticipo', monto_aplicado: '29320.00', es_aplicacion_anticipo: false },
+      { id: 'aplicacion-destino', cuenta_pagar_id: 'compra', monto_aplicado: '29320.00', es_aplicacion_anticipo: true },
+      { id: 'aplicacion-origen', cuenta_pagar_id: 'anticipo', monto_aplicado: '29320.00', es_aplicacion_anticipo: true },
+    ],
+  });
+  const tree = await e.cargar(propsProveedor);
+  assert.ok(texto(tarjetaPagado(tree)).includes(monto(79500)));
+  assert.ok(!texto(tarjetaPagado(tree)).includes(monto(108820)));
+  assert.ok(texto(tree).includes(monto(6455)));
+  assert.equal(e.consultas.filter(q => q.tabla === 'pagos_aplicados').length, 1);
+  const consulta = e.consultas.find(q => q.tabla === 'pagos_aplicados');
+  assert.ok(consulta.operaciones.find(([m]) => m === 'select')[1].includes('es_aplicacion_anticipo'));
+  assert.equal(e.llamadas.length, 0);
+});
+
+test('Total Pagado incluye pagos antiguos sin marca y anticipos todavía disponibles', async () => {
+  const e = entorno('./DetalleProveedorCxP.tsx', {
+    notas: [{ ...nota }, { ...nota, id: 'anticipo', es_anticipo: true, deuda_restante: 200 }],
+    pagos: [
+      { cuenta_pagar_id: 'compra', monto_aplicado: 100.5, es_aplicacion_anticipo: null },
+      { cuenta_pagar_id: 'anticipo', monto_aplicado: 200, es_aplicacion_anticipo: false },
+    ],
+  });
+  assert.ok(texto(tarjetaPagado(await e.cargar(propsProveedor))).includes(monto(300.5)));
+});
+
+test('Total Pagado muestra cero sin notas y no muestra un importe si falla la carga', async () => {
+  const vacio = entorno('./DetalleProveedorCxP.tsx');
+  assert.ok(texto(tarjetaPagado(await vacio.cargar(propsProveedor))).includes(monto(0)));
+  for (const fallar of ['pagos_aplicados', 'v_estado_cuentas_pagar']) {
+    const e = entorno('./DetalleProveedorCxP.tsx', { notas: [nota], fallar });
+    const tarjeta = texto(tarjetaPagado(await e.cargar(propsProveedor)));
+    assert.ok(tarjeta.includes('No se pudo cargar el total'));
+    assert.ok(!tarjeta.includes(monto(0)));
+  }
+});
+
+test('pagina más de 100 notas y 1.000 pagos sin truncar el total ni cargar detalles sin uso', async () => {
+  const notas = Array.from({ length: 121 }, (_, i) => ({ ...nota,
+    id: `nota-${String(i).padStart(3, '0')}`, descripcion: `Compra ${i}`,
+    estado: i === 0 ? 'pagada' : 'parcial',
+  }));
+  const pagos = Array.from({ length: 1201 }, (_, i) => ({
+    id: `pago-${String(i).padStart(4, '0')}`, cuenta_pagar_id: notas[0].id,
+    monto_aplicado: '0.10', es_aplicacion_anticipo: false,
+    fecha: i === 0 ? '2026-11-16' : '2026-11-10',
+  }));
+  const e = entorno('./DetalleProveedorCxP.tsx', { notas, pagos });
+  let tree = await e.cargar(propsProveedor);
+  assert.ok(texto(tarjetaPagado(tree)).includes(monto(120.1)));
+  assert.equal(nodos(tree, n => n.props?.title === 'Ver documento').length, 50);
+  assert.ok(texto(tree).includes('Compra 120'));
+  assert.ok(!texto(tree).includes('Compra 0'));
+  const notasQueries = e.consultas.filter(q => q.tabla === 'v_estado_cuentas_pagar');
+  const pagosQueries = e.consultas.filter(q => q.tabla === 'pagos_aplicados');
+  assert.equal(notasQueries.length, 3);
+  assert.equal(pagosQueries.length, 9);
+  for (const q of [...notasQueries, ...pagosQueries]) {
+    assert.ok(q.operaciones.some(([m, c]) => m === 'order' && c === 'id'));
+    assert.ok(q.operaciones.some(([m, n]) => m === 'limit' && n === (q.tabla === 'pagos_aplicados' ? 200 : 50)));
+    if (q.tabla === 'pagos_aplicados') assert.ok(q.operaciones.find(([m]) => m === 'in')[2].length <= 50);
+    else assert.ok(q.operaciones.some(([m, c, v]) => m === 'eq' && c === 'proveedor_id' && v === 'proveedor'));
+  }
+  assert.ok(notasQueries[1].operaciones.some(([m, c, v]) => m === 'gt' && c === 'id' && v === 'nota-049'));
+  assert.ok(pagosQueries[1].operaciones.some(([m, c, v]) => m === 'gt' && c === 'id' && v === 'pago-0199'));
+  assert.ok(!e.consultas.some(q => q.tabla === 'cxp_detalle'));
+  const cantidadConsultas = e.consultas.length;
+  boton(tree, 'Siguiente').props.onClick(); tree = e.render();
+  boton(tree, 'Siguiente').props.onClick(); tree = e.render();
+  assert.equal(nodos(tree, n => n.props?.title === 'Ver documento').length, 21);
+  assert.equal(boton(tree, 'Siguiente').props.disabled, true);
+  assert.ok(texto(tree).includes('2026-11-16')); // Último pago por fecha, no por ID.
+  assert.ok(texto(tarjetaPagado(tree)).includes(monto(120.1)));
+  const filtro = nodos(tree, n => n.type === 'select' && texto(n).includes('Todos los estados'))[0];
+  filtro.props.onChange({ target: { value: 'pagada' } }); tree = e.render();
+  assert.equal(nodos(tree, n => n.props?.title === 'Ver documento').length, 1);
+  assert.equal(boton(tree, 'Anterior').props.disabled, true);
+  assert.equal(e.consultas.length, cantidadConsultas);
+});
+
+test('un error en un lote posterior no publica totales parciales y permite reintentar', async () => {
+  const notas = Array.from({ length: 51 }, (_, i) => ({ ...nota, id: `n${String(i).padStart(2, '0')}` }));
+  let fallar = true;
+  const e = entorno('./DetalleProveedorCxP.tsx', { notas,
+    pagos: [{ id: 'p1', cuenta_pagar_id: 'n00', monto_aplicado: 100 }],
+    fallaConsulta: (tabla, ops) => fallar && tabla === 'v_estado_cuentas_pagar' && ops.some(([m]) => m === 'gt'),
+  });
+  let tree = await e.cargar(propsProveedor);
+  assert.ok(texto(tarjetaPagado(tree)).includes('No se pudo cargar el total'));
+  assert.equal(nodos(tree, n => n.props?.title === 'Ver documento').length, 0);
+  assert.equal(nodos(tree, n => n.props?.role === 'alert').length, 1);
+  fallar = false;
+  await boton(tree, 'Reintentar').props.onClick(); tree = e.render();
+  assert.ok(texto(tarjetaPagado(tree)).includes(monto(100)));
+  assert.equal(nodos(tree, n => n.props?.role === 'alert').length, 0);
+});
+
+test('descarta una carga atrasada al cambiar de entidad y cancela al cerrar', async () => {
+  let resolver;
+  const e = entorno('./DetalleProveedorCxP.tsx', {
+    responder: (tabla, ops, resultado) => tabla === 'v_estado_cuentas_pagar' && ops.some(([m, c, v]) => m === 'eq' && c === 'proveedor_id' && v === 'proveedor')
+      ? new Promise(resolve => { resolver = resolve; }) : resultado,
+  });
+  e.render(propsProveedor); await turno();
+  assert.ok(texto(tarjetaPagado(e.render())).includes('Cargando pagos'));
+  await e.cargar({ ...propsProveedor, entidad: { id: 'personal', nombre: 'Personal', tipo: 'personal' } });
+  resolver({ data: [nota], error: null }); await turno();
+  let tree = e.render();
+  assert.ok(texto(tarjetaPagado(tree)).includes(monto(0)));
+  assert.ok(e.consultas.some(q => q.operaciones.some(([m, c, v]) => m === 'eq' && c === 'personal_id' && v === 'personal')));
+  assert.ok(!e.consultas.some(q => q.tabla === 'pagos_aplicados'));
+  e.render(propsProveedor); await turno();
+  e.render({ ...propsProveedor, visible: false });
+  resolver({ data: [nota], error: null }); await turno();
+  assert.ok(!e.consultas.some(q => q.tabla === 'pagos_aplicados'));
+});
 
 test('Editar y el lápiz de producto abren la compra completa con la nota y sucursal originales', async () => {
   for (const desdeItem of [false, true]) {
