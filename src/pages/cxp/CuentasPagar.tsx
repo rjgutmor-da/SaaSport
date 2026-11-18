@@ -12,7 +12,7 @@ import { simboloMoneda } from '../../lib/moneda';
 import React, { useState, useMemo, useCallback } from 'react';
 import {
   RefreshCw, Plus, Search,
-  Truck, CreditCard, FileText, UserPlus, BookOpen, Wallet
+  Truck, CreditCard, FileText, UserPlus, BookOpen, Wallet, Cake
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
@@ -27,6 +27,11 @@ import DetalleProveedorCxP from '../../components/cxp/DetalleProveedorCxP';
 import AdminEntidadesCxP from '../../components/cxp/AdminEntidadesCxP';
 import ModalPagoRapidoCxP from '../../components/cxp/ModalPagoRapidoCxP';
 import ModalSaldoInicialCxP from '../../components/cxp/ModalSaldoInicialCxP';
+import ModalCumpleanosPersonal from '../../components/cxp/ModalCumpleanosPersonal';
+import {
+  clasificarCumpleanosPersonal,
+  obtenerEstadoCumpleanos,
+} from '../../components/cxp/cumpleanosPersonalUtils';
 import type { EntidadCxP } from '../../types/cxp';
 
 import { useAuthSaaSport } from '../../lib/authHelper';
@@ -56,6 +61,16 @@ const CuentasPagar: React.FC = () => {
   };
 
   const { data: entidadesRaw, isLoading: cargandoEntidades, error: errorEntidades } = useCxpEntidades(escuelaId, filtros);
+  const filtrosTodasEntidades = useMemo(() => ({ categoria: '', busqueda: '' }), []);
+  const { data: todasEntidadesRaw } = useCxpEntidades(escuelaId, filtrosTodasEntidades);
+  const resumenCumpleanos = useMemo(
+    () => clasificarCumpleanosPersonal((todasEntidadesRaw as unknown as EntidadCxP[]) || []),
+    [todasEntidadesRaw],
+  );
+  const totalAlertasCumple =
+    resumenCumpleanos.hoy.length +
+    resumenCumpleanos.ayer.length +
+    resumenCumpleanos.manana.length;
   const { data: resumenData, isLoading: cargandoResumen } = useCxpResumen(escuelaId, filtros);
 
   const cargando = cargandoEntidades || cargandoResumen;
@@ -84,6 +99,8 @@ const CuentasPagar: React.FC = () => {
   const [esAnticipoNota, setEsAnticipoNota]             = useState(false);
   const [entidadSeleccionada, setEntidadSeleccionada]   = useState<EntidadCxP | null>(null);
   const [mostrarAdmin, setMostrarAdmin]                 = useState(false);
+  const [tabAdminInicial, setTabAdminInicial]       = useState<'proveedores' | 'personal'>('proveedores');
+  const [mostrarCumpleanos, setMostrarCumpleanos]       = useState(false);
 
   const [mostrarPagoRapido, setMostrarPagoRapido]       = useState(false);
   const [entidadParaPagoRapido, setEntidadParaPagoRapido] = useState<EntidadCxP | null>(null);
@@ -137,7 +154,7 @@ const CuentasPagar: React.FC = () => {
 
 
   if (mostrarAdmin) {
-    return <AdminEntidadesCxP onVolver={() => { setMostrarAdmin(false); manejarActualizacion(); }} />;
+    return <AdminEntidadesCxP tabInicial={tabAdminInicial} onVolver={() => { setMostrarAdmin(false); manejarActualizacion(); }} />;
   }
 
   // ── Vista: Módulo principal ──
@@ -331,6 +348,67 @@ const CuentasPagar: React.FC = () => {
 
               <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
                 <button
+                  className="btn-excel"
+                  onClick={() => setMostrarCumpleanos(true)}
+                  title={
+                    resumenCumpleanos.hoy.length > 0
+                      ? `¡${resumenCumpleanos.hoy.length} empleado(s) cumplen años hoy!`
+                      : totalAlertasCumple > 0
+                        ? `Hay ${totalAlertasCumple} cumpleaños cercano(s) (ayer o mañana)`
+                        : 'Ver cumpleaños de empleados (hoy, ayer y mañana)'
+                  }
+                  style={
+                    resumenCumpleanos.hoy.length > 0
+                      ? {
+                          background: 'rgba(255, 107, 53, 0.18)',
+                          color: '#ff6b35',
+                          borderColor: 'rgba(255, 107, 53, 0.5)',
+                          boxShadow: '0 0 12px rgba(255, 107, 53, 0.18)',
+                        }
+                      : totalAlertasCumple > 0
+                        ? {
+                            background: 'rgba(245, 158, 11, 0.14)',
+                            color: '#f59e0b',
+                            borderColor: 'rgba(245, 158, 11, 0.35)',
+                          }
+                        : {
+                            background: 'var(--bg-glass)',
+                            color: 'var(--text-secondary)',
+                            borderColor: 'var(--border)',
+                          }
+                  }
+                >
+                  <Cake size={14} />
+                  <span>Cumpleaños</span>
+                  {resumenCumpleanos.hoy.length > 0 ? (
+                    <span
+                      style={{
+                        background: '#ff6b35',
+                        color: '#ffffff',
+                        borderRadius: '999px',
+                        padding: '0.05rem 0.45rem',
+                        fontSize: '0.68rem',
+                        fontWeight: 800,
+                      }}
+                    >
+                      🎉 {resumenCumpleanos.hoy.length} hoy
+                    </span>
+                  ) : totalAlertasCumple > 0 ? (
+                    <span
+                      style={{
+                        background: 'rgba(245, 158, 11, 0.24)',
+                        color: '#f59e0b',
+                        borderRadius: '999px',
+                        padding: '0.05rem 0.42rem',
+                        fontSize: '0.68rem',
+                        fontWeight: 800,
+                      }}
+                    >
+                      {totalAlertasCumple}
+                    </span>
+                  ) : null}
+                </button>
+                <button
                   className="btn-excel btn-cobro"
                   onClick={() => { setEntidadParaPagoRapido(null); setMostrarPagoRapido(true); }}
                   title="Nuevo Pago"
@@ -354,7 +432,7 @@ const CuentasPagar: React.FC = () => {
                 </button>
                 <button
                   className="btn-excel-icon"
-                  onClick={() => setMostrarAdmin(true)}
+                  onClick={() => { setTabAdminInicial('proveedores'); setMostrarAdmin(true); }}
                   title="Administrar Entidades"
                 >
                   <UserPlus size={14} />
@@ -439,7 +517,7 @@ const CuentasPagar: React.FC = () => {
                 <button
                   className="btn-nueva-cuenta"
                   style={{ marginTop: '0.75rem' }}
-                  onClick={() => setMostrarAdmin(true)}
+                  onClick={() => { setTabAdminInicial('proveedores'); setMostrarAdmin(true); }}
                 >
                     <UserPlus size={16} /> Agregar Entidad
                 </button>
@@ -463,6 +541,7 @@ const CuentasPagar: React.FC = () => {
                     const tieneDeuda  = entidad.saldo_pendiente > 0;
                     const dias        = calcularDias(entidad.fecha_mas_antigua);
                     const colorDias   = dias > 45 ? 'var(--danger)' : dias > 30 ? 'var(--primary)' : 'var(--text-tertiary)';
+                    const estadoCumple = entidad.tipo === 'personal' ? obtenerEstadoCumpleanos(entidad.fecha_nacimiento) : null;
 
                     return (
                       <tr
@@ -475,6 +554,45 @@ const CuentasPagar: React.FC = () => {
                         <td className="cxc-td cxp-th-alumno">
                           <div className="cxc-alumno-info">
                             <span className="cxc-alumno-nombre">{entidad.nombre}</span>
+                            {estadoCumple && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setMostrarCumpleanos(true);
+                                }}
+                                title="Ver alerta de cumpleaños del personal"
+                                style={{
+                                  border: estadoCumple === 'hoy'
+                                    ? '1px solid rgba(255, 107, 53, 0.5)'
+                                    : estadoCumple === 'manana'
+                                      ? '1px solid rgba(245, 158, 11, 0.4)'
+                                      : '1px solid var(--border)',
+                                  background: estadoCumple === 'hoy'
+                                    ? 'rgba(255, 107, 53, 0.16)'
+                                    : estadoCumple === 'manana'
+                                      ? 'rgba(245, 158, 11, 0.12)'
+                                      : 'var(--bg-glass)',
+                                  color: estadoCumple === 'hoy'
+                                    ? '#ff6b35'
+                                    : estadoCumple === 'manana'
+                                      ? '#f59e0b'
+                                      : 'var(--text-secondary)',
+                                  borderRadius: '999px',
+                                  padding: '0.12rem 0.5rem',
+                                  fontSize: '0.7rem',
+                                  fontWeight: 800,
+                                  cursor: 'pointer',
+                                  whiteSpace: 'nowrap',
+                                }}
+                              >
+                                {estadoCumple === 'hoy'
+                                  ? '🎂 ¡Cumple hoy!'
+                                  : estadoCumple === 'manana'
+                                    ? '🎂 Cumple mañana'
+                                    : '🎂 Cumplió ayer'}
+                              </button>
+                            )}
                             {entidad.cargo && (
                               <span style={{ fontSize: '0.76rem', color: 'var(--text-tertiary)' }}>
                                 {entidad.cargo}
@@ -588,6 +706,29 @@ const CuentasPagar: React.FC = () => {
         onCreado={() => {
           setMostrarSaldoInicial(false);
           manejarActualizacion();
+        }}
+      />
+
+      <ModalCumpleanosPersonal
+        visible={mostrarCumpleanos}
+        onCerrar={() => setMostrarCumpleanos(false)}
+        hoy={resumenCumpleanos.hoy}
+        ayer={resumenCumpleanos.ayer}
+        manana={resumenCumpleanos.manana}
+        totalPersonalConFecha={resumenCumpleanos.totalConFecha}
+        onIrAAdministrarPersonal={() => {
+          setMostrarCumpleanos(false);
+          setTabAdminInicial('personal');
+          setMostrarAdmin(true);
+        }}
+        onSeleccionarEmpleado={(id) => {
+          const emp =
+            entidadesFiltradas.find(e => e.id === id) ||
+            ((todasEntidadesRaw as unknown as EntidadCxP[]) || []).find(e => e.id === id);
+          if (emp) {
+            setMostrarCumpleanos(false);
+            abrirDetalle(emp);
+          }
         }}
       />
 

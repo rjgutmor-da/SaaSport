@@ -15,6 +15,7 @@ import {
   Save, X, AlertCircle, Check, Truck, Users, RefreshCw, Trash2
 } from 'lucide-react';
 import ModalEntidadCxP from './ModalEntidadCxP';
+import { formatearDiaMesCorto, obtenerEstadoCumpleanos } from './cumpleanosPersonalUtils';
 
 type TabActiva = 'proveedores' | 'personal';
 
@@ -47,17 +48,23 @@ interface Personal {
   contacto_emergencia?: string | null;
   contacto?: string | null; // Para proveedores personal
   salario_base: number | null;
+  fecha_nacimiento?: string | null;
   activo: boolean;
   tipo_origen: 'personal' | 'proveedor';
 }
 
 interface Props {
   onVolver: () => void;
+  tabInicial?: TabActiva;
 }
 
-const AdminEntidadesCxP: React.FC<Props> = ({ onVolver }) => {
-  const [tab, setTab] = useState<TabActiva>('proveedores');
+const AdminEntidadesCxP: React.FC<Props> = ({ onVolver, tabInicial = 'proveedores' }) => {
+  const [tab, setTab] = useState<TabActiva>(tabInicial);
   const [escuelaId, setEscuelaId] = useState<string | null>(null);
+
+  useEffect(() => {
+    setTab(tabInicial);
+  }, [tabInicial]);
 
   // Datos
   const [proveedores, setProveedores] = useState<Proveedor[]>([]);
@@ -98,7 +105,7 @@ const AdminEntidadesCxP: React.FC<Props> = ({ onVolver }) => {
     } else {
       // Personal se administra únicamente desde la tabla personal.
       const { data: dataPers } = await supabase.from('personal')
-        .select('id, nombres, apellidos, cargo, telefono, direccion, contacto_emergencia, salario_base, activo')
+        .select('id, nombres, apellidos, cargo, telefono, direccion, contacto_emergencia, salario_base, fecha_nacimiento, activo')
         .eq('escuela_id', escuelaId).order('nombres');
 
       const listaUnificada: Personal[] = [
@@ -236,10 +243,29 @@ const AdminEntidadesCxP: React.FC<Props> = ({ onVolver }) => {
               <span className="cxc-col-center">Estado</span>
               <span></span>
             </div>
-            {personal.map(p => (
+            {personal.map(p => {
+              const diaMesCumple = formatearDiaMesCorto(p.fecha_nacimiento);
+              const estadoCumple = obtenerEstadoCumpleanos(p.fecha_nacimiento);
+              return (
               <div key={p.id} className="cxc-alumno-row">
-                <span className="cxc-alumno-nombre" style={{ opacity: p.activo ? 1 : 0.45 }}>
+                <span className="cxc-alumno-nombre" style={{ opacity: p.activo ? 1 : 0.45, flexWrap: 'wrap' }}>
                   <Users size={13} /> {p.nombres} {p.apellidos}
+                  {diaMesCumple && (
+                    <span
+                      style={{
+                        fontSize: '0.72rem',
+                        fontWeight: 700,
+                        padding: '0.1rem 0.45rem',
+                        borderRadius: '999px',
+                        background: estadoCumple === 'hoy' ? 'rgba(255, 107, 53, 0.18)' : 'var(--bg-glass)',
+                        border: `1px solid ${estadoCumple === 'hoy' ? 'rgba(255, 107, 53, 0.45)' : 'var(--border)'}`,
+                        color: estadoCumple === 'hoy' ? 'var(--primary)' : 'var(--text-secondary)',
+                      }}
+                      title={estadoCumple === 'hoy' ? '¡Cumple años hoy!' : estadoCumple === 'manana' ? 'Cumple años mañana' : estadoCumple === 'ayer' ? 'Cumplió años ayer' : 'Fecha de cumpleaños'}
+                    >
+                      🎂 {diaMesCumple}{estadoCumple === 'hoy' ? ' • ¡Hoy!' : estadoCumple === 'manana' ? ' • Mañana' : estadoCumple === 'ayer' ? ' • Ayer' : ''}
+                    </span>
+                  )}
                 </span>
                 <span className="cxc-alumno-meta">
                     Personal
@@ -263,7 +289,8 @@ const AdminEntidadesCxP: React.FC<Props> = ({ onVolver }) => {
                   </button>
                 </span>
               </div>
-            ))}
+              );
+            })}
           </div>
         )
       )}

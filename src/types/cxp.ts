@@ -13,6 +13,7 @@ export interface EntidadCxP {
   saldo_pendiente: number;
   notas_pendientes: number;
   fecha_mas_antigua: string | null;
+  fecha_nacimiento?: string | null;
 }
 
 export interface NotaResumenCxP {

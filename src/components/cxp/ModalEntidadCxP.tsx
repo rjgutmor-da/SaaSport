@@ -8,7 +8,7 @@ import { supabase } from '../../lib/supabaseClient';
 import { 
   X, Save, AlertCircle, Check, Truck, Users, 
   MapPin, Phone, User as UserIcon, Briefcase, 
-  CreditCard, Hash, Info, RefreshCw
+  CreditCard, Hash, Info, RefreshCw, Calendar
 } from 'lucide-react';
 
 interface Props {
@@ -32,7 +32,7 @@ const ModalEntidadCxP: React.FC<Props> = ({
     nombre: '', categoria: 'otro', nit_ci: '', telefono: '', direccion: '', contacto: '', activo: true, cargo: ''
   });
   const [formPers, setFormPers] = useState<any>({
-    nombres: '', apellidos: '', cargo: '', telefono: '', direccion: '', contacto_emergencia: '', salario_base: '', activo: true
+    nombres: '', apellidos: '', cargo: '', telefono: '', direccion: '', contacto_emergencia: '', salario_base: '', fecha_nacimiento: '', activo: true
   });
 
   const [guardando, setGuardando] = useState(false);
@@ -45,11 +45,11 @@ const ModalEntidadCxP: React.FC<Props> = ({
       setExito(false);
       if (itemAEditar) {
         if (tipo === 'proveedor') setFormProv({ ...itemAEditar, cargo: itemAEditar.cargo || '' });
-        else setFormPers({ ...itemAEditar });
+        else setFormPers({ ...itemAEditar, fecha_nacimiento: itemAEditar.fecha_nacimiento || '' });
       } else {
         // Reset
         setFormProv({ nombre: '', categoria: 'otro', nit_ci: '', telefono: '', direccion: '', contacto: '', activo: true, cargo: '' });
-        setFormPers({ nombres: '', apellidos: '', cargo: '', telefono: '', direccion: '', contacto_emergencia: '', salario_base: '', activo: true });
+        setFormPers({ nombres: '', apellidos: '', cargo: '', telefono: '', direccion: '', contacto_emergencia: '', salario_base: '', fecha_nacimiento: '', activo: true });
       }
     }
   }, [visible, itemAEditar, tipo]);
@@ -96,6 +96,7 @@ const ModalEntidadCxP: React.FC<Props> = ({
           direccion:            formPers.direccion || null,
           contacto_emergencia:  formPers.contacto_emergencia || null,
           salario_base:         Number(formPers.salario_base) || 0,
+          fecha_nacimiento:     formPers.fecha_nacimiento || null,
           activo:               formPers.activo ?? true,
           escuela_id:           escuelaId
         };
@@ -276,6 +277,14 @@ const ModalEntidadCxP: React.FC<Props> = ({
                     value={formPers.contacto_emergencia || ''} 
                     onChange={e => setFormPers({...formPers, contacto_emergencia: e.target.value})}
                     placeholder="Nombre y teléfono de referencia"
+                  />
+                </div>
+                <div className="form-campo">
+                  <label><Calendar size={14} /> Fecha de Nacimiento</label>
+                  <input 
+                    type="date" 
+                    value={formPers.fecha_nacimiento || ''} 
+                    onChange={e => setFormPers({...formPers, fecha_nacimiento: e.target.value})}
                   />
                 </div>
                 <div className="form-campo full-width" style={{ gridColumn: '1 / -1' }}>
