@@ -38,6 +38,7 @@ interface CuentaCobrar {
   estado: string;
   ciclo_inicio: string | null;
   ciclo_fin: string | null;
+  es_mensualidad_ingreso: boolean;
   periodo: string | null;
   alumnos: Alumno | null;
   sucursales: Sucursal | null;
@@ -64,6 +65,9 @@ const NotasAutomaticas: React.FC = () => {
   // Modales
   const [cxcParaEditar, setCxcParaEditar] = useState<any | null>(null);
   const [modalNotaVisible, setModalNotaVisible] = useState(false);
+  const [ingresoParaEditar, setIngresoParaEditar] = useState<CuentaCobrar | null>(null);
+  const [inicioIngreso, setInicioIngreso] = useState('');
+  const [errorIngreso, setErrorIngreso] = useState('');
 
   // Cargar sucursales para el filtro
   const cargarSucursales = async () => {
@@ -99,6 +103,7 @@ const NotasAutomaticas: React.FC = () => {
           estado,
           ciclo_inicio,
           ciclo_fin,
+          es_mensualidad_ingreso,
           periodo,
           alumnos (id, nombres, apellidos, mensualidad),
           sucursales (id, nombre),
@@ -187,6 +192,12 @@ const NotasAutomaticas: React.FC = () => {
     n.toLocaleString('es-BO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   const abrirEdicion = (nota: CuentaCobrar) => {
+    if (nota.es_mensualidad_ingreso) {
+      setInicioIngreso(nota.ciclo_inicio ?? '');
+      setErrorIngreso('');
+      setIngresoParaEditar(nota);
+      return;
+    }
     // Necesitamos formatear el objeto nota para que coincida con lo que NotaServicios espera
     // NotaServicios espera que la nota tenga alumnos y otros campos planos
     setCxcParaEditar({
@@ -195,6 +206,27 @@ const NotasAutomaticas: React.FC = () => {
       sucursal_id: nota.sucursales?.id
     });
     setModalNotaVisible(true);
+  };
+
+  const guardarCicloIngreso = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!ingresoParaEditar?.alumnos || !inicioIngreso || procesandoAccion) return;
+    setProcesandoAccion(ingresoParaEditar.id);
+    setErrorIngreso('');
+    try {
+      const { error: fallo } = await supabase.rpc('rpc_editar_ciclo_mensualidad_ingreso', {
+        p_alumno: ingresoParaEditar.alumnos.id,
+        p_cuenta: ingresoParaEditar.id,
+        p_inicio: inicioIngreso
+      });
+      if (fallo) throw fallo;
+      setIngresoParaEditar(null);
+      void cargarNotas();
+    } catch (fallo) {
+      setErrorIngreso((fallo as { message?: string }).message ?? 'No se pudo guardar el ciclo.');
+    } finally {
+      setProcesandoAccion(null);
+    }
   };
 
   // Aprobar una nota borrador (pasa a pendiente y suma a deuda en la ficha del alumno)
@@ -595,7 +627,8 @@ const NotasAutomaticas: React.FC = () => {
                           </button>
                           <button 
                             onClick={() => abrirEdicion(nota)}
-                            disabled={estaCargando}
+                            disabled={estaCargando || (nota.es_mensualidad_ingreso &&
+                              perfil?.rol !== 'Administrador' && perfil?.rol !== 'SuperAdministrador')}
                             className="btn-volver"
                             style={{ height: '30px', padding: '0 0.5rem', fontSize: '0.8rem', display: 'inline-flex', alignItems: 'center', gap: '0.35rem', borderColor: 'var(--border)' }}
                             title="Editar manualmente antes de aprobar"
@@ -631,6 +664,30 @@ const NotasAutomaticas: React.FC = () => {
             </table>
           </div>
         </div>
+      )}
+
+      {ingresoParaEditar && (
+        <dialog ref={elemento => { if (elemento && !elemento.open) elemento.showModal(); }}
+          aria-labelledby="titulo-ciclo-ingreso"
+          style={{ background: 'var(--bg-card, #1a1a1a)', color: 'inherit', borderRadius: 12, padding: '1.5rem' }}
+          onCancel={event => { event.preventDefault(); if (!procesandoAccion) setIngresoParaEditar(null); }}>
+          <form onSubmit={guardarCicloIngreso} style={{ display: 'grid', gap: '1rem' }}>
+            <h2 id="titulo-ciclo-ingreso">Editar ciclo de ingreso</h2>
+            <span>{ingresoParaEditar.alumnos?.nombres} {ingresoParaEditar.alumnos?.apellidos}</span>
+            <label>
+              Inicio del ciclo
+              <input className="cxc-input" type="date" value={inicioIngreso} required
+                disabled={!!procesandoAccion} onChange={event => setInicioIngreso(event.target.value)} />
+            </label>
+            {errorIngreso && <p role="alert">{errorIngreso}</p>}
+            <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'end' }}>
+              <button className="btn-volver" type="button" disabled={!!procesandoAccion}
+                onClick={() => setIngresoParaEditar(null)}>Cerrar</button>
+              <button className="btn-volver" type="submit" disabled={!!procesandoAccion ||
+                !inicioIngreso || inicioIngreso === ingresoParaEditar.ciclo_inicio}>Guardar fecha</button>
+            </div>
+          </form>
+        </dialog>
       )}
 
       {/* Modal de Edición Reutilizado */}
