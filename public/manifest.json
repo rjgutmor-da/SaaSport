@@ -1,7 +1,7 @@
 {
   "name": "SaaSport",
   "short_name": "SaaSport",
-  "description": "Gestión financiera de tu academia deportiva",
+  "description": "Gestión administrativa y financiera de escuelas deportivas.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
