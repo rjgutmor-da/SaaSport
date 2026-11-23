@@ -117,7 +117,7 @@ const NotasAutomaticas: React.FC = () => {
       if (queryError) throw queryError;
       setNotas((data as any) || []);
     } catch (err: any) {
-      setError(err.message || 'Error al cargar las notas automáticas.');
+      setError(err.message || 'Error al cargar las mensualidades por aprobar.');
     } finally {
       setCargando(false);
     }
@@ -255,7 +255,7 @@ const NotasAutomaticas: React.FC = () => {
   // Aprobar todas las notas filtradas
   const aprobarTodas = async () => {
     if (notasFiltradas.length === 0) return;
-    if (!window.confirm(`¿Estás seguro de aprobar las ${notasFiltradas.length} notas automáticas visibles? Pasarán a figurar como deuda pendiente en la ficha de cada alumno.`)) {
+    if (!window.confirm(`¿Estás seguro de aprobar las ${notasFiltradas.length} mensualidades visibles? Pasarán a figurar como deuda pendiente en la ficha de cada alumno.`)) {
       return;
     }
 
@@ -383,7 +383,7 @@ const NotasAutomaticas: React.FC = () => {
         </button>
         <div>
           <h1 style={{ fontSize: '1.75rem', fontWeight: 'bold', color: 'var(--text-primary)' }}>
-            Notas Automáticas Pendientes
+            Mensualidades Por Aprobar
           </h1>
           <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginTop: '0.25rem' }}>
             Listado de mensualidades generadas automáticamente por el sistema que aún no han sido cobradas.
@@ -497,12 +497,12 @@ const NotasAutomaticas: React.FC = () => {
       {cargando ? (
         <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '40vh', flexDirection: 'column', gap: '1rem' }}>
           <RefreshCw size={32} className="spin" style={{ color: 'var(--primary)' }} />
-          <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Cargando notas automáticas en borrador...</p>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Cargando mensualidades por aprobar...</p>
         </div>
       ) : notasFiltradas.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '4rem 2rem', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: '8px', color: 'var(--text-secondary)' }}>
           <FileText size={48} style={{ opacity: 0.3, marginBottom: '1rem' }} />
-          <p style={{ fontSize: '1.05rem', fontWeight: 500 }}>No hay notas automáticas pendientes de aprobación</p>
+          <p style={{ fontSize: '1.05rem', fontWeight: 500 }}>No hay mensualidades pendientes de aprobación</p>
           <p style={{ fontSize: '0.85rem', marginTop: '0.25rem', opacity: 0.8 }}>Todas las mensualidades generadas han sido aprobadas o no coinciden con los filtros.</p>
         </div>
       ) : (

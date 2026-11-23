@@ -116,11 +116,11 @@ const Sidebar: React.FC<SidebarProps> = ({ onLogout, theme, onCycleTheme, extra 
           <div className="sidebar-item-group">
             <NavLink to="/finanzas/notas-automaticas" className={({ isActive }) => (isActive ? 'sidebar-link active' : 'sidebar-link')}>
               <FileText size={20} strokeWidth={1.5} />
-              <span>Notas Automáticas</span>
+              <span>Mensualidades Por Aprobar</span>
               {hayNotasPendientes && (
                 <span className="sidebar-notas-aviso" role="img"
-                  aria-label="Hay notas automáticas por gestionar"
-                  title="Hay notas automáticas por gestionar">
+                  aria-label="Hay mensualidades por aprobar"
+                  title="Hay mensualidades por aprobar">
                   <Bell size={16} strokeWidth={1.8} aria-hidden="true" />
                   <span className="sidebar-notas-aviso-punto" aria-hidden="true" />
                 </span>

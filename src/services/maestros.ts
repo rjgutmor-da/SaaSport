@@ -164,8 +164,54 @@ export const deleteGrupo = async (
     throw new Error(`No se puede eliminar el grupo porque tiene ${count} alumno(s) asignado(s). Puedes desactivarlo en su lugar para impedir nuevas asignaciones.`);
   }
 
+  // Obtener registros de grupos_gestion asociados al grupo
+  const { data: gruposGestion, error: ggError } = await supabase
+    .from('grupos_gestion')
+    .select('id')
+    .eq('grupo_id', id)
+    .eq('escuela_id', escuelaId);
+
+  if (ggError) throw ggError;
+
+  const grupoGestionIds = (gruposGestion || []).map((g) => g.id);
+
+  if (grupoGestionIds.length > 0) {
+    // Verificar si tiene historial en alumnos_grupos antes de eliminar
+    const { count: historialCount, error: historialError } = await supabase
+      .from('alumnos_grupos')
+      .select('id', { count: 'exact', head: true })
+      .in('grupo_gestion_id', grupoGestionIds);
+
+    if (historialError) throw historialError;
+
+    if ((historialCount || 0) > 0) {
+      throw new Error('No se puede eliminar el grupo porque tiene historial de alumnos registrados. Puedes desactivarlo en su lugar.');
+    }
+
+    // Eliminar entrenadores asignados a esos grupos_gestion
+    const { error: egError } = await supabase
+      .from('entrenadores_grupos')
+      .delete()
+      .in('grupo_gestion_id', grupoGestionIds);
+
+    if (egError) throw egError;
+
+    // Eliminar registros de grupos_gestion
+    const { error: delGgError } = await supabase
+      .from('grupos_gestion')
+      .delete()
+      .in('id', grupoGestionIds);
+
+    if (delGgError) throw delGgError;
+  }
+
   // Eliminar relaciones en grupos_horarios
-  await supabase.from('grupos_horarios').delete().eq('grupo_id', id);
+  const { error: ghError } = await supabase
+    .from('grupos_horarios')
+    .delete()
+    .eq('grupo_id', id);
+
+  if (ghError) throw ghError;
 
   // Eliminar el grupo
   const { error } = await supabase
