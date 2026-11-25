@@ -18,7 +18,7 @@
 
 .grupos-tabla {
   width: 100%;
-  min-width: 64rem;
+  min-width: 70rem;
   table-layout: fixed;
   border-collapse: separate;
   border-spacing: 0;
@@ -54,4 +54,27 @@
 .grupos-tabla td:last-child button {
   flex-shrink: 0;
   white-space: nowrap;
+}
+
+.grupo-alumnos-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  min-width: 3rem;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  background: var(--secondary-glow);
+  color: var(--secondary);
+  border: 1px solid rgba(10, 132, 255, 0.25);
+}
+
+.grupo-alumnos-badge--vacio {
+  background: var(--bg-glass);
+  color: var(--text-tertiary);
+  border-color: var(--border);
+  font-weight: 600;
 }

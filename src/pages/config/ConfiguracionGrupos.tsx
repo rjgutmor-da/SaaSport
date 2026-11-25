@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronLeft, Settings, Plus, CheckCircle, XCircle, Edit2, Save, X, AlertTriangle, Trash2 } from 'lucide-react';
+import { ChevronLeft, Settings, Plus, CheckCircle, XCircle, Edit2, Save, X, AlertTriangle, Trash2, Users } from 'lucide-react';
 import { useAuthSaaSport } from '../../lib/authHelper';
 import {
   getAllGrupos,
@@ -439,16 +439,18 @@ const ConfiguracionGrupos: React.FC = () => {
             <table className="grupos-tabla">
               <colgroup>
                 <col style={{ width: '11rem' }} />
-                <col />
                 <col style={{ width: '11rem' }} />
+                <col style={{ width: '9.5rem' }} />
+                <col style={{ width: '9.5rem' }} />
                 <col />
                 <col style={{ width: '7rem' }} />
-                <col style={{ width: '14rem' }} />
+                <col style={{ width: '13.5rem' }} />
               </colgroup>
               <thead>
                 <tr style={{ background: 'rgba(255,255,255,0.02)', borderBottom: '1px solid var(--border)' }}>
                   <th style={{ padding: '1rem', color: 'var(--text-secondary)', fontWeight: 700, fontSize: '0.85rem' }}>Nombre</th>
                   <th style={{ padding: '1rem', color: 'var(--text-secondary)', fontWeight: 700, fontSize: '0.85rem' }}>Sucursal</th>
+                  <th style={{ padding: '1rem', color: 'var(--text-secondary)', fontWeight: 700, fontSize: '0.85rem', textAlign: 'center' }}>Alumnos activos</th>
                   <th style={{ padding: '1rem', color: 'var(--text-secondary)', fontWeight: 700, fontSize: '0.85rem' }}>Horario</th>
                   <th style={{ padding: '1rem', color: 'var(--text-secondary)', fontWeight: 700, fontSize: '0.85rem' }}>Profesor titular</th>
                   <th style={{ padding: '1rem', color: 'var(--text-secondary)', fontWeight: 700, fontSize: '0.85rem', textAlign: 'center' }}>Estado</th>
@@ -458,7 +460,7 @@ const ConfiguracionGrupos: React.FC = () => {
               <tbody>
                 {grupos.length === 0 ? (
                   <tr>
-                    <td colSpan={6} style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
+                    <td colSpan={7} style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
                       No hay grupos registrados en el sistema.
                     </td>
                   </tr>
@@ -500,6 +502,20 @@ const ConfiguracionGrupos: React.FC = () => {
                             {grupo.sucursal?.nombre || <span style={{ color: 'var(--danger)', fontSize: '0.8rem' }}>Sin sucursal</span>}
                           </span>
                         )}
+                      </td>
+                      <td style={{ padding: '1rem', textAlign: 'center' }}>
+                        {(() => {
+                          const cantidadActivos = grupo.alumnos_activos ?? 0;
+                          return (
+                            <span
+                              className={`grupo-alumnos-badge${cantidadActivos === 0 ? ' grupo-alumnos-badge--vacio' : ''}`}
+                              title={`${cantidadActivos} ${cantidadActivos === 1 ? 'alumno activo' : 'alumnos activos'} en este grupo`}
+                            >
+                              <Users size={14} />
+                              {cantidadActivos}
+                            </span>
+                          );
+                        })()}
                       </td>
                       <td style={{ padding: '1rem' }}>
                         {editingGrupo === grupo.id ? (

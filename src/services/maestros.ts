@@ -17,6 +17,7 @@ export interface Grupo {
   horario_hora?: string | null;
   entrenador_id?: string | null;
   entrenador_nombre?: string | null;
+  alumnos_activos?: number;
 }
 
 export interface Horario {
@@ -58,7 +59,8 @@ export const getAllGrupos = async (escuelaId: string): Promise<Grupo[]> => {
         horario_id: item.horario_id || null,
         horario_hora: item.horario_hora || null,
         entrenador_id: item.entrenador_id || null,
-        entrenador_nombre: item.entrenador_nombre || null
+        entrenador_nombre: item.entrenador_nombre || null,
+        alumnos_activos: Number(item.alumnos_activos ?? 0)
       });
     } else {
       const existing = gruposMap.get(item.id)!;
