@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { CalendarRange, CheckCircle, ChevronLeft, Lock, RefreshCw, Save, ShieldAlert } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthSaaSport } from '../../lib/authHelper';
-import { getUsuarios } from '../../services/usuarios';
+import { getUsuarios, puedeSerTitular } from '../../services/usuarios';
 import type { Usuario } from '../../services/usuarios';
 import { getSucursales } from '../../services/sucursales';
 import {
@@ -65,7 +65,7 @@ const GestionAnual: React.FC = () => {
         getSucursales(escuelaId),
       ]);
       setGestiones(gestionData);
-      setEntrenadores(usuariosData.filter(user => user.rol === 'Entrenador' && user.activo));
+      setEntrenadores(usuariosData);
       setSucursales(sucursalesData.map(item => ({ id: item.id, nombre: item.nombre })));
       const seleccion = gestionId && gestionData.some(item => item.id === gestionId)
         ? gestionId
@@ -210,7 +210,7 @@ const GestionAnual: React.FC = () => {
         <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
             <thead><tr style={{ borderBottom: '1px solid var(--border)' }}><th style={{ padding: '1rem' }}>Grupo</th><th style={{ padding: '1rem' }}>Sucursal</th><th style={{ padding: '1rem' }}>Horario</th><th style={{ padding: '1rem' }}>Profesor principal</th></tr></thead>
-            <tbody>{grupos.map(group => <tr key={group.id} style={{ borderBottom: '1px solid var(--border)' }}><td style={{ padding: '0.85rem 1rem', fontWeight: 600 }}>{group.nombre_snapshot}</td><td style={{ padding: '0.85rem 1rem' }}>{nombreSucursal(group.sucursal_id)}</td><td style={{ padding: '0.85rem 1rem' }}>{group.hora_snapshot || 'Sin horario'}</td><td style={{ padding: '0.85rem 1rem' }}>{gestion.estado === 'planificacion' ? <select value={assignmentByGroup.get(group.id) || ''} onChange={event => setAsignaciones(previous => { const next = previous.filter(item => item.grupo_gestion_id !== group.id); return event.target.value ? [...next, { id: `draft-${group.id}`, escuela_id: group.escuela_id, entrenador_id: event.target.value, grupo_gestion_id: group.id, gestion_id: group.gestion_id, estado: 'planificada', vigente_desde: null, vigente_hasta: null, motivo: 'planificacion_manual' }] : next; })} style={{ width: '100%', minWidth: '220px', padding: '0.5rem', background: 'var(--bg-input)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}><option value="">Selecciona profesor</option>{entrenadores.map(user => <option key={user.id} value={user.id}>{user.nombres} {user.apellidos}</option>)}</select> : <span>{entrenadores.find(user => user.id === assignmentByGroup.get(group.id))?.nombres || 'Sin asignar'}</span>}</td></tr>)}</tbody>
+            <tbody>{grupos.map(group => <tr key={group.id} style={{ borderBottom: '1px solid var(--border)' }}><td style={{ padding: '0.85rem 1rem', fontWeight: 600 }}>{group.nombre_snapshot}</td><td style={{ padding: '0.85rem 1rem' }}>{nombreSucursal(group.sucursal_id)}</td><td style={{ padding: '0.85rem 1rem' }}>{group.hora_snapshot || 'Sin horario'}</td><td style={{ padding: '0.85rem 1rem' }}>{gestion.estado === 'planificacion' ? <select value={assignmentByGroup.get(group.id) || ''} onChange={event => setAsignaciones(previous => { const next = previous.filter(item => item.grupo_gestion_id !== group.id); return event.target.value ? [...next, { id: `draft-${group.id}`, escuela_id: group.escuela_id, entrenador_id: event.target.value, grupo_gestion_id: group.id, gestion_id: group.gestion_id, estado: 'planificada', vigente_desde: null, vigente_hasta: null, motivo: 'planificacion_manual' }] : next; })} style={{ width: '100%', minWidth: '220px', padding: '0.5rem', background: 'var(--bg-input)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}><option value="">Selecciona profesor</option>{entrenadores.filter(user => puedeSerTitular(user, group.sucursal_id)).map(user => <option key={user.id} value={user.id}>{user.nombres} {user.apellidos}{user.rol === 'Administrador' ? ' (Administrador)' : ''}</option>)}</select> : <span>{entrenadores.find(user => user.id === assignmentByGroup.get(group.id))?.nombres || 'Sin asignar'}</span>}</td></tr>)}</tbody>
           </table>
           {gestion.estado === 'planificacion' && <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', padding: '1rem' }}><button className="btn-volver" onClick={() => void guardar()} disabled={saving}><Save size={17} /> Guardar</button><button className="btn-nueva-cuenta" onClick={() => void activar()} disabled={saving}><Lock size={17} /> Activar gestión</button></div>}
         </div>

@@ -16,7 +16,7 @@ import {
 import type { Grupo, Horario } from '../../services/maestros';
 import { getSucursales } from '../../services/sucursales';
 import type { Sucursal } from '../../services/sucursales';
-import { getUsuarios } from '../../services/usuarios';
+import { getUsuarios, puedeSerTitular } from '../../services/usuarios';
 import type { Usuario } from '../../services/usuarios';
 import './ConfiguracionGrupos.css';
 
@@ -85,7 +85,7 @@ const ConfiguracionGrupos: React.FC = () => {
       setGrupos(chs || []);
       setHorarios(hrs || []);
       setSucursales(sucs || []);
-      setEntrenadores((usrs || []).filter(u => u.rol === 'Entrenador' && u.activo));
+      setEntrenadores(usrs || []);
     } catch (error: any) {
       console.error(error);
       setAlerta({ tipo: 'error', mensaje: error.message || 'Error al cargar las configuraciones.' });
@@ -374,7 +374,12 @@ const ConfiguracionGrupos: React.FC = () => {
                 <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-tertiary)', textTransform: 'uppercase', marginBottom: '0.5rem' }}>Sucursal Asignada</label>
                 <select
                   value={newGrupoSucursal}
-                  onChange={(e) => setNewGrupoSucursal(e.target.value)}
+                  onChange={(e) => {
+                    const sucursal = e.target.value;
+                    setNewGrupoSucursal(sucursal);
+                    const titular = entrenadores.find(u => u.id === newGrupoEntrenador);
+                    if (titular && !puedeSerTitular(titular, sucursal)) setNewGrupoEntrenador('');
+                  }}
                   style={{ width: '100%', padding: '0.6rem 0.8rem', background: 'var(--bg-input)', border: '1px solid var(--border)', color: 'var(--text-primary)', height: '42px', borderRadius: '4px' }}
                 >
                   <option value="">-- Selecciona sucursal (Opcional) --</option>
@@ -397,15 +402,15 @@ const ConfiguracionGrupos: React.FC = () => {
                 </select>
               </div>
               <div style={{ flex: '1 1 200px' }}>
-                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-tertiary)', textTransform: 'uppercase', marginBottom: '0.5rem' }}>Entrenador Asignado</label>
+                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-tertiary)', textTransform: 'uppercase', marginBottom: '0.5rem' }}>Profesor titular</label>
                 <select
                   value={newGrupoEntrenador}
                   onChange={(e) => setNewGrupoEntrenador(e.target.value)}
                   style={{ width: '100%', padding: '0.6rem 0.8rem', background: 'var(--bg-input)', border: '1px solid var(--border)', color: 'var(--text-primary)', height: '42px', borderRadius: '4px' }}
                 >
                   <option value="">-- Sin asignar --</option>
-                  {entrenadores.map((u) => (
-                    <option key={u.id} value={u.id}>{u.nombres} {u.apellidos}</option>
+                  {entrenadores.filter(u => puedeSerTitular(u, newGrupoSucursal)).map((u) => (
+                    <option key={u.id} value={u.id}>{u.nombres} {u.apellidos}{u.rol === 'Administrador' ? ' (Administrador)' : ''}</option>
                   ))}
                 </select>
               </div>
@@ -445,7 +450,7 @@ const ConfiguracionGrupos: React.FC = () => {
                   <th style={{ padding: '1rem', color: 'var(--text-secondary)', fontWeight: 700, fontSize: '0.85rem' }}>Nombre</th>
                   <th style={{ padding: '1rem', color: 'var(--text-secondary)', fontWeight: 700, fontSize: '0.85rem' }}>Sucursal</th>
                   <th style={{ padding: '1rem', color: 'var(--text-secondary)', fontWeight: 700, fontSize: '0.85rem' }}>Horario</th>
-                  <th style={{ padding: '1rem', color: 'var(--text-secondary)', fontWeight: 700, fontSize: '0.85rem' }}>Entrenador</th>
+                  <th style={{ padding: '1rem', color: 'var(--text-secondary)', fontWeight: 700, fontSize: '0.85rem' }}>Profesor titular</th>
                   <th style={{ padding: '1rem', color: 'var(--text-secondary)', fontWeight: 700, fontSize: '0.85rem', textAlign: 'center' }}>Estado</th>
                   <th style={{ padding: '1rem', color: 'var(--text-secondary)', fontWeight: 700, fontSize: '0.85rem', textAlign: 'right' }}>Acciones</th>
                 </tr>
@@ -477,7 +482,12 @@ const ConfiguracionGrupos: React.FC = () => {
                         {editingGrupo === grupo.id ? (
                           <select
                             value={editGrupoSucursal}
-                            onChange={(e) => setEditGrupoSucursal(e.target.value)}
+                            onChange={(e) => {
+                              const sucursal = e.target.value;
+                              setEditGrupoSucursal(sucursal);
+                              const titular = entrenadores.find(u => u.id === editGrupoEntrenador);
+                              if (titular && !puedeSerTitular(titular, sucursal)) setEditGrupoEntrenador('');
+                            }}
                             style={{ padding: '0.4rem 0.6rem', background: 'var(--bg-input)', border: '1px solid var(--border)', color: 'var(--text-primary)', borderRadius: '4px', height: '34px' }}
                           >
                             <option value="">-- Selecciona sucursal --</option>
@@ -521,8 +531,8 @@ const ConfiguracionGrupos: React.FC = () => {
                             style={{ padding: '0.4rem 0.6rem', background: 'var(--bg-input)', border: '1px solid var(--border)', color: 'var(--text-primary)', borderRadius: '4px', height: '34px' }}
                           >
                             <option value="">-- Sin asignar --</option>
-                            {entrenadores.map((u) => (
-                              <option key={u.id} value={u.id}>{u.nombres} {u.apellidos}</option>
+                            {entrenadores.filter(u => puedeSerTitular(u, editGrupoSucursal)).map((u) => (
+                              <option key={u.id} value={u.id}>{u.nombres} {u.apellidos}{u.rol === 'Administrador' ? ' (Administrador)' : ''}</option>
                             ))}
                           </select>
                         ) : (

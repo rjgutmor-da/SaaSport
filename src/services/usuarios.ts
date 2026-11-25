@@ -14,6 +14,11 @@ export interface Usuario {
   creado_a?: string;
 }
 
+export function puedeSerTitular(usuario: Usuario, sucursalGrupo: string | null): boolean {
+  return usuario.activo && (usuario.rol === 'Entrenador' || (
+    usuario.rol === 'Administrador' && (!usuario.sucursal_id || usuario.sucursal_id === sucursalGrupo)
+  ));
+}
 
 /**
  * Obtiene todos los usuarios de una escuela, filtrando opcionalmente por sucursal
