@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabaseClient';
+import { ordenarGruposPorSucursalYNombre } from './ordenGrupos';
 
 export interface Grupo {
   id: string;
@@ -72,7 +73,7 @@ export const getAllGrupos = async (escuelaId: string): Promise<Grupo[]> => {
     }
   });
 
-  return Array.from(gruposMap.values()).sort((a, b) => a.nombre.localeCompare(b.nombre));
+  return ordenarGruposPorSucursalYNombre(Array.from(gruposMap.values()));
 };
 
 export const createGrupo = async (
