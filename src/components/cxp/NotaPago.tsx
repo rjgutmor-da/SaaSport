@@ -67,6 +67,27 @@ const fmtMonto = (n: number) =>
 const esConceptoSueldos = (nombre: string) =>
   Boolean(nombre) && nombre.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '') === 'sueldos y salarios';
 
+/** Devuelve el mes actual en formato YYYY-MM según la fecha local. */
+const getMesActualISO = () => getHoyISO().slice(0, 7);
+
+/** Construye la línea inicial de Sueldos y Salarios usando el salario base del personal si existe. */
+const crearLineaSueldo = (
+  itemSueldos: CatalogoItem,
+  idPersonal: string,
+  listaPersonal: { id: string; nombres: string; apellidos: string; salario_base: number | null }[],
+): LineaNotaPago => {
+  const sueldoBase = Number(listaPersonal.find(p => p.id === idPersonal)?.salario_base) || 0;
+  return {
+    catalogo_item_id: itemSueldos.id,
+    nombre: itemSueldos.nombre,
+    tipo: itemSueldos.categoria === 'producto' ? 'producto' : 'servicio',
+    cantidad: 1,
+    precio_unitario: sueldoBase,
+    subtotal: sueldoBase,
+    descripcion: '',
+  };
+};
+
 const NotaPago: React.FC<Props> = ({ visible, tipoInicial, esAnticipo = false, onCerrar, onCreada, cxpEditar, proveedorIdInicial, personalIdInicial }) => {
   const { perfil, escuelaId } = useAuthSaaSport();
   const { data: sucursales = [] } = useSucursales();
@@ -249,16 +270,27 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, esAnticipo = false, o
           }
         } else {
           // Precargar proveedor/personal si viene de la tarjeta de detalle
+          const tipoBenef = personalIdInicial ? 'personal' : (proveedorIdInicial ? 'proveedor' : tipoInicial);
+          const itemSueldos = catData.find(c => esConceptoSueldos(c.nombre));
+          const listaPersonal = persProv.data ?? [];
+
           setProveedorId(proveedorIdInicial || '');
           setPersonalId(personalIdInicial || '');
           setSucursalId(perfil?.rol === 'SuperAdministrador' ? '' : (perfil?.sucursal_id || ''));
-          setFechaEmision(getHoyISO()); setVencimiento(getHoyISO()); setObservaciones(''); setPeriodo('');
-          setLineas([lineaVacia()]); setPagarAlCrear(esAnticipo);
+          setFechaEmision(getHoyISO()); setVencimiento(getHoyISO()); setObservaciones('');
+          setPagarAlCrear(esAnticipo);
           setFechaPago(getHoyISO()); setMontoPago(''); setNroComprobante('');
-          const tipoBenef = personalIdInicial ? 'personal' : (proveedorIdInicial ? 'proveedor' : tipoInicial);
           setTipoGasto(tipoBenef);
+
+          if (!esAnticipo && tipoBenef === 'personal' && itemSueldos) {
+            setLineas([crearLineaSueldo(itemSueldos, personalIdInicial || '', listaPersonal)]);
+            setPeriodo(getMesActualISO());
+          } else {
+            setLineas([lineaVacia()]);
+            setPeriodo('');
+          }
+
           if (esAnticipo && tipoBenef === 'personal') {
-            const itemSueldos = catData.find(c => esConceptoSueldos(c.nombre));
             setCuentaAnticipoId(itemSueldos?.id || '');
           } else {
             setCuentaAnticipoId('');
@@ -782,8 +814,51 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, esAnticipo = false, o
               <div className="form-campo full-width">
                 <label>Tipo de Beneficiario</label>
                 <div style={{ display: 'flex', gap: '0.5rem' }}>
-                  <button type="button" onClick={() => { setTipoGasto('proveedor'); verificarOperacionPendiente('proveedor', proveedorId); if (esAnticipo) { const itS = catalogo.find(c => esConceptoSueldos(c.nombre)); if (cuentaAnticipoId === itS?.id) setCuentaAnticipoId(''); } }} className={`nota-mes-btn ${tipoGasto === 'proveedor' ? 'nota-mes-btn--activo' : ''}`} style={{ flex: 1 }} disabled={!!(proveedorIdInicial || personalIdInicial)}>🏭 Proveedor</button>
-                  <button type="button" onClick={() => { setTipoGasto('personal'); verificarOperacionPendiente('personal', personalId); if (esAnticipo) { const itS = catalogo.find(c => esConceptoSueldos(c.nombre)); if (itS) setCuentaAnticipoId(itS.id); } }} className={`nota-mes-btn ${tipoGasto === 'personal' ? 'nota-mes-btn--activo' : ''}`} style={{ flex: 1 }} disabled={!!(proveedorIdInicial || personalIdInicial)}>👤 Personal</button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTipoGasto('proveedor');
+                      verificarOperacionPendiente('proveedor', proveedorId);
+                      if (!cxpEditar && !esAnticipo && esNotaSueldo) {
+                        setLineas([lineaVacia()]);
+                        setPeriodo('');
+                      }
+                      if (esAnticipo) {
+                        const itS = catalogo.find(c => esConceptoSueldos(c.nombre));
+                        if (cuentaAnticipoId === itS?.id) setCuentaAnticipoId('');
+                      }
+                    }}
+                    className={`nota-mes-btn ${tipoGasto === 'proveedor' ? 'nota-mes-btn--activo' : ''}`}
+                    style={{ flex: 1 }}
+                    disabled={!!(proveedorIdInicial || personalIdInicial)}
+                  >
+                    🏭 Proveedor
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTipoGasto('personal');
+                      verificarOperacionPendiente('personal', personalId);
+                      if (!cxpEditar && !esAnticipo) {
+                        const itemSueldos = catalogo.find(c => esConceptoSueldos(c.nombre));
+                        if (lineas.every(l => !l.catalogo_item_id) && itemSueldos) {
+                          setLineas([crearLineaSueldo(itemSueldos, personalId, personal)]);
+                          if (!periodo) setPeriodo(getMesActualISO());
+                        } else if (esNotaSueldo && !periodo) {
+                          setPeriodo(getMesActualISO());
+                        }
+                      }
+                      if (esAnticipo) {
+                        const itS = catalogo.find(c => esConceptoSueldos(c.nombre));
+                        if (itS) setCuentaAnticipoId(itS.id);
+                      }
+                    }}
+                    className={`nota-mes-btn ${tipoGasto === 'personal' ? 'nota-mes-btn--activo' : ''}`}
+                    style={{ flex: 1 }}
+                    disabled={!!(proveedorIdInicial || personalIdInicial)}
+                  >
+                    👤 Personal
+                  </button>
                 </div>
               </div>
               <div className="form-campo full-width">
@@ -800,13 +875,6 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, esAnticipo = false, o
                   </select>
                 )}
               </div>
-              {esNotaSueldo && (
-                <div className="form-campo full-width">
-                  <label>Mes del sueldo *</label>
-                  <input type="month" value={periodo} onChange={e => setPeriodo(e.target.value)} required />
-                  <small style={{ color: 'var(--text-tertiary)' }}>Se registrará el ciclo completo del mes seleccionado.</small>
-                </div>
-              )}
               <div className="form-campo">
                 <label>Fecha Emisión</label>
                 <input type="date" value={fechaEmision} onChange={e => setFechaEmision(e.target.value)} required />
@@ -857,6 +925,7 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, esAnticipo = false, o
                           if (esSueldo) {
                             setTipoGasto('personal');
                             setProveedorId('');
+                            if (!periodo) setPeriodo(getMesActualISO());
                           } else if (lineas.some(l => esConceptoSueldos(l.nombre))) {
                             setPeriodo('');
                           }
@@ -894,6 +963,14 @@ const NotaPago: React.FC<Props> = ({ visible, tipoInicial, esAnticipo = false, o
                 {!esNotaSueldo && <button type="button" onClick={() => setLineas([...lineas, lineaVacia()])} style={{ fontSize: '0.8rem', color: '#f59e0b', display: 'flex', alignItems: 'center', gap: '0.3rem' }}><Plus size={14} /> Agregar ítem</button>}
               </div>
             ) : null}
+
+            {esNotaSueldo && (
+              <div className="form-campo full-width" style={{ marginBottom: '1.25rem' }}>
+                <label>Mes del sueldo *</label>
+                <input type="month" value={periodo} onChange={e => setPeriodo(e.target.value)} required />
+                <small style={{ color: 'var(--text-tertiary)' }}>Se registrará el ciclo completo del mes seleccionado.</small>
+              </div>
+            )}
 
             {/* Observaciones generales */}
             <div className="form-campo full-width" style={{ marginBottom: '1rem' }}>
