@@ -5,6 +5,7 @@ export interface NotaConCiclo {
   alumnos: { id: string } | null;
   ciclo_inicio: string | null;
   ciclo_fin: string | null;
+  es_mensualidad_ingreso?: boolean;
 }
 
 export type ConteoAsistencias = number | null | 'error';
@@ -31,7 +32,7 @@ export function tieneCicloValido(nota: NotaConCiclo): boolean {
 
 /** Mes previo al inicio del ciclo; ajusta el día si el mes anterior es más corto. */
 export function obtenerCicloAnterior(nota: NotaConCiclo): { inicio: string; fin: string } | null {
-  if (!tieneCicloValido(nota)) return null;
+  if (nota.es_mensualidad_ingreso || !tieneCicloValido(nota)) return null;
   const inicioFacturado = new Date(`${nota.ciclo_inicio}T00:00:00Z`);
   const inicio = new Date(inicioFacturado);
   const dia = inicio.getUTCDate();

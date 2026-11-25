@@ -77,12 +77,18 @@ test('calcula el mes previo sin desbordar febrero ni desplazar fechas por zona h
   }
 });
 
-test('ciclos incompletos o inválidos y alumno ausente no generan consultas', async () => {
+test('ciclos incompletos o inválidos, mensualidades de ingreso y alumno ausente no generan consultas', async () => {
   const { cliente, metricas } = clientePrueba();
-  const notas = [nota('n1', null), nota('n2', '2026-02-30'),
-    nota('n3', '2026-11-01'), { ...nota('n4'), alumnos: null }];
+  const notas = [
+    nota('n1', null),
+    nota('n2', '2026-02-30'),
+    nota('n3', '2026-11-01'),
+    { ...nota('n4'), alumnos: null },
+    { ...nota('n5', '2026-11-25', '2026-12-24'), es_mensualidad_ingreso: true },
+  ];
+  assert.equal(obtenerCicloAnterior(notas[4]), null);
   assert.deepEqual(await contarAsistenciasCicloAnterior(cliente, notas, new AbortController().signal),
-    { n1: null, n2: null, n3: null, n4: null });
+    { n1: null, n2: null, n3: null, n4: null, n5: null });
   assert.equal(metricas.consultas, 0);
 });
 
