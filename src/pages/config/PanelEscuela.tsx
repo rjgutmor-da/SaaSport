@@ -362,9 +362,30 @@ const PanelEscuela: React.FC = () => {
           <div className="pe-stat-icon">
             <GraduationCap size={32} />
           </div>
-          <div>
+          <div style={{ flex: 1, minWidth: 0 }}>
             <p className="pe-stat-label">Alumnos Activos</p>
-            <p className="pe-stat-valor">{stats.alumnosActivos}</p>
+            <p className="pe-stat-valor">
+              {stats.alumnosActivos}
+              {estadoPlan && (
+                <span className="pe-stat-cupo-sutil"> / {estadoPlan.cupos.alumnos.limite}</span>
+              )}
+            </p>
+            {estadoPlan && (() => {
+              const cupo = estadoPlan.cupos.alumnos;
+              const pct = cupo.limite > 0 ? Math.min(100, (cupo.usados / cupo.limite) * 100) : 100;
+              const excede = cupo.limite_con_margen ? cupo.usados > cupo.limite_con_margen : cupo.usados > cupo.limite;
+              const color = excede ? '#ef4444' : cupo.usados > cupo.limite ? '#f59e0b' : 'var(--primary)';
+              return (
+                <>
+                  <div className="pe-stat-microbarra">
+                    <div className="pe-stat-microbarra-relleno" style={{ width: `${pct}%`, backgroundColor: color }} />
+                  </div>
+                  {cupo.en_margen_gracia && cupo.limite_con_margen && (
+                    <p className="pe-stat-subdetalle">Margen 15%: hasta {cupo.limite_con_margen}</p>
+                  )}
+                </>
+              );
+            })()}
           </div>
         </div>
 
@@ -373,7 +394,14 @@ const PanelEscuela: React.FC = () => {
             <MapPin size={32} />
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <p className="pe-stat-label">Por Sucursal</p>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '0.5rem' }}>
+              <p className="pe-stat-label" style={{ marginBottom: 0 }}>Por Sucursal</p>
+              {estadoPlan && (
+                <span className="pe-stat-cupo-inline">
+                  {estadoPlan.cupos.sucursales.usados} / {estadoPlan.cupos.sucursales.limite} sedes
+                </span>
+              )}
+            </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', marginTop: '0.5rem' }}>
               {stats.alumnosPorSucursal && stats.alumnosPorSucursal.length > 0 ? (
                 stats.alumnosPorSucursal.map(suc => (
@@ -403,9 +431,24 @@ const PanelEscuela: React.FC = () => {
           <div className="pe-stat-icon">
             <Users size={32} />
           </div>
-          <div>
+          <div style={{ flex: 1, minWidth: 0 }}>
             <p className="pe-stat-label">Usuarios Totales</p>
-            <p className="pe-stat-valor">{stats.usuariosActivos}</p>
+            <p className="pe-stat-valor">
+              {stats.usuariosActivos}
+              {estadoPlan && (
+                <span className="pe-stat-cupo-sutil"> / {estadoPlan.cupos.usuarios.limite}</span>
+              )}
+            </p>
+            {estadoPlan && (() => {
+              const cupo = estadoPlan.cupos.usuarios;
+              const pct = cupo.limite > 0 ? Math.min(100, (cupo.usados / cupo.limite) * 100) : 100;
+              const color = cupo.usados > cupo.limite ? '#ef4444' : 'var(--secondary)';
+              return (
+                <div className="pe-stat-microbarra">
+                  <div className="pe-stat-microbarra-relleno" style={{ width: `${pct}%`, backgroundColor: color }} />
+                </div>
+              );
+            })()}
           </div>
         </div>
       </div>

@@ -1,7 +1,7 @@
-/** Tarjeta visual con el plan activo, servicios adicionales, margen 15% y alertas sin bloqueo. */
+/** Tarjeta compacta del plan contratado, desglose en suma y alertas sin bloqueo. */
 import React from 'react';
-import { ShieldCheck, GraduationCap, Users, MapPin, AlertTriangle, RefreshCw, Info } from 'lucide-react';
-import type { DetalleCupo, DetalleCupoAlumnos, EstadoPlanEscuela } from '../../types/planes';
+import { ShieldCheck, AlertTriangle, RefreshCw, Info } from 'lucide-react';
+import type { EstadoPlanEscuela } from '../../types/planes';
 import { calcularResumenPrecioPlan, formatearUsd } from '../../lib/preciosPlanes';
 
 interface TarjetaPlanCuposProps {
@@ -10,139 +10,13 @@ interface TarjetaPlanCuposProps {
   error?: string | null;
 }
 
-interface EstadoTermometro {
-  porcentajeVisual: number;
-  porcentajeTexto: number;
-  color: string;
-  etiqueta: string;
-}
-
-const calcularEstadoTermometro = (cupo: DetalleCupo | DetalleCupoAlumnos, esAlumnos = false): EstadoTermometro => {
-  const porcentajeReal = cupo.limite > 0 ? (cupo.usados / cupo.limite) * 100 : 100;
-  const porcentajeVisual = Math.min(100, Math.max(0, porcentajeReal));
-  const porcentajeTexto = Math.round(porcentajeReal);
-  const limiteConMargen = esAlumnos ? (cupo as DetalleCupoAlumnos).limite_con_margen ?? cupo.limite : cupo.limite;
-
-  if (cupo.usados > limiteConMargen) {
-    return {
-      porcentajeVisual: 100,
-      porcentajeTexto,
-      color: '#ef4444',
-      etiqueta: esAlumnos ? 'Supera margen 15%' : 'Excede cupo',
-    };
-  }
-
-  if (esAlumnos && cupo.usados > cupo.limite) {
-    return {
-      porcentajeVisual: 100,
-      porcentajeTexto,
-      color: '#f59e0b',
-      etiqueta: 'Margen gratis (15%)',
-    };
-  }
-
-  if (cupo.usados >= cupo.limite || porcentajeReal >= 95) {
-    return {
-      porcentajeVisual,
-      porcentajeTexto,
-      color: '#FF6B35',
-      etiqueta: cupo.usados >= cupo.limite ? 'Al 100%' : 'Casi lleno',
-    };
-  }
-
-  if (porcentajeReal >= 75) {
-    return {
-      porcentajeVisual,
-      porcentajeTexto,
-      color: '#FF6B35',
-      etiqueta: 'Cerca del límite',
-    };
-  }
-
-  return {
-    porcentajeVisual,
-    porcentajeTexto,
-    color: '#00D26A',
-    etiqueta: 'Disponible',
-  };
-};
-
-interface MedidorCupoProps {
-  titulo: string;
-  icono: React.ReactNode;
-  cupo: DetalleCupo | DetalleCupoAlumnos;
-  esAlumnos?: boolean;
-}
-
-const MedidorCupo: React.FC<MedidorCupoProps> = ({ titulo, icono, cupo, esAlumnos = false }) => {
-  const estado = calcularEstadoTermometro(cupo, esAlumnos);
-  const alumnosCupo = cupo as DetalleCupoAlumnos;
-
-  return (
-    <div className="pe-plan-medidor">
-      <div className="pe-plan-medidor-cabecera">
-        <div className="pe-plan-medidor-titulo">
-          <span className="pe-plan-medidor-icono" style={{ color: estado.color }}>
-            {icono}
-          </span>
-          <span>{titulo}</span>
-        </div>
-        <span
-          className="pe-plan-estado-pill"
-          style={{
-            color: estado.color,
-            borderColor: `${estado.color}40`,
-            backgroundColor: `${estado.color}18`,
-          }}
-        >
-          {estado.etiqueta}
-        </span>
-      </div>
-
-      <div className="pe-plan-medidor-numeros">
-        <span className="pe-plan-cifra">
-          <strong>{cupo.usados}</strong> / {cupo.limite}
-        </span>
-        <span className="pe-plan-porcentaje" style={{ color: estado.color }}>
-          {estado.porcentajeTexto}%
-        </span>
-      </div>
-
-      <div
-        className="pe-plan-barra-fondo"
-        role="progressbar"
-        aria-label={titulo}
-        aria-valuenow={cupo.usados}
-        aria-valuemin={0}
-        aria-valuemax={esAlumnos ? (alumnosCupo.limite_con_margen ?? cupo.limite) : cupo.limite}
-      >
-        <div
-          className="pe-plan-barra-relleno"
-          style={{
-            width: `${estado.porcentajeVisual}%`,
-            backgroundColor: estado.color,
-          }}
-        />
-      </div>
-
-      <p className="pe-plan-medidor-detalle">
-        {esAlumnos && alumnosCupo.limite_con_margen
-          ? `Tope base: ${cupo.limite} · Margen gratis 15%: hasta ${alumnosCupo.limite_con_margen}`
-          : cupo.adicionales > 0
-            ? `Base ${cupo.base} + ${cupo.adicionales} adicional(es)`
-            : `Tope base del plan: ${cupo.base}`}
-      </p>
-    </div>
-  );
-};
-
 const TarjetaPlanCupos: React.FC<TarjetaPlanCuposProps> = ({ estadoPlan, cargando, error }) => {
   if (cargando && !estadoPlan) {
     return (
-      <section className="pe-plan-card" aria-label="Mi Plan y Cupos">
+      <section className="pe-plan-card" aria-label="Plan Contratado">
         <div className="pe-plan-cargando">
           <RefreshCw size={20} className="spin" style={{ color: 'var(--primary)' }} />
-          <span>Cargando consumo del plan...</span>
+          <span>Cargando información del plan...</span>
         </div>
       </section>
     );
@@ -150,7 +24,7 @@ const TarjetaPlanCupos: React.FC<TarjetaPlanCuposProps> = ({ estadoPlan, cargand
 
   if (error && !estadoPlan) {
     return (
-      <section className="pe-plan-card" aria-label="Mi Plan y Cupos">
+      <section className="pe-plan-card" aria-label="Plan Contratado">
         <div className="login-error" style={{ margin: 0 }}>
           <span>{error}</span>
         </div>
@@ -160,7 +34,7 @@ const TarjetaPlanCupos: React.FC<TarjetaPlanCuposProps> = ({ estadoPlan, cargand
 
   if (!estadoPlan) return null;
 
-  const { plan, addons, cupos, alerta, bloqueos_manuales: bloqueos } = estadoPlan;
+  const { plan, cupos, alerta, bloqueos_manuales: bloqueos } = estadoPlan;
   const resumenPrecio = calcularResumenPrecioPlan(estadoPlan);
   const montoContratado = Number(plan.monto_contratado_usd ?? resumenPrecio.totalMensualUsd);
   const montoCorrespondiente = Math.max(
@@ -178,18 +52,18 @@ const TarjetaPlanCupos: React.FC<TarjetaPlanCuposProps> = ({ estadoPlan, cargand
   ].filter((item): item is string => Boolean(item));
 
   return (
-    <section className="pe-plan-card" aria-label="Mi Plan y Cupos">
+    <section className="pe-plan-card" aria-label="Plan Contratado">
       <div className="pe-plan-header">
         <div className="pe-plan-titulo-grupo">
           <div className="pe-plan-icono">
             <ShieldCheck size={22} />
           </div>
           <div>
-            <h2 className="pe-plan-titulo">Plan Contratado y Cupos</h2>
+            <h2 className="pe-plan-titulo">Plan Contratado</h2>
             <p className="pe-plan-subtitulo">
               {plan.dia_pago
                 ? `Día de pago mensual: ${plan.dia_pago} de cada mes`
-                : 'Guía de capacidad contratada y crecimiento de tu escuela'}
+                : 'Guía de suscripción y crecimiento de tu escuela'}
             </p>
           </div>
         </div>
@@ -247,25 +121,6 @@ const TarjetaPlanCupos: React.FC<TarjetaPlanCuposProps> = ({ estadoPlan, cargand
             </div>
           )}
         </div>
-      </div>
-
-      <div className="pe-plan-grid">
-        <MedidorCupo
-          titulo="Alumnos Activos"
-          icono={<GraduationCap size={18} />}
-          cupo={cupos.alumnos}
-          esAlumnos
-        />
-        <MedidorCupo
-          titulo="Usuarios Activos"
-          icono={<Users size={18} />}
-          cupo={cupos.usuarios}
-        />
-        <MedidorCupo
-          titulo="Sucursales"
-          icono={<MapPin size={18} />}
-          cupo={cupos.sucursales}
-        />
       </div>
 
       {alerta?.en_margen_gracia_alumnos && !alerta.requiere_atencion && (
