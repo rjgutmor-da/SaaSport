@@ -29,10 +29,10 @@ const PRECIO_FOTOS_ASISTENCIA: Record<TramoPlan, number> = {
 };
 
 const PRECIO_PERFIL_MEDICO: Record<TramoPlan, number> = {
-  basico: 4,
-  crecimiento: 4,
-  profesional: 6,
-  completa: 6,
+  basico: 5,
+  crecimiento: 5,
+  profesional: 7,
+  completa: 7,
 };
 
 const PRECIO_FICHA_DEPORTIVA: Record<TramoPlan, number> = {

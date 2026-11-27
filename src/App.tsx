@@ -19,6 +19,7 @@ import { AuthProviderSaaSport, useAuthSaaSport } from './lib/authHelper';
 import { getAsisportUrl } from './lib/navegacion';
 import { useIsMobile } from './hooks/useIsMobile';
 import { useNotasAutomaticasPendientes } from './hooks/useNotasAutomaticasPendientes';
+import { usePlanEscuela } from './hooks/usePlanEscuela';
 import { MobileNav } from './components/MobileNav';
 import { MobileHeader } from './components/MobileHeader';
 import { can } from './config/roles';
@@ -67,8 +68,10 @@ interface SidebarProps {
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ onLogout, theme, onCycleTheme, extra }) => {
-  const { esSuperAdmin, escuela, perfil } = useAuthSaaSport();
+  const { esSuperAdmin, escuela, escuelaId, perfil } = useAuthSaaSport();
   const hayNotasPendientes = useNotasAutomaticasPendientes();
+  const { data: estadoPlanSidebar } = usePlanEscuela(escuelaId, esSuperAdmin);
+  const hayAlertaPlan = Boolean(estadoPlanSidebar?.alerta?.requiere_atencion);
 
   const getThemeIcon = () => {
     if (theme === 'light') return <Sun size={18} />;
@@ -141,6 +144,14 @@ const Sidebar: React.FC<SidebarProps> = ({ onLogout, theme, onCycleTheme, extra 
             <NavLink to="/panel-escuela" className={({ isActive }) => (isActive ? 'sidebar-link active' : 'sidebar-link')}>
               <School size={20} strokeWidth={1.5} />
               <span>Panel de Escuela</span>
+              {hayAlertaPlan && (
+                <span className="sidebar-notas-aviso" role="img"
+                  aria-label="Cupos del plan excedidos"
+                  title="Cupos del plan excedidos: revisa tu plan en Panel de Escuela">
+                  <Bell size={16} strokeWidth={1.8} aria-hidden="true" />
+                  <span className="sidebar-notas-aviso-punto" aria-hidden="true" />
+                </span>
+              )}
             </NavLink>
           </div>
         )}
