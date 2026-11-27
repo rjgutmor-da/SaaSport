@@ -9,24 +9,24 @@
 | Detalle | Básico | Crecimiento | Profesional | Completa |
 | :--- | :---: | :---: | :---: | :---: |
 | **SaaSport Lite** — *Registro de alumnos, mensualidades y cargos básicos (sin cajas ni egresos)* | | | | |
-| Usuarios | 2 | 4 | 6 | 8 |
+| Usuarios | 2 | 3 | 4 | 5 |
 | Alumnos activos | 100 | 250 | 400 | 600 |
-| Sucursales | 1 | 3 | 4 | 6 |
+| Sucursales | 1 | 2 | 3 | 4 |
 | **TOTAL** | **USD 6,00** | **USD 10,00** | **USD 15,00** | **USD 20,00** |
 | **SaaSport** — *Todo Lite + egresos, cajas/bancos, inventario y estadísticas financieras* | | | | |
-| Usuarios | 2 | 6 | 10 | 15 |
+| Usuarios | 2 | 3 | 4 | 5 |
 | Alumnos activos | 100 | 250 | 400 | 600 |
-| Sucursales | 1 | 3 | 4 | 6 |
-| **TOTAL** | **USD 15,00** | **USD 20,00** | **USD 30,00** | **USD 35,00** |
+| Sucursales | 2 | 4 | 6 | 8 |
+| **TOTAL** | **USD 15,00** | **USD 20,00** | **USD 25,00** | **USD 35,00** |
 | **AsiSport** — *Control de asistencias por grupos en cancha* | | | | |
 | Usuarios | 3 | 6 | 10 | 15 |
 | Alumnos activos | 100 | 250 | 400 | 600 |
-| Sucursales | 1 | 3 | 4 | 6 |
+| Sucursales | 2 | 4 | 6 | 8 |
 | **TOTAL** | **USD 15,00** | **USD 20,00** | **USD 30,00** | **USD 35,00** |
 | **AsiSport + SaaSport** — *Gestión integral: cancha + finanzas + cobro según asistencias* | | | | |
 | Usuarios | 5 | 12 | 20 | 30 |
 | Alumnos activos | 100 | 250 | 400 | 600 |
-| Sucursales | 1 | 3 | 4 | 6 |
+| Sucursales | 3 | 5 | 7 | 9 |
 | **TOTAL** | **USD 25,00** | **USD 35,00** | **USD 50,00** | **USD 65,00** |
 
 ### Servicios Adicionales (Mensuales)
@@ -35,8 +35,8 @@
 | :--- | :--- | :---: | :---: | :---: | :---: |
 | **Usuarios Adicionales** *(c/u)* | Todos los planes | USD 2,00 | USD 2,00 | USD 2,00 | USD 2,00 |
 | **Cobranza Automática por WhatsApp** | SaaSport Lite / SaaSport | USD 10,00 | USD 15,00 | USD 20,00 | USD 25,00 |
-| **Fotos de Asistencia** | Planes con AsiSport | USD 5,00 | USD 5,00 | USD 7,00 | USD 7,00 |
-| **Perfil Médico** | Planes con AsiSport | USD 4,00 | USD 4,00 | USD 6,00 | USD 6,00 |
+| **Fotos de Asistencia Grupal** | Planes con AsiSport | USD 5,00 | USD 5,00 | USD 7,00 | USD 7,00 |
+| **Perfil Médico** | Planes con AsiSport | USD 5,00 | USD 5,00 | USD 7,00 | USD 7,00 |
 | **Ficha Deportiva** | Planes con AsiSport | USD 5,00 | USD 5,00 | USD 7,00 | USD 7,00 |
 
 - **15% de descuento** en suscripciones anuales.

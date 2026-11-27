@@ -66,10 +66,29 @@ try {
     await consultar("INSERT INTO alumnos(escuela_id, nombres, apellidos, archivado) VALUES ($1, 'Al', $2, false)", escGolden, `${i}`);
   }
 
-  // Aplicar las 3 migraciones en orden
+  // Aplicar las 4 migraciones en orden
   await db.exec(await cargar('../migrations/20261127110000_tabla_topes_planes_escuelas.sql'));
   await db.exec(await cargar('../migrations/20261127120000_ajustar_topes_margen_sin_bloqueo.sql'));
   await db.exec(await cargar('../migrations/20261127123000_planes_contratados_y_bloqueos_manuales.sql'));
+  await db.exec(await cargar('../migrations/20261127133000_actualizar_catalogo_planes_sheet.sql'));
+
+  // Validar topes y precios actualizados del Google Sheet
+  const comboSucs = await consultar("SELECT tramo, max_sucursales FROM public.catalogo_planes WHERE producto = 'combo' ORDER BY orden");
+  assert.deepEqual(comboSucs, [
+    { tramo: 'basico', max_sucursales: 3 },
+    { tramo: 'crecimiento', max_sucursales: 5 },
+    { tramo: 'profesional', max_sucursales: 7 },
+    { tramo: 'completa', max_sucursales: 9 },
+  ]);
+  const liteTopes = await consultar("SELECT tramo, max_usuarios, max_sucursales FROM public.catalogo_planes WHERE producto = 'saasport_lite' ORDER BY orden");
+  assert.deepEqual(liteTopes, [
+    { tramo: 'basico', max_usuarios: 2, max_sucursales: 1 },
+    { tramo: 'crecimiento', max_usuarios: 3, max_sucursales: 2 },
+    { tramo: 'profesional', max_usuarios: 4, max_sucursales: 3 },
+    { tramo: 'completa', max_usuarios: 5, max_sucursales: 4 },
+  ]);
+  const saasProf = await uno("SELECT precio_mensual_usd::numeric::float8 AS precio, max_usuarios, max_sucursales FROM public.catalogo_planes WHERE id = 'saasport_profesional'");
+  assert.deepEqual(saasProf, { precio: 25, max_usuarios: 4, max_sucursales: 6 });
 
   // 1. Inter Stars queda en Completa = $72 (contratado y correspondiente = 72)
   await consultar("SELECT set_config('request.jwt.claim.sub', $1, false)", uInter);

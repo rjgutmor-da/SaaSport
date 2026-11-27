@@ -169,6 +169,7 @@ const TarjetaPlanCupos: React.FC<TarjetaPlanCuposProps> = ({ estadoPlan, cargand
   );
   const diferenciaMonto = Number((montoCorrespondiente - montoContratado).toFixed(2));
   const hayIncrementoCorrespondiente = diferenciaMonto > 0.01;
+  const ajusteTarifaPreferencial = Number((resumenPrecio.totalMensualUsd - montoContratado).toFixed(2));
 
   const bloqueosActivos = [
     bloqueos?.bloquear_creacion_alumnos && 'creación de alumnos',
@@ -193,39 +194,60 @@ const TarjetaPlanCupos: React.FC<TarjetaPlanCuposProps> = ({ estadoPlan, cargand
           </div>
         </div>
 
-        <div className="pe-plan-badges">
-          <span className="pe-plan-badge-principal">
-            {plan.nombre_producto} — Plan {plan.nombre_tramo}
-          </span>
-          {addons.suscripcion_anual && (
-            <span className="pe-plan-badge-anual">
-              Suscripción Anual (-{resumenPrecio.descuentoAnualPorcentaje}%)
+        {/* Desglose ordenado como suma: plan principal primero, adicionales debajo y total al pie */}
+        <div className="pe-plan-desglose" aria-label="Desglose mensual del plan">
+          <div className="pe-plan-suma-fila pe-plan-suma-plan">
+            <span className="pe-plan-suma-concepto">
+              {plan.nombre_producto} — Plan {plan.nombre_tramo}
             </span>
+            <span className="pe-plan-suma-monto">
+              {formatearUsd(resumenPrecio.precioPlanBaseUsd)}
+            </span>
+          </div>
+
+          {resumenPrecio.serviciosAdicionales.map((servicio) => (
+            <div key={servicio.clave} className="pe-plan-suma-fila pe-plan-suma-extra">
+              <span className="pe-plan-suma-concepto">+ {servicio.nombre}</span>
+              <span className="pe-plan-suma-monto">{formatearUsd(servicio.precioMensualUsd)}</span>
+            </div>
+          ))}
+
+          {resumenPrecio.esAnual && resumenPrecio.descuentoMensualUsd > 0 && (
+            <div className="pe-plan-suma-fila pe-plan-suma-descuento">
+              <span className="pe-plan-suma-concepto">
+                − Descuento suscripción anual ({resumenPrecio.descuentoAnualPorcentaje}%)
+              </span>
+              <span className="pe-plan-suma-monto">
+                −{formatearUsd(resumenPrecio.descuentoMensualUsd)}
+              </span>
+            </div>
           )}
-          <span className="pe-plan-badge-total" title="Monto contratado actual">
-            Pago actual: <strong>{formatearUsd(montoContratado)}</strong>/mes
-          </span>
+
+          {ajusteTarifaPreferencial > 0.01 && (
+            <div className="pe-plan-suma-fila pe-plan-suma-descuento">
+              <span className="pe-plan-suma-concepto">− Tarifa preferencial vigente</span>
+              <span className="pe-plan-suma-monto">−{formatearUsd(ajusteTarifaPreferencial)}</span>
+            </div>
+          )}
+
+          <div className="pe-plan-suma-fila pe-plan-suma-total">
+            <span className="pe-plan-suma-concepto">Total mensual actual</span>
+            <span className="pe-plan-suma-monto">{formatearUsd(montoContratado)}/mes</span>
+          </div>
+
           {hayIncrementoCorrespondiente && (
-            <span
-              className="pe-plan-badge-corresponde"
+            <div
+              className="pe-plan-suma-fila pe-plan-suma-corresponde"
               title="Monto mensual correspondiente según uso actual y tarifa vigente"
             >
-              Corresponde pagar: <strong>{formatearUsd(montoCorrespondiente)}</strong>/mes (+{formatearUsd(diferenciaMonto)})
-            </span>
+              <span className="pe-plan-suma-concepto">Corresponde pagar según uso</span>
+              <span className="pe-plan-suma-monto">
+                {formatearUsd(montoCorrespondiente)}/mes (+{formatearUsd(diferenciaMonto)})
+              </span>
+            </div>
           )}
         </div>
       </div>
-
-      {resumenPrecio.serviciosAdicionales.length > 0 && (
-        <div className="pe-plan-addons">
-          <span className="pe-plan-addons-label">Servicios adicionales contratados:</span>
-          {resumenPrecio.serviciosAdicionales.map((servicio) => (
-            <span key={servicio.clave} className="pe-plan-addon-chip">
-              {servicio.nombre} · <strong>{formatearUsd(servicio.precioMensualUsd)}</strong>
-            </span>
-          ))}
-        </div>
-      )}
 
       <div className="pe-plan-grid">
         <MedidorCupo

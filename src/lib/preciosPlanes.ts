@@ -99,6 +99,8 @@ export const calcularResumenPrecioPlan = (estadoPlan: EstadoPlanEscuela): Resume
     });
   }
 
+  serviciosAdicionales.sort((a, b) => b.precioMensualUsd - a.precioMensualUsd);
+
   const totalExtrasUsd = serviciosAdicionales.reduce((acc, item) => acc + item.precioMensualUsd, 0);
   const subtotalMensualUsd = precioPlanBaseUsd + totalExtrasUsd;
   const esAnual = Boolean(addons.suscripcion_anual);
