@@ -28,6 +28,7 @@ export interface CajaBanco {
   sucursal_id: string | null;
   nombre: string;
   responsable: string | null;
+  numero_cuenta: string | null;
   tipo: 'caja_chica' | 'cuenta_bancaria';
   activo: boolean;
   saldo_actual: number;

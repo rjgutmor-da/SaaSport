@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabaseClient';
-import { X, Landmark, User, Building2, Save, RefreshCw, AlertCircle, Wallet } from 'lucide-react';
+import { X, Landmark, User, Building2, Save, RefreshCw, AlertCircle, Wallet, AlignLeft, Hash } from 'lucide-react';
 import type { Sucursal, CajaBanco } from '../../types/finanzas';
+import './ModalNuevaCaja.css';
 
 interface Props {
   visible: boolean;
@@ -13,6 +14,7 @@ interface Props {
 const ModalNuevaCaja: React.FC<Props> = ({ visible, onCerrar, onCreado, cajaAEditar }) => {
   const [nombre, setNombre] = useState('');
   const [responsable, setResponsable] = useState('');
+  const [numeroCuenta, setNumeroCuenta] = useState('');
   const [sucursalId, setSucursalId] = useState('');
   const [tipo, setTipo] = useState<'caja_chica' | 'cuenta_bancaria'>('caja_chica');
   const [activo, setActivo] = useState(true);
@@ -32,6 +34,7 @@ const ModalNuevaCaja: React.FC<Props> = ({ visible, onCerrar, onCreado, cajaAEdi
       if (cajaAEditar) {
         setNombre(cajaAEditar.nombre || '');
         setResponsable(cajaAEditar.responsable || '');
+        setNumeroCuenta(cajaAEditar.numero_cuenta || '');
         setSucursalId(cajaAEditar.sucursal_id || '');
         setTipo(cajaAEditar.tipo || 'caja_chica');
         setActivo(cajaAEditar.activo !== false);
@@ -39,6 +42,7 @@ const ModalNuevaCaja: React.FC<Props> = ({ visible, onCerrar, onCreado, cajaAEdi
       } else {
         setNombre('');
         setResponsable('');
+        setNumeroCuenta('');
         setSucursalId('');
         setTipo('caja_chica');
         setActivo(true);
@@ -90,7 +94,7 @@ const ModalNuevaCaja: React.FC<Props> = ({ visible, onCerrar, onCreado, cajaAEdi
 
       if (err) throw err;
       setSucursales(data || []);
-    } catch (err: any) {
+    } catch (err) {
       console.error('Error al cargar sucursales:', err);
     } finally {
       setCargandoSucursales(false);
@@ -119,6 +123,7 @@ const ModalNuevaCaja: React.FC<Props> = ({ visible, onCerrar, onCreado, cajaAEdi
           .update({
             nombre: nombre.trim(),
             responsable: responsable.trim() || null,
+            numero_cuenta: numeroCuenta.trim() || null,
             ...(tieneMovimientos ? {} : {
               sucursal_id: sucursalId || null,
               tipo: tipo
@@ -134,6 +139,7 @@ const ModalNuevaCaja: React.FC<Props> = ({ visible, onCerrar, onCreado, cajaAEdi
           escuela_id: perfil.escuela_id,
           nombre: nombre.trim(),
           responsable: responsable.trim() || null,
+          numero_cuenta: numeroCuenta.trim() || null,
           sucursal_id: sucursalId || null,
           tipo: tipo,
           saldo_actual: 0,
@@ -144,8 +150,12 @@ const ModalNuevaCaja: React.FC<Props> = ({ visible, onCerrar, onCreado, cajaAEdi
       }
 
       onCreado();
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : (
+        typeof err === 'object' && err !== null && 'message' in err
+          ? String(err.message)
+          : 'No se pudo guardar la cuenta.'
+      ));
     } finally {
       setGuardando(false);
     }
@@ -154,143 +164,154 @@ const ModalNuevaCaja: React.FC<Props> = ({ visible, onCerrar, onCreado, cajaAEdi
   if (!visible) return null;
 
   return (
-    <div className="cxc-modal-overlay" onClick={onCerrar}>
-      <div className="cxc-modal cxc-modal--entidad" onClick={e => e.stopPropagation()} style={{ maxWidth: '500px' }}>
-        <div className="cxc-modal-header">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            <div className="cxc-header-icon-circle" style={{ 
-              background: 'rgba(0, 210, 106, 0.15)',
-              color: '#00D26A'
-            }}>
-              {tipo === 'caja_chica' ? <Wallet size={20} /> : <Landmark size={20} />}
+    <div className="cxc-modal-overlay" onClick={() => !guardando && onCerrar()}>
+      <div
+        className="cxc-modal caja-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="caja-modal-titulo"
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="cxc-modal-header caja-modal__header">
+          <div className="caja-modal__heading">
+            <div className="caja-modal__icon" aria-hidden="true">
+              {tipo === 'caja_chica' ? <Wallet size={24} /> : <Landmark size={24} />}
             </div>
             <div>
-              <h2 style={{ margin: 0, fontSize: '1.25rem' }}>{cajaAEditar ? 'Editar Caja o Banco' : 'Nueva Caja o Banco'}</h2>
-              <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-tertiary)' }}>
-                {cajaAEditar ? 'Modifica los datos de la cuenta seleccionada' : 'Registra una nueva cuenta para gestionar movimientos'}
-              </p>
+              <h2 id="caja-modal-titulo">{cajaAEditar ? 'Editar caja o banco' : 'Nueva caja o banco'}</h2>
+              <p>{cajaAEditar ? 'Actualiza la información de tu cuenta.' : 'Organiza tus cobros y pagos desde una sola cuenta.'}</p>
             </div>
           </div>
-          <button onClick={onCerrar} className="btn-cerrar-modal" disabled={guardando}><X size={20} /></button>
+          <button type="button" onClick={onCerrar} aria-label="Cerrar formulario" disabled={guardando}>
+            <X size={20} />
+          </button>
         </div>
 
-        {cajaAEditar && tieneMovimientos && (
-          <div style={{
-            margin: '0 1.5rem 1rem 1.5rem',
-            padding: '0.75rem 1rem',
-            background: 'rgba(245, 158, 11, 0.1)',
-            border: '1px solid rgba(245, 158, 11, 0.3)',
-            borderRadius: '8px',
-            fontSize: '0.8rem',
-            color: '#f59e0b',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem',
-            lineHeight: '1.4'
-          }}>
-            <AlertCircle size={16} style={{ flexShrink: 0 }} />
-            <span>
-              Esta cuenta ya registra movimientos. Los campos <strong>Sucursal</strong> y <strong>Tipo de Cuenta</strong> están bloqueados para mantener la integridad histórica.
-            </span>
-          </div>
-        )}
+        <form onSubmit={handleSubmit} className="cxc-modal-form caja-modal__form" aria-busy={guardando}>
+          <div className="caja-modal__body">
+            {cajaAEditar && tieneMovimientos && (
+              <div className="caja-modal__notice" role="status">
+                <AlertCircle size={18} aria-hidden="true" />
+                <span>
+                  Esta cuenta ya registra movimientos. La sucursal y el tipo de cuenta no se pueden modificar.
+                </span>
+              </div>
+            )}
 
-        <form onSubmit={handleSubmit} className="cxc-modal-form">
-          <div className="modal-form-grid" style={{ gap: '1.25rem' }}>
-            <div className="form-campo full-width">
-              <label><AlignLeft size={14} /> Nombre de la Caja o Banco *</label>
-              <input 
-                type="text" 
-                value={nombre} 
-                onChange={e => setNombre(e.target.value)} 
-                placeholder="Ej: Caja Chica Central, Cuenta BNB..."
-                required 
-                disabled={guardando} 
-              />
+            <div className="caja-modal__section-heading">
+              <h3>Datos de la cuenta</h3>
+              <span>* Campos obligatorios</span>
             </div>
 
-            <div className="form-campo full-width">
-              <label><User size={14} /> Responsable</label>
-              <input 
-                type="text" 
-                value={responsable} 
-                onChange={e => setResponsable(e.target.value)} 
-                placeholder="Nombre de la persona encargada"
-                disabled={guardando} 
-              />
-            </div>
-
-            <div className="form-campo">
-              <label><Building2 size={14} /> Sucursal</label>
-              <select 
-                value={sucursalId} 
-                onChange={e => setSucursalId(e.target.value)} 
-                disabled={guardando || cargandoSucursales || (!!cajaAEditar && tieneMovimientos) || verificandoMovimientos}
-              >
-                <option value="">Todas las sucursales (Global)</option>
-                {sucursales.map(s => (
-                  <option key={s.id} value={s.id}>{s.nombre}</option>
-                ))}
-              </select>
-            </div>
-
-            <div className="form-campo">
-              <label><Wallet size={14} /> Tipo de Cuenta *</label>
-              <select 
-                value={tipo} 
-                onChange={e => setTipo(e.target.value as any)} 
-                required 
-                disabled={guardando || (!!cajaAEditar && tieneMovimientos) || verificandoMovimientos}
-              >
-                <option value="caja_chica">Caja Chica (Efectivo)</option>
-                <option value="cuenta_bancaria">Cuenta Bancaria / Banco</option>
-              </select>
-            </div>
-
-            {cajaAEditar && (
-              <div className="form-campo full-width" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.25rem' }}>
-                <input 
-                  type="checkbox" 
-                  id="chk-caja-activa"
-                  checked={activo} 
-                  onChange={e => setActivo(e.target.checked)} 
-                  disabled={guardando} 
-                  style={{ width: '18px', height: '18px', cursor: 'pointer', margin: 0 }}
+            <div className="caja-modal__grid">
+              <div className="caja-modal__field caja-modal__field--full">
+                <label htmlFor="caja-nombre"><AlignLeft size={15} aria-hidden="true" /> Nombre de la caja o banco <span>*</span></label>
+                <input
+                  id="caja-nombre"
+                  type="text"
+                  value={nombre}
+                  onChange={e => setNombre(e.target.value)}
+                  placeholder="Ej.: Caja central o Banco BNB"
+                  maxLength={100}
+                  required
+                  autoFocus
+                  disabled={guardando}
                 />
-                <label htmlFor="chk-caja-activa" style={{ cursor: 'pointer', margin: 0, userSelect: 'none', display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)' }}>
-                  Cuenta Activa (Disponible para registrar cobros y pagos)
+              </div>
+
+              <div className="caja-modal__field">
+                <label htmlFor="caja-tipo"><Wallet size={15} aria-hidden="true" /> Tipo de cuenta <span>*</span></label>
+                <select
+                  id="caja-tipo"
+                  value={tipo}
+                  onChange={e => setTipo(e.target.value as CajaBanco['tipo'])}
+                  required
+                  disabled={guardando || (!!cajaAEditar && tieneMovimientos) || verificandoMovimientos}
+                >
+                  <option value="caja_chica">Caja chica (efectivo)</option>
+                  <option value="cuenta_bancaria">Cuenta bancaria / Banco</option>
+                </select>
+              </div>
+
+              <div className="caja-modal__field">
+                <label htmlFor="caja-sucursal"><Building2 size={15} aria-hidden="true" /> Sucursal</label>
+                <select
+                  id="caja-sucursal"
+                  value={sucursalId}
+                  onChange={e => setSucursalId(e.target.value)}
+                  disabled={guardando || cargandoSucursales || (!!cajaAEditar && tieneMovimientos) || verificandoMovimientos}
+                >
+                  <option value="">Todas las sucursales (Global)</option>
+                  {sucursales.map(s => (
+                    <option key={s.id} value={s.id}>{s.nombre}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="caja-modal__field caja-modal__field--full caja-modal__account">
+                <label htmlFor="caja-numero-cuenta">
+                  <Hash size={15} aria-hidden="true" /> Número de cuenta
+                  <span className="caja-modal__optional">Opcional</span>
                 </label>
+                <input
+                  id="caja-numero-cuenta"
+                  type="text"
+                  value={numeroCuenta}
+                  onChange={e => setNumeroCuenta(e.target.value)}
+                  placeholder="Ej.: 001-23456789"
+                  aria-describedby="caja-numero-ayuda"
+                  autoComplete="off"
+                  spellCheck={false}
+                  disabled={guardando}
+                />
+                <small id="caja-numero-ayuda">Puedes dejarlo vacío si no corresponde.</small>
+              </div>
+
+              <div className="caja-modal__field caja-modal__field--full">
+                <label htmlFor="caja-responsable"><User size={15} aria-hidden="true" /> Responsable</label>
+                <input
+                  id="caja-responsable"
+                  type="text"
+                  value={responsable}
+                  onChange={e => setResponsable(e.target.value)}
+                  placeholder="Nombre de la persona encargada"
+                  disabled={guardando}
+                />
+              </div>
+
+              {cajaAEditar && (
+                <div className="caja-modal__active caja-modal__field--full">
+                  <input
+                    type="checkbox"
+                    id="chk-caja-activa"
+                    checked={activo}
+                    onChange={e => setActivo(e.target.checked)}
+                    disabled={guardando}
+                  />
+                  <label htmlFor="chk-caja-activa">
+                    <strong>Cuenta activa</strong>
+                    <span>Disponible para registrar cobros y pagos.</span>
+                  </label>
+                </div>
+              )}
+            </div>
+
+            {error && (
+              <div className="form-msg form-msg--error caja-modal__error" role="alert">
+                <AlertCircle size={18} aria-hidden="true" /> {error}
               </div>
             )}
           </div>
 
-          {error && (
-            <div className="form-msg form-msg--error" style={{ margin: '1rem 0' }}>
-              <AlertCircle size={18} /> {error}
-            </div>
-          )}
-
-          <div className="cxc-modal-footer" style={{ 
-            marginTop: '1.5rem', 
-            paddingTop: '1.25rem',
-            borderTop: '1px solid var(--border-light)',
-            display: 'flex',
-            justifyContent: 'flex-end',
-            gap: '1rem'
-          }}>
-            <button type="button" className="cxc-limpiar-busqueda" onClick={onCerrar} disabled={guardando} style={{ padding: '0.6rem 1.5rem' }}>
+          <div className="caja-modal__footer">
+            <button type="button" className="caja-modal__cancel" onClick={onCerrar} disabled={guardando}>
               Cancelar
             </button>
-            <button 
-              type="submit" 
-              className="btn-guardar-cuenta" 
-              disabled={guardando || verificandoMovimientos}
-              style={{ padding: '0.6rem 2rem', background: '#00D26A', borderColor: '#00D26A', color: 'white', fontWeight: 600 }}
-            >
+            <button type="submit" className="caja-modal__save" disabled={guardando || verificandoMovimientos}>
               {guardando ? (
-                <> <RefreshCw size={16} className="spin" /> Guardando... </>
+                <><RefreshCw size={17} className="spin" aria-hidden="true" /> Guardando...</>
               ) : (
-                <> <Save size={16} /> Guardar Caja/Banco </>
+                <><Save size={17} aria-hidden="true" /> {cajaAEditar ? 'Guardar cambios' : 'Guardar caja o banco'}</>
               )}
             </button>
           </div>
@@ -301,22 +322,3 @@ const ModalNuevaCaja: React.FC<Props> = ({ visible, onCerrar, onCreado, cajaAEdi
 };
 
 export default ModalNuevaCaja;
-
-const AlignLeft = ({ size, className }: { size?: number, className?: string }) => (
-  <svg 
-    xmlns="http://www.w3.org/2000/svg" 
-    width={size || 24} 
-    height={size || 24} 
-    viewBox="0 0 24 24" 
-    fill="none" 
-    stroke="currentColor" 
-    strokeWidth="2" 
-    strokeLinecap="round" 
-    strokeLinejoin="round" 
-    className={className}
-  >
-    <line x1="21" y1="6" x2="3" y2="6"></line>
-    <line x1="15" y1="12" x2="3" y2="12"></line>
-    <line x1="17" y1="18" x2="3" y2="18"></line>
-  </svg>
-);
