@@ -1,4 +1,4 @@
-/** Tarjeta compacta del plan contratado, desglose en suma y alertas sin bloqueo. */
+/** Tarjeta compacta del plan contratado, desglose en suma y avisos laterales sin desplegar hacia abajo. */
 import React from 'react';
 import { ShieldCheck, AlertTriangle, RefreshCw, Info } from 'lucide-react';
 import type { EstadoPlanEscuela } from '../../types/planes';
@@ -51,9 +51,14 @@ const TarjetaPlanCupos: React.FC<TarjetaPlanCuposProps> = ({ estadoPlan, cargand
     bloqueos?.bloquear_creacion_sucursales && 'creación de sucursales',
   ].filter((item): item is string => Boolean(item));
 
+  const mostrarAvisoMargen = Boolean(alerta?.en_margen_gracia_alumnos && !alerta.requiere_atencion);
+  const mostrarAvisoRecomendacion = Boolean(alerta?.recomendacion && (alerta.requiere_atencion || hayIncrementoCorrespondiente));
+  const mostrarBloqueos = bloqueosActivos.length > 0;
+  const hayAvisos = mostrarAvisoMargen || mostrarAvisoRecomendacion || mostrarBloqueos;
+
   return (
     <section className="pe-plan-card" aria-label="Plan Contratado">
-      <div className="pe-plan-header">
+      <div className={`pe-plan-header${hayAvisos ? ' pe-plan-header--con-avisos' : ''}`}>
         <div className="pe-plan-titulo-grupo">
           <div className="pe-plan-icono">
             <ShieldCheck size={22} />
@@ -121,41 +126,45 @@ const TarjetaPlanCupos: React.FC<TarjetaPlanCuposProps> = ({ estadoPlan, cargand
             </div>
           )}
         </div>
-      </div>
 
-      {alerta?.en_margen_gracia_alumnos && !alerta.requiere_atencion && (
-        <div className="pe-plan-aviso-margen">
-          <Info size={16} />
-          <span>
-            Estás usando el <strong>margen gratuito del 15%</strong> en alumnos activos ({cupos.alumnos.usados} de hasta {cupos.alumnos.limite_con_margen}).
-            {alerta.siguiente_plan
-              ? ` Próximo tramo sugerido: ${alerta.siguiente_plan.nombre_producto} — Plan ${alerta.siguiente_plan.nombre_tramo} (${formatearUsd(alerta.siguiente_plan.precio_mensual_usd)}/mes).`
-              : ''}
-          </span>
-        </div>
-      )}
+        {hayAvisos && (
+          <div className="pe-plan-avisos-col">
+            {mostrarAvisoMargen && (
+              <div className="pe-plan-aviso-margen">
+                <Info size={16} style={{ flexShrink: 0 }} />
+                <span>
+                  Estás usando el <strong>margen gratuito del 15%</strong> en alumnos activos ({cupos.alumnos.usados} de hasta {cupos.alumnos.limite_con_margen}).
+                  {alerta?.siguiente_plan
+                    ? ` Próximo tramo sugerido: ${alerta.siguiente_plan.nombre_producto} — Plan ${alerta.siguiente_plan.nombre_tramo} (${formatearUsd(alerta.siguiente_plan.precio_mensual_usd)}/mes).`
+                    : ''}
+                </span>
+              </div>
+            )}
 
-      {alerta?.recomendacion && (alerta.requiere_atencion || hayIncrementoCorrespondiente) && (
-        <div className={alerta.requiere_atencion ? 'pe-plan-alerta-destacada' : 'pe-plan-aviso-margen'}>
-          <AlertTriangle size={18} />
-          <div className="pe-plan-alerta-contenido">
-            <div className="pe-plan-alerta-titulo">
-              Monto correspondiente por tu uso actual: <strong>{formatearUsd(montoCorrespondiente)}/mes</strong>
-            </div>
-            <span>{alerta.recomendacion.mensaje}</span>
+            {mostrarAvisoRecomendacion && alerta?.recomendacion && (
+              <div className={alerta.requiere_atencion ? 'pe-plan-alerta-destacada' : 'pe-plan-aviso-margen'}>
+                <AlertTriangle size={16} style={{ flexShrink: 0, marginTop: '2px' }} />
+                <div className="pe-plan-alerta-contenido">
+                  <div className="pe-plan-alerta-titulo">
+                    Monto correspondiente por tu uso actual: <strong>{formatearUsd(montoCorrespondiente)}/mes</strong>
+                  </div>
+                  <span>{alerta.recomendacion.mensaje}</span>
+                </div>
+              </div>
+            )}
+
+            {mostrarBloqueos && (
+              <div className="pe-plan-alerta">
+                <AlertTriangle size={16} style={{ flexShrink: 0 }} />
+                <span>
+                  Bloqueo administrativo activo sobre: <strong>{bloqueosActivos.join(', ')}</strong>.
+                  {bloqueos?.motivo_bloqueo ? ` Motivo: ${bloqueos.motivo_bloqueo}` : ''}
+                </span>
+              </div>
+            )}
           </div>
-        </div>
-      )}
-
-      {bloqueosActivos.length > 0 && (
-        <div className="pe-plan-alerta">
-          <AlertTriangle size={16} />
-          <span>
-            Bloqueo administrativo activo sobre: <strong>{bloqueosActivos.join(', ')}</strong>.
-            {bloqueos?.motivo_bloqueo ? ` Motivo: ${bloqueos.motivo_bloqueo}` : ''}
-          </span>
-        </div>
-      )}
+        )}
+      </div>
     </section>
   );
 };
