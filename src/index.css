@@ -3918,3 +3918,226 @@ input[type=number] {
 @media (max-width: 650px) {
   .est-mens-indicador { flex: 1 1 140px; min-width: 0; }
 }
+
+/* ─── Tarjeta de Plan y Termómetro de Cupos (Panel de Escuela) ─── */
+.pe-plan-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.pe-plan-cargando {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 1rem 0;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+.pe-plan-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.pe-plan-titulo-grupo {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+}
+
+.pe-plan-icono {
+  width: 42px;
+  height: 42px;
+  border-radius: 10px;
+  background: rgba(10, 132, 255, 0.12);
+  border: 1px solid rgba(10, 132, 255, 0.25);
+  color: #0A84FF;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.pe-plan-titulo {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.pe-plan-subtitulo {
+  margin: 0.15rem 0 0;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.pe-plan-badges {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.pe-plan-badge-principal {
+  padding: 0.4rem 0.85rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #FF6B35;
+  background: rgba(255, 107, 53, 0.12);
+  border: 1px solid rgba(255, 107, 53, 0.35);
+}
+
+.pe-plan-badge-anual {
+  padding: 0.35rem 0.75rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #00D26A;
+  background: rgba(0, 210, 106, 0.12);
+  border: 1px solid rgba(0, 210, 106, 0.3);
+}
+
+.pe-plan-addons {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.pe-plan-addons-label {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  margin-right: 0.25rem;
+}
+
+.pe-plan-addon-chip {
+  font-size: 0.74rem;
+  font-weight: 600;
+  padding: 0.25rem 0.65rem;
+  border-radius: 999px;
+  background: rgba(10, 132, 255, 0.1);
+  border: 1px solid rgba(10, 132, 255, 0.28);
+  color: #60a5fa;
+}
+
+.pe-plan-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+@media (max-width: 900px) {
+  .pe-plan-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.pe-plan-medidor {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1rem 1.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  transition: var(--transition);
+}
+
+.pe-plan-medidor:hover {
+  border-color: rgba(255, 107, 53, 0.35);
+}
+
+.pe-plan-medidor-cabecera {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.pe-plan-medidor-titulo {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.pe-plan-medidor-icono {
+  display: flex;
+  align-items: center;
+}
+
+.pe-plan-estado-pill {
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 0.18rem 0.55rem;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+
+.pe-plan-medidor-numeros {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.pe-plan-cifra {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+
+.pe-plan-cifra strong {
+  font-size: 1.25rem;
+  color: var(--text-primary);
+}
+
+.pe-plan-porcentaje {
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.pe-plan-barra-fondo {
+  width: 100%;
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+.pe-plan-barra-relleno {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.35s ease, background-color 0.25s ease;
+}
+
+.pe-plan-medidor-detalle {
+  margin: 0;
+  font-size: 0.74rem;
+  color: var(--text-tertiary);
+}
+
+.pe-plan-alerta {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.75rem 1rem;
+  border-radius: 10px;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: #fca5a5;
+  font-size: 0.82rem;
+}

@@ -29,6 +29,8 @@ import {
   useConfiguracionFacturacion,
   type ConfiguracionFacturacion,
 } from '../../hooks/useConfiguracionFacturacion';
+import { planEscuelaKey, usePlanEscuela } from '../../hooks/usePlanEscuela';
+import TarjetaPlanCupos from '../../components/config/TarjetaPlanCupos';
 
 interface EscuelaInfo {
   id: string;
@@ -40,36 +42,15 @@ interface EscuelaInfo {
   simbolo_moneda?: string | null;
 }
 
-interface SucursalStats {
-  id: string;
-  nombre: string;
-  count: number;
-}
-
-interface Estadisticas {
-  alumnosActivos: number;
-  usuariosActivos: number;
-  entrenadoresActivos: number;
-  alumnosPorSucursal: SucursalStats[];
-}
-
 const PanelEscuela: React.FC = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { recargarDatosAuth, escuelaId, perfil } = useAuthSaaSport();
 
-  // Escuelas con acceso habilitado a Fotos de Asistencia Grupal
-  const ESCUELAS_CON_FOTOS_ASISTENCIA = ['Fundación Inter Stars'];
-
   const [loading, setLoading] = useState(true);
   const [escuela, setEscuela] = useState<EscuelaInfo | null>(null);
-  const [stats, setStats] = useState<Estadisticas>({
-    alumnosActivos: 0,
-    usuariosActivos: 0,
-    entrenadoresActivos: 0,
-    alumnosPorSucursal: [],
-  });
   const [error, setError] = useState<string | null>(null);
+  const planEscuelaQuery = usePlanEscuela(escuelaId);
 
   // Estados para el Modal de Edición
   const [isEditing, setIsEditing] = useState(false);
@@ -108,59 +89,38 @@ const PanelEscuela: React.FC = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Sesión expirada.');
 
-      const { data: perfil, error: perfilError } = await supabase
+      const { data: perfilUsuario, error: perfilError } = await supabase
         .from('usuarios')
         .select('escuela_id')
         .eq('id', user.id)
         .single();
 
-      if (perfilError || !perfil) throw new Error('No se encontró el perfil del usuario.');
-      const { escuela_id } = perfil;
+      if (perfilError || !perfilUsuario) throw new Error('No se encontró el perfil del usuario.');
+      const { escuela_id } = perfilUsuario;
 
-      const [
-        { data: escuelaData, error: escuelaError },
-        { data: alumnosData },
-        { count: usuariosCount },
-        { count: entrenadoresCount },
-        { data: sucursalesData },
-      ] = await Promise.all([
-        supabase.from('escuelas').select('id, nombre, zona_horaria, activa, logo_url, slogan, simbolo_moneda').eq('id', escuela_id).single(),
-        supabase.from('alumnos').select('id, sucursal_id')
-          .eq('escuela_id', escuela_id).eq('archivado', false),
-        supabase.from('usuarios').select('id', { count: 'exact', head: true })
-          .eq('escuela_id', escuela_id).eq('activo', true),
-        supabase.from('usuarios').select('id', { count: 'exact', head: true })
-          .eq('escuela_id', escuela_id).in('rol', ['Entrenador', 'Entrenarqueros']).eq('activo', true),
-        supabase.from('sucursales').select('id, nombre').eq('escuela_id', escuela_id),
-      ]);
+      const { data: escuelaData, error: escuelaError } = await supabase
+        .from('escuelas')
+        .select('id, nombre, zona_horaria, activa, logo_url, slogan, simbolo_moneda')
+        .eq('id', escuela_id)
+        .single();
 
       if (escuelaError) throw new Error('Error al cargar datos de la escuela.');
 
-      const alumnosActivos = alumnosData ? alumnosData.length : 0;
-      const sucursalesMap = sucursalesData || [];
-      const alumnosPorSucursal: SucursalStats[] = sucursalesMap.map(suc => ({
-        id: suc.id,
-        nombre: suc.nombre,
-        count: (alumnosData || []).filter(a => a.sucursal_id === suc.id).length
-      })).filter(s => s.count > 0);
-
-      const sinSucursalCount = (alumnosData || []).filter(a => !a.sucursal_id).length;
-      if (sinSucursalCount > 0) {
-        alumnosPorSucursal.push({ id: 'sin-sucursal', nombre: 'Sin sucursal', count: sinSucursalCount });
-      }
-
       setEscuela(escuelaData);
-      setStats({
-        alumnosActivos,
-        usuariosActivos: usuariosCount ?? 0,
-        entrenadoresActivos: entrenadoresCount ?? 0,
-        alumnosPorSucursal
-      });
+      await queryClient.invalidateQueries({ queryKey: planEscuelaKey(escuela_id) });
     } catch (err: any) {
       setError(err.message);
     } finally {
       setLoading(false);
     }
+  };
+
+  const estadoPlan = planEscuelaQuery.data;
+  const stats = {
+    alumnosActivos: estadoPlan?.cupos.alumnos.usados ?? 0,
+    usuariosActivos: estadoPlan?.cupos.usuarios.usados ?? 0,
+    entrenadoresActivos: estadoPlan?.resumen_escuela.entrenadores_activos ?? 0,
+    alumnosPorSucursal: estadoPlan?.resumen_escuela.alumnos_por_sucursal ?? [],
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -389,6 +349,13 @@ const PanelEscuela: React.FC = () => {
         </div>
       )}
 
+      {/* ─── MI PLAN Y TERMÓMETRO DE CUPOS ─── */}
+      <TarjetaPlanCupos
+        estadoPlan={estadoPlan}
+        cargando={planEscuelaQuery.isLoading}
+        error={planEscuelaQuery.error ? (planEscuelaQuery.error as Error).message : null}
+      />
+
       {/* ─── ESTADÍSTICAS RÁPIDAS ─── */}
       <div className="pe-stats-grid">
         <div className="pe-stat-card pe-stat-orange">
@@ -510,9 +477,9 @@ const PanelEscuela: React.FC = () => {
             </button>
           )}
 
-          {/* Fotos de Asistencia → solo escuelas habilitadas */}
+          {/* Fotos de Asistencia → según servicio adicional contratado en el plan */}
           {(() => {
-            const tieneAcceso = escuela && ESCUELAS_CON_FOTOS_ASISTENCIA.includes(escuela.nombre);
+            const tieneAcceso = Boolean(estadoPlan?.addons.fotos_asistencia);
             const puedeVerPromocion = perfil?.rol === 'Administrador' || perfil?.rol === 'SuperAdministrador';
             const mensajePromocion = 'solicita su activación desde $us 5 mensuales';
             return (
