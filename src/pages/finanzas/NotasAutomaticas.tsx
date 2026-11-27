@@ -1,17 +1,24 @@
 import { simboloMoneda } from '../../lib/moneda';
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../../lib/supabaseClient';
-import { 
-  ChevronLeft, RefreshCw, Search, Pencil, FileText, Calendar, Landmark, AlertCircle,
-  Check, CheckCheck, Percent, Trash2
+import {
+  ChevronLeft, RefreshCw, Search, Pencil, FileText, Calendar, AlertCircle,
+  Check, CheckCheck, Trash2
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthSaaSport } from '../../lib/authHelper';
 import NotaServicios from '../../components/cxc/NotaServicios';
 import { useActualizarNotasAutomaticasPendientes } from '../../hooks/useNotasAutomaticasPendientes';
+import { useDebounce } from '../../hooks/useDebounce';
 import { contarAsistenciasCicloAnterior, obtenerCicloAnterior, tieneCicloValido } from '../../services/asistenciasCiclo';
 import type { ConteoAsistencias } from '../../services/asistenciasCiclo';
+import { NOTAS_AUTOMATICAS_POR_PAGINA } from '../../lib/notasAutomaticasVigencia';
+import {
+  AvisoVigenciaNotasAutomaticas,
+  BarraPaginacionNotasAutomaticas,
+  EtiquetaVigenciaNota,
+} from '../../components/finanzas/ComponentesNotasAutomaticas';
 
 interface Alumno {
   id: string;
@@ -41,9 +48,19 @@ interface CuentaCobrar {
   ciclo_fin: string | null;
   es_mensualidad_ingreso: boolean;
   periodo: string | null;
+  expira_at: string | null;
+  dias_restantes: number;
   alumnos: Alumno | null;
   sucursales: Sucursal | null;
   cobros_aplicados: CobroAplicado[];
+}
+
+interface RespuestaNotasPaginadas {
+  items: CuentaCobrar[];
+  total_resultados: number;
+  pagina: number;
+  limite: number;
+  ids_filtrados: string[];
 }
 
 const NotasAutomaticas: React.FC = () => {
@@ -51,21 +68,29 @@ const NotasAutomaticas: React.FC = () => {
   const queryClient = useQueryClient();
   const { escuelaId, perfil, sucursalId } = useAuthSaaSport();
   const actualizarAviso = useActualizarNotasAutomaticasPendientes();
-  
+
   const [notas, setNotas] = useState<CuentaCobrar[]>([]);
+  const [totalResultados, setTotalResultados] = useState(0);
+  const [idsFiltrados, setIdsFiltrados] = useState<string[]>([]);
   const [sucursales, setSucursales] = useState<Sucursal[]>([]);
   const [cargando, setCargando] = useState(true);
   const [procesandoAccion, setProcesandoAccion] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [asistencias, setAsistencias] = useState<Record<string, ConteoAsistencias>>({});
 
-  // Filtros
+  // Filtros y paginación en servidor (30 por página)
   const [busqueda, setBusqueda] = useState('');
+  const debouncedBusqueda = useDebounce(busqueda, 300);
   const [filtroSucursal, setFiltroSucursal] = useState('');
+  const [pagina, setPagina] = useState(1);
 
   // Modales
   const [cxcParaEditar, setCxcParaEditar] = useState<any | null>(null);
   const [modalNotaVisible, setModalNotaVisible] = useState(false);
+
+  // Si el usuario tiene rol limitado a una sucursal, forzar el filtro
+  const sucursalBloqueada = perfil?.rol === 'Entrenador' || perfil?.rol === 'Asistente' ? sucursalId : null;
+  const filtroSucursalEfectivo = sucursalBloqueada || filtroSucursal;
 
   // Cargar sucursales para el filtro
   const cargarSucursales = async () => {
@@ -83,38 +108,35 @@ const NotasAutomaticas: React.FC = () => {
     }
   };
 
-  // Cargar las notas generadas automáticamente en borrador (pendientes de aprobación)
-  const cargarNotas = async () => {
+  // Cargar una página de notas generadas automáticamente en borrador (máx. 30 registros)
+  const cargarNotas = async (paginaObjetivo = pagina) => {
     if (!escuelaId) return;
     void actualizarAviso();
     setCargando(true);
     setError(null);
     try {
-      const { data, error: queryError } = await supabase
-        .from('cuentas_cobrar')
-        .select(`
-          id,
-          monto_total,
-          descripcion,
-          observaciones,
-          fecha_emision,
-          fecha_vencimiento,
-          estado,
-          ciclo_inicio,
-          ciclo_fin,
-          es_mensualidad_ingreso,
-          periodo,
-          alumnos (id, nombres, apellidos, mensualidad),
-          sucursales (id, nombre),
-          cobros_aplicados (monto_aplicado)
-        `)
-        .eq('origen_facturacion', 'automatico')
-        .eq('estado', 'borrador')
-        .eq('escuela_id', escuelaId)
-        .order('fecha_emision', { ascending: false });
+      const { data, error: rpcError } = await supabase.rpc('rpc_listar_notas_automaticas_borrador', {
+        p_busqueda: debouncedBusqueda.trim(),
+        p_sucursal_filtro: filtroSucursalEfectivo || null,
+        p_pagina: paginaObjetivo,
+        p_limite: NOTAS_AUTOMATICAS_POR_PAGINA,
+      });
 
-      if (queryError) throw queryError;
-      setNotas((data as any) || []);
+      if (rpcError) throw rpcError;
+      const respuesta = data as RespuestaNotasPaginadas | null;
+      const items = Array.isArray(respuesta?.items) ? respuesta.items : [];
+      const total = Number(respuesta?.total_resultados || 0);
+      const ids = Array.isArray(respuesta?.ids_filtrados) ? respuesta.ids_filtrados : [];
+
+      if (items.length === 0 && total > 0 && paginaObjetivo > 1) {
+        const ultimaPagina = Math.max(1, Math.ceil(total / NOTAS_AUTOMATICAS_POR_PAGINA));
+        setPagina(ultimaPagina);
+        return;
+      }
+
+      setNotas(items);
+      setTotalResultados(total);
+      setIdsFiltrados(ids);
     } catch (err: any) {
       setError(err.message || 'Error al cargar las mensualidades por aprobar.');
     } finally {
@@ -124,35 +146,25 @@ const NotasAutomaticas: React.FC = () => {
 
   useEffect(() => {
     if (escuelaId) {
-      cargarNotas();
       cargarSucursales();
     }
   }, [escuelaId]);
 
-  // Si el usuario tiene rol limitado a una sucursal, forzar el filtro
-  const sucursalBloqueada = perfil?.rol === 'Entrenador' || perfil?.rol === 'Asistente' ? sucursalId : null;
-  const filtroSucursalEfectivo = sucursalBloqueada || filtroSucursal;
+  useEffect(() => {
+    setPagina(1);
+  }, [debouncedBusqueda, filtroSucursalEfectivo]);
 
-  // Filtrar notas localmente
-  const notasFiltradas = useMemo(() => {
-    return notas.filter(nota => {
-      const matchSucursal = filtroSucursalEfectivo ? nota.sucursales?.id === filtroSucursalEfectivo : true;
-      
-      const nombreCompleto = nota.alumnos 
-        ? `${nota.alumnos.nombres} ${nota.alumnos.apellidos}`.toLowerCase()
-        : '';
-      const matchBusqueda = busqueda.trim() === '' || nombreCompleto.includes(busqueda.toLowerCase());
+  useEffect(() => {
+    if (escuelaId) {
+      void cargarNotas(pagina);
+    }
+  }, [escuelaId, pagina, debouncedBusqueda, filtroSucursalEfectivo]);
 
-      return matchSucursal && matchBusqueda;
-    });
-  }, [notas, busqueda, filtroSucursalEfectivo]);
-
-  // Se cuentan las asistencias de todas las notas cargadas (no solo las filtradas),
-  // así la búsqueda y el filtro de sucursal no vuelven a disparar las consultas.
+  // Se cuentan las asistencias únicamente de las 30 notas visibles en la página actual
   useEffect(() => {
     const controlador = new AbortController();
     setAsistencias({});
-    if (!cargando && escuelaId) {
+    if (!cargando && escuelaId && notas.length > 0) {
       void contarAsistenciasCicloAnterior(supabase, notas, controlador.signal)
         .then(resultado => {
           if (!controlador.signal.aborted) setAsistencias(resultado);
@@ -212,10 +224,9 @@ const NotasAutomaticas: React.FC = () => {
       if (err) throw err;
 
       if (data?.descartadas > 0) {
-        alert('Esta nota automática fue descartada porque el alumno ya cuenta con una mensualidad registrada para ese período.');
+        alert('Esta nota automática fue descartada porque ya existía una mensualidad registrada o superó los 25 días de vigencia.');
       }
-      setNotas(prev => prev.filter(n => n.id !== id));
-      void actualizarAviso();
+      await cargarNotas(pagina);
       void queryClient.invalidateQueries({ queryKey: ['cxc-busqueda'] });
     } catch (err: any) {
       alert('Error al aprobar la nota: ' + (err.message || err));
@@ -226,16 +237,15 @@ const NotasAutomaticas: React.FC = () => {
 
   // Aprobar todas las notas filtradas
   const aprobarTodas = async () => {
-    if (notasFiltradas.length === 0) return;
-    if (!window.confirm(`¿Estás seguro de aprobar las ${notasFiltradas.length} mensualidades visibles? Pasarán a figurar como deuda pendiente en la ficha de cada alumno.`)) {
+    if (idsFiltrados.length === 0) return;
+    if (!window.confirm(`¿Estás seguro de aprobar las ${totalResultados} mensualidades filtradas? Pasarán a figurar como deuda pendiente en la ficha de cada alumno.`)) {
       return;
     }
 
     setProcesandoAccion('todas');
     try {
-      const ids = notasFiltradas.map(n => n.id);
       const { data, error: err } = await supabase.rpc('rpc_aprobar_notas_automaticas', {
-        p_ids: ids
+        p_ids: idsFiltrados
       });
 
       if (err) throw err;
@@ -244,12 +254,13 @@ const NotasAutomaticas: React.FC = () => {
       const descartadas = data?.descartadas || 0;
 
       if (descartadas > 0) {
-        alert(`Operación completada:\n• ${aprobadas} notas aprobadas como deuda pendiente.\n• ${descartadas} notas descartadas automáticamente porque ya contaban con una mensualidad activa o pagada.`);
+        alert(`Operación completada:\n• ${aprobadas} notas aprobadas como deuda pendiente.\n• ${descartadas} notas descartadas automáticamente (duplicadas o vencidas tras 25 días).`);
       } else {
         alert(`Operación completada:\n• ${aprobadas} notas aprobadas exitosamente.`);
       }
 
-      cargarNotas();
+      await cargarNotas(1);
+      setPagina(1);
       void actualizarAviso();
       void queryClient.invalidateQueries({ queryKey: ['cxc-busqueda'] });
     } catch (err: any) {
@@ -297,7 +308,7 @@ const NotasAutomaticas: React.FC = () => {
           }, { onConflict: 'alumno_id,periodo_estadistico' });
       }
 
-      setNotas(prev => prev.filter(n => n.id !== id));
+      await cargarNotas(pagina);
       void actualizarAviso();
       void queryClient.invalidateQueries({ queryKey: ['cxc-busqueda'] });
     } catch (err: any) {
@@ -424,7 +435,7 @@ const NotasAutomaticas: React.FC = () => {
         )}
 
         <button 
-          onClick={cargarNotas}
+          onClick={() => void cargarNotas(pagina)}
           className="btn-nueva-cuenta"
           style={{ height: '34px', marginTop: 'auto', display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0 1rem' }}
         >
@@ -432,7 +443,7 @@ const NotasAutomaticas: React.FC = () => {
           <span>Actualizar</span>
         </button>
 
-        {notasFiltradas.length > 0 && (
+        {totalResultados > 0 && (
           <button 
             onClick={aprobarTodas}
             disabled={procesandoAccion === 'todas'}
@@ -453,10 +464,12 @@ const NotasAutomaticas: React.FC = () => {
             }}
           >
             <CheckCheck size={16} />
-            <span>{procesandoAccion === 'todas' ? 'Aprobando...' : `Aprobar Todas (${notasFiltradas.length})`}</span>
+            <span>{procesandoAccion === 'todas' ? 'Aprobando...' : `Aprobar Todas (${totalResultados})`}</span>
           </button>
         )}
       </div>
+
+      <AvisoVigenciaNotasAutomaticas />
 
       {/* Contenido Principal */}
       {error && (
@@ -471,7 +484,7 @@ const NotasAutomaticas: React.FC = () => {
           <RefreshCw size={32} className="spin" style={{ color: 'var(--primary)' }} />
           <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Cargando mensualidades por aprobar...</p>
         </div>
-      ) : notasFiltradas.length === 0 ? (
+      ) : notas.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '4rem 2rem', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: '8px', color: 'var(--text-secondary)' }}>
           <FileText size={48} style={{ opacity: 0.3, marginBottom: '1rem' }} />
           <p style={{ fontSize: '1.05rem', fontWeight: 500 }}>No hay mensualidades pendientes de aprobación</p>
@@ -491,12 +504,13 @@ const NotasAutomaticas: React.FC = () => {
                   </th>
                   <th style={{ padding: '1rem', color: 'var(--text-secondary)', fontWeight: 600 }}>Ciclo Facturado</th>
                   <th style={{ padding: '1rem', color: 'var(--text-secondary)', fontWeight: 600 }}>F. Emisión</th>
+                  <th style={{ padding: '1rem', color: 'var(--text-secondary)', fontWeight: 600 }}>Vigencia</th>
                   <th style={{ padding: '1rem', textAlign: 'right', color: 'var(--text-secondary)', fontWeight: 600 }}>Modalidad / Monto</th>
                   <th style={{ padding: '1rem', textAlign: 'center', color: 'var(--text-secondary)', fontWeight: 600 }}>Acciones</th>
                 </tr>
               </thead>
               <tbody>
-                {notasFiltradas.map((nota) => {
+                {notas.map((nota) => {
                   const mensualidadBase = Number(nota.alumnos?.mensualidad || 0);
                   const esParcial = mensualidadBase > 0 && nota.monto_total < mensualidadBase;
                   const estaCargando = procesandoAccion === nota.id;
@@ -538,6 +552,12 @@ const NotasAutomaticas: React.FC = () => {
                       </td>
                       <td style={{ padding: '1rem', color: 'var(--text-secondary)' }}>
                         {formatFechaBonita(nota.fecha_emision)}
+                      </td>
+                      <td style={{ padding: '1rem' }}>
+                        <EtiquetaVigenciaNota
+                          diasRestantes={nota.dias_restantes}
+                          expiraAt={nota.expira_at}
+                        />
                       </td>
                       <td style={{ padding: '1rem', textAlign: 'right' }}>
                         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.25rem' }}>
@@ -642,6 +662,13 @@ const NotasAutomaticas: React.FC = () => {
               </tbody>
             </table>
           </div>
+          <BarraPaginacionNotasAutomaticas
+            pagina={pagina}
+            limite={NOTAS_AUTOMATICAS_POR_PAGINA}
+            totalResultados={totalResultados}
+            cargando={cargando}
+            onCambiarPagina={setPagina}
+          />
         </div>
       )}
 
@@ -653,7 +680,7 @@ const NotasAutomaticas: React.FC = () => {
           onCreada={() => { 
             setModalNotaVisible(false); 
             setCxcParaEditar(null); 
-            cargarNotas(); 
+            void cargarNotas(pagina); 
             void actualizarAviso();
             void queryClient.invalidateQueries({ queryKey: ['cxc-busqueda'] });
           }}

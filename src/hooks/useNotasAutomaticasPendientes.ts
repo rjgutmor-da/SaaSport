@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { can, ROLE_MATRIX } from '../config/roles';
 import { useAuthSaaSport } from '../lib/authHelper';
+import { obtenerFechaCorteVigenciaIso } from '../lib/notasAutomaticasVigencia';
 import { supabase } from '../lib/supabaseClient';
 
 const queryRoot = 'notas-automaticas-pendientes';
@@ -22,7 +23,8 @@ export function useNotasAutomaticasPendientes() {
         .select('id')
         .eq('escuela_id', escuelaId)
         .eq('origen_facturacion', 'automatico')
-        .eq('estado', 'borrador');
+        .eq('estado', 'borrador')
+        .gt('created_at', obtenerFechaCorteVigenciaIso());
       if (sucursalFiltro) query = query.eq('sucursal_id', sucursalFiltro);
       const { data, error } = await query.limit(1).abortSignal(signal);
       if (error) throw error;

@@ -66,7 +66,8 @@ const HistorialFacturacionAutomatica: React.FC = () => {
         .eq('escuela_id', escuelaId)
         .gte('fecha_ejecucion', fechaDesde)
         .lte('fecha_ejecucion', fechaHasta)
-        .order('fecha_ejecucion', { ascending: false });
+        .order('fecha_ejecucion', { ascending: false })
+        .limit(200);
 
       if (queryError) throw queryError;
       setEjecuciones(data || []);
@@ -92,7 +93,9 @@ const HistorialFacturacionAutomatica: React.FC = () => {
           alumnos (nombres, apellidos),
           sucursales (nombre)
         `)
-        .eq('ejecucion_facturacion_id', ejecucion.id);
+        .eq('ejecucion_facturacion_id', ejecucion.id)
+        .order('fecha_emision', { ascending: false })
+        .limit(500);
 
       if (queryError) throw queryError;
       setDetalles((data as any) || []);
@@ -270,10 +273,16 @@ const HistorialFacturacionAutomatica: React.FC = () => {
                 </div>
               ) : detalles.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-secondary)' }}>
-                  No se encontraron facturas vinculadas a esta ejecución.
+                  No se encontraron facturas vinculadas a esta ejecución. Las notas en borrador que no se aprueban en 25 días se eliminan automáticamente.
                 </div>
               ) : (
-                <div style={{ border: '1px solid var(--border)', borderRadius: '6px', overflow: 'hidden' }}>
+                <>
+                  {detalles.length < ejecucionSeleccionada.facturas_generadas && (
+                    <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '0.75rem' }}>
+                      Mostrando {detalles.length} de {ejecucionSeleccionada.facturas_generadas} notas generadas (los borradores sin aprobar se eliminan automáticamente tras 25 días).
+                    </p>
+                  )}
+                  <div style={{ border: '1px solid var(--border)', borderRadius: '6px', overflow: 'hidden' }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
                     <thead>
                       <tr style={{ background: 'rgba(255, 255, 255, 0.02)', borderBottom: '1px solid var(--border)' }}>
@@ -303,6 +312,7 @@ const HistorialFacturacionAutomatica: React.FC = () => {
                     </tbody>
                   </table>
                 </div>
+                </>
               )}
             </div>
 
