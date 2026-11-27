@@ -2,6 +2,7 @@
 import React from 'react';
 import { ShieldCheck, GraduationCap, Users, MapPin, AlertTriangle, RefreshCw } from 'lucide-react';
 import type { DetalleCupo, EstadoPlanEscuela } from '../../types/planes';
+import { calcularResumenPrecioPlan, formatearUsd } from '../../lib/preciosPlanes';
 
 interface TarjetaPlanCuposProps {
   estadoPlan: EstadoPlanEscuela | null | undefined;
@@ -142,13 +143,7 @@ const TarjetaPlanCupos: React.FC<TarjetaPlanCuposProps> = ({ estadoPlan, cargand
   if (!estadoPlan) return null;
 
   const { plan, addons, cupos } = estadoPlan;
-
-  const serviciosAdicionales = [
-    addons.fotos_asistencia && 'Fotos de Asistencia',
-    addons.perfil_medico && 'Perfil Médico',
-    addons.ficha_deportiva && 'Ficha Deportiva',
-    addons.cobranza_automatica && 'Cobranza Automática WhatsApp',
-  ].filter((item): item is string => Boolean(item));
+  const resumenPrecio = calcularResumenPrecioPlan(estadoPlan);
 
   const hayAlgunCupoLleno =
     cupos.alumnos.usados >= cupos.alumnos.limite ||
@@ -172,20 +167,25 @@ const TarjetaPlanCupos: React.FC<TarjetaPlanCuposProps> = ({ estadoPlan, cargand
 
         <div className="pe-plan-badges">
           <span className="pe-plan-badge-principal">
-            {plan.nombre_producto} — Plan {plan.nombre_tramo}
+            {plan.nombre_producto} — Plan {plan.nombre_tramo} · {formatearUsd(resumenPrecio.precioPlanBaseUsd)}/mes
           </span>
           {addons.suscripcion_anual && (
-            <span className="pe-plan-badge-anual">Suscripción Anual</span>
+            <span className="pe-plan-badge-anual">
+              Suscripción Anual (-{resumenPrecio.descuentoAnualPorcentaje}%)
+            </span>
           )}
+          <span className="pe-plan-badge-total" title={resumenPrecio.esAnual ? `Equivale a ${formatearUsd(resumenPrecio.totalAnualUsd)}/año` : 'Total mensual de servicios contratados'}>
+            Total: <strong>{formatearUsd(resumenPrecio.totalMensualUsd)}</strong>/mes
+          </span>
         </div>
       </div>
 
-      {serviciosAdicionales.length > 0 && (
+      {resumenPrecio.serviciosAdicionales.length > 0 && (
         <div className="pe-plan-addons">
-          <span className="pe-plan-addons-label">Servicios adicionales activos:</span>
-          {serviciosAdicionales.map((servicio) => (
-            <span key={servicio} className="pe-plan-addon-chip">
-              {servicio}
+          <span className="pe-plan-addons-label">Servicios adicionales contratados:</span>
+          {resumenPrecio.serviciosAdicionales.map((servicio) => (
+            <span key={servicio.clave} className="pe-plan-addon-chip">
+              {servicio.nombre} · <strong>{formatearUsd(servicio.precioMensualUsd)}</strong>
             </span>
           ))}
         </div>
