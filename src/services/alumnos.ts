@@ -58,6 +58,35 @@ const textoONulo = (valor?: string | null): string | null => {
   return limpio.length > 0 ? limpio : null;
 };
 
+/** Sube la foto comprimida (< 200 KB) al bucket compartido avatars/fotos_alumnos/. */
+export const subirFotoAlumnoStorage = async (
+  archivo: File,
+): Promise<{ publicUrl: string; filePath: string }> => {
+  const MAX_SIZE = 200 * 1024;
+  if (archivo.size > MAX_SIZE) {
+    throw new Error('La foto es demasiado pesada. Máximo 200 KB.');
+  }
+
+  const filePath = `fotos_alumnos/${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`;
+  const { error: uploadError } = await supabase.storage
+    .from('avatars')
+    .upload(filePath, archivo, {
+      cacheControl: '86400',
+      upsert: false,
+      contentType: 'image/jpeg',
+    });
+
+  if (uploadError) {
+    throw new Error('Error al subir la foto: ' + uploadError.message);
+  }
+
+  const { data: { publicUrl } } = supabase.storage
+    .from('avatars')
+    .getPublicUrl(filePath);
+
+  return { publicUrl, filePath };
+};
+
 export const verificarAlumnoDuplicado = async ({
   nombres,
   apellidos,
@@ -176,6 +205,7 @@ const construirCargaAlumno = (datos: FormularioAlumnoDatos) => {
     apellidos: datos.apellidos.trim().replace(/\s+/g, ' '),
     fecha_nacimiento: datos.fecha_nacimiento,
     carnet_identidad: textoONulo(datos.carnet_identidad),
+    es_arquero: Boolean(datos.es_arquero),
     nombre_padre: textoONulo(datos.nombre_padre),
     telefono_padre: formatearTelefonoWhatsApp(datos.telefono_padre),
     nombre_madre: textoONulo(datos.nombre_madre),
@@ -210,15 +240,25 @@ const lanzarErrorAlumno = (error: { message?: string; code?: string; details?: s
 export const crearAlumnoSaaSport = async (
   datos: FormularioAlumnoDatos,
   contexto: { escuelaId: string; usuarioId: string },
+  archivoFoto?: File | null,
 ): Promise<{ alumno: AlumnoListadoSaaSport; notaIngreso: NotaIngresoBorrador | null }> => {
   validarDatosAlumno(datos);
   const carga = construirCargaAlumno(datos);
+
+  let fotoUrl: string | null = null;
+  let fotoSubidaPath: string | null = null;
+
+  if (archivoFoto) {
+    const subida = await subirFotoAlumnoStorage(archivoFoto);
+    fotoUrl = subida.publicUrl;
+    fotoSubidaPath = subida.filePath;
+  }
 
   const { data: alumno, error } = await supabase
     .from('alumnos')
     .insert([{
       ...carga,
-      es_arquero: false,
+      foto_url: fotoUrl,
       estado: 'Pendiente',
       tipo: 'Formativo',
       escuela_id: contexto.escuelaId,
@@ -228,6 +268,9 @@ export const crearAlumnoSaaSport = async (
     .single();
 
   if (error || !alumno) {
+    if (fotoSubidaPath) {
+      await supabase.storage.from('avatars').remove([fotoSubidaPath]).catch(() => {});
+    }
     lanzarErrorAlumno(error || {});
   }
 
@@ -245,18 +288,35 @@ export const crearAlumnoSaaSport = async (
 export const actualizarAlumnoSaaSport = async (
   alumnoId: string,
   datos: FormularioAlumnoDatos,
+  archivoFoto?: File | null,
 ): Promise<AlumnoListadoSaaSport> => {
   validarDatosAlumno(datos);
   const carga = construirCargaAlumno(datos);
 
+  let fotoUrlNueva: string | undefined;
+  let fotoSubidaPath: string | null = null;
+
+  if (archivoFoto) {
+    const subida = await subirFotoAlumnoStorage(archivoFoto);
+    fotoUrlNueva = subida.publicUrl;
+    fotoSubidaPath = subida.filePath;
+  }
+
+  const payloadActualizacion = fotoUrlNueva !== undefined
+    ? { ...carga, foto_url: fotoUrlNueva }
+    : carga;
+
   const { data: alumno, error } = await supabase
     .from('alumnos')
-    .update(carga)
+    .update(payloadActualizacion)
     .eq('id', alumnoId)
     .select('*')
     .single();
 
   if (error || !alumno) {
+    if (fotoSubidaPath) {
+      await supabase.storage.from('avatars').remove([fotoSubidaPath]).catch(() => {});
+    }
     lanzarErrorAlumno(error || {});
   }
 

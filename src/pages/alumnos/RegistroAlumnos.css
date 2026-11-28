@@ -44,6 +44,7 @@
   border-radius: var(--radius-md);
   padding: 3px;
   gap: 3px;
+  flex-shrink: 0;
 }
 
 .alumnos-tab-btn {
@@ -54,6 +55,7 @@
   color: var(--text-secondary);
   display: inline-flex;
   align-items: center;
+  justify-content: space-between;
   gap: 0.4rem;
 }
 
@@ -67,6 +69,46 @@
   padding: 0.05rem 0.4rem;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.14);
+}
+
+/* Miniatura de foto y badge de arquero en el listado (planes Combo) */
+.alumno-lista-avatar-img {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1.5px solid var(--border);
+  flex-shrink: 0;
+  background: var(--bg-input);
+}
+
+.alumno-lista-avatar-iniciales {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: rgba(255, 107, 53, 0.14);
+  border: 1.5px solid rgba(255, 107, 53, 0.35);
+  color: var(--primary);
+  font-size: 0.75rem;
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.alumno-badge-arquero {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  background: rgba(10, 132, 255, 0.14);
+  border: 1px solid rgba(10, 132, 255, 0.4);
+  color: var(--secondary);
 }
 
 .alumnos-busqueda-input-wrap {
@@ -217,6 +259,127 @@
   color: var(--danger);
 }
 
+.alumno-checkbox-arquero {
+  display: inline-flex !important;
+  align-items: center;
+  gap: 0.55rem;
+  cursor: pointer;
+  margin-bottom: 0 !important;
+  text-transform: none !important;
+  letter-spacing: normal !important;
+  font-size: 0.9rem !important;
+  font-weight: 600 !important;
+  color: var(--text-primary) !important;
+}
+
+.alumno-checkbox-arquero input[type='checkbox'] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--primary);
+  cursor: pointer;
+}
+
+/* Selector de Foto con Cámara y Autocompresión */
+.alumno-foto-contenedor {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.alumno-foto-caja {
+  border: 1.5px dashed var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--bg-input);
+  padding: 0.9rem;
+  min-height: 130px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.alumno-foto-estado {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.alumno-foto-botones {
+  display: flex;
+  gap: 0.85rem;
+  width: 100%;
+  max-width: 320px;
+}
+
+.alumno-foto-btn-accion {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  padding: 0.9rem 0.75rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.alumno-foto-btn-accion:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.alumno-foto-preview-wrap {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  width: 100%;
+}
+
+.alumno-foto-preview-img {
+  width: 84px;
+  height: 84px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid var(--primary);
+  background: var(--bg-card);
+}
+
+.alumno-foto-preview-acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.alumno-foto-camara-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+}
+
+.alumno-foto-video {
+  width: 100%;
+  max-width: 340px;
+  max-height: 220px;
+  border-radius: var(--radius-md);
+  object-fit: cover;
+  background: #000;
+}
+
+.alumno-foto-camara-Controles {
+  display: flex;
+  gap: 0.65rem;
+  justify-content: center;
+}
+
 .alumno-radios-contacto {
   display: flex;
   align-items: center;
@@ -293,6 +456,46 @@
 }
 
 @media (max-width: 768px) {
+  /* En celular: Activos y Archivados apilados verticalmente a la izquierda y filtros a la derecha */
+  .alumnos-barra-control {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    flex-wrap: nowrap !important;
+    gap: 0.6rem !important;
+    padding: 0.65rem 0.75rem !important;
+  }
+
+  .alumnos-barra-control .alumnos-tabs-estado {
+    flex-direction: column;
+    align-items: stretch;
+    width: 118px;
+  }
+
+  .alumnos-barra-control .alumnos-tab-btn {
+    padding: 0.35rem 0.55rem;
+    font-size: 0.76rem;
+    width: 100%;
+  }
+
+  .alumnos-barra-control .alumnos-filtros-inline {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .alumnos-barra-control .alumnos-filtros-compact {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.4rem;
+  }
+
+  .alumnos-barra-control .alumnos-filtros-compact .cxc-filtro-select {
+    width: 100%;
+    min-width: 0;
+    padding: 0.35rem 0.5rem;
+    font-size: 0.78rem !important;
+  }
+
   .alumnos-paginacion-pie {
     justify-content: center;
     border-radius: var(--radius-md);

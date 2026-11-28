@@ -52,6 +52,34 @@ const nombreContactoPrincipal = (alumno: AlumnoListadoSaaSport): string => {
   return alumno.nombre_padre || alumno.nombre_madre || '—';
 };
 
+const inicialesAlumno = (alumno: AlumnoListadoSaaSport): string => {
+  const n = (alumno.nombres || '').trim().charAt(0);
+  const a = (alumno.apellidos || '').trim().charAt(0);
+  return `${n}${a}`.toUpperCase() || 'A';
+};
+
+const AvatarAlumnoLista: React.FC<{ alumno: AlumnoListadoSaaSport }> = ({ alumno }) => {
+  const [falloImagen, setFalloImagen] = useState(false);
+
+  if (alumno.foto_url && !falloImagen) {
+    return (
+      <img
+        src={alumno.foto_url}
+        alt={`${alumno.nombres} ${alumno.apellidos}`}
+        className="alumno-lista-avatar-img"
+        loading="lazy"
+        onError={() => setFalloImagen(true)}
+      />
+    );
+  }
+
+  return (
+    <div className="alumno-lista-avatar-iniciales" aria-hidden="true">
+      {inicialesAlumno(alumno)}
+    </div>
+  );
+};
+
 const RegistroAlumnos: React.FC = () => {
   const { session, perfil, escuelaId, sucursalId } = useAuthSaaSport();
   const isMobile = useIsMobile();
@@ -304,7 +332,7 @@ const RegistroAlumnos: React.FC = () => {
       )}
 
       {/* 2. Barra de filtros y estado */}
-      <div className="cxc-barra-control">
+      <div className="cxc-barra-control alumnos-barra-control">
         <div className="alumnos-tabs-estado" role="tablist" aria-label="Estado del alumno">
           <button
             type="button"
@@ -328,8 +356,8 @@ const RegistroAlumnos: React.FC = () => {
           </button>
         </div>
 
-        <div className="cxc-filtros-inline">
-          <div className="cxc-filtros-compact">
+        <div className="cxc-filtros-inline alumnos-filtros-inline">
+          <div className="cxc-filtros-compact alumnos-filtros-compact">
             {!sucursalBloqueada && sucursalesEscuela.length > 1 && (
               <select
                 className="cxc-filtro-select"
@@ -448,14 +476,20 @@ const RegistroAlumnos: React.FC = () => {
               return (
                 <article key={alumno.id} className="alumnos-tarjeta-movil">
                   <div className="alumnos-tarjeta-top">
-                    <div>
-                      <div className="alumnos-tarjeta-nombre">
-                        {alumno.nombres} {alumno.apellidos}
-                      </div>
-                      <div className="alumnos-tarjeta-meta" style={{ marginTop: '0.2rem' }}>
-                        {alumno.sub && <span>Sub {alumno.sub}</span>}
-                        {alumno.sucursal_nombre && <span>{alumno.sucursal_nombre}</span>}
-                        {!esSaaSportLite && alumno.grupo_nombre && <span>{alumno.grupo_nombre}</span>}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', minWidth: 0 }}>
+                      {incluyeAsisport && <AvatarAlumnoLista alumno={alumno} />}
+                      <div style={{ minWidth: 0 }}>
+                        <div className="alumnos-tarjeta-nombre">
+                          {alumno.nombres} {alumno.apellidos}
+                        </div>
+                        <div className="alumnos-tarjeta-meta" style={{ marginTop: '0.2rem' }}>
+                          {alumno.sub !== null && <span>Sub {alumno.sub}</span>}
+                          {alumno.sucursal_nombre && <span>{alumno.sucursal_nombre}</span>}
+                          {!esSaaSportLite && alumno.grupo_nombre && <span>{alumno.grupo_nombre}</span>}
+                          {incluyeAsisport && alumno.es_arquero && (
+                            <span className="alumno-badge-arquero">Arquero</span>
+                          )}
+                        </div>
                       </div>
                     </div>
                     {alumno.archivado && <span className="cxc-badge-archivado">Archivado</span>}
@@ -570,10 +604,16 @@ const RegistroAlumnos: React.FC = () => {
                   >
                     <td className="cxc-td cxc-td-alumno">
                       <div className="cxc-alumno-info">
+                        {incluyeAsisport && <AvatarAlumnoLista alumno={alumno} />}
                         <div style={{ minWidth: 0 }}>
-                          <span className="cxc-alumno-nombre">
-                            {alumno.nombres} {alumno.apellidos}
-                          </span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
+                            <span className="cxc-alumno-nombre">
+                              {alumno.nombres} {alumno.apellidos}
+                            </span>
+                            {incluyeAsisport && alumno.es_arquero && (
+                              <span className="alumno-badge-arquero">Arquero</span>
+                            )}
+                          </div>
                           {(alumno.carnet_identidad || alumno.observaciones) && (
                             <span style={{ fontSize: '0.74rem', color: 'var(--text-tertiary)', display: 'block' }}>
                               {[
@@ -590,7 +630,7 @@ const RegistroAlumnos: React.FC = () => {
                     </td>
 
                     <td className="cxc-td" style={{ textAlign: 'center' }}>
-                      {alumno.sub ? `Sub ${alumno.sub}` : '—'}
+                      {alumno.sub !== null ? `Sub ${alumno.sub}` : '—'}
                     </td>
 
                     <td className="cxc-td" style={{ textAlign: 'center' }}>

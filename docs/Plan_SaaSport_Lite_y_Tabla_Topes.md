@@ -68,8 +68,9 @@
      - *SaaSport normal y Combo:* `CXC` + `Alumnos` + `CxP` + `Cajas`.
    - Listado paginado estrictamente en servidor (`30` por página) con buscador con *debounce*, filtro `Activos` / `Archivados`, filtro por sucursal/sub y filtro por grupo (solo en *SaaSport normal* y *Combo*; oculto en *SaaSport Lite*).
 
-2. **Formulario de Alumno (`ModalFormularioAlumno.tsx`) y Regla de Grupos por Plan:**
-   - *Datos del Alumno:* `Nombres *`, `Apellidos *`, `Fecha de Nacimiento *`, `Carnet de Identidad (Opcional)` + validación de duplicados (`AdvertenciaAlumnoDuplicado`), sin foto ni checkbox de arquero.
+2. **Formulario de Alumno (`ModalFormularioAlumno.tsx`) y Regla de Grupos / Cancha por Plan:**
+   - *Datos del Alumno:* `Nombres *`, `Apellidos *`, `Fecha de Nacimiento *`, `Carnet de Identidad (Opcional)` + validación de duplicados (`AdvertenciaAlumnoDuplicado`).
+   - *Foto del Alumno y Arquero (exclusivo Combo con AsiSport):* cuando el plan incluye *AsiSport* (`Combo`), se habilita en el formulario **`Foto del Alumno`** (subir imagen o tomar foto con cámara, comprimida a JPEG <100 KB en `avatars/fotos_alumnos/`) y el checkbox **`Es Arquero`**, además de mostrar la miniatura de foto en el listado de `Alumnos`. En *SaaSport Lite* y *SaaSport normal* (sin AsiSport) se omiten.
    - *Representantes Legales:* Padre y Madre (al menos uno con nombre requerido según regla vigente en BD; teléfonos formateados para WhatsApp), radio de primer contacto, `Colegio` y `Dirección del Domicilio`.
    - *Información Interna:* `Mensualidad`, `Sucursal` (selector visible si tiene >1 sucursal; autoasignada si tiene 1), `Observaciones para Ficha Financiera` (máx. 30 caracteres) y **`Grupo` escalonado por plan**:
      - **SaaSport Lite:** **no maneja Grupos** (se oculta `Grupo` en formulario/filtros y se clasifica solo por Sucursal y Categoría `Sub` automática por fecha de nacimiento; `Grupos y Horarios` queda bloqueado con candado `🔒` en Panel de Escuela).

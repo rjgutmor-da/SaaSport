@@ -2,6 +2,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { X, UserPlus, Edit2 } from 'lucide-react';
 import AdvertenciaAlumnoDuplicado from './AdvertenciaAlumnoDuplicado';
+import SelectorFotoAlumno from './SelectorFotoAlumno';
 import { useAlumnoDuplicado } from '../../hooks/useAlumnoDuplicado';
 import {
   actualizarAlumnoSaaSport,
@@ -57,6 +58,7 @@ const estadoInicialFormulario = (
       apellidos: alumnoEditar.apellidos || '',
       fecha_nacimiento: alumnoEditar.fecha_nacimiento || '',
       carnet_identidad: alumnoEditar.carnet_identidad || '',
+      es_arquero: Boolean(alumnoEditar.es_arquero),
       nombre_padre: alumnoEditar.nombre_padre || '',
       telefono_padre: alumnoEditar.telefono_padre || '',
       nombre_madre: alumnoEditar.nombre_madre || '',
@@ -79,6 +81,7 @@ const estadoInicialFormulario = (
     apellidos: '',
     fecha_nacimiento: '',
     carnet_identidad: '',
+    es_arquero: false,
     nombre_padre: '',
     telefono_padre: '',
     nombre_madre: '',
@@ -126,6 +129,7 @@ const ModalFormularioAlumno: React.FC<ModalFormularioAlumnoProps> = ({
   const [formData, setFormData] = useState<FormularioAlumnoDatos>(() =>
     estadoInicialFormulario(alumnoEditar, sucursalDefecto),
   );
+  const [archivoFoto, setArchivoFoto] = useState<File | null>(null);
   const [erroresCampo, setErroresCampo] = useState<Record<string, string>>({});
   const [errorGeneral, setErrorGeneral] = useState<string | null>(null);
   const [guardando, setGuardando] = useState(false);
@@ -148,6 +152,7 @@ const ModalFormularioAlumno: React.FC<ModalFormularioAlumnoProps> = ({
   useEffect(() => {
     if (!visible) return;
     setFormData(estadoInicialFormulario(alumnoEditar, sucursalDefecto));
+    setArchivoFoto(null);
     setErroresCampo({});
     setErrorGeneral(null);
     limpiarValidacionDuplicado();
@@ -159,35 +164,41 @@ const ModalFormularioAlumno: React.FC<ModalFormularioAlumnoProps> = ({
     return activos.filter(g => !g.sucursal_id || g.sucursal_id === formData.sucursal_id);
   }, [grupos, escuelaId, formData.sucursal_id]);
 
-  const actualizarCampo = (campo: keyof FormularioAlumnoDatos, valor: string) => {
+  const actualizarCampo = (campo: keyof FormularioAlumnoDatos, valor: string | boolean) => {
     setErrorGeneral(null);
+    if (campo === 'es_arquero') {
+      setFormData(prev => ({ ...prev, es_arquero: Boolean(valor) }));
+      return;
+    }
+
+    const texto = String(valor);
     if (campo === 'carnet_identidad') {
-      const soloNumeros = valor.replace(/[^0-9]/g, '');
+      const soloNumeros = texto.replace(/[^0-9]/g, '');
       setFormData(prev => ({ ...prev, carnet_identidad: soloNumeros }));
     } else if (campo === 'observaciones') {
-      setFormData(prev => ({ ...prev, observaciones: valor.slice(0, 30) }));
+      setFormData(prev => ({ ...prev, observaciones: texto.slice(0, 30) }));
     } else if (campo === 'sucursal_id') {
       setFormData(prev => {
         const grupoActual = grupos.find(g => g.id === prev.cancha_id);
-        const mantenerGrupo = !grupoActual?.sucursal_id || grupoActual.sucursal_id === valor;
+        const mantenerGrupo = !grupoActual?.sucursal_id || grupoActual.sucursal_id === texto;
         return {
           ...prev,
-          sucursal_id: valor,
+          sucursal_id: texto,
           cancha_id: mantenerGrupo ? prev.cancha_id : '',
         };
       });
     } else if (campo === 'cancha_id') {
-      const grupoSeleccionado = grupos.find(g => g.id === valor);
+      const grupoSeleccionado = grupos.find(g => g.id === texto);
       setFormData(prev => ({
         ...prev,
-        cancha_id: valor,
+        cancha_id: texto,
         sucursal_id:
           !sucursalBloqueadaId && grupoSeleccionado?.sucursal_id
             ? grupoSeleccionado.sucursal_id
             : prev.sucursal_id,
       }));
     } else {
-      setFormData(prev => ({ ...prev, [campo]: valor }));
+      setFormData(prev => ({ ...prev, [campo]: texto }));
     }
 
     if (erroresCampo[campo]) {
@@ -261,16 +272,24 @@ const ModalFormularioAlumno: React.FC<ModalFormularioAlumnoProps> = ({
         ...formData,
         sucursal_id: formData.sucursal_id || sucursalDefecto,
         cancha_id: mostrarCampoGrupo ? formData.cancha_id : '',
+        es_arquero: incluyeAsisport ? formData.es_arquero : false,
       };
 
+      const fotoEnviar = incluyeAsisport ? archivoFoto : null;
+
       if (esEdicion && alumnoEditar) {
-        const actualizado = await actualizarAlumnoSaaSport(alumnoEditar.id, datosNormalizados);
+        const actualizado = await actualizarAlumnoSaaSport(
+          alumnoEditar.id,
+          datosNormalizados,
+          fotoEnviar,
+        );
         onGuardado({ modo: 'editar', alumno: actualizado, notaIngreso: null });
       } else {
-        const { alumno, notaIngreso } = await crearAlumnoSaaSport(datosNormalizados, {
-          escuelaId,
-          usuarioId,
-        });
+        const { alumno, notaIngreso } = await crearAlumnoSaaSport(
+          datosNormalizados,
+          { escuelaId, usuarioId },
+          fotoEnviar,
+        );
         onGuardado({ modo: 'crear', alumno, notaIngreso });
       }
     } catch (err: unknown) {
@@ -362,6 +381,20 @@ const ModalFormularioAlumno: React.FC<ModalFormularioAlumnoProps> = ({
                   disabled={guardando}
                 />
               </div>
+
+              {incluyeAsisport && (
+                <div className="form-campo full-width">
+                  <label className="alumno-checkbox-arquero">
+                    <input
+                      type="checkbox"
+                      checked={formData.es_arquero}
+                      onChange={e => actualizarCampo('es_arquero', e.target.checked)}
+                      disabled={guardando}
+                    />
+                    <span>Es Arquero (visible para Entrenador de Arqueros en AsiSport)</span>
+                  </label>
+                </div>
+              )}
             </div>
           </section>
 
@@ -534,6 +567,17 @@ const ModalFormularioAlumno: React.FC<ModalFormularioAlumnoProps> = ({
                   disabled={guardando}
                 />
               </div>
+
+              {incluyeAsisport && (
+                <div className="form-campo full-width">
+                  <label>Foto del Alumno (Opcional)</label>
+                  <SelectorFotoAlumno
+                    fotoUrlActual={alumnoEditar?.foto_url || null}
+                    onChange={setArchivoFoto}
+                    disabled={guardando}
+                  />
+                </div>
+              )}
             </div>
           </section>
 

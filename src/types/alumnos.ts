@@ -9,6 +9,8 @@ export interface AlumnoListadoSaaSport {
   apellidos: string;
   fecha_nacimiento: string;
   carnet_identidad: string | null;
+  foto_url: string | null;
+  es_arquero: boolean;
   sub: number | null;
   nombre_padre: string | null;
   telefono_padre: string | null;
@@ -58,6 +60,7 @@ export interface FormularioAlumnoDatos {
   apellidos: string;
   fecha_nacimiento: string;
   carnet_identidad: string;
+  es_arquero: boolean;
   nombre_padre: string;
   telefono_padre: string;
   nombre_madre: string;
