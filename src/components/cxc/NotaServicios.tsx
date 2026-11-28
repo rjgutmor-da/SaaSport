@@ -981,7 +981,16 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
     <div className="cxc-modal-overlay">
       <div className="cxc-modal nota-modal-movil" style={{ maxWidth: '700px' }} onClick={e => e.stopPropagation()}>
         <div className="cxc-modal-header">
-          <h2><FileText size={20} style={{ marginRight: '0.5rem' }} /> {esAnticipo ? 'Cobro Anticipado' : (cxcEditar ? 'Editar Nota de Servicio' : 'Nueva Nota de Servicio')}</h2>
+          <h2>
+            <FileText size={20} style={{ marginRight: '0.5rem' }} />{' '}
+            {esAnticipo
+              ? 'Cobro Anticipado'
+              : cxcEditar?.estado === 'borrador'
+                ? 'Nueva Nota de Cargo (Ingreso)'
+                : cxcEditar
+                  ? 'Editar Nota de Servicio'
+                  : 'Nueva Nota de Servicio'}
+          </h2>
           <button onClick={onCerrar} disabled={guardando}><X size={20} /></button>
         </div>
         <div className="nota-cuerpo-movil" style={{ padding: '1.5rem' }}>
@@ -1576,8 +1585,8 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
                 </div>
               )}
 
-              {/* Checkbox para nuevo pago (solo al crear) */}
-              {!cxcEditar && (
+              {/* Checkbox para nuevo pago (al crear o al confirmar borrador de ingreso) */}
+              {(!cxcEditar || cxcEditar.estado === 'borrador') && (
                 <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', marginBottom: pagarAlCrear ? '1rem' : 0 }}>
                   <input 
                     type="checkbox" 
@@ -1634,7 +1643,13 @@ const NotaServicios: React.FC<NotaServiciosProps> = ({
               <div style={{ fontSize: '1.5rem', fontWeight: 800 }}>Total: {simboloMoneda()} {fmtMonto(total)}</div>
               <div style={{ display: 'flex', gap: '0.75rem' }}>
                 <button type="button" onClick={onCerrar} className="btn-refrescar" style={{ width: 'auto' }}>Cancelar</button>
-                <button type="submit" disabled={guardando} className="btn-guardar-cuenta" style={{ width: 'auto', padding: '0 2rem' }}>{guardando ? '...' : (cxcEditar ? 'Guardar Cambios' : 'Confirmar')}</button>
+                <button type="submit" disabled={guardando} className="btn-guardar-cuenta" style={{ width: 'auto', padding: '0 2rem' }}>
+                  {guardando
+                    ? '...'
+                    : cxcEditar?.estado === 'borrador'
+                      ? (pagarAlCrear ? 'Guardar y Cobrar' : 'Guardar Nota')
+                      : (cxcEditar ? 'Guardar Cambios' : 'Confirmar')}
+                </button>
               </div>
             </div>
             {error && <p style={{ color: '#f87171', marginTop: '1rem' }}>{error}</p>}

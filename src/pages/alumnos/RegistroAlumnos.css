@@ -1,0 +1,310 @@
+/* Estilos del módulo Registro de Alumnos y sus modales en SaaSport */
+
+.alumnos-aviso-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.85rem 1.1rem;
+  border-radius: var(--radius-md);
+  margin-bottom: 1rem;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.alumnos-aviso-banner--exito {
+  background: var(--success-bg);
+  border: 1px solid var(--success);
+  color: var(--success);
+}
+
+.alumnos-aviso-banner--info {
+  background: rgba(10, 132, 255, 0.12);
+  border: 1px solid var(--secondary);
+  color: var(--secondary);
+}
+
+.alumnos-aviso-banner--error {
+  background: var(--danger-bg);
+  border: 1px solid var(--danger);
+  color: var(--danger);
+}
+
+.alumnos-aviso-cerrar {
+  color: inherit;
+  padding: 0.2rem;
+  display: flex;
+  align-items: center;
+}
+
+.alumnos-tabs-estado {
+  display: inline-flex;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 3px;
+  gap: 3px;
+}
+
+.alumnos-tab-btn {
+  padding: 0.42rem 0.85rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.alumnos-tab-btn--activo {
+  background: var(--primary);
+  color: #ffffff;
+}
+
+.alumnos-tab-contador {
+  font-size: 0.75rem;
+  padding: 0.05rem 0.4rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.alumnos-busqueda-input-wrap {
+  position: relative;
+  flex: 1;
+  min-width: 240px;
+}
+
+.alumnos-busqueda-icono {
+  position: absolute;
+  left: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-tertiary);
+  pointer-events: none;
+}
+
+.alumnos-busqueda-input {
+  width: 100%;
+  padding-left: 2.3rem;
+}
+
+.alumnos-acciones-fila {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  justify-content: center;
+}
+
+.alumnos-btn-fila {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.32rem 0.65rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.78rem;
+  font-weight: 700;
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  color: var(--text-primary);
+}
+
+.alumnos-btn-fila:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.alumnos-btn-fila--archivar:hover {
+  border-color: #f59e0b;
+  color: #f59e0b;
+}
+
+.alumnos-btn-fila--restaurar {
+  border-color: rgba(0, 210, 106, 0.4);
+  color: var(--success);
+}
+
+.alumnos-btn-fila--restaurar:hover {
+  background: var(--success-bg);
+}
+
+.alumnos-tarjetas-movil {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.alumnos-tarjeta-movil {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 0.9rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.alumnos-tarjeta-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.alumnos-tarjeta-nombre {
+  font-size: 0.98rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.alumnos-tarjeta-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem 0.9rem;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.alumnos-tarjeta-pie {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  padding-top: 0.55rem;
+  border-top: 1px solid var(--border);
+}
+
+.alumnos-paginacion-pie {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  padding: 0.85rem 1rem;
+  border-top: 1px solid var(--border);
+  background: var(--bg-card);
+}
+
+/* Modales de Alumnos */
+.alumno-form-modal {
+  max-width: 720px;
+}
+
+.alumno-form-cuerpo {
+  gap: 1.5rem;
+}
+
+.alumno-form-seccion {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.alumno-form-subtitulo {
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: var(--primary);
+  padding-bottom: 0.4rem;
+  border-bottom: 1px solid var(--border);
+  letter-spacing: 0.02em;
+}
+
+.alumno-campo-error {
+  display: block;
+  margin-top: 0.3rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--danger);
+}
+
+.alumno-radios-contacto {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  padding: 0.35rem 0;
+}
+
+.alumno-radio-opcion {
+  display: inline-flex !important;
+  align-items: center;
+  gap: 0.45rem;
+  cursor: pointer;
+  margin-bottom: 0 !important;
+  text-transform: none !important;
+  letter-spacing: normal !important;
+  font-size: 0.9rem !important;
+  font-weight: 600 !important;
+  color: var(--text-primary) !important;
+}
+
+.alumno-obs-contador {
+  font-size: 0.75rem;
+  color: var(--text-tertiary);
+  font-weight: 600;
+}
+
+.alumno-form-pie {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--border);
+}
+
+.alumno-duplicado-verificando {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.alumno-duplicado-alerta {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.85rem 1rem;
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(245, 158, 11, 0.55);
+  background: rgba(245, 158, 11, 0.12);
+  color: #f59e0b;
+}
+
+.alumno-duplicado-titulo {
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
+.alumno-duplicado-desc {
+  margin-top: 0.2rem;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: var(--text-primary);
+}
+
+.alumno-archivo-nota-borrador {
+  padding: 0.75rem 0.9rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--bg-glass);
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+@media (max-width: 768px) {
+  .alumnos-paginacion-pie {
+    justify-content: center;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border);
+    margin-top: 0.75rem;
+  }
+
+  .alumno-form-pie {
+    flex-direction: column-reverse;
+  }
+
+  .alumno-form-pie button {
+    width: 100% !important;
+  }
+}

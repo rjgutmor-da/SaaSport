@@ -12,7 +12,7 @@ import { BrowserRouter, Routes, Route, NavLink, Navigate } from 'react-router-do
 import {
   Settings, Sun, Moon, Monitor, LogOut,
   HandCoins, PieChart, Landmark, BookOpen,
-  School, Activity, BarChart2, Users, Camera, FileText, Bell
+  School, Activity, BarChart2, Users, Camera, FileText, Bell, GraduationCap
 } from 'lucide-react';
 import { supabase } from './lib/supabaseClient';
 import { AuthProviderSaaSport, useAuthSaaSport } from './lib/authHelper';
@@ -26,10 +26,11 @@ import { can } from './config/roles';
 import type { Permission } from './config/roles';
 
 // Estáticos — siempre en el bundle (móvil los necesita)
-import Dashboard     from './pages/Dashboard';
-import Login         from './pages/Login';
-import CuentasCobrar from './pages/cxc/CuentasCobrar';
-import CajasBancos   from './pages/cajas-bancos/CajasBancos';
+import Dashboard       from './pages/Dashboard';
+import Login           from './pages/Login';
+import CuentasCobrar   from './pages/cxc/CuentasCobrar';
+import RegistroAlumnos from './pages/alumnos/RegistroAlumnos';
+import CajasBancos     from './pages/cajas-bancos/CajasBancos';
 
 // Lazy — solo se descargan cuando el usuario navega a esa ruta
 const CuentasPagar      = React.lazy(() => import('./pages/cxp/CuentasPagar'));
@@ -70,8 +71,8 @@ interface SidebarProps {
 const Sidebar: React.FC<SidebarProps> = ({ onLogout, theme, onCycleTheme, extra }) => {
   const { esSuperAdmin, escuela, escuelaId, perfil } = useAuthSaaSport();
   const hayNotasPendientes = useNotasAutomaticasPendientes();
-  const { data: estadoPlanSidebar } = usePlanEscuela(escuelaId, esSuperAdmin);
-  const hayAlertaPlan = Boolean(estadoPlanSidebar?.alerta?.requiere_atencion);
+  const { data: estadoPlanSidebar } = usePlanEscuela(escuelaId, Boolean(escuelaId));
+  const hayAlertaPlan = Boolean(esSuperAdmin && estadoPlanSidebar?.alerta?.requiere_atencion);
 
   const getThemeIcon = () => {
     if (theme === 'light') return <Sun size={18} />;
@@ -90,7 +91,14 @@ const Sidebar: React.FC<SidebarProps> = ({ onLogout, theme, onCycleTheme, extra 
         {can(perfil?.rol, 'finance.cxc.view') && <div className="sidebar-item-group">
           <NavLink to="/cxc" className={({ isActive }) => (isActive ? 'sidebar-link active' : 'sidebar-link')}>
             <HandCoins size={20} strokeWidth={1.5} />
-            <span>Alumnos (CxC)</span>
+            <span>Cuentas por Cobrar</span>
+          </NavLink>
+        </div>}
+
+        {can(perfil?.rol, 'asisport.editStudents') && <div className="sidebar-item-group">
+          <NavLink to="/alumnos" className={({ isActive }) => (isActive ? 'sidebar-link active' : 'sidebar-link')}>
+            <GraduationCap size={20} strokeWidth={1.5} />
+            <span>Alumnos</span>
           </NavLink>
         </div>}
 
@@ -341,6 +349,7 @@ const AppRouter: React.FC<AppRouterProps> = ({ onLogout, theme, onCycleTheme }) 
             {/* Rutas siempre disponibles (móvil y desktop) */}
             <Route path="/"              element={<CuentasCobrar />} />
             <Route path="/cxc"           element={<CuentasCobrar />} />
+            <Route path="/alumnos"       element={<RequirePermission permission="asisport.editStudents"><RegistroAlumnos /></RequirePermission>} />
             <Route path="/cxp"           element={<RequirePermission permission="finance.cxp.view"><CuentasPagar /></RequirePermission>} />
             <Route path="/cajas-bancos"  element={<RequirePermission permission="finance.boxes.view"><CajasBancos /></RequirePermission>} />
 

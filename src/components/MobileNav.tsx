@@ -1,18 +1,27 @@
 import { NavLink, useLocation } from 'react-router-dom';
-import { HandCoins, PieChart, Landmark } from 'lucide-react';
+import { HandCoins, GraduationCap, PieChart, Landmark } from 'lucide-react';
 import { useAuthSaaSport } from '../lib/authHelper';
 import { can } from '../config/roles';
+import { usePlanEscuela } from '../hooks/usePlanEscuela';
 
 const tabs = [
-  { to: '/cxc',          icon: HandCoins, label: 'CXC', permission: 'finance.cxc.view' },
-  { to: '/cxp',          icon: PieChart,  label: 'CxP', permission: 'finance.cxp.view' },
-  { to: '/cajas-bancos', icon: Landmark,  label: 'Cajas', permission: 'finance.boxes.view' },
+  { to: '/cxc',          icon: HandCoins,     label: 'CXC',     permission: 'finance.cxc.view',      ocultarEnLite: false },
+  { to: '/alumnos',      icon: GraduationCap, label: 'Alumnos', permission: 'asisport.editStudents', ocultarEnLite: false },
+  { to: '/cxp',          icon: PieChart,      label: 'CxP',     permission: 'finance.cxp.view',      ocultarEnLite: true },
+  { to: '/cajas-bancos', icon: Landmark,      label: 'Cajas',   permission: 'finance.boxes.view',    ocultarEnLite: false },
 ] as const;
 
 export function MobileNav() {
   const location = useLocation();
-  const { perfil } = useAuthSaaSport();
-  const visibleTabs = tabs.filter(tab => can(perfil?.rol, tab.permission));
+  const { perfil, escuelaId } = useAuthSaaSport();
+  const { data: estadoPlan } = usePlanEscuela(escuelaId, Boolean(escuelaId));
+  const esSaaSportLite = Boolean(
+    estadoPlan?.plan.incluye_saasport_lite && !estadoPlan?.plan.incluye_saasport_full,
+  );
+
+  const visibleTabs = tabs.filter(
+    tab => can(perfil?.rol, tab.permission) && !(esSaaSportLite && tab.ocultarEnLite),
+  );
 
   return (
     <nav
@@ -30,8 +39,8 @@ export function MobileNav() {
       }}
     >
       {visibleTabs.map(({ to, icon: Icon, label }) => {
-        const isActive = (to as string) === '/'
-          ? location.pathname === '/'
+        const isActive = to === '/cxc'
+          ? location.pathname === '/' || location.pathname.startsWith('/cxc')
           : location.pathname.startsWith(to);
 
         return (

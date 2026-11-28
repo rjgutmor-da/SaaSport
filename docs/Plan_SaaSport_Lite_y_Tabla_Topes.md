@@ -58,18 +58,44 @@
    - Devuelve en una sola llamada el plan, módulos, topes efectivos y conteos precalculados en PostgreSQL (reemplazando también la descarga masiva de alumnos detectada en `PanelEscuela.tsx`).
 
 ### Fase 2: Módulo de Registro, Edición y Archivo de Alumnos en SaaSport
-1. **Pestaña dedicada `Registro de Alumnos` (`/alumnos`) en Escritorio y Móvil (`MobileNav`):**
-   - En móvil: *SaaSport Lite* mostrará `Alumnos` + `CXC`; *SaaSport* normal mostrará `Alumnos` + `CXC` + `CxP` + `Cajas`.
-   - Listado paginado en servidor (`30` por página) con buscador con debounce, filtro Activos/Archivados y sucursal/grupo.
-2. **Formulario de Alumno (`ModalFormularioAlumno.tsx`):**
-   - *Datos del Alumno:* `Nombres *`, `Apellidos *`, `Fecha de Nacimiento *`, `Carnet de Identidad (Opcional)` + validación de duplicados (`AdvertenciaAlumnoDuplicado`), sin foto ni checkbox de arquero.
-   - *Representantes Legales:* Padre y Madre (nombre + teléfono, al menos uno requerido), radio de primer contacto, `Colegio` y `Dirección del Domicilio`.
-   - *Información Interna:* `Mensualidad`, `Sucursal` (solo visible si tiene >1 sucursal), `Grupo (Opcional)` y `Observaciones para Ficha Financiera` (máx. 30 caracteres), más modal post-inscripción `MensualidadIngresoModal`.
+> *(Decisiones alineadas el 2026-11-27)*
 
-### Fase 3: Modo `SaaSport Lite` y Tarjeta de Cupos en Panel de Escuela
-1. **Adaptación de vistas para `SaaSport Lite`:**
-   - Ocultar `Cajas y Bancos`, `Cuentas por Pagar`, `Estadísticas` y botón `AsiSport` (si no tienen AsiSport).
-   - Mantener `Registro de Alumnos`, `Cuentas por Cobrar`, `Mensualidades Por Aprobar`, `Cuentas` (filtrado solo a conceptos de ingreso sin inventario/stock) y `Panel de Escuela`.
-   - En cobros de `SaaSport Lite`: usar cuentas internas automáticas (`Efectivo` y `QR / Transferencia`) como selector de método de pago, ocultando saldos de cajas y totalizadores globales recaudados.
-2. **Panel de Escuela (`TarjetaPlanCupos.tsx`):**
-   - Barras visuales permanentes de consumo (`Alumnos activos`, `Usuarios`, `Sucursales`) frente a los topes del plan contratado.
+1. **Alcance y Navegación (`Cuentas por Cobrar` + `Alumnos`):**
+   - Disponible en **todos los planes con acceso a SaaSport** (`SaaSport Lite`, `SaaSport` normal y `Combo AsiSport + SaaSport`), operando sobre la misma tabla `public.alumnos`.
+   - **Orden en menú lateral (PC):** `Cuentas por Cobrar` (`/` y `/cxc`, renombrado desde *Alumnos (CxC)* y **sin** enlace de `+ Nuevo Alumno` adentro) → `Alumnos` (`/alumnos`) → `Caja y Bancos` (`/cajas-bancos`).
+   - **Barra inferior móvil (`MobileNav`):**
+     - *SaaSport Lite:* `CXC` + `Alumnos` + `Cajas` (ocultando módulos bloqueados para no saturar).
+     - *SaaSport normal y Combo:* `CXC` + `Alumnos` + `CxP` + `Cajas`.
+   - Listado paginado estrictamente en servidor (`30` por página) con buscador con *debounce*, filtro `Activos` / `Archivados`, filtro por sucursal/sub y filtro por grupo (solo en *SaaSport normal* y *Combo*; oculto en *SaaSport Lite*).
+
+2. **Formulario de Alumno (`ModalFormularioAlumno.tsx`) y Regla de Grupos por Plan:**
+   - *Datos del Alumno:* `Nombres *`, `Apellidos *`, `Fecha de Nacimiento *`, `Carnet de Identidad (Opcional)` + validación de duplicados (`AdvertenciaAlumnoDuplicado`), sin foto ni checkbox de arquero.
+   - *Representantes Legales:* Padre y Madre (al menos uno con nombre requerido según regla vigente en BD; teléfonos formateados para WhatsApp), radio de primer contacto, `Colegio` y `Dirección del Domicilio`.
+   - *Información Interna:* `Mensualidad`, `Sucursal` (selector visible si tiene >1 sucursal; autoasignada si tiene 1), `Observaciones para Ficha Financiera` (máx. 30 caracteres) y **`Grupo` escalonado por plan**:
+     - **SaaSport Lite:** **no maneja Grupos** (se oculta `Grupo` en formulario/filtros y se clasifica solo por Sucursal y Categoría `Sub` automática por fecha de nacimiento; `Grupos y Horarios` queda bloqueado con candado `🔒` en Panel de Escuela).
+     - **SaaSport normal (sin AsiSport):** se habilita `Grupos y Horarios` en Panel de Escuela (simplificado sin requerir profesor titular) y `Grupo` aparece como **Opcional** en el formulario de alumno.
+     - **Combo (AsiSport + SaaSport):** `Grupos y Horarios` completo (con profesor y horario) y `Grupo *` **Obligatorio** en el formulario de alumno.
+
+3. **Flujo Post-Inscripción y Archivo:**
+   - **Al inscribir alumno nuevo en SaaSport:** si tiene `mensualidad > 0`, abre inmediatamente el modal **`Nota de Cargo` (`NotaServicios`)** rellenado con la mensualidad de ingreso listo para guardar (y cobrar si se desea); si el administrador cierra sin guardar, el borrador permanece en `Mensualidades Por Aprobar` como respaldo. Si la mensualidad es `0` o vacía (becado), no se abre la Nota de Cargo.
+   - **Al archivar un alumno:** si tiene deuda pendiente en CxC, muestra advertencia informando el monto (aclarando que sigue cobrable en `CxC → Archivados`), libera el cupo activo y elimina automáticamente cualquier borrador automático aún no aprobado.
+
+### Fase 3: Modo `SaaSport Lite`, Bloqueos Comerciales y Transición a `SaaSport`
+> *(Decisiones alineadas el 2026-11-27)*
+
+1. **Bloqueo de planes `Solo AsiSport`:**
+   - Si la escuela tiene contratado únicamente el plan `AsiSport` (`incluye_saasport_lite = false` e `incluye_saasport_full = false`), se bloquea por completo la entrada a SaaSport redirigiendo a AsiSport *(la migración del Panel de Escuela hacia AsiSport se abordará más adelante)*.
+
+2. **Las 3 secciones principales de `SaaSport Lite` y sus módulos auxiliares:**
+   - Secciones operativas base: **`Cuentas por Cobrar`**, **`Alumnos`** y **`Caja y Bancos`**.
+   - **`Caja y Bancos` en `SaaSport Lite`:**
+     - Se crean por defecto únicamente 2 cajas fijas: **`Efectivo`** y **`Bancos`** (en Lite no se pueden crear nuevas cajas ni editar/cambiar sus nombres; al subir a *SaaSport normal* se desbloquea editarlas, renombrarlas y crear más cuentas conservando todo el historial).
+     - Dentro de `Caja y Bancos` en Lite solo se permite **ver movimientos de cobros CxC** y hacer **Transferencias (`Efectivo ↔ Bancos`)**; quedan bloqueados `Ingreso Directo`, `Egresos` (`Pago CxP` y `Gasto Directo`) y `Nueva Caja`.
+   - **`Mensualidades Por Aprobar` y `Cuentas` en `SaaSport Lite`:**
+     - `Mensualidades Por Aprobar` permanece habilitado.
+     - `Cuentas` permanece habilitado pero recortado exclusivamente a **conceptos de ingreso/servicio**, bloqueando *Inventario con stock* y *conceptos de Gasto*.
+
+3. **Patrón Comercial de Candado (`🔒`) en PC vs Celular:**
+   - **En PC:** los módulos exclusivos de *SaaSport normal* (`Cuentas por Pagar`, `Estadísticas`, `Inventario`, `Grupos y Horarios`, `Egresos/Nueva Caja`) se muestran atenuados con candado `🔒` y aviso *"Disponible en Plan SaaSport"*. De igual forma, cuando el plan no incluye *AsiSport*, el botón `AsiSport`, `Fotos de Asistencia` y el `Cobro según asistencias` se muestran con candado `🔒` *"Disponible al sumar AsiSport"*.
+   - **En Celular:** los módulos no incluidos en el plan se ocultan por completo para mantener limpia la navegación móvil.
+   - **Panel de Escuela (`TarjetaPlanCupos.tsx`):** ya implementado con desglose de plan, barra de cupos y alertas de margen/exceso.
